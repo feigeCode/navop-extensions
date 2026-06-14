@@ -1095,7 +1095,7 @@ Expected: GitHub Actions runs `Release`, then `Upload R2`.
 Run:
 
 ```bash
-curl -fsSL https://onetcli.pdyyds.cn/extensions/manifest.json -o /tmp/onetcli-extension-manifest.json
+curl -fsSL https://onetcli.test.cn/extensions/manifest.json -o /tmp/onetcli-extension-manifest.json
 node -e 'const fs = require("fs"); const m = JSON.parse(fs.readFileSync("/tmp/onetcli-extension-manifest.json", "utf8")); if (m.extensions[0].id !== "duckdb") process.exit(1); console.log("manifest ok");'
 ```
 
@@ -1106,7 +1106,7 @@ Expected: `manifest ok`.
 Run:
 
 ```bash
-asset_url="$(node -e 'const fs = require("fs"); const m = JSON.parse(fs.readFileSync("/tmp/onetcli-extension-manifest.json", "utf8")); const asset = m.extensions[0].asset_urls["x86_64-unknown-linux-gnu"]; const manifest = "https://onetcli.pdyyds.cn/extensions/manifest.json"; const prefix = manifest.slice(0, manifest.lastIndexOf("/") + 1); process.stdout.write(/^https?:\/\//.test(asset) ? asset : prefix + asset.replace(/^\/+/, ""));')"
+asset_url="$(node -e 'const fs = require("fs"); const m = JSON.parse(fs.readFileSync("/tmp/onetcli-extension-manifest.json", "utf8")); const asset = m.extensions[0].asset_urls["x86_64-unknown-linux-gnu"]; const manifest = "https://onetcli.test.cn/extensions/manifest.json"; const prefix = manifest.slice(0, manifest.lastIndexOf("/") + 1); process.stdout.write(/^https?:\/\//.test(asset) ? asset : prefix + asset.replace(/^\/+/, ""));')"
 curl -fsSL "$asset_url" -o /tmp/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz
 tar tzf /tmp/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz | sort
 ```
@@ -1291,10 +1291,10 @@ Expected: `onetcli` still builds the host app and extension consumption path wit
 Run the main app with:
 
 ```bash
-ONETCLI_PUBLIC_BASE_URL=https://onetcli.pdyyds.cn cargo run -p main
+ONETCLI_PUBLIC_BASE_URL=https://onetcli.test.cn cargo run -p main
 ```
 
-Open the extension marketplace. Expected: DuckDB appears from `https://onetcli.pdyyds.cn/extensions/manifest.json`.
+Open the extension marketplace. Expected: DuckDB appears from `https://onetcli.test.cn/extensions/manifest.json`.
 
 - [ ] **Step 2: Verify GitHub fallback manifest**
 
