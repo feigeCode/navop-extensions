@@ -2,7 +2,7 @@ use crate::duckdb_session::DuckDbSession;
 use anyhow::Result;
 use duckdb::Connection;
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 #[derive(Debug, Serialize)]
 struct DatabaseInfo {
@@ -87,8 +87,9 @@ fn list_databases_detailed() -> Vec<DatabaseInfo> {
 }
 
 fn list_schemas(connection: &Connection) -> Result<Vec<String>> {
-    let mut statement = connection
-        .prepare("SELECT schema_name FROM information_schema.schemata ORDER BY schema_name")?;
+    let mut statement = connection.prepare(
+        "SELECT DISTINCT schema_name FROM information_schema.schemata ORDER BY schema_name",
+    )?;
     let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
     collect_rows(rows)
 }

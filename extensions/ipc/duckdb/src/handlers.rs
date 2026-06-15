@@ -694,6 +694,32 @@ fn validate_export_database(database: Option<&str>) -> Result<(), ProtocolError>
     }
 }
 
+fn append_optional_filter(
+    sql: &mut String,
+    values: &mut Vec<String>,
+    column: &str,
+    value: Option<String>,
+) {
+    if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+        sql.push_str(" AND ");
+        sql.push_str(column);
+        sql.push_str(" = ?");
+        values.push(value);
+    }
+}
+
+fn append_database_schema_filters(
+    sql: &mut String,
+    values: &mut Vec<String>,
+    database: Option<String>,
+    schema: Option<String>,
+    database_column: &str,
+    schema_column: &str,
+) {
+    append_optional_filter(sql, values, database_column, database);
+    append_optional_filter(sql, values, schema_column, schema);
+}
+
 fn raw_export_sql(params: &ExportParams) -> Result<String, ProtocolError> {
     match (params.sql.as_deref(), params.table.as_deref()) {
         (Some(_), Some(_)) => Err(invalid_params("data/export accepts either sql or table")),
@@ -907,7 +933,9 @@ pub fn handle_schema_schemas(
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
     let mut stmt = conn
-        .prepare("SELECT schema_name FROM information_schema.schemata ORDER BY schema_name")
+        .prepare(
+            "SELECT DISTINCT schema_name FROM information_schema.schemata ORDER BY schema_name",
+        )
         .map_err(|e| {
             protocol_error_from_anyhow(error_codes::SQL_SYNTAX_ERROR, anyhow::Error::from(e))
         })?;
@@ -946,16 +974,26 @@ pub fn handle_schema_objects(
 
     // tables
     if p.kinds.is_empty() || p.kinds.contains(&ObjectKind::Table) {
-        let mut stmt = conn
-            .prepare(
-                "SELECT table_name, schema_name FROM duckdb_tables() \
-                 WHERE internal = FALSE AND temporary = FALSE ORDER BY schema_name, table_name",
-            )
-            .map_err(|e| {
-                protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
-            })?;
+        let mut sql = String::from(
+            "SELECT table_name, schema_name FROM duckdb_tables() \
+             WHERE internal = FALSE AND temporary = FALSE",
+        );
+        let mut values = Vec::new();
+        append_database_schema_filters(
+            &mut sql,
+            &mut values,
+            p.database.clone(),
+            p.schema.clone(),
+            "database_name",
+            "schema_name",
+        );
+        sql.push_str(" ORDER BY schema_name, table_name");
+
+        let mut stmt = conn.prepare(&sql).map_err(|e| {
+            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+        })?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(duckdb::params_from_iter(values.iter()), |row| {
                 let name: String = row.get(0)?;
                 Ok(ObjectInfo {
                     name,
@@ -980,16 +1018,26 @@ pub fn handle_schema_objects(
 
     // views
     if p.kinds.is_empty() || p.kinds.contains(&ObjectKind::View) {
-        let mut stmt = conn
-            .prepare(
-                "SELECT view_name FROM duckdb_views() WHERE internal = FALSE \
-                 AND temporary = FALSE ORDER BY view_name",
-            )
-            .map_err(|e| {
-                protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
-            })?;
+        let mut sql = String::from(
+            "SELECT view_name FROM duckdb_views() \
+             WHERE internal = FALSE AND temporary = FALSE",
+        );
+        let mut values = Vec::new();
+        append_database_schema_filters(
+            &mut sql,
+            &mut values,
+            p.database.clone(),
+            p.schema.clone(),
+            "database_name",
+            "schema_name",
+        );
+        sql.push_str(" ORDER BY schema_name, view_name");
+
+        let mut stmt = conn.prepare(&sql).map_err(|e| {
+            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+        })?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(duckdb::params_from_iter(values.iter()), |row| {
                 let name: String = row.get(0)?;
                 Ok(ObjectInfo {
                     name,
@@ -1030,17 +1078,26 @@ pub fn handle_schema_columns(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT column_index, column_name, data_type, is_nullable, column_default \
-             FROM duckdb_columns() WHERE table_name = ? AND internal = FALSE \
-             ORDER BY column_index",
-        )
-        .map_err(|e| {
-            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
-        })?;
+    let mut sql = String::from(
+        "SELECT column_index, column_name, data_type, is_nullable, column_default \
+         FROM duckdb_columns() WHERE table_name = ? AND internal = FALSE",
+    );
+    let mut values = vec![p.table.clone()];
+    append_database_schema_filters(
+        &mut sql,
+        &mut values,
+        p.database,
+        p.schema,
+        "database_name",
+        "schema_name",
+    );
+    sql.push_str(" ORDER BY column_index");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| {
+        protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+    })?;
     let rows = stmt
-        .query_map([&p.table], |row| {
+        .query_map(duckdb::params_from_iter(values.iter()), |row| {
             let ordinal: i64 = row.get(0)?;
             let name: String = row.get(1)?;
             let type_str: String = row.get(2)?;
@@ -1081,16 +1138,26 @@ pub fn handle_schema_views(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT view_name, sql FROM duckdb_views() WHERE internal = FALSE \
-             AND temporary = FALSE ORDER BY view_name",
-        )
-        .map_err(|e| {
-            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
-        })?;
+    let mut sql = String::from(
+        "SELECT view_name, sql FROM duckdb_views() \
+         WHERE internal = FALSE AND temporary = FALSE",
+    );
+    let mut values = Vec::new();
+    append_database_schema_filters(
+        &mut sql,
+        &mut values,
+        p.database,
+        p.schema,
+        "database_name",
+        "schema_name",
+    );
+    sql.push_str(" ORDER BY schema_name, view_name");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| {
+        protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+    })?;
     let rows = stmt
-        .query_map([], |row| {
+        .query_map(duckdb::params_from_iter(values.iter()), |row| {
             let name: String = row.get(0)?;
             let sql: Option<String> = row.get(1)?;
             Ok(ViewInfo {
@@ -1128,16 +1195,26 @@ pub fn handle_schema_indexes(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT index_name, table_name, is_unique FROM duckdb_indexes() \
-             WHERE table_name = ? ORDER BY index_name",
-        )
-        .map_err(|e| {
-            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
-        })?;
+    let mut sql = String::from(
+        "SELECT index_name, table_name, is_unique FROM duckdb_indexes() \
+         WHERE table_name = ?",
+    );
+    let mut values = vec![p.table.clone()];
+    append_database_schema_filters(
+        &mut sql,
+        &mut values,
+        p.database,
+        p.schema,
+        "database_name",
+        "schema_name",
+    );
+    sql.push_str(" ORDER BY index_name");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| {
+        protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+    })?;
     let rows = stmt
-        .query_map([&p.table], |row| {
+        .query_map(duckdb::params_from_iter(values.iter()), |row| {
             let name: String = row.get(0)?;
             let table: String = row.get(1)?;
             let is_unique: bool = row.get(2)?;
@@ -2404,6 +2481,63 @@ mod tests {
     }
 
     #[test]
+    fn schema_objects_respects_schema_filter() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        for sql in [
+            "CREATE SCHEMA alt",
+            "CREATE TABLE main.main_only (id INT)",
+            "CREATE TABLE alt.alt_only (id INT)",
+        ] {
+            handle_exec_run(
+                &mut state,
+                &serde_json::json!({ "conn_id": conn_id, "sql": sql }),
+            )
+            .unwrap();
+        }
+
+        let main_result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({ "conn_id": conn_id, "schema": "main" }),
+        )
+        .unwrap();
+        let main_objects = main_result.as_array().unwrap();
+
+        assert!(
+            main_objects
+                .iter()
+                .any(|object| object["name"] == "main_only"),
+            "main schema should include main_only: {main_objects:?}"
+        );
+        assert!(
+            !main_objects
+                .iter()
+                .any(|object| object["name"] == "alt_only"),
+            "main schema should not include alt_only: {main_objects:?}"
+        );
+
+        let alt_result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({ "conn_id": conn_id, "schema": "alt" }),
+        )
+        .unwrap();
+        let alt_objects = alt_result.as_array().unwrap();
+
+        assert!(
+            alt_objects
+                .iter()
+                .any(|object| object["name"] == "alt_only"),
+            "alt schema should include alt_only: {alt_objects:?}"
+        );
+        assert!(
+            !alt_objects
+                .iter()
+                .any(|object| object["name"] == "main_only"),
+            "alt schema should not include main_only: {alt_objects:?}"
+        );
+    }
+
+    #[test]
     fn schema_columns_returns_definition() {
         let mut state = fresh_state();
         let conn_id = open_main_conn(&mut state);
@@ -2428,6 +2562,62 @@ mod tests {
     }
 
     #[test]
+    fn schema_columns_respects_schema_filter_for_same_table_name() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        for sql in [
+            "CREATE SCHEMA alt",
+            "CREATE TABLE main.dupe (main_id INT)",
+            "CREATE TABLE alt.dupe (alt_id INT)",
+        ] {
+            handle_exec_run(
+                &mut state,
+                &serde_json::json!({ "conn_id": conn_id, "sql": sql }),
+            )
+            .unwrap();
+        }
+
+        let result = handle_schema_columns(
+            &mut state,
+            &serde_json::json!({ "conn_id": conn_id, "schema": "main", "table": "dupe" }),
+        )
+        .unwrap();
+        let columns = result.as_array().unwrap();
+
+        assert_eq!(1, columns.len(), "main.dupe columns: {columns:?}");
+        assert_eq!("main_id", columns[0]["name"]);
+    }
+
+    #[test]
+    fn schema_indexes_respects_schema_filter_for_same_table_name() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        for sql in [
+            "CREATE SCHEMA alt",
+            "CREATE TABLE main.dupe_idx (main_id INT)",
+            "CREATE TABLE alt.dupe_idx (alt_id INT)",
+            "CREATE INDEX idx_main_dupe ON main.dupe_idx (main_id)",
+            "CREATE INDEX idx_alt_dupe ON alt.dupe_idx (alt_id)",
+        ] {
+            handle_exec_run(
+                &mut state,
+                &serde_json::json!({ "conn_id": conn_id, "sql": sql }),
+            )
+            .unwrap();
+        }
+
+        let result = handle_schema_indexes(
+            &mut state,
+            &serde_json::json!({ "conn_id": conn_id, "schema": "main", "table": "dupe_idx" }),
+        )
+        .unwrap();
+        let indexes = result.as_array().unwrap();
+
+        assert_eq!(1, indexes.len(), "main.dupe_idx indexes: {indexes:?}");
+        assert_eq!("idx_main_dupe", indexes[0]["name"]);
+    }
+
+    #[test]
     fn schema_columns_requires_table() {
         let mut state = fresh_state();
         let conn_id = open_main_conn(&mut state);
@@ -2449,7 +2639,19 @@ mod tests {
         )
         .unwrap();
         let arr = result.as_array().unwrap();
-        assert!(arr.iter().any(|s| s["name"] == "main"));
+        let names = arr
+            .iter()
+            .map(|schema| schema["name"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        let mut unique_names = names.clone();
+        unique_names.sort();
+        unique_names.dedup();
+
+        assert!(names.iter().any(|name| name == "main"));
+        assert_eq!(
+            unique_names, names,
+            "schema list should be unique: {names:?}"
+        );
     }
 
     #[test]
