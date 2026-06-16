@@ -223,11 +223,11 @@ pub fn handle_query_start(
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
 
-    let columns = prepare_query_columns(conn, &p.sql, &p.params)?;
+    let (sql, columns) = prepare_query_columns_with_catalog_retry(conn, &p.sql, &p.params)?;
     let cursor_state = CursorState::new(
         p.conn_id,
         columns.clone(),
-        p.sql,
+        sql,
         p.params,
         p.fetch_size,
         p.max_rows,
@@ -1476,6 +1476,61 @@ fn prepare_query_columns(
         .unwrap_or_default())
 }
 
+fn prepare_query_columns_with_catalog_retry(
+    conn: &duckdb::Connection,
+    sql: &str,
+    bound_params: &[CellValue],
+) -> Result<(String, Vec<ColumnSpec>), ProtocolError> {
+    match prepare_query_columns(conn, sql, bound_params) {
+        Ok(columns) => Ok((sql.to_string(), columns)),
+        Err(original_error) => {
+            let rewritten_sql = rewrite_current_catalog_system_table_references(conn, sql)
+                .map_err(|_| original_error.clone())?;
+            if rewritten_sql == sql {
+                return Err(original_error);
+            }
+            prepare_query_columns(conn, &rewritten_sql, bound_params)
+                .map(|columns| (rewritten_sql, columns))
+                .map_err(|_| original_error)
+        }
+    }
+}
+
+fn rewrite_current_catalog_system_table_references(
+    conn: &duckdb::Connection,
+    sql: &str,
+) -> Result<String, ProtocolError> {
+    let current_catalog = current_duckdb_catalog_from_connection(conn)?;
+    let current_catalog_ref = quote_sql_identifier(&current_catalog);
+    if !sql.contains(&current_catalog_ref) {
+        return Ok(sql.to_string());
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT view_name, schema_name FROM duckdb_views() \
+             WHERE schema_name IN ('information_schema', 'pg_catalog')",
+        )
+        .map_err(duckdb_sql_error)?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(duckdb_sql_error)?;
+    let mut rewritten = sql.to_string();
+    for row in rows {
+        let (name, schema) = row.map_err(duckdb_sql_error)?;
+        let incorrect_ref = format!("{current_catalog_ref}.{}", quote_sql_identifier(&name));
+        let correct_ref = format!(
+            "{}.{}",
+            quote_sql_identifier(&schema),
+            quote_sql_identifier(&name)
+        );
+        rewritten = rewritten.replace(&incorrect_ref, &correct_ref);
+    }
+    Ok(rewritten)
+}
+
 fn fetch_cursor_page(
     state: &ConnectionState,
     cursor: &mut CursorState,
@@ -1821,6 +1876,40 @@ mod tests {
         let rows = fetch["rows"].as_array().unwrap();
         assert_eq!(rows.len(), 2);
         assert!(fetch["done"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn query_start_rewrites_current_catalog_system_table_reference() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        let current_catalog = current_catalog_for_test(&state, conn_id);
+        let sql = format!(
+            "SELECT * FROM \"{}\".\"character_sets\" ORDER BY character_set_name",
+            current_catalog
+        );
+
+        let start = handle_query_start(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "sql": sql,
+                "fetch_size": 10
+            }),
+        )
+        .unwrap();
+        let cursor_id = start["cursor_id"].as_str().unwrap().to_string();
+
+        let fetch = handle_cursor_fetch(
+            &mut state,
+            &serde_json::json!({ "cursor_id": cursor_id, "n": 10 }),
+        )
+        .unwrap();
+        let rows = fetch["rows"].as_array().unwrap();
+
+        assert!(
+            !rows.is_empty(),
+            "information_schema.character_sets should be queryable through the host-generated catalog-qualified form"
+        );
     }
 
     #[test]
