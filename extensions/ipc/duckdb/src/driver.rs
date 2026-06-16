@@ -139,6 +139,7 @@ impl DriverConnection for DuckDbConnection {
             method::SCHEMA_VIEWS => handlers::handle_schema_views(&mut self.state, params),
             method::SCHEMA_INDEXES => handlers::handle_schema_indexes(&mut self.state, params),
             method::SCHEMA_CHECKS => handlers::handle_schema_checks(&mut self.state, params),
+            method::SCHEMA_FUNCTIONS => handlers::handle_schema_functions(&mut self.state, params),
             // ddl/build* 是纯方法,但 host 的 call_declared_wire_method 会注入 conn_id,
             // 因而可能带 conn_id 路由到这里——一并接受。
             method::DDL_BUILD => handlers::handle_ddl_build(params),

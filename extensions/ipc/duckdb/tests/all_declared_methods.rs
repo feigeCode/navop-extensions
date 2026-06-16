@@ -343,6 +343,16 @@ async fn duckdb_driver_declared_methods_are_callable() {
             .is_some_and(|sql| sql.contains("amount"))
     }));
 
+    let functions: Vec<Value> = call(
+        &handle,
+        &timeout,
+        &mut called,
+        method::SCHEMA_FUNCTIONS,
+        json!({ "conn_id": conn_id, "database": database }),
+    )
+    .await;
+    assert!(functions.iter().any(|function| function["name"] == "lower"));
+
     call_value(
         &handle,
         &timeout,

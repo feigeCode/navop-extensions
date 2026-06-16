@@ -32,12 +32,13 @@ use extension_protocol::query::{
 };
 use extension_protocol::row::{CellValue, ColumnSpec, Row};
 use extension_protocol::schema::{
-    CheckInfo, ChecksParams, ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams, IndexInfo,
-    IndexesParams, ObjectInfo, ObjectKind, ObjectsParams, SchemaInfo, SchemasParams, ViewInfo,
-    ViewsParams,
+    CheckInfo, ChecksParams, ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams, FunctionArg,
+    FunctionInfo, FunctionsParams, IndexInfo, IndexesParams, ObjectInfo, ObjectKind, ObjectsParams,
+    SchemaInfo, SchemasParams, ViewInfo, ViewsParams,
 };
 use serde_json::Value;
 
+use crate::builtin_functions::DUCKDB_BUILTIN_FUNCTIONS;
 use crate::duckdb_session::{
     DbConnectionConfig, DuckDbSession, current_database_name, is_default_catalog_reference,
     is_duckdb_catalog_schema,
@@ -1370,6 +1371,35 @@ pub fn handle_schema_checks(
     serde_json::to_value(out).map_err(params_deserialize_error)
 }
 
+pub fn handle_schema_functions(
+    state: &mut ConnectionState,
+    params: &Value,
+) -> Result<Value, ProtocolError> {
+    let p: FunctionsParams =
+        serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
+    state
+        .get_conn(p.conn_id)
+        .ok_or_else(|| unknown_conn(p.conn_id))?;
+
+    let out = DUCKDB_BUILTIN_FUNCTIONS
+        .iter()
+        .map(|function| FunctionInfo {
+            name: function.name.to_string(),
+            return_type: function.return_type.map(str::to_string),
+            args: duckdb_signature_args(function.signature),
+            language: Some("duckdb".to_string()),
+            definition: None,
+            comment: function.description.to_string(),
+            extra: serde_json::json!({
+                "kind": function.kind,
+                "builtin": true,
+                "signature": function.signature,
+            }),
+        })
+        .collect::<Vec<_>>();
+    serde_json::to_value(out).map_err(params_deserialize_error)
+}
+
 // ===================== DDL builder =====================
 
 pub fn handle_ddl_build_create_table(params: &Value) -> Result<Value, ProtocolError> {
@@ -1437,11 +1467,33 @@ fn declared_methods() -> &'static [&'static str] {
         method::SCHEMA_VIEWS,
         method::SCHEMA_INDEXES,
         method::SCHEMA_CHECKS,
+        method::SCHEMA_FUNCTIONS,
         method::DDL_BUILD,
         method::DDL_BUILD_CREATE_TABLE,
         method::DDL_BUILD_ALTER_TABLE,
         method::DDL_BUILD_DROP,
     ]
+}
+
+fn duckdb_signature_args(signature: &str) -> Vec<FunctionArg> {
+    let Some(inner) = signature
+        .split_once('(')
+        .and_then(|(_, rest)| rest.rsplit_once(')').map(|(inner, _)| inner))
+    else {
+        return Vec::new();
+    };
+    inner
+        .split(',')
+        .map(|item| item.trim().trim_matches('[').trim_matches(']').trim())
+        .filter(|item| !item.is_empty())
+        .filter(|item| *item != "...")
+        .map(|item| FunctionArg {
+            name: item.to_string(),
+            type_str: String::new(),
+            mode: Some("in".to_string()),
+            default: None,
+        })
+        .collect()
 }
 
 fn unknown_conn(id: ConnId) -> ProtocolError {
@@ -2980,6 +3032,31 @@ mod tests {
     }
 
     #[test]
+    fn schema_functions_returns_builtin_functions() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+
+        let result = handle_schema_functions(
+            &mut state,
+            &serde_json::json!({ "conn_id": conn_id, "database": "main" }),
+        )
+        .unwrap();
+        let functions = result.as_array().unwrap();
+
+        let lower = functions
+            .iter()
+            .find(|function| function["name"] == "lower")
+            .expect("DuckDB builtin functions should include lower()");
+        assert_eq!(lower["extra"]["kind"], "scalar");
+        assert_eq!(lower["return_type"], "VARCHAR");
+        assert!(
+            lower["args"]
+                .as_array()
+                .is_some_and(|args| !args.is_empty())
+        );
+    }
+
+    #[test]
     fn init_advertises_declared_ddl_methods() {
         let flag = AtomicI64::new(0);
         let result = handle_init(
@@ -2995,6 +3072,7 @@ mod tests {
         let methods = result["methods"].as_array().unwrap();
         assert!(methods.iter().any(|m| m == method::CONN_TEST));
         assert!(methods.iter().any(|m| m == method::SCHEMA_CHECKS));
+        assert!(methods.iter().any(|m| m == method::SCHEMA_FUNCTIONS));
         assert!(methods.iter().any(|m| m == method::EXEC_BATCH));
         assert!(methods.iter().any(|m| m == method::TX_BEGIN));
         assert!(methods.iter().any(|m| m == method::TX_COMMIT));
@@ -3021,6 +3099,7 @@ mod tests {
         let methods = manifest["methods"].as_array().unwrap();
         assert!(methods.iter().any(|m| m == method::CONN_TEST));
         assert!(methods.iter().any(|m| m == method::SCHEMA_CHECKS));
+        assert!(methods.iter().any(|m| m == method::SCHEMA_FUNCTIONS));
         assert!(methods.iter().any(|m| m == method::EXEC_BATCH));
         assert!(methods.iter().any(|m| m == method::TX_BEGIN));
         assert!(methods.iter().any(|m| m == method::TX_COMMIT));
@@ -3055,12 +3134,12 @@ mod tests {
     }
 
     #[test]
-    fn driver_manifest_does_not_advertise_unimplemented_schema_groups() {
+    fn driver_manifest_advertises_supported_schema_groups() {
         let manifest: serde_json::Value =
             serde_json::from_str(include_str!("../driver.json")).unwrap();
         let capabilities = &manifest["capabilities"];
 
-        assert_eq!(capabilities["supports_functions"], false);
+        assert_eq!(capabilities["supports_functions"], true);
         assert_eq!(capabilities["supports_procedures"], false);
         assert_eq!(capabilities["supports_triggers"], false);
         assert_eq!(capabilities["supports_sequences"], false);

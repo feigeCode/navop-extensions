@@ -1,3 +1,4 @@
+mod builtin_functions;
 mod data_import;
 mod data_import_support;
 pub mod ddl;
