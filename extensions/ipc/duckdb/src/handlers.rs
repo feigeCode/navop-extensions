@@ -36,7 +36,10 @@ use extension_protocol::schema::{
 };
 use serde_json::Value;
 
-use crate::duckdb_session::{DbConnectionConfig, DuckDbSession};
+use crate::duckdb_session::{
+    DbConnectionConfig, DuckDbSession, current_database_name, is_default_catalog_reference,
+    is_duckdb_catalog_schema,
+};
 use crate::server::{
     invalid_params, missing_param, params_deserialize_error, protocol_error_from_anyhow,
 };
@@ -187,17 +190,18 @@ pub fn handle_conn_use(
 ) -> Result<Value, ProtocolError> {
     let p: ConnUseParams =
         serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
-    if state.get_conn(p.conn_id).is_none() {
-        return Err(unknown_conn(p.conn_id));
-    }
-    // DuckDB 单文件,只接受 main / 空;别的库切换报错
-    if let Some(db) = p.database.as_deref()
-        && !matches!(db, "" | "main")
-    {
-        return Err(ProtocolError::new(
-            error_codes::SQL_OBJECT_NOT_FOUND,
-            "DuckDB single-file connection only exposes database `main`",
-        ));
+    let session = state
+        .get_conn(p.conn_id)
+        .ok_or_else(|| unknown_conn(p.conn_id))?;
+    // DuckDB 单文件,只接受当前 catalog / main / 空;别的库切换报错。
+    if let Some(db) = p.database.as_deref() {
+        let current_catalog = current_duckdb_catalog(session)?;
+        if !is_default_catalog_reference(db, &current_catalog) {
+            return Err(ProtocolError::new(
+                error_codes::SQL_OBJECT_NOT_FOUND,
+                format!("DuckDB single-file connection only exposes database `{current_catalog}`"),
+            ));
+        }
     }
     // schema / role 无作用,直接 ack
     Ok(Value::Null)
@@ -674,7 +678,8 @@ fn build_export_sql(
     conn: &duckdb::Connection,
     params: &ExportParams,
 ) -> Result<(String, Vec<String>), ProtocolError> {
-    validate_export_database(params.database.as_deref())?;
+    let current_catalog = current_duckdb_catalog_from_connection(conn)?;
+    validate_export_database(params.database.as_deref(), &current_catalog)?;
     let raw_sql = raw_export_sql(params)?;
     let raw_columns: Vec<String> = prepare_query_columns(conn, &raw_sql, &[])?
         .into_iter()
@@ -685,13 +690,29 @@ fn build_export_sql(
     Ok((sql, columns))
 }
 
-fn validate_export_database(database: Option<&str>) -> Result<(), ProtocolError> {
+fn validate_export_database(
+    database: Option<&str>,
+    current_catalog: &str,
+) -> Result<(), ProtocolError> {
     match database {
-        None | Some("") | Some("main") => Ok(()),
+        None => Ok(()),
+        Some(database) if is_default_catalog_reference(database, current_catalog) => Ok(()),
         Some(database) => Err(invalid_params(format!(
-            "DuckDB data/export only supports database `main`, got `{database}`"
+            "DuckDB data/export only supports database `{current_catalog}`, got `{database}`"
         ))),
     }
+}
+
+fn current_duckdb_catalog(session: &DuckDbSession) -> Result<String, ProtocolError> {
+    session
+        .current_catalog()
+        .map_err(|e| protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, e))
+}
+
+fn current_duckdb_catalog_from_connection(
+    conn: &duckdb::Connection,
+) -> Result<String, ProtocolError> {
+    current_database_name(conn).map_err(duckdb_sql_error)
 }
 
 fn append_optional_filter(
@@ -708,6 +729,19 @@ fn append_optional_filter(
     }
 }
 
+fn append_duckdb_database_filter(
+    sql: &mut String,
+    values: &mut Vec<String>,
+    value: Option<String>,
+    column: &str,
+    current_catalog: &str,
+) {
+    if let Some(value) = value.filter(|value| !is_default_catalog_reference(value, current_catalog))
+    {
+        append_optional_filter(sql, values, column, Some(value));
+    }
+}
+
 fn append_database_schema_filters(
     sql: &mut String,
     values: &mut Vec<String>,
@@ -715,9 +749,14 @@ fn append_database_schema_filters(
     schema: Option<String>,
     database_column: &str,
     schema_column: &str,
+    current_catalog: &str,
 ) {
-    append_optional_filter(sql, values, database_column, database);
+    append_duckdb_database_filter(sql, values, database, database_column, current_catalog);
     append_optional_filter(sql, values, schema_column, schema);
+}
+
+fn should_include_internal_schema_objects(schema: Option<&str>) -> bool {
+    schema.is_some_and(is_duckdb_catalog_schema)
 }
 
 fn raw_export_sql(params: &ExportParams) -> Result<String, ProtocolError> {
@@ -909,12 +948,13 @@ pub fn handle_schema_databases(
 ) -> Result<Value, ProtocolError> {
     let p: DatabasesParams =
         serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
-    let _conn = state
+    let session = state
         .get_conn(p.conn_id)
         .ok_or_else(|| unknown_conn(p.conn_id))?;
+    let current_catalog = current_duckdb_catalog(session)?;
     // DuckDB 单文件 = 单 database。
     let info = DatabaseInfo {
-        name: "main".to_string(),
+        name: current_catalog,
         ..Default::default()
     };
     Ok(serde_json::json!([info]))
@@ -969,15 +1009,23 @@ pub fn handle_schema_objects(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
+    let current_catalog = current_duckdb_catalog(session)?;
 
     let mut objects = Vec::new();
 
     // tables
     if p.kinds.is_empty() || p.kinds.contains(&ObjectKind::Table) {
-        let mut sql = String::from(
-            "SELECT table_name, schema_name FROM duckdb_tables() \
-             WHERE internal = FALSE AND temporary = FALSE",
-        );
+        let include_internal = should_include_internal_schema_objects(p.schema.as_deref());
+        let mut sql = if include_internal {
+            String::from(
+                "SELECT view_name AS table_name, schema_name FROM duckdb_views() WHERE 1=1",
+            )
+        } else {
+            String::from("SELECT table_name, schema_name FROM duckdb_tables() WHERE 1=1")
+        };
+        if !include_internal {
+            sql.push_str(" AND internal = FALSE AND temporary = FALSE");
+        }
         let mut values = Vec::new();
         append_database_schema_filters(
             &mut sql,
@@ -986,6 +1034,7 @@ pub fn handle_schema_objects(
             p.schema.clone(),
             "database_name",
             "schema_name",
+            &current_catalog,
         );
         sql.push_str(" ORDER BY schema_name, table_name");
 
@@ -1017,11 +1066,17 @@ pub fn handle_schema_objects(
     }
 
     // views
-    if p.kinds.is_empty() || p.kinds.contains(&ObjectKind::View) {
-        let mut sql = String::from(
-            "SELECT view_name FROM duckdb_views() \
-             WHERE internal = FALSE AND temporary = FALSE",
-        );
+    let catalog_views_returned_as_tables =
+        should_include_internal_schema_objects(p.schema.as_deref())
+            && (p.kinds.is_empty() || p.kinds.contains(&ObjectKind::Table));
+    if (p.kinds.is_empty() || p.kinds.contains(&ObjectKind::View))
+        && !catalog_views_returned_as_tables
+    {
+        let include_internal = should_include_internal_schema_objects(p.schema.as_deref());
+        let mut sql = String::from("SELECT view_name FROM duckdb_views() WHERE 1=1");
+        if !include_internal {
+            sql.push_str(" AND internal = FALSE AND temporary = FALSE");
+        }
         let mut values = Vec::new();
         append_database_schema_filters(
             &mut sql,
@@ -1030,6 +1085,7 @@ pub fn handle_schema_objects(
             p.schema.clone(),
             "database_name",
             "schema_name",
+            &current_catalog,
         );
         sql.push_str(" ORDER BY schema_name, view_name");
 
@@ -1078,10 +1134,15 @@ pub fn handle_schema_columns(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
+    let current_catalog = current_duckdb_catalog(session)?;
+    let include_internal = should_include_internal_schema_objects(p.schema.as_deref());
     let mut sql = String::from(
         "SELECT column_index, column_name, data_type, is_nullable, column_default \
-         FROM duckdb_columns() WHERE table_name = ? AND internal = FALSE",
+         FROM duckdb_columns() WHERE table_name = ?",
     );
+    if !include_internal {
+        sql.push_str(" AND internal = FALSE");
+    }
     let mut values = vec![p.table.clone()];
     append_database_schema_filters(
         &mut sql,
@@ -1090,6 +1151,7 @@ pub fn handle_schema_columns(
         p.schema,
         "database_name",
         "schema_name",
+        &current_catalog,
     );
     sql.push_str(" ORDER BY column_index");
 
@@ -1138,10 +1200,15 @@ pub fn handle_schema_views(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
+    let current_catalog = current_duckdb_catalog(session)?;
+    let include_internal = should_include_internal_schema_objects(p.schema.as_deref());
     let mut sql = String::from(
         "SELECT view_name, sql FROM duckdb_views() \
-         WHERE internal = FALSE AND temporary = FALSE",
+         WHERE 1=1",
     );
+    if !include_internal {
+        sql.push_str(" AND internal = FALSE AND temporary = FALSE");
+    }
     let mut values = Vec::new();
     append_database_schema_filters(
         &mut sql,
@@ -1150,6 +1217,7 @@ pub fn handle_schema_views(
         p.schema,
         "database_name",
         "schema_name",
+        &current_catalog,
     );
     sql.push_str(" ORDER BY schema_name, view_name");
 
@@ -1195,6 +1263,7 @@ pub fn handle_schema_indexes(
     let conn = session
         .connection()
         .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
+    let current_catalog = current_duckdb_catalog(session)?;
     let mut sql = String::from(
         "SELECT index_name, table_name, is_unique FROM duckdb_indexes() \
          WHERE table_name = ?",
@@ -1207,6 +1276,7 @@ pub fn handle_schema_indexes(
         p.schema,
         "database_name",
         "schema_name",
+        &current_catalog,
     );
     sql.push_str(" ORDER BY index_name");
 
@@ -1568,6 +1638,16 @@ mod tests {
         });
         let result = handle_conn_open(state, &params).unwrap();
         result["conn_id"].as_u64().unwrap()
+    }
+
+    fn current_catalog_for_test(state: &ConnectionState, conn_id: ConnId) -> String {
+        state
+            .get_conn(conn_id)
+            .unwrap()
+            .connection()
+            .unwrap()
+            .query_row("SELECT current_database()", [], |row| row.get(0))
+            .unwrap()
     }
 
     #[test]
@@ -2451,7 +2531,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_databases_returns_main() {
+    fn schema_databases_returns_catalog_name() {
         let mut state = fresh_state();
         let conn_id = open_main_conn(&mut state);
         let result =
@@ -2459,7 +2539,7 @@ mod tests {
                 .unwrap();
         let arr = result.as_array().unwrap();
         assert_eq!(arr.len(), 1);
-        assert_eq!(arr[0]["name"], "main");
+        assert_eq!(arr[0]["name"], current_catalog_for_test(&state, conn_id));
     }
 
     #[test]
@@ -2477,6 +2557,117 @@ mod tests {
         assert!(
             arr.iter()
                 .any(|o| o["name"] == "users" && o["kind"] == "table")
+        );
+    }
+
+    #[test]
+    fn schema_objects_treats_main_database_as_default_duckdb_database() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        handle_exec_run(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "sql": "CREATE TABLE users (id INT, name VARCHAR)"
+            }),
+        )
+        .unwrap();
+
+        let result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "database": "main",
+                "schema": "main",
+                "kinds": ["table"]
+            }),
+        )
+        .unwrap();
+        let objects = result.as_array().unwrap();
+
+        assert!(
+            objects
+                .iter()
+                .any(|object| object["name"] == "users" && object["kind"] == "table"),
+            "main database filter should not hide main schema tables: {objects:?}"
+        );
+    }
+
+    #[test]
+    fn schema_objects_treats_catalog_name_as_default_duckdb_database() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+        handle_exec_run(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "sql": "CREATE TABLE users (id INT, name VARCHAR)"
+            }),
+        )
+        .unwrap();
+
+        let current_catalog = current_catalog_for_test(&state, conn_id);
+        let result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "database": current_catalog,
+                "schema": "main",
+                "kinds": ["table"]
+            }),
+        )
+        .unwrap();
+        let objects = result.as_array().unwrap();
+
+        assert!(
+            objects
+                .iter()
+                .any(|object| object["name"] == "users" && object["kind"] == "table"),
+            "catalog database filter should not hide main schema tables: {objects:?}"
+        );
+    }
+
+    #[test]
+    fn schema_objects_lists_information_schema_tables() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+
+        let result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "schema": "information_schema",
+                "kinds": ["table"]
+            }),
+        )
+        .unwrap();
+        let objects = result.as_array().unwrap();
+
+        assert!(
+            !objects.is_empty(),
+            "information_schema should expose its catalog tables"
+        );
+    }
+
+    #[test]
+    fn schema_objects_lists_pg_catalog_tables() {
+        let mut state = fresh_state();
+        let conn_id = open_main_conn(&mut state);
+
+        let result = handle_schema_objects(
+            &mut state,
+            &serde_json::json!({
+                "conn_id": conn_id,
+                "schema": "pg_catalog",
+                "kinds": ["table"]
+            }),
+        )
+        .unwrap();
+        let objects = result.as_array().unwrap();
+
+        assert!(
+            !objects.is_empty(),
+            "pg_catalog should expose its catalog tables"
         );
     }
 
@@ -2772,6 +2963,85 @@ mod tests {
         assert_eq!(capabilities["supports_procedures"], false);
         assert_eq!(capabilities["supports_triggers"], false);
         assert_eq!(capabilities["supports_sequences"], false);
+    }
+
+    #[test]
+    fn driver_manifest_declares_table_context_actions() {
+        let manifest: serde_json::Value =
+            serde_json::from_str(include_str!("../driver.json")).unwrap();
+        let actions = manifest["ui"]["form"]["actions"]["actions"]
+            .as_array()
+            .unwrap();
+
+        assert!(
+            actions.iter().any(|action| {
+                action["id"] == "OpenTableData"
+                    && action["placement"] == "Both"
+                    && action["targets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|target| target["node_type"] == "Table")
+            }),
+            "DuckDB table nodes should expose open data context/toolbar action: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|action| {
+                action["id"] == "ImportData"
+                    && action["placement"] == "ContextMenu"
+                    && action["targets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|target| target["node_type"] == "Table")
+            }),
+            "DuckDB table nodes should expose import data context action: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|action| {
+                action["id"] == "ExportData"
+                    && action["placement"] == "ContextMenu"
+                    && action["targets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|target| target["node_type"] == "Table")
+            }),
+            "DuckDB table nodes should expose export data context action: {actions:?}"
+        );
+    }
+
+    #[test]
+    fn driver_manifest_declares_schema_aware_actions() {
+        let manifest: serde_json::Value =
+            serde_json::from_str(include_str!("../driver.json")).unwrap();
+        let actions = manifest["ui"]["form"]["actions"]["actions"]
+            .as_array()
+            .unwrap();
+
+        for (id, target) in [
+            ("RunSqlFile", "Schema"),
+            ("DesignTable", "Schema"),
+            ("CreateNewQuery", "Schema"),
+            ("DumpSqlStructure", "Database"),
+            ("DumpSqlStructure", "Schema"),
+            ("DumpSqlData", "Database"),
+            ("DumpSqlData", "Schema"),
+            ("DumpSqlStructureAndData", "Database"),
+            ("DumpSqlStructureAndData", "Schema"),
+        ] {
+            assert!(
+                actions.iter().any(|action| {
+                    action["id"] == id
+                        && action["targets"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|candidate| candidate["node_type"] == target)
+                }),
+                "DuckDB manifest should expose {id} for {target}: {actions:?}"
+            );
+        }
     }
 
     #[test]

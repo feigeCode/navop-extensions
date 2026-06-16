@@ -1,4 +1,6 @@
-use crate::duckdb_session::DuckDbSession;
+use crate::duckdb_session::{
+    current_database_name, is_default_catalog_reference, is_duckdb_catalog_schema, DuckDbSession,
+};
 use anyhow::Result;
 use duckdb::Connection;
 use serde::Serialize;
@@ -57,13 +59,35 @@ struct ViewInfo {
 pub fn handle(session: &DuckDbSession, method: &str, params: &Value) -> Result<Option<Value>> {
     let connection = session.connection()?;
     match method {
-        "metadata.list_databases" => Ok(Some(json!(vec!["main"]))),
-        "metadata.list_databases_detailed" => to_value(list_databases_detailed()).map(Some),
+        "metadata.list_databases" => Ok(Some(json!(vec![current_database_name(connection)?]))),
+        "metadata.list_databases_detailed" => {
+            to_value(list_databases_detailed(&current_database_name(connection)?)).map(Some)
+        }
         "metadata.list_schemas" => to_value(list_schemas(connection)?).map(Some),
-        "metadata.list_tables" => to_value(list_tables(connection, params)?).map(Some),
-        "metadata.list_columns" => to_value(list_columns(connection, params)?).map(Some),
-        "metadata.list_indexes" => to_value(list_indexes(connection, params)?).map(Some),
-        "metadata.list_views" => to_value(list_views(connection, params)?).map(Some),
+        "metadata.list_tables" => to_value(list_tables(
+            connection,
+            params,
+            &current_database_name(connection)?,
+        )?)
+        .map(Some),
+        "metadata.list_columns" => to_value(list_columns(
+            connection,
+            params,
+            &current_database_name(connection)?,
+        )?)
+        .map(Some),
+        "metadata.list_indexes" => to_value(list_indexes(
+            connection,
+            params,
+            &current_database_name(connection)?,
+        )?)
+        .map(Some),
+        "metadata.list_views" => to_value(list_views(
+            connection,
+            params,
+            &current_database_name(connection)?,
+        )?)
+        .map(Some),
         "metadata.list_functions"
         | "metadata.list_procedures"
         | "metadata.list_triggers"
@@ -75,9 +99,9 @@ pub fn handle(session: &DuckDbSession, method: &str, params: &Value) -> Result<O
     }
 }
 
-fn list_databases_detailed() -> Vec<DatabaseInfo> {
+fn list_databases_detailed(current_catalog: &str) -> Vec<DatabaseInfo> {
     vec![DatabaseInfo {
-        name: "main".to_string(),
+        name: current_catalog.to_string(),
         charset: None,
         collation: None,
         size: None,
@@ -94,11 +118,28 @@ fn list_schemas(connection: &Connection) -> Result<Vec<String>> {
     collect_rows(rows)
 }
 
-fn list_tables(connection: &Connection, params: &Value) -> Result<Vec<TableInfo>> {
-    let filters = metadata_filters(params, "database_name", "schema_name");
+fn list_tables(
+    connection: &Connection,
+    params: &Value,
+    current_catalog: &str,
+) -> Result<Vec<TableInfo>> {
+    let filters = metadata_filters(params, "database_name", "schema_name", current_catalog);
+    let include_internal = should_include_internal_schema_objects(params);
+    let source = if include_internal {
+        ("view_name AS table_name", "duckdb_views()")
+    } else {
+        ("table_name", "duckdb_tables()")
+    };
     let sql = format!(
-        "SELECT table_name, schema_name FROM duckdb_tables() WHERE internal = FALSE \
-         AND temporary = FALSE{} ORDER BY schema_name, table_name",
+        "SELECT {}, schema_name FROM {} WHERE 1=1{}{} \
+         ORDER BY schema_name, table_name",
+        source.0,
+        source.1,
+        if include_internal {
+            ""
+        } else {
+            " AND internal = FALSE AND temporary = FALSE"
+        },
         filters.sql
     );
     let mut statement = connection.prepare(&sql)?;
@@ -117,9 +158,14 @@ fn list_tables(connection: &Connection, params: &Value) -> Result<Vec<TableInfo>
     collect_rows(rows)
 }
 
-fn list_columns(connection: &Connection, params: &Value) -> Result<Vec<ColumnInfo>> {
+fn list_columns(
+    connection: &Connection,
+    params: &Value,
+    current_catalog: &str,
+) -> Result<Vec<ColumnInfo>> {
     let table = string_param(params, "table")?;
-    let filters = metadata_filters(params, "c.database_name", "c.schema_name");
+    let filters = metadata_filters(params, "c.database_name", "c.schema_name", current_catalog);
+    let include_internal = should_include_internal_schema_objects(params);
     let sql = format!(
         "SELECT c.column_name, c.data_type, c.is_nullable, \
          (pk.column_name IS NOT NULL) AS is_primary_key, c.column_default \
@@ -134,7 +180,12 @@ fn list_columns(connection: &Connection, params: &Value) -> Result<Vec<ColumnInf
            WHERE tc.constraint_type = 'PRIMARY KEY' \
          ) AS pk ON pk.table_schema = c.schema_name \
           AND pk.table_name = c.table_name AND pk.column_name = c.column_name \
-         WHERE c.table_name = ? AND c.internal = FALSE{} ORDER BY c.column_index",
+         WHERE c.table_name = ?{}{} ORDER BY c.column_index",
+        if include_internal {
+            ""
+        } else {
+            " AND c.internal = FALSE"
+        },
         filters.sql
     );
     let mut values = vec![table.to_string()];
@@ -155,9 +206,13 @@ fn list_columns(connection: &Connection, params: &Value) -> Result<Vec<ColumnInf
     collect_rows(rows)
 }
 
-fn list_indexes(connection: &Connection, params: &Value) -> Result<Vec<IndexInfo>> {
+fn list_indexes(
+    connection: &Connection,
+    params: &Value,
+    current_catalog: &str,
+) -> Result<Vec<IndexInfo>> {
     let table = string_param(params, "table")?;
-    let filters = metadata_filters(params, "database_name", "schema_name");
+    let filters = metadata_filters(params, "database_name", "schema_name", current_catalog);
     let sql = format!(
         "SELECT index_name, is_unique, sql FROM duckdb_indexes() \
          WHERE table_name = ?{} ORDER BY index_name",
@@ -178,11 +233,21 @@ fn list_indexes(connection: &Connection, params: &Value) -> Result<Vec<IndexInfo
     collect_rows(rows)
 }
 
-fn list_views(connection: &Connection, params: &Value) -> Result<Vec<ViewInfo>> {
-    let filters = metadata_filters(params, "database_name", "schema_name");
+fn list_views(
+    connection: &Connection,
+    params: &Value,
+    current_catalog: &str,
+) -> Result<Vec<ViewInfo>> {
+    let filters = metadata_filters(params, "database_name", "schema_name", current_catalog);
+    let include_internal = should_include_internal_schema_objects(params);
     let sql = format!(
-        "SELECT view_name, schema_name, sql FROM duckdb_views() WHERE internal = FALSE \
-         AND temporary = FALSE{} ORDER BY schema_name, view_name",
+        "SELECT view_name, schema_name, sql FROM duckdb_views() WHERE 1=1{}{} \
+         ORDER BY schema_name, view_name",
+        if include_internal {
+            ""
+        } else {
+            " AND internal = FALSE AND temporary = FALSE"
+        },
         filters.sql
     );
     let mut statement = connection.prepare(&sql)?;
@@ -202,13 +267,18 @@ struct Filters {
     values: Vec<String>,
 }
 
-fn metadata_filters(params: &Value, database_column: &str, schema_column: &str) -> Filters {
+fn metadata_filters(
+    params: &Value,
+    database_column: &str,
+    schema_column: &str,
+    current_catalog: &str,
+) -> Filters {
     let mut clauses = Vec::new();
     let mut values = Vec::new();
     if let Some(database) = params
         .get("database")
         .and_then(Value::as_str)
-        .filter(|database| !database.is_empty() && *database != "main")
+        .filter(|database| !is_default_catalog_reference(database, current_catalog))
     {
         clauses.push(format!(" AND {database_column} = ?"));
         values.push(database.to_string());
@@ -253,6 +323,13 @@ fn string_param<'a>(params: &'a Value, key: &str) -> Result<&'a str> {
 
 fn should_filter_schema(schema: &str) -> bool {
     !schema.trim().is_empty()
+}
+
+fn should_include_internal_schema_objects(params: &Value) -> bool {
+    params
+        .get("schema")
+        .and_then(Value::as_str)
+        .is_some_and(is_duckdb_catalog_schema)
 }
 
 fn collect_rows<T>(rows: impl Iterator<Item = duckdb::Result<T>>) -> Result<Vec<T>> {

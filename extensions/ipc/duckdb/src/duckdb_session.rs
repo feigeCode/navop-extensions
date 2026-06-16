@@ -3,6 +3,8 @@ use duckdb::Connection;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+pub const LEGACY_DUCKDB_CATALOG: &str = "main";
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct DbConnectionConfig {
     #[serde(default)]
@@ -50,7 +52,13 @@ impl DuckDbSession {
     }
 
     pub fn current_database(&self) -> Option<String> {
-        Some("main".to_string())
+        self.connection
+            .as_ref()
+            .and_then(|connection| current_database_name(connection).ok())
+    }
+
+    pub fn current_catalog(&self) -> Result<String> {
+        current_database_name(self.connection()?).context("failed to read DuckDB current catalog")
     }
 
     pub fn connection(&self) -> Result<&Connection> {
@@ -66,6 +74,19 @@ impl DuckDbSession {
     pub fn interrupt_handle(&self) -> Option<std::sync::Arc<duckdb::InterruptHandle>> {
         self.connection.as_ref().map(|c| c.interrupt_handle())
     }
+}
+
+pub fn current_database_name(connection: &Connection) -> duckdb::Result<String> {
+    connection.query_row("SELECT current_database()", [], |row| row.get(0))
+}
+
+pub fn is_default_catalog_reference(database: &str, current_catalog: &str) -> bool {
+    let database = database.trim();
+    database.is_empty() || database == current_catalog || database == LEGACY_DUCKDB_CATALOG
+}
+
+pub fn is_duckdb_catalog_schema(schema: &str) -> bool {
+    matches!(schema.trim(), "information_schema" | "pg_catalog")
 }
 
 fn database_path(config: &DbConnectionConfig) -> Result<String> {
@@ -100,5 +121,31 @@ mod tests {
         };
 
         assert!(database_path(&config).is_err());
+    }
+
+    #[test]
+    fn current_database_matches_duckdb_catalog() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir
+            .path()
+            .join("catalog_source.duckdb")
+            .to_string_lossy()
+            .to_string();
+        let mut session = DuckDbSession::new();
+        session
+            .connect(DbConnectionConfig {
+                host: path,
+                database: None,
+                extra_params: Default::default(),
+            })
+            .unwrap();
+
+        let expected: String = session
+            .connection()
+            .unwrap()
+            .query_row("SELECT current_database()", [], |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(session.current_database().unwrap(), expected);
     }
 }
