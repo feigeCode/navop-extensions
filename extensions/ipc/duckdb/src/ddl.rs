@@ -1,8 +1,55 @@
 use extension_protocol::ddl::{
     BuildAlterTableParams, BuildAlterTableResult, BuildCreateTableParams, BuildCreateTableResult,
-    BuildDropParams, BuildDropResult, ColumnRenameSpec, ColumnSpec, IndexSpec, TableSpec,
+    BuildDdlParams, BuildDdlResult, BuildDropParams, BuildDropResult, ColumnRenameSpec, ColumnSpec,
+    DdlBuildOp, IndexSpec, TableSpec,
 };
 use extension_protocol::schema::ObjectKind;
+use serde::Deserialize;
+use serde_json::Value;
+
+pub fn build_ddl(params: BuildDdlParams) -> Result<BuildDdlResult, String> {
+    match params.op {
+        DdlBuildOp::CreateTable => {
+            let result = build_create_table(decode_payload(params.payload)?);
+            Ok(BuildDdlResult {
+                statements: result.statements,
+                warnings: Vec::new(),
+            })
+        }
+        DdlBuildOp::AlterTable => {
+            let result = build_alter_table(decode_payload(params.payload)?);
+            Ok(BuildDdlResult {
+                statements: result.statements,
+                warnings: result.warnings,
+            })
+        }
+        DdlBuildOp::DropTable => {
+            let result = build_drop(decode_drop_payload(params.payload, ObjectKind::Table)?);
+            Ok(BuildDdlResult {
+                statements: vec![result.sql],
+                warnings: Vec::new(),
+            })
+        }
+        DdlBuildOp::DropView => {
+            let result = build_drop(decode_drop_payload(params.payload, ObjectKind::View)?);
+            Ok(BuildDdlResult {
+                statements: vec![result.sql],
+                warnings: Vec::new(),
+            })
+        }
+        DdlBuildOp::CreateSchema => Ok(single_statement(build_create_schema(params.payload)?)),
+        DdlBuildOp::DropSchema => Ok(single_statement(build_drop_schema(params.payload)?)),
+        DdlBuildOp::RenameTable => Ok(single_statement(build_rename_table(params.payload)?)),
+        DdlBuildOp::TruncateTable => Ok(single_statement(build_truncate_table(params.payload)?)),
+        DdlBuildOp::ColumnDefinition => {
+            let column: ColumnSpec = decode_payload(params.payload)?;
+            Ok(single_statement(column_definition(&column)))
+        }
+        op => Err(format!(
+            "ddl/build op `{op:?}` is not implemented for DuckDB"
+        )),
+    }
+}
 
 pub fn build_create_table(params: BuildCreateTableParams) -> BuildCreateTableResult {
     let table = table_reference(&params.spec);
@@ -122,6 +169,120 @@ pub fn build_drop(params: BuildDropParams) -> BuildDropResult {
         sql.push_str(" CASCADE");
     }
     BuildDropResult { sql }
+}
+
+fn decode_payload<T>(payload: Value) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+{
+    serde_json::from_value(payload).map_err(|error| error.to_string())
+}
+
+fn decode_drop_payload(mut payload: Value, kind: ObjectKind) -> Result<BuildDropParams, String> {
+    if let Value::Object(ref mut object) = payload {
+        object.insert("kind".to_string(), serde_json::to_value(kind).unwrap());
+    }
+    decode_payload(payload)
+}
+
+fn single_statement(sql: String) -> BuildDdlResult {
+    BuildDdlResult {
+        statements: vec![sql],
+        warnings: Vec::new(),
+    }
+}
+
+#[derive(Deserialize)]
+struct SchemaDdlPayload {
+    name: Option<String>,
+    schema: Option<String>,
+    schema_name: Option<String>,
+    #[serde(default)]
+    if_not_exists: bool,
+    #[serde(default)]
+    if_exists: bool,
+    #[serde(default)]
+    cascade: bool,
+}
+
+#[derive(Deserialize)]
+struct RenameTablePayload {
+    schema: Option<String>,
+    name: Option<String>,
+    old_name: Option<String>,
+    table: Option<String>,
+    new_name: Option<String>,
+    to: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct TableDdlPayload {
+    schema: Option<String>,
+    name: Option<String>,
+    table: Option<String>,
+}
+
+fn build_create_schema(payload: Value) -> Result<String, String> {
+    let payload: SchemaDdlPayload = decode_payload(payload)?;
+    let schema = required_identifier(
+        "schema",
+        [payload.name, payload.schema, payload.schema_name],
+    )?;
+    let if_not_exists = if payload.if_not_exists {
+        " IF NOT EXISTS"
+    } else {
+        ""
+    };
+    Ok(format!(
+        "CREATE SCHEMA{if_not_exists} {}",
+        quote_identifier(&schema)
+    ))
+}
+
+fn build_drop_schema(payload: Value) -> Result<String, String> {
+    let payload: SchemaDdlPayload = decode_payload(payload)?;
+    let schema = required_identifier(
+        "schema",
+        [payload.name, payload.schema, payload.schema_name],
+    )?;
+    let if_exists = if payload.if_exists { " IF EXISTS" } else { "" };
+    let cascade = if payload.cascade { " CASCADE" } else { "" };
+    Ok(format!(
+        "DROP SCHEMA{if_exists} {}{cascade}",
+        quote_identifier(&schema)
+    ))
+}
+
+fn build_rename_table(payload: Value) -> Result<String, String> {
+    let payload: RenameTablePayload = decode_payload(payload)?;
+    let schema = payload.schema;
+    let old_name = required_identifier("table", [payload.name, payload.old_name, payload.table])?;
+    let new_name = required_identifier("new_name", [payload.new_name, payload.to])?;
+    Ok(format!(
+        "ALTER TABLE {} RENAME TO {}",
+        qualified_name(&schema, &old_name),
+        quote_identifier(&new_name)
+    ))
+}
+
+fn build_truncate_table(payload: Value) -> Result<String, String> {
+    let payload: TableDdlPayload = decode_payload(payload)?;
+    let table = required_identifier("table", [payload.name, payload.table])?;
+    Ok(format!(
+        "TRUNCATE TABLE {}",
+        qualified_name(&payload.schema, &table)
+    ))
+}
+
+fn required_identifier<const N: usize>(
+    field: &str,
+    candidates: [Option<String>; N],
+) -> Result<String, String> {
+    candidates
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{field} is required"))
 }
 
 fn column_definition(column: &ColumnSpec) -> String {

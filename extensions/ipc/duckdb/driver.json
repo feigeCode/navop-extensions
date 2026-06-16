@@ -50,6 +50,7 @@
     "schema/views",
     "schema/indexes",
     "schema/checks",
+    "ddl/build",
     "ddl/build_create_table",
     "ddl/build_alter_table",
     "ddl/build_drop"

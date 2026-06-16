@@ -19,7 +19,9 @@ use extension_protocol::data::{
     CsvOptions, DataFormat, ExportParams, ExportResult, StreamCloseParams, StreamReadParams,
     StreamReadResult,
 };
-use extension_protocol::ddl::{BuildAlterTableParams, BuildCreateTableParams, BuildDropParams};
+use extension_protocol::ddl::{
+    BuildAlterTableParams, BuildCreateTableParams, BuildDdlParams, BuildDropParams,
+};
 use extension_protocol::error::{ProtocolError, error_codes};
 use extension_protocol::lifecycle::{Capability, InitParams, InitResult, ShutdownParams};
 use extension_protocol::method;
@@ -1376,6 +1378,13 @@ pub fn handle_ddl_build_create_table(params: &Value) -> Result<Value, ProtocolEr
     serde_json::to_value(crate::ddl::build_create_table(p)).map_err(params_deserialize_error)
 }
 
+pub fn handle_ddl_build(params: &Value) -> Result<Value, ProtocolError> {
+    let p: BuildDdlParams =
+        serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
+    let result = crate::ddl::build_ddl(p).map_err(invalid_params)?;
+    serde_json::to_value(result).map_err(params_deserialize_error)
+}
+
 pub fn handle_ddl_build_alter_table(params: &Value) -> Result<Value, ProtocolError> {
     let p: BuildAlterTableParams =
         serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
@@ -1428,6 +1437,7 @@ fn declared_methods() -> &'static [&'static str] {
         method::SCHEMA_VIEWS,
         method::SCHEMA_INDEXES,
         method::SCHEMA_CHECKS,
+        method::DDL_BUILD,
         method::DDL_BUILD_CREATE_TABLE,
         method::DDL_BUILD_ALTER_TABLE,
         method::DDL_BUILD_DROP,
@@ -2998,6 +3008,7 @@ mod tests {
         assert!(methods.iter().any(|m| m == method::DATA_IMPORT_ABORT));
         assert!(methods.iter().any(|m| m == method::STREAM_READ));
         assert!(methods.iter().any(|m| m == method::STREAM_CLOSE));
+        assert!(methods.iter().any(|m| m == method::DDL_BUILD));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_CREATE_TABLE));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_ALTER_TABLE));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_DROP));
@@ -3023,6 +3034,7 @@ mod tests {
         assert!(methods.iter().any(|m| m == method::DATA_IMPORT_ABORT));
         assert!(methods.iter().any(|m| m == method::STREAM_READ));
         assert!(methods.iter().any(|m| m == method::STREAM_CLOSE));
+        assert!(methods.iter().any(|m| m == method::DDL_BUILD));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_CREATE_TABLE));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_ALTER_TABLE));
         assert!(methods.iter().any(|m| m == method::DDL_BUILD_DROP));
@@ -3156,6 +3168,110 @@ mod tests {
         assert_eq!(
             result["statements"][1],
             "CREATE INDEX \"idx_events_payload\" ON \"events\" (\"payload\")"
+        );
+    }
+
+    #[test]
+    fn ddl_build_dispatches_generic_create_table() {
+        let result = handle_ddl_build(&serde_json::json!({
+            "op": "create_table",
+            "payload": {
+                "spec": {
+                    "name": "events",
+                    "schema": "analytics",
+                    "columns": [
+                        {"name": "id", "type": "INTEGER", "nullable": false, "is_primary": true}
+                    ]
+                },
+                "options": {"if_not_exists": true}
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            result["statements"][0],
+            "CREATE TABLE IF NOT EXISTS \"analytics\".\"events\" (\"id\" INTEGER NOT NULL PRIMARY KEY)"
+        );
+    }
+
+    #[test]
+    fn ddl_build_dispatches_generic_drop_view() {
+        let result = handle_ddl_build(&serde_json::json!({
+            "op": "drop_view",
+            "payload": {
+                "name": "daily_sales",
+                "schema": "analytics",
+                "if_exists": true,
+                "cascade": true
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            result["statements"],
+            serde_json::json!(["DROP VIEW IF EXISTS \"analytics\".\"daily_sales\" CASCADE"])
+        );
+    }
+
+    #[test]
+    fn ddl_build_dispatches_generic_schema_and_table_ops() {
+        let create_schema = handle_ddl_build(&serde_json::json!({
+            "op": "create_schema",
+            "payload": {"name": "analytics", "if_not_exists": true}
+        }))
+        .unwrap();
+        assert_eq!(
+            create_schema["statements"],
+            serde_json::json!(["CREATE SCHEMA IF NOT EXISTS \"analytics\""])
+        );
+
+        let drop_schema = handle_ddl_build(&serde_json::json!({
+            "op": "drop_schema",
+            "payload": {"schema": "analytics", "if_exists": true, "cascade": true}
+        }))
+        .unwrap();
+        assert_eq!(
+            drop_schema["statements"],
+            serde_json::json!(["DROP SCHEMA IF EXISTS \"analytics\" CASCADE"])
+        );
+
+        let rename_table = handle_ddl_build(&serde_json::json!({
+            "op": "rename_table",
+            "payload": {"schema": "analytics", "name": "events", "new_name": "event_log"}
+        }))
+        .unwrap();
+        assert_eq!(
+            rename_table["statements"],
+            serde_json::json!(["ALTER TABLE \"analytics\".\"events\" RENAME TO \"event_log\""])
+        );
+
+        let truncate_table = handle_ddl_build(&serde_json::json!({
+            "op": "truncate_table",
+            "payload": {"schema": "analytics", "table": "event_log"}
+        }))
+        .unwrap();
+        assert_eq!(
+            truncate_table["statements"],
+            serde_json::json!(["TRUNCATE TABLE \"analytics\".\"event_log\""])
+        );
+    }
+
+    #[test]
+    fn ddl_build_dispatches_generic_column_definition() {
+        let result = handle_ddl_build(&serde_json::json!({
+            "op": "column_definition",
+            "payload": {
+                "name": "payload",
+                "type": "VARCHAR",
+                "nullable": false,
+                "default": "'{}'"
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            result["statements"],
+            serde_json::json!(["\"payload\" VARCHAR NOT NULL DEFAULT '{}'"])
         );
     }
 

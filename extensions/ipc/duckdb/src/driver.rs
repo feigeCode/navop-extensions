@@ -1,6 +1,6 @@
 //! DuckDB 驱动接入共享运行时([`extension_driver`])。
 //!
-//! - [`DuckDbDriver`] 是控制面/工厂:`init` / `conn/open` / `ddl/build_*`。
+//! - [`DuckDbDriver`] 是控制面/工厂:`init` / `conn/open` / `ddl/build*`。
 //! - [`DuckDbConnection`] 是每连接执行体,独占一个 [`DuckDbSession`] 及其游标,
 //!   跑在专属 worker 线程上;`interrupt_hook` 暴露 DuckDB 的跨线程中断句柄。
 //!
@@ -88,6 +88,7 @@ impl Driver for DuckDbDriver {
     fn call_connless(&self, method_name: &str, params: &Value) -> Result<Value, ProtocolError> {
         match method_name {
             method::CONN_TEST => handlers::handle_conn_test(params),
+            method::DDL_BUILD => handlers::handle_ddl_build(params),
             method::DDL_BUILD_CREATE_TABLE => handlers::handle_ddl_build_create_table(params),
             method::DDL_BUILD_ALTER_TABLE => handlers::handle_ddl_build_alter_table(params),
             method::DDL_BUILD_DROP => handlers::handle_ddl_build_drop(params),
@@ -138,8 +139,9 @@ impl DriverConnection for DuckDbConnection {
             method::SCHEMA_VIEWS => handlers::handle_schema_views(&mut self.state, params),
             method::SCHEMA_INDEXES => handlers::handle_schema_indexes(&mut self.state, params),
             method::SCHEMA_CHECKS => handlers::handle_schema_checks(&mut self.state, params),
-            // ddl/build_* 是纯方法,但 host 的 call_declared_wire_method 会注入 conn_id,
+            // ddl/build* 是纯方法,但 host 的 call_declared_wire_method 会注入 conn_id,
             // 因而可能带 conn_id 路由到这里——一并接受。
+            method::DDL_BUILD => handlers::handle_ddl_build(params),
             method::DDL_BUILD_CREATE_TABLE => handlers::handle_ddl_build_create_table(params),
             method::DDL_BUILD_ALTER_TABLE => handlers::handle_ddl_build_alter_table(params),
             method::DDL_BUILD_DROP => handlers::handle_ddl_build_drop(params),
