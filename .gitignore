@@ -3,3 +3,4 @@
 /.idea/
 .DS_Store
 *.log
+java/gbase8s-ipc-driver/target/
