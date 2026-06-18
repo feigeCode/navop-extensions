@@ -581,6 +581,18 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.doesNotMatch(workflow, /name: Test Rust package\n\s+if: \$\{\{ matrix\.package != '' \}\}\n\s+run: cargo test -p \$\{\{ matrix\.package \}\}/);
 });
 
+test("Java workflows use a runner-available JDK while preserving Java 8 bytecode target", () => {
+  const ciWorkflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+  const releaseWorkflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/release.yml"), "utf8");
+
+  assert.match(ciWorkflow, /java-version:\s+'11'/);
+  assert.match(releaseWorkflow, /java-version:\s+'11'/);
+  assert.match(
+    fs.readFileSync(path.join(repoRoot, "java/gbase8s-ipc-driver/pom.xml"), "utf8"),
+    /<maven\.compiler\.target>1\.8<\/maven\.compiler\.target>/,
+  );
+});
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });

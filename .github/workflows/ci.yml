@@ -52,7 +52,7 @@ jobs:
         if: ${{ matrix.language == 'java' }}
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '11'
       - name: Test Rust package
         if: ${{ matrix.language == 'rust' && matrix.package != '' }}
         run: cargo test -p ${{ matrix.package }} -- --nocapture
@@ -85,7 +85,7 @@ jobs:
         if: ${{ matrix.language == 'java' && matrix.target != 'universal' }}
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '11'
       - name: Build
         if: ${{ matrix.language == 'rust' && matrix.package != '' && matrix.target != 'universal' }}
         env:

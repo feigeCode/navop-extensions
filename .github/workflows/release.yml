@@ -104,7 +104,7 @@ jobs:
         if: ${{ matrix.language == 'java' && matrix.target != 'universal' }}
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '11'
       - name: Build
         if: ${{ matrix.language == 'rust' && matrix.package != '' && matrix.target != 'universal' }}
         env:
