@@ -86,5 +86,5 @@ if [[ "$TARGET" != *windows* ]]; then
   chmod +x "${DRIVER_DIR}/${BIN_NAME}"
 fi
 
-tar czf "${ARTIFACT_DIR}/${ARCHIVE_NAME}" -C "$PACKAGE_ROOT" "$EXTENSION_ID"
+tar czf "${ARTIFACT_DIR}/${ARCHIVE_NAME}" -C "$DRIVER_DIR" .
 echo "${ARTIFACT_DIR}/${ARCHIVE_NAME}"

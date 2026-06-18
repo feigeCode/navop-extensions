@@ -151,12 +151,12 @@ test("package-driver creates a DuckDB package with executable entry command", ()
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
 
   const driverJson = JSON.parse(
-    fs.readFileSync(path.join(workdir, "unpacked/duckdb/driver.json"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/driver.json"), "utf8"),
   );
   assert.equal(driverJson.version, "1.2.3");
   assert.equal(driverJson.entry.command, "./duckdb_driver");
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/duckdb/duckdb_driver"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/duckdb_driver"), "utf8"),
     "fake binary\n",
   );
 });
@@ -190,7 +190,7 @@ test("package-driver includes downloaded DuckDB runtime library on Windows", () 
 
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/duckdb/duckdb.dll"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/duckdb.dll"), "utf8"),
     "fake duckdb dll\n",
   );
 });
@@ -271,11 +271,11 @@ test("package-driver creates a Go IPC driver package", () => {
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
 
   const driverJson = JSON.parse(
-    fs.readFileSync(path.join(workdir, "unpacked/dm/driver.json"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/driver.json"), "utf8"),
   );
   assert.equal(driverJson.entry.command, "./dm-ipc-driver");
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/dm/dm-ipc-driver"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/dm-ipc-driver"), "utf8"),
     "fake dm go binary\n",
   );
 });
@@ -312,13 +312,13 @@ test("package-driver includes Java IPC driver launcher and jar library", () => {
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
   assert.equal(
     fs.readFileSync(
-      path.join(workdir, "unpacked/gbase8s/lib/gbase8s-ipc-driver.jar"),
+      path.join(workdir, "unpacked/lib/gbase8s-ipc-driver.jar"),
       "utf8",
     ),
     "fake jar\n",
   );
   const driverJson = JSON.parse(
-    fs.readFileSync(path.join(workdir, "unpacked/gbase8s/driver.json"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/driver.json"), "utf8"),
   );
   assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver");
 });
@@ -357,11 +357,11 @@ test("package-driver uses a cmd launcher for Java IPC drivers on Windows", () =>
 
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/gbase8s/gbase8s-ipc-driver.cmd"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/gbase8s-ipc-driver.cmd"), "utf8"),
     "@echo off\r\n",
   );
   const driverJson = JSON.parse(
-    fs.readFileSync(path.join(workdir, "unpacked/gbase8s/driver.json"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/driver.json"), "utf8"),
   );
   assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver.cmd");
 });

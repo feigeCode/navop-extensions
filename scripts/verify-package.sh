@@ -15,16 +15,10 @@ trap cleanup EXIT
 
 tar xzf "$ARCHIVE" -C "$TMP_DIR"
 
-DRIVER_DIR_COUNT="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-if [ "$DRIVER_DIR_COUNT" -ne 1 ]; then
-  echo "Expected exactly one top-level driver directory in package" >&2
-  exit 1
-fi
-
-DRIVER_DIR="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -n 1)"
+DRIVER_DIR="$TMP_DIR"
 DRIVER_JSON="${DRIVER_DIR}/driver.json"
 if [ ! -f "$DRIVER_JSON" ]; then
-  echo "Missing driver.json" >&2
+  echo "Missing root-level driver.json" >&2
   exit 1
 fi
 
