@@ -1,0 +1,15 @@
+{
+  "id": "kingbase",
+  "kind": "database_driver",
+  "language": "go",
+  "package": "./cmd/kingbase-ipc-driver",
+  "binary": "kingbase-ipc-driver",
+  "build_tags": ["kingbase_driver"],
+  "path": "extensions/ipc/kingbase",
+  "targets": [
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu"
+  ],
+  "releaseTagPrefix": "kingbase-v",
+  "r2Prefix": "extensions/kingbase"
+}

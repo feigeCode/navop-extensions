@@ -63,6 +63,7 @@ jobs:
             extension: metadata.id,
             package: metadata.package || "",
             kind: metadata.kind,
+            language: metadata.language || "rust",
             target,
             os: runnerForTarget(target),
           }));
@@ -92,14 +93,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        if: ${{ matrix.target != 'universal' }}
+        if: ${{ matrix.language == 'rust' && matrix.target != 'universal' }}
         with:
           target: ${{ matrix.target }}
+      - uses: actions/setup-go@v5
+        if: ${{ matrix.language == 'go' && matrix.target != 'universal' }}
+        with:
+          go-version-file: go.mod
       - name: Build
-        if: ${{ matrix.package != '' && matrix.target != 'universal' }}
+        if: ${{ matrix.language == 'rust' && matrix.package != '' && matrix.target != 'universal' }}
         env:
           DUCKDB_DOWNLOAD_LIB: ${{ contains(matrix.target, 'windows') && '1' || '' }}
         run: cargo build --release -p ${{ matrix.package }} --target ${{ matrix.target }}
+      - name: Build Go driver
+        if: ${{ matrix.language == 'go' && matrix.target != 'universal' }}
+        run: bash scripts/build-go-driver.sh "${{ matrix.extension }}" "${{ matrix.target }}"
       - name: Package
         shell: bash
         run: |

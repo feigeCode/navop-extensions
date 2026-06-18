@@ -20,6 +20,7 @@ if [ ! -f "$BUILD_METADATA" ]; then
   exit 1
 fi
 
+LANGUAGE="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.language || "rust");' "$BUILD_METADATA")"
 BIN_STEM="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.binary || `${data.id}_driver`);' "$BUILD_METADATA")"
 BIN_NAME="$BIN_STEM"
 if [[ "$TARGET" == *windows* ]]; then
@@ -33,7 +34,11 @@ ARCHIVE_NAME="${EXTENSION_ID}-driver-${TARGET}.tar.gz"
 
 if [ ! -f "$SOURCE_BIN" ]; then
   echo "Missing driver binary: ${SOURCE_BIN}" >&2
-  echo "Run: cargo build --release -p ${BIN_STEM} --target ${TARGET}" >&2
+  if [ "$LANGUAGE" = "go" ]; then
+    echo "Run: bash scripts/build-go-driver.sh ${EXTENSION_ID} ${TARGET}" >&2
+  else
+    echo "Run: cargo build --release -p ${BIN_STEM} --target ${TARGET}" >&2
+  fi
   exit 1
 fi
 

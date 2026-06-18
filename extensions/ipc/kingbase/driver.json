@@ -1,0 +1,90 @@
+{
+  "id": "kingbase",
+  "name": "KingbaseES",
+  "description": "KingbaseES database IPC driver",
+  "version": "0.1.0",
+  "license": "MIT",
+  "dependencies": {
+    "go": ">=1.25",
+    "gokb": "gitea.com/kingbase/gokb"
+  },
+  "entry": {
+    "command": "./kingbase-ipc-driver",
+    "args": [],
+    "working_dir": null
+  },
+  "transport": {
+    "name": "kingbase-driver.sock",
+    "connect_timeout_ms": 5000
+  },
+  "connection": {
+    "single_file": false,
+    "single_connection": false,
+    "close_on_release": false,
+    "path_fields": []
+  },
+  "methods": [
+    "$/ping",
+    "shutdown",
+    "conn/test",
+    "conn/open",
+    "conn/close",
+    "conn/ping",
+    "conn/use",
+    "query/start",
+    "cursor/fetch",
+    "cursor/close",
+    "cursor/cancel",
+    "exec/run",
+    "exec/batch",
+    "schema/databases",
+    "schema/schemas",
+    "schema/objects",
+    "schema/columns",
+    "schema/indexes",
+    "schema/foreign_keys",
+    "schema/checks",
+    "schema/views",
+    "schema/functions",
+    "schema/procedures",
+    "schema/triggers",
+    "schema/sequences",
+    "schema/types",
+    "schema/view_definition",
+    "schema/dump_ddl"
+  ],
+  "dialect": {
+    "identifier_quote_left": "\"",
+    "identifier_quote_right": "\"",
+    "limit_style": "limit_offset",
+    "bool_true": "TRUE",
+    "bool_false": "FALSE",
+    "compatible_database_type": "PostgreSQL",
+    "supports_schema": true,
+    "supports_sequences": false,
+    "uses_schema_as_database": false
+  },
+  "capabilities": {
+    "supports_schema": true,
+    "uses_schema_as_database": false,
+    "supports_sequences": false,
+    "supports_functions": true,
+    "supports_procedures": false,
+    "supports_triggers": false,
+    "supports_table_engine": false,
+    "supports_table_charset": false,
+    "supports_table_collation": false,
+    "supports_auto_increment": false,
+    "supports_tablespace": false,
+    "supports_unsigned": false,
+    "supports_enum_values": false,
+    "show_charset_in_column_detail": false,
+    "show_collation_in_column_detail": false,
+    "table_engines": []
+  },
+  "ui": {
+    "icon": "Database",
+    "locales_dir": "locales",
+    "default_port": 54321
+  }
+}

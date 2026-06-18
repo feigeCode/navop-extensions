@@ -8,6 +8,20 @@ import { execFileSync } from "node:child_process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
+test("go ipc driver metadata excludes GBase8s", () => {
+  const ids = fs
+    .readdirSync(path.join(repoRoot, "extensions/ipc"))
+    .filter((id) => {
+      const metadataPath = path.join(repoRoot, "extensions/ipc", id, "extension.build.json");
+      if (!fs.existsSync(metadataPath)) return false;
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf8"));
+      return metadata.language === "go";
+    })
+    .sort();
+
+  assert.deepEqual(ids, ["dm", "kingbase"]);
+});
+
 test("package-driver creates a DuckDB package with executable entry command", () => {
   const workdir = makeTempDir();
   createPackageFixture(workdir);
@@ -122,6 +136,82 @@ test("verify-package accepts non-DuckDB driver packages", () => {
   assert.match(output, /Package verification ok:/);
 });
 
+test("package-driver creates a Go IPC driver package", () => {
+  const workdir = makeTempDir();
+  createPackageFixture(workdir, {
+    id: "dm",
+    binary: "dm-ipc-driver",
+    binaryContents: "fake dm go binary\n",
+    language: "go",
+    package: "./cmd/dm-ipc-driver",
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-driver.sh"),
+      "dm",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "0.1.0",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(path.basename(archivePath), "dm-driver-x86_64-unknown-linux-gnu.tar.gz");
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/dm/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.entry.command, "./dm-ipc-driver");
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/dm/dm-ipc-driver"), "utf8"),
+    "fake dm go binary\n",
+  );
+});
+
+test("build-go-driver builds a Go command into the target release directory", () => {
+  const workdir = makeTempDir();
+  copyScript("build-go-driver.sh", workdir);
+  fs.writeFileSync(path.join(workdir, "go.mod"), "module example.com/go-driver-fixture\n\ngo 1.23\n");
+  fs.mkdirSync(path.join(workdir, "cmd/test-ipc-driver"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workdir, "cmd/test-ipc-driver/main.go"),
+    "package main\n\nfunc main() {}\n",
+  );
+  writeJson(path.join(workdir, "extensions/ipc/testdb/extension.build.json"), {
+    id: "testdb",
+    kind: "database_driver",
+    language: "go",
+    package: "./cmd/test-ipc-driver",
+    binary: "test-ipc-driver",
+    path: "extensions/ipc/testdb",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+
+  execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/build-go-driver.sh"),
+      "testdb",
+      "x86_64-unknown-linux-gnu",
+    ],
+    {
+      cwd: workdir,
+      env: {
+        ...process.env,
+        GOCACHE: path.join(workdir, "go-cache"),
+        CGO_ENABLED: "0",
+      },
+    },
+  );
+
+  assert.ok(
+    fs.existsSync(path.join(workdir, "target/x86_64-unknown-linux-gnu/release/test-ipc-driver")),
+  );
+});
+
 test("changed-extensions emits matrix entries only for changed extension paths", () => {
   const workdir = makeTempDir();
   copyScript("changed-extensions.mjs", workdir);
@@ -135,6 +225,7 @@ test("changed-extensions emits matrix entries only for changed extension paths",
   writeJson(path.join(workdir, "extensions/ipc/postgres/extension.build.json"), {
     id: "postgres",
     kind: "database_driver",
+    language: "go",
     package: "postgres_driver",
     path: "extensions/ipc/postgres",
     targets: ["x86_64-unknown-linux-gnu"],
@@ -162,6 +253,7 @@ test("changed-extensions emits matrix entries only for changed extension paths",
         extension: "duckdb",
         package: "duckdb_driver",
         kind: "database_driver",
+        language: "rust",
         target: "x86_64-unknown-linux-gnu",
         os: "ubuntu-latest",
       },
@@ -169,6 +261,7 @@ test("changed-extensions emits matrix entries only for changed extension paths",
         extension: "duckdb",
         package: "duckdb_driver",
         kind: "database_driver",
+        language: "rust",
         target: "x86_64-pc-windows-msvc",
         os: "windows-latest",
       },
@@ -305,10 +398,15 @@ function createPackageFixture(workdir, options = {}) {
   const id = options.id || "duckdb";
   const binary = options.binary || "duckdb_driver";
   const binaryContents = options.binaryContents || "fake binary\n";
+  const language = options.language || "rust";
+  const packageName = options.package || `${id}_driver`;
   copyScript("package-driver.sh", workdir);
   copyScript("verify-package.sh", workdir);
   writeJson(path.join(workdir, `extensions/ipc/${id}/extension.build.json`), {
     id,
+    kind: "database_driver",
+    language,
+    package: packageName,
     binary,
   });
   writeJson(path.join(workdir, `extensions/ipc/${id}/driver.json`), {

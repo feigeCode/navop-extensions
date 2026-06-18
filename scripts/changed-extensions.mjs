@@ -44,6 +44,7 @@ for (const extension of extensions) {
       extension: extension.id,
       package: extension.package || "",
       kind: extension.kind,
+      language: extension.language || "rust",
       target,
       os: runnerForTarget(target),
     });

@@ -1,0 +1,15 @@
+{
+  "id": "dm",
+  "kind": "database_driver",
+  "language": "go",
+  "package": "./cmd/dm-ipc-driver",
+  "binary": "dm-ipc-driver",
+  "build_tags": ["dm_driver"],
+  "path": "extensions/ipc/dm",
+  "targets": [
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu"
+  ],
+  "releaseTagPrefix": "dm-v",
+  "r2Prefix": "extensions/dm"
+}
