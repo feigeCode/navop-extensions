@@ -42,6 +42,13 @@ mkdir -p "$DRIVER_DIR" "$ARTIFACT_DIR"
 cp "$SOURCE_BIN" "${DRIVER_DIR}/${BIN_NAME}"
 cp -R "${SOURCE_DIR}/locales" "${DRIVER_DIR}/locales"
 
+if [[ "$TARGET" == *windows* ]]; then
+  RUNTIME_DLL="${REPO_DIR}/target/${TARGET}/release/deps/duckdb.dll"
+  if [ -f "$RUNTIME_DLL" ]; then
+    cp "$RUNTIME_DLL" "${DRIVER_DIR}/duckdb.dll"
+  fi
+fi
+
 DRIVER_JSON_SOURCE="${SOURCE_DIR}/driver.json"
 DRIVER_JSON_TARGET="${DRIVER_DIR}/driver.json"
 DRIVER_JSON_SOURCE="$DRIVER_JSON_SOURCE" \

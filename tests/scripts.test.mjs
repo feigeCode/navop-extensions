@@ -38,6 +38,40 @@ test("package-driver creates a DuckDB package with executable entry command", ()
   );
 });
 
+test("package-driver includes downloaded DuckDB runtime library on Windows", () => {
+  const workdir = makeTempDir();
+  createPackageFixture(workdir);
+  fs.mkdirSync(path.join(workdir, "target/x86_64-pc-windows-msvc/release/deps"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, "target/x86_64-pc-windows-msvc/release/duckdb_driver.exe"),
+    "fake windows binary\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "target/x86_64-pc-windows-msvc/release/deps/duckdb.dll"),
+    "fake duckdb dll\n",
+  );
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-driver.sh"),
+      "duckdb",
+      "x86_64-pc-windows-msvc",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/duckdb/duckdb.dll"), "utf8"),
+    "fake duckdb dll\n",
+  );
+});
+
 test("verify-package accepts a package containing driver.json, binary, and locales", () => {
   const workdir = makeTempDir();
   createPackageFixture(workdir);

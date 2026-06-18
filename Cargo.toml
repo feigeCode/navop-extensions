@@ -12,7 +12,7 @@ edition = "2024"
 anyhow = "1.0.102"
 base64 = "0.22"
 chrono = { version = "0.4.23", features = ["serde"] }
-duckdb = { version = "1.10501.0", features = ["bundled"] }
+duckdb = { version = "1.10501.0", default-features = false }
 extension-driver = { git = "https://github.com/feigeCode/onetcli", branch = "dev-ipc", package = "extension-driver" }
 extension-host = { git = "https://github.com/feigeCode/onetcli", branch = "dev-ipc", package = "extension-host" }
 extension-protocol = { git = "https://github.com/feigeCode/onetcli", branch = "dev-ipc", package = "extension-protocol" }

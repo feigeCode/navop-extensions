@@ -97,6 +97,8 @@ jobs:
           target: ${{ matrix.target }}
       - name: Build
         if: ${{ matrix.package != '' && matrix.target != 'universal' }}
+        env:
+          DUCKDB_DOWNLOAD_LIB: ${{ contains(matrix.target, 'windows') && '1' || '' }}
         run: cargo build --release -p ${{ matrix.package }} --target ${{ matrix.target }}
       - name: Package
         shell: bash
