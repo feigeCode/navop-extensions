@@ -65,10 +65,11 @@ jobs:
             kind: metadata.kind,
             language: metadata.language || "rust",
             target,
-            os: runnerForTarget(target),
+            os: runnerForTarget(target, metadata.language || "rust"),
           }));
           process.stdout.write(JSON.stringify({ include }));
-          function runnerForTarget(target) {
+          function runnerForTarget(target, language) {
+            if (language === "go") return "ubuntu-latest";
             if (target === "universal") return "ubuntu-latest";
             if (target.includes("apple-darwin")) {
               return target.startsWith("x86_64") ? "macos-15-intel" : "macos-latest";

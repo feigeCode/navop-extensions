@@ -171,7 +171,7 @@ fi
 if [ "${#GO_BUILD_ARGS[@]}" -gt 0 ]; then
   GOOS="$GOOS_VALUE" \
   GOARCH="$GOARCH_VALUE" \
-  CGO_ENABLED="${CGO_ENABLED:-1}" \
+  CGO_ENABLED="${CGO_ENABLED:-0}" \
   GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/onetcli-extensions-go-cache}" \
   GOPROXY="${GOPROXY:-direct}" \
   GOSUMDB="${GOSUMDB:-off}" \
@@ -179,7 +179,7 @@ if [ "${#GO_BUILD_ARGS[@]}" -gt 0 ]; then
 else
   GOOS="$GOOS_VALUE" \
   GOARCH="$GOARCH_VALUE" \
-  CGO_ENABLED="${CGO_ENABLED:-1}" \
+  CGO_ENABLED="${CGO_ENABLED:-0}" \
   GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/onetcli-extensions-go-cache}" \
   GOPROXY="${GOPROXY:-direct}" \
   GOSUMDB="${GOSUMDB:-off}" \

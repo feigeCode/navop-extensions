@@ -46,7 +46,7 @@ for (const extension of extensions) {
       kind: extension.kind,
       language: extension.language || "rust",
       target,
-      os: runnerForTarget(target),
+      os: runnerForTarget(target, extension.language || "rust"),
     });
   }
 }
@@ -71,7 +71,8 @@ function loadExtensions() {
   return result;
 }
 
-function runnerForTarget(target) {
+function runnerForTarget(target, language) {
+  if (language === "go") return "ubuntu-latest";
   if (target === "universal") return "ubuntu-latest";
   if (target.includes("apple-darwin")) {
     return target.startsWith("x86_64") ? "macos-15-intel" : "macos-latest";

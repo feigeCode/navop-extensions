@@ -78,6 +78,24 @@ test("Go IPC driver manifests expose the full shared method surface", () => {
   }
 });
 
+test("Go IPC driver metadata declares all cross-compiled release targets", () => {
+  const expectedTargets = [
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+  ];
+
+  for (const id of ["dm", "kingbase"]) {
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, "extensions/ipc", id, "extension.build.json"), "utf8"),
+    );
+    assert.equal(metadata.language, "go");
+    assert.deepEqual(metadata.targets, expectedTargets, `${id} target list drifted`);
+  }
+});
+
 test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   const metadata = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8s/extension.build.json"), "utf8"),
@@ -542,6 +560,48 @@ test("changed-extensions emits matrix entries only for changed extension paths",
   });
 });
 
+test("changed-extensions runs Go package builds on Ubuntu for cross compilation", () => {
+  const workdir = makeTempDir();
+  copyScript("changed-extensions.mjs", workdir);
+  writeJson(path.join(workdir, "extensions/ipc/dm/extension.build.json"), {
+    id: "dm",
+    kind: "database_driver",
+    language: "go",
+    package: "./cmd/dm-ipc-driver",
+    path: "extensions/ipc/dm",
+    targets: [
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+    ],
+  });
+  fs.writeFileSync(path.join(workdir, "README.md"), "base\n");
+  git(workdir, "init");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "base");
+  const base = git(workdir, "rev-parse", "HEAD").trim();
+  fs.mkdirSync(path.join(workdir, "extensions/ipc/dm"), { recursive: true });
+  fs.writeFileSync(path.join(workdir, "extensions/ipc/dm/driver.json"), "{}\n");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "change dm");
+  const head = git(workdir, "rev-parse", "HEAD").trim();
+
+  const output = execFileSync(
+    "node",
+    [path.join(workdir, "scripts/changed-extensions.mjs"), base, head],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  const matrix = JSON.parse(output);
+  assert.equal(matrix.include.length, 5);
+  assert.deepEqual(
+    matrix.include.map((entry) => entry.os),
+    ["ubuntu-latest", "ubuntu-latest", "ubuntu-latest", "ubuntu-latest", "ubuntu-latest"],
+  );
+});
+
 test("generate-marketplace-manifest writes merged entry with relative R2 and GitHub fallback assets", () => {
   const workdir = makeTempDir();
   copyScript("generate-marketplace-manifest.mjs", workdir);
@@ -663,6 +723,7 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
 
 test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+  const releaseWorkflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/release.yml"), "utf8");
 
   assert.match(workflow, /matrix\.language == 'rust'/);
   assert.match(workflow, /matrix\.language == 'go'/);
@@ -672,6 +733,7 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.match(workflow, /scripts\/build-go-driver\.sh/);
   assert.match(workflow, /scripts\/build-java-driver\.sh/);
   assert.doesNotMatch(workflow, /name: Test Rust package\n\s+if: \$\{\{ matrix\.package != '' \}\}\n\s+run: cargo test -p \$\{\{ matrix\.package \}\}/);
+  assert.match(releaseWorkflow, /if \(language === "go"\) return "ubuntu-latest";/);
 });
 
 test("Java workflows use a runner-available JDK while preserving Java 8 bytecode target", () => {
