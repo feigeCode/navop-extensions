@@ -1,0 +1,7 @@
+database:
+  iotdb:
+    connection:
+      title: Apache IoTDB 连接
+    field:
+      database:
+        help: 可选存储组前缀，例如 root 或 root.ln。

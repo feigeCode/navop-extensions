@@ -1,0 +1,7 @@
+database:
+  iotdb:
+    connection:
+      title: Apache IoTDB Connection
+    field:
+      database:
+        help: Optional storage group prefix, for example root or root.ln.

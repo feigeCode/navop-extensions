@@ -1,0 +1,15 @@
+{
+  "id": "iotdb",
+  "kind": "database_driver",
+  "package": "iotdb_driver",
+  "binary": "iotdb_driver",
+  "path": "extensions/ipc/iotdb",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "iotdb-v",
+  "r2Prefix": "extensions/iotdb"
+}

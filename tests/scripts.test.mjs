@@ -95,6 +95,33 @@ test("verify-package accepts a package containing driver.json, binary, and local
   assert.match(output, /Package verification ok:/);
 });
 
+test("verify-package accepts non-DuckDB driver packages", () => {
+  const workdir = makeTempDir();
+  createPackageFixture(workdir, {
+    id: "iotdb",
+    binary: "iotdb_driver",
+    binaryContents: "fake iotdb binary\n",
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-driver.sh"),
+      "iotdb",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "0.1.0",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  const output = execFileSync("bash", [path.join(workdir, "scripts/verify-package.sh"), archivePath], {
+    cwd: workdir,
+    encoding: "utf8",
+  });
+  assert.match(output, /Package verification ok:/);
+});
+
 test("changed-extensions emits matrix entries only for changed extension paths", () => {
   const workdir = makeTempDir();
   copyScript("changed-extensions.mjs", workdir);
@@ -153,6 +180,22 @@ test("generate-marketplace-manifest writes merged entry with relative R2 and Git
   const workdir = makeTempDir();
   copyScript("generate-marketplace-manifest.mjs", workdir);
   fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/ipc/duckdb/extension.build.json"), {
+    id: "duckdb",
+    kind: "database_driver",
+    path: "extensions/ipc/duckdb",
+    targets: [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+    ],
+  });
+  writeJson(path.join(workdir, "extensions/ipc/duckdb/driver.json"), {
+    id: "duckdb",
+    name: "DuckDB",
+    description: "DuckDB embedded analytical database IPC driver",
+  });
 
   const targets = [
     "aarch64-apple-darwin",
@@ -196,6 +239,50 @@ test("generate-marketplace-manifest writes merged entry with relative R2 and Git
   assert.match(manifest.extensions[0].sha256s["x86_64-unknown-linux-gnu"], /^[0-9a-f]{64}$/);
 });
 
+test("generate-marketplace-manifest uses selected extension metadata", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/ipc/iotdb/extension.build.json"), {
+    id: "iotdb",
+    kind: "database_driver",
+    path: "extensions/ipc/iotdb",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  writeJson(path.join(workdir, "extensions/ipc/iotdb/driver.json"), {
+    id: "iotdb",
+    name: "Apache IoTDB",
+    description: "Apache IoTDB time-series database IPC driver",
+  });
+  const fileName = "iotdb-driver-x86_64-unknown-linux-gnu.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "0.1.0",
+      EXTENSION_ID: "iotdb",
+      RELEASE_TAG: "iotdb-v0.1.0",
+      GITHUB_REPOSITORY: "feigeCode/onetcli-extensions",
+    },
+  });
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.extensions[0].id, "iotdb");
+  assert.equal(manifest.extensions[0].name, "Apache IoTDB");
+  assert.equal(
+    manifest.extensions[0].asset_urls["x86_64-unknown-linux-gnu"],
+    "iotdb/0.1.0/iotdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+  );
+});
+
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
@@ -214,24 +301,27 @@ function makeTempDir() {
   return dir;
 }
 
-function createPackageFixture(workdir) {
+function createPackageFixture(workdir, options = {}) {
+  const id = options.id || "duckdb";
+  const binary = options.binary || "duckdb_driver";
+  const binaryContents = options.binaryContents || "fake binary\n";
   copyScript("package-driver.sh", workdir);
   copyScript("verify-package.sh", workdir);
-  writeJson(path.join(workdir, "extensions/ipc/duckdb/extension.build.json"), {
-    id: "duckdb",
-    binary: "duckdb_driver",
+  writeJson(path.join(workdir, `extensions/ipc/${id}/extension.build.json`), {
+    id,
+    binary,
   });
-  writeJson(path.join(workdir, "extensions/ipc/duckdb/driver.json"), {
-    id: "duckdb",
+  writeJson(path.join(workdir, `extensions/ipc/${id}/driver.json`), {
+    id,
     version: "0.0.0",
     entry: {},
   });
-  fs.mkdirSync(path.join(workdir, "extensions/ipc/duckdb/locales"), { recursive: true });
-  fs.writeFileSync(path.join(workdir, "extensions/ipc/duckdb/locales/en.yml"), "name: DuckDB\n");
+  fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/locales`), { recursive: true });
+  fs.writeFileSync(path.join(workdir, `extensions/ipc/${id}/locales/en.yml`), `name: ${id}\n`);
   fs.mkdirSync(path.join(workdir, "target/x86_64-unknown-linux-gnu/release"), { recursive: true });
   fs.writeFileSync(
-    path.join(workdir, "target/x86_64-unknown-linux-gnu/release/duckdb_driver"),
-    "fake binary\n",
+    path.join(workdir, `target/x86_64-unknown-linux-gnu/release/${binary}`),
+    binaryContents,
   );
 }
 

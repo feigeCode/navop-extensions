@@ -6,13 +6,12 @@ const version = requiredEnv("EXTENSION_VERSION");
 const releaseTag = requiredEnv("RELEASE_TAG");
 const extensionId = requiredEnv("EXTENSION_ID");
 const repository = requiredEnv("GITHUB_REPOSITORY");
+const metadata = loadExtensionMetadata(extensionId);
+const driverJson = JSON.parse(
+  fs.readFileSync(path.join(metadata.path, "driver.json"), "utf8"),
+);
 
-const targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "x86_64-pc-windows-msvc",
-];
+const targets = metadata.targets;
 
 const checksums = readChecksums(path.join(artifactDir, "sha256sums.txt"));
 const assetUrls = {};
@@ -20,7 +19,7 @@ const fallbackAssetUrls = {};
 const sha256s = {};
 
 for (const target of targets) {
-  const fileName = `duckdb-driver-${target}.tar.gz`;
+  const fileName = `${extensionId}-driver-${target}.tar.gz`;
   assetUrls[target] = `${extensionId}/${version}/${fileName}`;
   fallbackAssetUrls[target] = `https://github.com/${repository}/releases/download/${releaseTag}/${fileName}`;
   sha256s[target] = checksumFor(checksums, fileName);
@@ -34,10 +33,10 @@ const manifest = {
 
 const currentEntry = {
   id: extensionId,
-  kind: "database_driver",
-  name: "DuckDB",
+  kind: metadata.kind,
+  name: driverJson.name || extensionId,
   version,
-  description: "DuckDB embedded analytical database IPC driver",
+  description: driverJson.description || "",
   asset_urls: assetUrls,
   fallback_asset_urls: fallbackAssetUrls,
   sha256s,
@@ -85,4 +84,18 @@ function checksumFor(checksums, fileName) {
     throw new Error(`missing checksum for ${fileName}`);
   }
   return sha256;
+}
+
+function loadExtensionMetadata(id) {
+  const roots = ["extensions/ipc", "extensions/wasm", "extensions/language"];
+  for (const root of roots) {
+    const file = path.join(root, id, "extension.build.json");
+    if (!fs.existsSync(file)) continue;
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!data.id || !data.kind || !data.path || !Array.isArray(data.targets)) {
+      throw new Error(`invalid extension build metadata: ${file}`);
+    }
+    return data;
+  }
+  throw new Error(`unknown extension id: ${id}`);
 }

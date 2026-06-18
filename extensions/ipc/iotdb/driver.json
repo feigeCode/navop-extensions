@@ -1,0 +1,239 @@
+{
+  "id": "iotdb",
+  "name": "Apache IoTDB",
+  "description": "Apache IoTDB time-series database IPC driver",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/apache/iotdb",
+  "homepage": "https://iotdb.apache.org",
+  "authors": ["Apache IoTDB"],
+  "dependencies": {
+    "onetcli-sdk": "^1.0.0",
+    "iotdb": "0.0.7"
+  },
+  "entry": {
+    "command": "./iotdb_driver",
+    "args": [],
+    "working_dir": null
+  },
+  "transport": {
+    "name": "iotdb-driver.sock",
+    "connect_timeout_ms": 5000
+  },
+  "connection": {
+    "single_file": false,
+    "single_connection": false,
+    "close_on_release": false,
+    "path_fields": []
+  },
+  "methods": [
+    "$/ping",
+    "shutdown",
+    "conn/test",
+    "conn/open",
+    "conn/close",
+    "conn/ping",
+    "conn/use",
+    "query/start",
+    "cursor/fetch",
+    "cursor/close",
+    "cursor/cancel",
+    "exec/run",
+    "exec/batch",
+    "data/export",
+    "data/import_begin",
+    "data/import_chunk",
+    "data/import_commit",
+    "data/import_abort",
+    "stream/read",
+    "stream/close",
+    "schema/databases",
+    "schema/schemas",
+    "schema/objects",
+    "schema/columns",
+    "schema/views",
+    "schema/indexes",
+    "schema/checks",
+    "schema/functions",
+    "ddl/build",
+    "ddl/build_create_table",
+    "ddl/build_alter_table",
+    "ddl/build_drop"
+  ],
+  "dialect": {
+    "identifier_quote_left": "`",
+    "identifier_quote_right": "`",
+    "limit_style": "limit_offset",
+    "bool_true": "true",
+    "bool_false": "false"
+  },
+  "capabilities": {
+    "supports_schema": true,
+    "uses_schema_as_database": false,
+    "supports_sequences": false,
+    "supports_functions": true,
+    "supports_procedures": false,
+    "supports_triggers": false,
+    "supports_table_engine": false,
+    "supports_table_charset": false,
+    "supports_table_collation": false,
+    "supports_auto_increment": false,
+    "supports_tablespace": false,
+    "supports_unsigned": false,
+    "supports_enum_values": false,
+    "show_charset_in_column_detail": false,
+    "show_collation_in_column_detail": false,
+    "table_engines": []
+  },
+  "ui": {
+    "icon": "Database",
+    "locales_dir": "locales",
+    "default_port": 6667,
+    "form": {
+      "schema_version": 1,
+      "forms": [
+        {
+          "kind": "Connection",
+          "title_i18n_key": "database.iotdb.connection.title",
+          "submit_i18n_key": "common.connect",
+          "tabs": [
+            {
+              "id": "general",
+              "label_i18n_key": "database.connection.tab.general",
+              "fields": [
+                {
+                  "id": "name",
+                  "label_i18n_key": "database.connection.field.name",
+                  "field_type": "Text",
+                  "required": true,
+                  "default_value": null,
+                  "placeholder_i18n_key": "database.connection.field.name.placeholder",
+                  "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "host",
+                  "label_i18n_key": "database.connection.field.host",
+                  "field_type": "Text",
+                  "required": true,
+                  "default_value": "127.0.0.1",
+                  "placeholder_i18n_key": "database.connection.field.host.placeholder",
+                  "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "port",
+                  "label_i18n_key": "database.connection.field.port",
+                  "field_type": "Number",
+                  "required": true,
+                  "default_value": "6667",
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": 1,
+                  "max": 65535
+                },
+                {
+                  "id": "username",
+                  "label_i18n_key": "database.connection.field.username",
+                  "field_type": "Text",
+                  "required": true,
+                  "default_value": "root",
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "password",
+                  "label_i18n_key": "database.connection.field.password",
+                  "field_type": "Password",
+                  "required": true,
+                  "default_value": "root",
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "database",
+                  "label_i18n_key": "database.connection.field.database",
+                  "field_type": "Text",
+                  "required": false,
+                  "default_value": "root",
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": "database.iotdb.field.database.help",
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "actions": {
+        "actions": [
+          {
+            "id": "CloseConnection",
+            "label_i18n_key": "Connection.close_connection",
+            "icon": null,
+            "targets": [{ "node_type": "Connection" }],
+            "placement": "Both",
+            "requires_active_connection": false,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": "SelectedRow"
+          },
+          {
+            "id": "DeleteConnection",
+            "label_i18n_key": "Connection.delete_connection",
+            "icon": null,
+            "targets": [{ "node_type": "Connection" }],
+            "placement": "Both",
+            "requires_active_connection": false,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": "SelectedRow"
+          }
+        ]
+      }
+    }
+  }
+}
