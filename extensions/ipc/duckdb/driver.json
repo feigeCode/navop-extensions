@@ -2,7 +2,7 @@
   "id": "duckdb",
   "name": "DuckDB",
   "description": "DuckDB embedded analytical database IPC driver",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "repository": "https://github.com/duckdb/duckdb",
   "homepage": "https://duckdb.org",

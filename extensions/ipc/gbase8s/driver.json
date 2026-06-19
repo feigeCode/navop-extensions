@@ -1,7 +1,7 @@
 {
   "id": "gbase8s",
   "name": "GBase 8s",
-  "description": "GBase 8s Java IPC driver using the official JDBC driver",
+  "description": "南大通用 GBase 8s Java IPC 驱动",
   "category": "domestic_database",
   "version": "0.1.0",
   "entry": {
