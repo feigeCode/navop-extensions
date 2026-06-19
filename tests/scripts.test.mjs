@@ -260,7 +260,7 @@ test("IPC driver categories keep domestic database routing manifest-driven", () 
     }
   }
 
-  assert.deepEqual(domesticIds, ["dm", "gbase8s", "kingbase"]);
+  assert.deepEqual(domesticIds, ["dm", "gbase8s", "kingbase", "opengauss"]);
 });
 
 test("IPC connection form extra params use raw extra parameter keys", () => {

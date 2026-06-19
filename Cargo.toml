@@ -2,6 +2,7 @@
 members = [
     "extensions/ipc/duckdb",
     "extensions/ipc/iotdb",
+    "extensions/ipc/opengauss",
 ]
 resolver = "2"
 
@@ -20,9 +21,12 @@ extension-protocol = { git = "https://github.com/feigeCode/onetcli", branch = "d
 hex = "0.4"
 interprocess = { version = "2.4.0", features = ["tokio"] }
 iotdb = "0.0.7"
+native-tls = "0.2"
+opengauss-native-tls = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+tokio-opengauss = { version = "0.1.0", features = ["with-chrono-0_4", "with-serde_json-1"] }
 tokio = { version = "1", features = ["io-util", "rt-multi-thread", "macros", "sync"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3"
