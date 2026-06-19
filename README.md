@@ -206,18 +206,31 @@ ARTIFACT_DIR=artifacts
 EXTENSION_VERSION=1.0.0
 EXTENSION_ID=duckdb
 RELEASE_TAG=duckdb-v1.0.0
-GITHUB_REPOSITORY=feigeCode/onetcli-extensions
 ```
 
-The manifest includes relative primary R2 asset URLs and absolute GitHub
-Release fallback URLs. Because the R2 manifest is published at
-`/extensions/manifest.json`, a DuckDB primary package path is written as:
+The manifest is schema v2 and contains artifact file names plus checksums, not
+download URLs. A DuckDB entry looks like:
 
-```text
-duckdb/1.0.0/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz
+```json
+{
+  "id": "duckdb",
+  "kind": "database_driver",
+  "name": "DuckDB",
+  "version": "1.0.0",
+  "release_tag": "duckdb-v1.0.0",
+  "artifacts": {
+    "x86_64-unknown-linux-gnu": {
+      "file": "duckdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "<sha256>"
+    }
+  }
+}
 ```
 
-The `onetcli` client resolves that path against the manifest directory.
+The `onetcli` client owns download source policy. It resolves the primary
+package URL from the manifest directory using `<id>/<version>/<file>`, and
+derives GitHub Release fallback URLs from its configured GitHub marketplace
+manifest URL plus each entry's `release_tag` and artifact `file`.
 
 ## CI
 

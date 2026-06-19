@@ -181,16 +181,30 @@ ARTIFACT_DIR=artifacts
 EXTENSION_VERSION=1.0.0
 EXTENSION_ID=duckdb
 RELEASE_TAG=duckdb-v1.0.0
-GITHUB_REPOSITORY=feigeCode/onetcli-extensions
 ```
 
-manifest 中的主 R2 下载地址使用相对路径，GitHub Release fallback 下载地址使用绝对 URL。因为 R2 manifest 发布在 `/extensions/manifest.json`，DuckDB 主扩展包路径会写成：
+manifest 使用 schema v2，只记录扩展包文件名和 checksum，不记录下载 URL。DuckDB 条目示例：
 
-```text
-duckdb/1.0.0/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz
+```json
+{
+  "id": "duckdb",
+  "kind": "database_driver",
+  "name": "DuckDB",
+  "version": "1.0.0",
+  "release_tag": "duckdb-v1.0.0",
+  "artifacts": {
+    "x86_64-unknown-linux-gnu": {
+      "file": "duckdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "<sha256>"
+    }
+  }
+}
 ```
 
-`onetcli` 客户端会将这个相对路径按 manifest 所在目录解析。
+`onetcli` 客户端负责下载源策略：主下载地址按 manifest 所在目录拼
+`<id>/<version>/<file>`；GitHub Release fallback 地址由客户端配置的
+GitHub marketplace manifest URL、条目的 `release_tag` 和 artifact `file`
+推导。
 
 ## CI
 

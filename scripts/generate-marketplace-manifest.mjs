@@ -5,7 +5,6 @@ const artifactDir = process.env.ARTIFACT_DIR || "artifacts";
 const version = requiredEnv("EXTENSION_VERSION");
 const releaseTag = requiredEnv("RELEASE_TAG");
 const extensionId = requiredEnv("EXTENSION_ID");
-const repository = requiredEnv("GITHUB_REPOSITORY");
 const metadata = loadExtensionMetadata(extensionId);
 const driverJson = JSON.parse(
   fs.readFileSync(path.join(metadata.path, "driver.json"), "utf8"),
@@ -14,19 +13,18 @@ const driverJson = JSON.parse(
 const targets = metadata.targets;
 
 const checksums = readChecksums(path.join(artifactDir, "sha256sums.txt"));
-const assetUrls = {};
-const fallbackAssetUrls = {};
-const sha256s = {};
+const artifacts = {};
 
 for (const target of targets) {
   const fileName = `${extensionId}-driver-${target}.tar.gz`;
-  assetUrls[target] = `${extensionId}/${version}/${fileName}`;
-  fallbackAssetUrls[target] = `https://github.com/${repository}/releases/download/${releaseTag}/${fileName}`;
-  sha256s[target] = checksumFor(checksums, fileName);
+  artifacts[target] = {
+    file: fileName,
+    sha256: checksumFor(checksums, fileName),
+  };
 }
 
 const manifest = {
-  schema_version: 1,
+  schema_version: 2,
   release_version: releaseTag,
   extensions: [],
 };
@@ -36,10 +34,9 @@ const currentEntry = {
   kind: metadata.kind,
   name: driverJson.name || extensionId,
   version,
+  release_tag: releaseTag,
   description: driverJson.description || "",
-  asset_urls: assetUrls,
-  fallback_asset_urls: fallbackAssetUrls,
-  sha256s,
+  artifacts,
 };
 
 fs.mkdirSync(artifactDir, { recursive: true });

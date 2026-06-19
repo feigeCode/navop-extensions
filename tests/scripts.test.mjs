@@ -873,7 +873,7 @@ test("changed-extensions runs Go package builds on Ubuntu for cross compilation"
   );
 });
 
-test("generate-marketplace-manifest writes merged entry with relative R2 and GitHub fallback assets", () => {
+test("generate-marketplace-manifest writes lightweight artifacts without fallback assets", () => {
   const workdir = makeTempDir();
   copyScript("generate-marketplace-manifest.mjs", workdir);
   fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
@@ -915,25 +915,27 @@ test("generate-marketplace-manifest writes merged entry with relative R2 and Git
       EXTENSION_VERSION: "1.2.3",
       EXTENSION_ID: "duckdb",
       RELEASE_TAG: "duckdb-v1.2.3",
-      GITHUB_REPOSITORY: "feigeCode/onetcli-extensions",
     },
   });
 
   const manifest = JSON.parse(
     fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
   );
-  assert.equal(manifest.schema_version, 1);
+  assert.equal(manifest.schema_version, 2);
   assert.equal(manifest.release_version, "duckdb-v1.2.3");
   assert.equal(manifest.extensions.length, 1);
+  assert.equal(manifest.extensions[0].release_tag, "duckdb-v1.2.3");
   assert.equal(
-    manifest.extensions[0].asset_urls["x86_64-unknown-linux-gnu"],
-    "duckdb/1.2.3/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+    manifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    "duckdb-driver-x86_64-unknown-linux-gnu.tar.gz",
   );
-  assert.equal(
-    manifest.extensions[0].fallback_asset_urls["x86_64-unknown-linux-gnu"],
-    "https://github.com/feigeCode/onetcli-extensions/releases/download/duckdb-v1.2.3/duckdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+  assert.match(
+    manifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].sha256,
+    /^[0-9a-f]{64}$/,
   );
-  assert.match(manifest.extensions[0].sha256s["x86_64-unknown-linux-gnu"], /^[0-9a-f]{64}$/);
+  assert.equal(Object.hasOwn(manifest.extensions[0], "asset_urls"), false);
+  assert.equal(Object.hasOwn(manifest.extensions[0], "fallback_asset_urls"), false);
+  assert.equal(Object.hasOwn(manifest.extensions[0], "sha256s"), false);
 });
 
 test("generate-marketplace-manifest uses selected extension metadata", () => {
@@ -965,7 +967,6 @@ test("generate-marketplace-manifest uses selected extension metadata", () => {
       EXTENSION_VERSION: "0.1.0",
       EXTENSION_ID: "iotdb",
       RELEASE_TAG: "iotdb-v0.1.0",
-      GITHUB_REPOSITORY: "feigeCode/onetcli-extensions",
     },
   });
 
@@ -975,8 +976,8 @@ test("generate-marketplace-manifest uses selected extension metadata", () => {
   assert.equal(manifest.extensions[0].id, "iotdb");
   assert.equal(manifest.extensions[0].name, "Apache IoTDB");
   assert.equal(
-    manifest.extensions[0].asset_urls["x86_64-unknown-linux-gnu"],
-    "iotdb/0.1.0/iotdb-driver-x86_64-unknown-linux-gnu.tar.gz",
+    manifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    "iotdb-driver-x86_64-unknown-linux-gnu.tar.gz",
   );
 });
 
