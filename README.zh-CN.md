@@ -167,7 +167,8 @@ bash scripts/package-driver.sh gbase8s "$HOST_TRIPLE" artifacts 0.1.0
 
 ## 扩展市场 Manifest
 
-Release job 会根据以下输入生成 `artifacts/extension-manifest.json`：
+Release job 会根据以下输入生成当前扩展的
+`artifacts/extension-manifest.json`：
 
 - 扩展包文件名
 - `artifacts/sha256sums.txt`
@@ -182,6 +183,11 @@ EXTENSION_VERSION=1.0.0
 EXTENSION_ID=duckdb
 RELEASE_TAG=duckdb-v1.0.0
 ```
+
+扩展级 GitHub Release 会保留这个文件作为当前扩展 release 的 manifest 条目。
+Release workflow 成功后，上传 workflow 会串行执行市场发布，扫描各扩展
+release 的 manifest，并把累计后的 `extension-manifest.json` 同时发布到 R2
+和专用 GitHub `extensions-manifest` release。
 
 manifest 使用 schema v2，只记录扩展包文件名和 checksum，不记录下载 URL。DuckDB 条目示例：
 
@@ -231,8 +237,8 @@ Release workflow 会执行：
 2. 构建 `extension.build.json` 中列出的所有 target。
 3. 打包并校验每个 archive。
 4. 生成 checksum。
-5. 生成 `extension-manifest.json`。
-6. 发布包含扩展包、checksum 和 manifest 的 GitHub Release。
+5. 生成当前扩展的 marketplace manifest。
+6. 发布包含扩展包、checksum 和当前扩展 `extension-manifest.json` 的 GitHub Release。
 
 也可以通过 `workflow_dispatch` 手动发布，参数包括：
 
@@ -252,6 +258,7 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET
 ```
 
+上传 workflow 使用 `extension-marketplace-publish` concurrency group 串行执行。
 以 DuckDB `1.0.0` 为例，R2 会收到：
 
 ```text
@@ -260,7 +267,9 @@ extensions/duckdb/latest/<package>.tar.gz
 extensions/manifest.json
 ```
 
-版本化扩展包使用 immutable cache。全局 manifest 使用 `no-cache`。
+版本化扩展包使用 immutable cache。全局 manifest 从 GitHub 扩展 release
+重新生成，并使用 `no-cache` 上传。同一份全局 manifest 也会作为
+`extension-manifest.json` 发布到专用 GitHub release tag `extensions-manifest`。
 
 ## 新增另一个 IPC 驱动
 
@@ -293,6 +302,7 @@ icons/
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc"
   ],
   "releaseTagPrefix": "postgres-v",
@@ -304,10 +314,11 @@ icons/
 
 ## 主应用集成
 
-主仓库 `onetcli` 应优先从 R2 消费已发布的扩展市场 manifest，并将本仓库的 GitHub Release 作为 fallback：
+主仓库 `onetcli` 应优先从 R2 消费已发布的扩展市场 manifest，并将本仓库专用 GitHub
+manifest release 作为 fallback。R2 和 GitHub fallback 使用同一份生成出的全局 manifest：
 
 ```text
-https://github.com/feigeCode/onetcli-extensions/releases/latest/download/extension-manifest.json
+https://github.com/feigeCode/onetcli-extensions/releases/download/extensions-manifest/extension-manifest.json
 ```
 
 不要让主应用 release 依赖本仓库的扩展构建。主应用负责运行时消费；本仓库负责扩展生产和发布。

@@ -97,6 +97,25 @@ test("Go IPC driver metadata declares all cross-compiled release targets", () =>
   }
 });
 
+test("IPC driver metadata declares Linux ARM64 release target", () => {
+  const ids = fs
+    .readdirSync(path.join(repoRoot, "extensions/ipc"))
+    .filter((id) =>
+      fs.existsSync(path.join(repoRoot, "extensions/ipc", id, "extension.build.json")),
+    )
+    .sort();
+
+  for (const id of ids) {
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, "extensions/ipc", id, "extension.build.json"), "utf8"),
+    );
+    assert.ok(
+      metadata.targets.includes("aarch64-unknown-linux-gnu"),
+      `${id} is missing aarch64-unknown-linux-gnu`,
+    );
+  }
+});
+
 test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   const metadata = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8s/extension.build.json"), "utf8"),
@@ -898,7 +917,7 @@ test("changed-extensions emits matrix entries only for changed extension paths",
         kind: "database_driver",
         language: "rust",
         target: "x86_64-pc-windows-msvc",
-        os: "windows-latest",
+        os: "windows-2022",
       },
     ],
   });
@@ -1116,6 +1135,10 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
   assert.doesNotMatch(workflow, /aws-actions\/configure-aws-credentials/);
+  assert.match(workflow, /contents:\s+write/);
+  assert.match(workflow, /concurrency:/);
+  assert.match(workflow, /group:\s+extension-marketplace-publish/);
+  assert.match(workflow, /cancel-in-progress:\s+false/);
   assert.match(workflow, /AWS_ACCESS_KEY_ID:\s+\$\{\{\s*secrets\.CLOUDFLARE_R2_ACCESS_KEY_ID\s*\}\}/);
   assert.match(
     workflow,
@@ -1123,7 +1146,24 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   );
   assert.match(workflow, /AWS_DEFAULT_REGION:\s+auto\b/);
   assert.match(workflow, /merge-marketplace-manifest\.mjs/);
-  assert.doesNotMatch(workflow, /upload_object "artifacts\/extension-manifest\.json" "extensions\/manifest\.json"/);
+  assert.match(workflow, /MANIFEST_RELEASE_TAG:\s+extensions-manifest/);
+  assert.match(workflow, /gh release list/);
+  assert.match(workflow, /tagName != env\.MANIFEST_RELEASE_TAG/);
+  assert.match(workflow, /gh release download "\$manifest_tag"/);
+  assert.match(workflow, /gh release create "\$MANIFEST_RELEASE_TAG"/);
+  assert.match(workflow, /gh release upload "\$MANIFEST_RELEASE_TAG"/);
+  assert.match(workflow, /--clobber/);
+  assert.match(workflow, /upload_object "\$merged_manifest" "extensions\/manifest\.json"/);
+  assert.doesNotMatch(workflow, /aws s3 cp "s3:\/\/\$\{CLOUDFLARE_R2_BUCKET\}\/extensions\/manifest\.json"/);
+});
+
+test("release workflow keeps extension releases scoped to current extension", () => {
+  const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/release.yml"), "utf8");
+
+  assert.doesNotMatch(workflow, /Merge previous GitHub marketplace manifests/);
+  assert.doesNotMatch(workflow, /gh release list/);
+  assert.doesNotMatch(workflow, /previous-github-manifests/);
+  assert.match(workflow, /artifacts\/extension-manifest\.json/);
 });
 
 test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {

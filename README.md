@@ -192,7 +192,8 @@ libraries.
 
 ## Marketplace Manifest
 
-Release jobs generate `artifacts/extension-manifest.json` from:
+Release jobs generate a current-extension manifest at
+`artifacts/extension-manifest.json` from:
 
 - package filenames
 - `artifacts/sha256sums.txt`
@@ -207,6 +208,12 @@ EXTENSION_VERSION=1.0.0
 EXTENSION_ID=duckdb
 RELEASE_TAG=duckdb-v1.0.0
 ```
+
+The extension-scoped GitHub Release keeps this file as the manifest entry for
+that extension release. After the Release workflow succeeds, the upload workflow
+serializes marketplace publication, scans extension release manifests, and
+publishes one accumulated `extension-manifest.json` to both R2 and the dedicated
+GitHub `extensions-manifest` release.
 
 The manifest is schema v2 and contains artifact file names plus checksums, not
 download URLs. A DuckDB entry looks like:
@@ -259,8 +266,9 @@ The Release workflow:
 2. Builds every target listed in `extension.build.json`.
 3. Packages and verifies each archive.
 4. Generates checksums.
-5. Generates `extension-manifest.json`.
-6. Publishes a GitHub Release with packages, checksums, and manifest.
+5. Generates the current extension marketplace manifest.
+6. Publishes a GitHub Release with packages, checksums, and the current
+   extension `extension-manifest.json`.
 
 Manual release is also available through `workflow_dispatch` with:
 
@@ -281,7 +289,8 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET
 ```
 
-For DuckDB `1.0.0`, R2 receives:
+The upload workflow is serialized with the `extension-marketplace-publish`
+concurrency group. For DuckDB `1.0.0`, R2 receives:
 
 ```text
 extensions/duckdb/1.0.0/<package>.tar.gz
@@ -290,7 +299,9 @@ extensions/manifest.json
 ```
 
 Versioned packages are uploaded with immutable caching. The global manifest is
-uploaded with `no-cache`.
+rebuilt from GitHub extension releases and uploaded with `no-cache`. The same
+global manifest is also published as `extension-manifest.json` on the dedicated
+GitHub release tag `extensions-manifest`.
 
 ## Adding Another IPC Driver
 
@@ -324,6 +335,7 @@ Create metadata similar to:
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc"
   ],
   "releaseTagPrefix": "postgres-v",
@@ -337,10 +349,11 @@ the existing metadata and package shape.
 ## Host App Integration
 
 The main `onetcli` repository should consume the published marketplace manifest
-from R2 first and use GitHub Releases in this repository as fallback:
+from R2 first and use the dedicated GitHub manifest release in this repository as
+fallback. R2 and GitHub fallback receive the same generated global manifest:
 
 ```text
-https://github.com/feigeCode/onetcli-extensions/releases/latest/download/extension-manifest.json
+https://github.com/feigeCode/onetcli-extensions/releases/download/extensions-manifest/extension-manifest.json
 ```
 
 Do not make the main application release depend on this repository's extension

@@ -77,6 +77,6 @@ function runnerForTarget(target, language) {
   if (target.includes("apple-darwin")) {
     return target.startsWith("x86_64") ? "macos-15-intel" : "macos-latest";
   }
-  if (target.includes("windows")) return "windows-latest";
+  if (target.includes("windows")) return "windows-2022";
   return "ubuntu-latest";
 }
