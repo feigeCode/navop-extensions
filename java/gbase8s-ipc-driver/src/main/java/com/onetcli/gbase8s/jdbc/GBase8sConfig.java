@@ -14,6 +14,7 @@ public final class GBase8sConfig {
     private final String password;
     private final String database;
     private final String driverClass;
+    private final String jdbcJar;
     private final Map<String, String> extraParams;
 
     private GBase8sConfig(
@@ -23,6 +24,7 @@ public final class GBase8sConfig {
         String password,
         String database,
         String driverClass,
+        String jdbcJar,
         Map<String, String> extraParams
     ) {
         this.host = host;
@@ -31,6 +33,7 @@ public final class GBase8sConfig {
         this.password = password;
         this.database = database;
         this.driverClass = driverClass;
+        this.jdbcJar = jdbcJar;
         this.extraParams = Collections.unmodifiableMap(new LinkedHashMap<String, String>(extraParams));
     }
 
@@ -45,7 +48,8 @@ public final class GBase8sConfig {
             stringValue(raw, "username"),
             stringValue(raw, "password"),
             stringValue(raw, "database"),
-            defaultString(stringValue(raw, "driver_class"), DEFAULT_DRIVER_CLASS),
+            defaultString(configString(raw, extra, "driver_class"), DEFAULT_DRIVER_CLASS),
+            configString(raw, extra, "jdbc_jar"),
             extra
         );
         config.validate();
@@ -102,6 +106,15 @@ public final class GBase8sConfig {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private static String configString(Map<String, Object> raw, Map<String, String> extra, String key) {
+        String value = stringValue(raw, key);
+        if (value != null && !value.trim().isEmpty()) {
+            return value;
+        }
+        value = extra.get(key);
+        return value == null ? "" : value;
+    }
+
     private static int portValue(Object value) {
         if (value == null) {
             return DEFAULT_PORT;
@@ -148,6 +161,10 @@ public final class GBase8sConfig {
 
     public String getDriverClass() {
         return driverClass;
+    }
+
+    public String getJdbcJar() {
+        return jdbcJar;
     }
 
     public Map<String, String> getExtraParams() {

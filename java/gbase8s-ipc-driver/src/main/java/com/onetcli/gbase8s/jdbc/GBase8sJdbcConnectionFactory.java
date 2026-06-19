@@ -17,7 +17,7 @@ public final class GBase8sJdbcConnectionFactory implements JdbcConnectionFactory
 
     @Override
     public Connection open(GBase8sConfig config) throws Exception {
-        Driver driver = DriverLoader.loadDriver(config.getDriverClass(), workingDir);
+        Driver driver = DriverLoader.loadDriver(config.getDriverClass(), workingDir, config.getJdbcJar());
         String url = GBase8sJdbcUrl.build(config);
         Properties properties = new Properties();
         properties.setProperty("user", config.getUsername());

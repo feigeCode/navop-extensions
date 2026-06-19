@@ -41,6 +41,20 @@ public class DriverLoaderTest {
     }
 
     @Test
+    public void candidateJarsResolveRelativeExplicitPathsAgainstWorkingDir() throws Exception {
+        File workDir = temporaryFolder.newFolder("driver-relative");
+        File lib = new File(workDir, "lib");
+        assertTrue(lib.mkdirs());
+        File official = new File(lib, "gbasedbtjdbc.jar");
+        assertTrue(official.createNewFile());
+
+        List<File> jars = DriverLoader.candidateJars(workDir, "lib/gbasedbtjdbc.jar");
+
+        assertEquals(1, jars.size());
+        assertEquals(official.getAbsolutePath(), jars.get(0).getAbsolutePath());
+    }
+
+    @Test
     public void loadDriverUsesExistingClasspathBeforeExternalJars() throws Exception {
         Driver driver = DriverLoader.loadDriver("org.h2.Driver", temporaryFolder.newFolder("empty"), "");
 

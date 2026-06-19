@@ -2,6 +2,7 @@ name: GBase 8s
 description: GBase 8s Java IPC driver
 "common.connect": "Connect"
 "database.connection.tab.general": "General"
+"database.connection.tab.advanced": "Advanced"
 "database.connection.field.name": "Connection Name"
 "database.connection.field.name.placeholder": "My GBase 8s Connection"
 "database.connection.field.host": "Host"
@@ -13,5 +14,9 @@ description: GBase 8s Java IPC driver
 "database.gbase8s.field.gbasedbtserver": "GBASEDBTSERVER"
 "database.gbase8s.field.gbasedbtserver.placeholder": "gbaseserver"
 "database.gbase8s.field.protocol": "Protocol"
+"database.gbase8s.field.jdk_home": "JDK Home"
+"database.gbase8s.field.jdk_home.help": "Used by the host before starting the Java IPC driver. Leave empty to use JAVA_HOME or PATH."
+"database.gbase8s.field.jdbc_jar": "JDBC Driver JAR"
+"database.gbase8s.field.jdbc_jar.help": "Defaults to the official GBase 8s JDBC jar packaged with this driver. Replace it only when using a different jar."
 "database.gbase8s.field.driver_class": "JDBC Driver Class"
 "database.gbase8s.field.driver_class.help": "Defaults to the official GBase 8s JDBC driver class."

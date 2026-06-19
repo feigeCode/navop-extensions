@@ -110,8 +110,8 @@ test("IPC driver metadata declares Linux ARM64 release target", () => {
       fs.readFileSync(path.join(repoRoot, "extensions/ipc", id, "extension.build.json"), "utf8"),
     );
     assert.ok(
-      metadata.targets.includes("aarch64-unknown-linux-gnu"),
-      `${id} is missing aarch64-unknown-linux-gnu`,
+      metadata.targets.includes("universal") || metadata.targets.includes("aarch64-unknown-linux-gnu"),
+      `${id} is missing aarch64-unknown-linux-gnu or universal target`,
     );
   }
 });
@@ -124,9 +124,34 @@ test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   assert.equal(metadata.package, "java/gbase8s-ipc-driver");
   assert.equal(metadata.binary, "gbase8s-ipc-driver");
   assert.equal(metadata.jar, "gbase8s-ipc-driver.jar");
+  assert.deepEqual(metadata.targets, ["universal"]);
 
   const driverJson = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8s/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver");
+  assert.equal(driverJson.entry.commands.windows, "./gbase8s-ipc-driver.cmd");
+  assert.equal(driverJson.entry.env_from_config.GBASE8S_JDK_HOME, "extra_params.jdk_home");
+  assert.ok(
+    fs.existsSync(
+      path.join(
+        repoRoot,
+        "java/gbase8s-ipc-driver/bin/lib/gbasedbtjdbc_3.5.0_2ZY3_1_89a58a.jar",
+      ),
+    ),
+    "gbase8s should include the official JDBC jar by default",
+  );
+
+  const connectionForm = driverJson.ui.form.forms.find((form) => form.kind === "Connection");
+  const advancedTab = connectionForm.tabs.find((tab) => tab.id === "advanced");
+  assert.ok(advancedTab, "gbase8s connection form should expose an advanced tab");
+  assert.deepEqual(
+    advancedTab.fields.map((field) => field.id),
+    ["GBASEDBTSERVER", "PROTOCOL", "jdk_home", "jdbc_jar", "driver_class"],
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "jdbc_jar").default_value,
+    "lib/gbasedbtjdbc_3.5.0_2ZY3_1_89a58a.jar",
   );
   for (const method of [
     "tx/begin",
@@ -656,6 +681,61 @@ test("package-driver uses a cmd launcher for Java IPC drivers on Windows", () =>
   assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver.cmd");
 });
 
+test("package-driver includes both Java launchers for universal packages", () => {
+  const workdir = makeTempDir();
+  createPackageFixture(workdir, {
+    id: "gbase8s",
+    binary: "gbase8s-ipc-driver",
+    binaryContents: "#!/usr/bin/env sh\n",
+    language: "java",
+    package: "java/gbase8s-ipc-driver",
+  });
+  fs.mkdirSync(path.join(workdir, "target/universal/release/lib"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, "target/universal/release/gbase8s-ipc-driver"),
+    "#!/usr/bin/env sh\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "target/universal/release/gbase8s-ipc-driver.cmd"),
+    "@echo off\r\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "target/universal/release/lib/gbase8s-ipc-driver.jar"),
+    "fake jar\n",
+  );
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-driver.sh"),
+      "gbase8s",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "0.1.0",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(path.basename(archivePath), "gbase8s-driver-universal.tar.gz");
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/gbase8s-ipc-driver"), "utf8"),
+    "#!/usr/bin/env sh\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/gbase8s-ipc-driver.cmd"), "utf8"),
+    "@echo off\r\n",
+  );
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver");
+  assert.equal(driverJson.entry.commands.default, "./gbase8s-ipc-driver");
+  assert.equal(driverJson.entry.commands.windows, "./gbase8s-ipc-driver.cmd");
+});
+
 test("build-java-driver stages launcher and shaded jar into target release directory", () => {
   const workdir = makeTempDir();
   copyScript("build-java-driver.sh", workdir);
@@ -671,6 +751,7 @@ test("build-java-driver stages launcher and shaded jar into target release direc
   });
   fs.mkdirSync(path.join(workdir, "java/gbase8s-ipc-driver/target"), { recursive: true });
   fs.mkdirSync(path.join(workdir, "java/gbase8s-ipc-driver/bin"), { recursive: true });
+  fs.mkdirSync(path.join(workdir, "java/gbase8s-ipc-driver/bin/lib"), { recursive: true });
   fs.writeFileSync(
     path.join(workdir, "java/gbase8s-ipc-driver/target/gbase8s-ipc-driver-0.1.0-all.jar"),
     "fake shaded jar\n",
@@ -678,6 +759,10 @@ test("build-java-driver stages launcher and shaded jar into target release direc
   fs.writeFileSync(
     path.join(workdir, "java/gbase8s-ipc-driver/bin/gbase8s-ipc-driver"),
     "#!/usr/bin/env sh\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "java/gbase8s-ipc-driver/bin/lib/gbasedbtjdbc.jar"),
+    "fake gbase jdbc jar\n",
   );
 
   execFileSync(
@@ -696,6 +781,13 @@ test("build-java-driver stages launcher and shaded jar into target release direc
       "utf8",
     ),
     "fake shaded jar\n",
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(workdir, "target/x86_64-unknown-linux-gnu/release/lib/gbasedbtjdbc.jar"),
+      "utf8",
+    ),
+    "fake gbase jdbc jar\n",
   );
   assert.ok(
     fs.existsSync(path.join(workdir, "target/x86_64-unknown-linux-gnu/release/gbase8s-ipc-driver")),
@@ -749,6 +841,59 @@ test("build-java-driver stages cmd launcher for Windows targets", () => {
       "utf8",
     ),
     "@echo off\r\n",
+  );
+});
+
+test("build-java-driver stages both launchers for universal targets", () => {
+  const workdir = makeTempDir();
+  copyScript("build-java-driver.sh", workdir);
+  writeJson(path.join(workdir, "extensions/ipc/gbase8s/extension.build.json"), {
+    id: "gbase8s",
+    kind: "database_driver",
+    language: "java",
+    package: "java/gbase8s-ipc-driver",
+    binary: "gbase8s-ipc-driver",
+    jar: "gbase8s-ipc-driver.jar",
+    path: "extensions/ipc/gbase8s",
+    targets: ["universal"],
+  });
+  fs.mkdirSync(path.join(workdir, "java/gbase8s-ipc-driver/target"), { recursive: true });
+  fs.mkdirSync(path.join(workdir, "java/gbase8s-ipc-driver/bin"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workdir, "java/gbase8s-ipc-driver/target/gbase8s-ipc-driver-0.1.0-all.jar"),
+    "fake shaded jar\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "java/gbase8s-ipc-driver/bin/gbase8s-ipc-driver"),
+    "#!/usr/bin/env sh\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, "java/gbase8s-ipc-driver/bin/gbase8s-ipc-driver.cmd"),
+    "@echo off\r\n",
+  );
+
+  execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/build-java-driver.sh"),
+      "gbase8s",
+      "universal",
+    ],
+    { cwd: workdir },
+  );
+
+  assert.ok(
+    fs.existsSync(path.join(workdir, "target/universal/release/gbase8s-ipc-driver")),
+  );
+  assert.ok(
+    fs.existsSync(path.join(workdir, "target/universal/release/gbase8s-ipc-driver.cmd")),
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(workdir, "target/universal/release/lib/gbase8s-ipc-driver.jar"),
+      "utf8",
+    ),
+    "fake shaded jar\n",
   );
 });
 
@@ -1177,6 +1322,8 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.match(workflow, /actions\/setup-java@v4/);
   assert.match(workflow, /scripts\/build-go-driver\.sh/);
   assert.match(workflow, /scripts\/build-java-driver\.sh/);
+  assert.match(workflow, /if: \$\{\{ matrix\.language == 'java' \}\}\n\s+run: bash scripts\/build-java-driver\.sh/);
+  assert.match(releaseWorkflow, /if: \$\{\{ matrix\.language == 'java' \}\}\n\s+run: bash scripts\/build-java-driver\.sh/);
   assert.match(workflow, /matrix\.language == 'rust' && matrix\.target == 'aarch64-unknown-linux-gnu'/);
   assert.match(workflow, /gcc-aarch64-linux-gnu/);
   assert.match(workflow, /CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER/);

@@ -2,6 +2,7 @@ name: GBase 8s
 description: GBase 8s Java IPC 驅動
 "common.connect": "連線"
 "database.connection.tab.general": "常規"
+"database.connection.tab.advanced": "進階"
 "database.connection.field.name": "連線名稱"
 "database.connection.field.name.placeholder": "我的 GBase 8s 連線"
 "database.connection.field.host": "主機"
@@ -13,5 +14,9 @@ description: GBase 8s Java IPC 驅動
 "database.gbase8s.field.gbasedbtserver": "GBASEDBTSERVER 服務名"
 "database.gbase8s.field.gbasedbtserver.placeholder": "gbaseserver"
 "database.gbase8s.field.protocol": "協定"
+"database.gbase8s.field.jdk_home": "JDK 路徑"
+"database.gbase8s.field.jdk_home.help": "宿主會在啟動 Java IPC 驅動前使用此路徑。留空時使用 JAVA_HOME 或 PATH。"
+"database.gbase8s.field.jdbc_jar": "JDBC 驅動 JAR"
+"database.gbase8s.field.jdbc_jar.help": "預設回顯隨驅動打包的官方 GBase 8s JDBC jar。只有需要替換驅動 jar 時才修改。"
 "database.gbase8s.field.driver_class": "JDBC 驅動類"
 "database.gbase8s.field.driver_class.help": "預設使用官方 GBase 8s JDBC 驅動類。"

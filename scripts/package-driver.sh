@@ -51,6 +51,14 @@ fi
 rm -rf "$DRIVER_DIR"
 mkdir -p "$DRIVER_DIR" "$ARTIFACT_DIR"
 cp "$SOURCE_BIN" "${DRIVER_DIR}/${BIN_NAME}"
+if [ "$LANGUAGE" = "java" ] && [ "$TARGET" = "universal" ]; then
+  CMD_SOURCE="${REPO_DIR}/target/${TARGET}/release/${BIN_STEM}.cmd"
+  if [ ! -f "$CMD_SOURCE" ]; then
+    echo "Missing Java universal Windows launcher: ${CMD_SOURCE}" >&2
+    exit 1
+  fi
+  cp "$CMD_SOURCE" "${DRIVER_DIR}/${BIN_STEM}.cmd"
+fi
 cp -R "${SOURCE_DIR}/locales" "${DRIVER_DIR}/locales"
 if [ -d "${SOURCE_DIR}/icons" ]; then
   cp -R "${SOURCE_DIR}/icons" "${DRIVER_DIR}/icons"
@@ -72,6 +80,8 @@ DRIVER_JSON_SOURCE="$DRIVER_JSON_SOURCE" \
 DRIVER_JSON_TARGET="$DRIVER_JSON_TARGET" \
 VERSION="$VERSION" \
 BIN_NAME="$BIN_NAME" \
+LANGUAGE="$LANGUAGE" \
+TARGET="$TARGET" \
 node <<'NODE'
 const fs = require("fs");
 const source = process.env.DRIVER_JSON_SOURCE;
@@ -82,6 +92,13 @@ const manifest = JSON.parse(fs.readFileSync(source, "utf8"));
 manifest.version = version;
 manifest.entry = manifest.entry || {};
 manifest.entry.command = `./${binName}`;
+if (process.env.LANGUAGE === "java" && process.env.TARGET === "universal") {
+  manifest.entry.commands = {
+    ...(manifest.entry.commands || {}),
+    default: `./${binName}`,
+    windows: `./${binName}.cmd`,
+  };
+}
 fs.writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
 

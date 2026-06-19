@@ -67,7 +67,7 @@ public final class DriverLoader {
             String[] parts = explicitPaths.split(java.util.regex.Pattern.quote(File.pathSeparator));
             for (String part : parts) {
                 if (part != null && !part.trim().isEmpty()) {
-                    File file = new File(part.trim());
+                    File file = explicitJarFile(workingDir, part.trim());
                     if (isJarFile(file)) {
                         putJar(jars, file);
                     }
@@ -104,6 +104,14 @@ public final class DriverLoader {
 
     private static boolean isJarFile(File file) {
         return file != null && file.isFile() && file.getName().toLowerCase().endsWith(".jar");
+    }
+
+    private static File explicitJarFile(File workingDir, String path) {
+        File file = new File(path);
+        if (file.isAbsolute()) {
+            return file;
+        }
+        return new File(workingDir == null ? new File(".") : workingDir, path);
     }
 
     private static void putJar(Map<String, File> jars, File file) {

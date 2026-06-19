@@ -19,6 +19,7 @@ public class GBase8sJdbcUrlTest {
         assertEquals("secret", config.getPassword());
         assertEquals("stores", config.getDatabase());
         assertEquals("com.gbasedbt.jdbc.Driver", config.getDriverClass());
+        assertEquals("", config.getJdbcJar());
         assertEquals("gbase01", config.getExtraParams().get("GBASEDBTSERVER"));
         assertEquals("onsoctcp", config.getExtraParams().get("PROTOCOL"));
     }
@@ -29,14 +30,32 @@ public class GBase8sJdbcUrlTest {
         raw.remove("extra_params");
         raw.put("extra_params.GBASEDBTSERVER", "gbaseserver");
         raw.put("extra_params.PROTOCOL", "onsoctcp");
-        raw.put("driver_class", "example.Driver");
+        raw.put("extra_params.driver_class", "example.Driver");
+        raw.put("extra_params.jdbc_jar", "/opt/gbase/gbasedbtjdbc.jar");
         raw.put("port", "19088");
 
         GBase8sConfig config = GBase8sConfig.fromWire(raw);
 
         assertEquals(19088, config.getPort());
         assertEquals("example.Driver", config.getDriverClass());
+        assertEquals("/opt/gbase/gbasedbtjdbc.jar", config.getJdbcJar());
         assertEquals("gbaseserver", config.getExtraParams().get("GBASEDBTSERVER"));
+    }
+
+    @Test
+    public void topLevelDriverSettingsOverrideExtraParams() {
+        Map<String, Object> raw = validWireConfig();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> extra = (Map<String, Object>) raw.get("extra_params");
+        extra.put("driver_class", "extra.Driver");
+        extra.put("jdbc_jar", "/opt/extra.jar");
+        raw.put("driver_class", "top.Driver");
+        raw.put("jdbc_jar", "/opt/top.jar");
+
+        GBase8sConfig config = GBase8sConfig.fromWire(raw);
+
+        assertEquals("top.Driver", config.getDriverClass());
+        assertEquals("/opt/top.jar", config.getJdbcJar());
     }
 
     @Test

@@ -6,8 +6,15 @@
   "version": "0.1.0",
   "entry": {
     "command": "./gbase8s-ipc-driver",
+    "commands": {
+      "default": "./gbase8s-ipc-driver",
+      "windows": "./gbase8s-ipc-driver.cmd"
+    },
     "args": [],
-    "working_dir": null
+    "working_dir": null,
+    "env_from_config": {
+      "GBASE8S_JDK_HOME": "extra_params.jdk_home"
+    }
   },
   "transport": {
     "name": "gbase8s-driver.sock",
@@ -209,7 +216,13 @@
                   "rows": null,
                   "min": null,
                   "max": null
-                },
+                }
+              ]
+            },
+            {
+              "id": "advanced",
+              "label_i18n_key": "database.connection.tab.advanced",
+              "fields": [
                 {
                   "id": "GBASEDBTSERVER",
                   "label_i18n_key": "database.gbase8s.field.gbasedbtserver",
@@ -235,6 +248,40 @@
                   "default_value": "onsoctcp",
                   "placeholder_i18n_key": null,
                   "help_i18n_key": null,
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "jdk_home",
+                  "label_i18n_key": "database.gbase8s.field.jdk_home",
+                  "field_type": "FilePath",
+                  "required": false,
+                  "default_value": null,
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": "database.gbase8s.field.jdk_home.help",
+                  "options": [],
+                  "options_source": null,
+                  "visible_when": [],
+                  "default_when": [],
+                  "disabled_when_editing": false,
+                  "rows": null,
+                  "min": null,
+                  "max": null
+                },
+                {
+                  "id": "jdbc_jar",
+                  "label_i18n_key": "database.gbase8s.field.jdbc_jar",
+                  "field_type": "FilePath",
+                  "required": false,
+                  "default_value": "lib/gbasedbtjdbc_3.5.0_2ZY3_1_89a58a.jar",
+                  "placeholder_i18n_key": null,
+                  "help_i18n_key": "database.gbase8s.field.jdbc_jar.help",
                   "options": [],
                   "options_source": null,
                   "visible_when": [],

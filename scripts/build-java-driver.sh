@@ -57,21 +57,36 @@ if [ "${#existing_jars[@]}" -eq 0 ]; then
   exit 1
 fi
 
-BIN_NAME="$BIN_STEM"
-if [[ "$TARGET" == *windows* ]]; then
-  BIN_NAME="${BIN_STEM}.cmd"
-fi
-
-LAUNCHER="${PROJECT_DIR}/bin/${BIN_NAME}"
-if [ ! -f "$LAUNCHER" ]; then
-  echo "Missing Java driver launcher: ${LAUNCHER}" >&2
-  exit 1
-fi
-
 OUT_DIR="${REPO_DIR}/target/${TARGET}/release"
 mkdir -p "${OUT_DIR}/lib"
 cp "${existing_jars[0]}" "${OUT_DIR}/lib/${JAR_NAME}"
-cp "$LAUNCHER" "${OUT_DIR}/${BIN_NAME}"
-if [[ "$TARGET" != *windows* ]]; then
-  chmod +x "${OUT_DIR}/${BIN_NAME}"
+if [ -d "${PROJECT_DIR}/bin/lib" ]; then
+  for extra_jar in "${PROJECT_DIR}"/bin/lib/*.jar; do
+    extra_name="$(basename "$extra_jar")"
+    if [ "$extra_name" != "$JAR_NAME" ]; then
+      cp "$extra_jar" "${OUT_DIR}/lib/${extra_name}"
+    fi
+  done
+fi
+
+copy_launcher() {
+  local bin_name="$1"
+  local launcher="${PROJECT_DIR}/bin/${bin_name}"
+  if [ ! -f "$launcher" ]; then
+    echo "Missing Java driver launcher: ${launcher}" >&2
+    exit 1
+  fi
+  cp "$launcher" "${OUT_DIR}/${bin_name}"
+  if [[ "$bin_name" != *.cmd ]]; then
+    chmod +x "${OUT_DIR}/${bin_name}"
+  fi
+}
+
+if [ "$TARGET" = "universal" ]; then
+  copy_launcher "$BIN_STEM"
+  copy_launcher "${BIN_STEM}.cmd"
+elif [[ "$TARGET" == *windows* ]]; then
+  copy_launcher "${BIN_STEM}.cmd"
+else
+  copy_launcher "$BIN_STEM"
 fi
