@@ -15,11 +15,26 @@ ConnectionForm.remark: Remark
 ImportExport.run_sql_file: Run SQL file
 Table.design_table: Design table
 Table.open_data: Open data
+Table.view_data: View data
+Table.rename_table: Rename table
+Table.copy_table: Copy table
+Table.truncate_table: Truncate table
+Table.delete_table: Delete table
 ImportExport.export_data: Export data
 View.open_data: Open data
+View.view_data: View data
+View.delete_view: Delete view
 ImportExport.import_data: Import data
 ImportExport.dump_sql_structure: Dump SQL structure
 ImportExport.dump_sql_data: Dump SQL data
 ImportExport.dump_sql_structure_and_data: Dump SQL structure and data
+ImportExport.export_structure: Export structure
+ImportExport.export_structure_and_data: Export structure and data
 Connection.close: Close connection
 Connection.delete: Delete connection
+Connection.close_connection: Close connection
+Connection.delete_connection: Delete connection
+Query.new_query: New query
+Query.open_query: Open query
+Query.rename_query: Rename query
+Query.delete_query: Delete query

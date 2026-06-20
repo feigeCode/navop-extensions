@@ -32,6 +32,9 @@ func Spec() dbipc.DriverSpec {
 			ForeignKeys:    oracleForeignKeysSQL,
 			Views:          oracleViewsSQL,
 			Functions:      oracleFunctionsSQL,
+			Procedures:     oracleProceduresSQL,
+			Triggers:       oracleTriggersSQL,
+			Sequences:      oracleSequencesSQL,
 			ViewDefinition: oracleViewDefinitionSQL,
 		},
 	}
@@ -126,7 +129,36 @@ func oracleFunctionsSQL(cfg dbipc.Config, database, schema string) string {
 	if owner := oracleOwner(database, schema); owner != "" {
 		ownerFilter = fmt.Sprintf(" AND o.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return "SELECT o.OBJECT_NAME, o.OWNER, NVL(p.DATA_TYPE, ''), 'SQL', '' FROM ALL_OBJECTS o LEFT JOIN ALL_PROCEDURES p ON p.OWNER = o.OWNER AND p.OBJECT_NAME = o.OBJECT_NAME WHERE o.OBJECT_TYPE = 'FUNCTION'" + ownerFilter + " ORDER BY o.OWNER, o.OBJECT_NAME"
+	return "SELECT o.OBJECT_NAME, o.OWNER, NVL(p.DATA_TYPE, ''), 'PL/SQL', '', o.STATUS, o.CREATED, o.LAST_DDL_TIME FROM ALL_OBJECTS o LEFT JOIN ALL_PROCEDURES p ON p.OWNER = o.OWNER AND p.OBJECT_NAME = o.OBJECT_NAME WHERE o.OBJECT_TYPE = 'FUNCTION'" + ownerFilter + " ORDER BY o.OWNER, o.OBJECT_NAME"
+}
+
+func oracleProceduresSQL(cfg dbipc.Config, database, schema string) string {
+	ownerFilter := ""
+	if owner := oracleOwner(database, schema); owner != "" {
+		ownerFilter = fmt.Sprintf(" AND o.OWNER = '%s'", upperEscapeSQL(owner))
+	}
+	return "SELECT o.OBJECT_NAME, o.OWNER, '', 'PL/SQL', '', o.STATUS, o.CREATED, o.LAST_DDL_TIME FROM ALL_OBJECTS o WHERE o.OBJECT_TYPE = 'PROCEDURE'" + ownerFilter + " ORDER BY o.OWNER, o.OBJECT_NAME"
+}
+
+func oracleTriggersSQL(cfg dbipc.Config, database, schema, table string) string {
+	owner, table := oracleOwnerAndTable(database, schema, table)
+	ownerFilter := ""
+	if owner != "" {
+		ownerFilter = fmt.Sprintf(" AND OWNER = '%s'", upperEscapeSQL(owner))
+	}
+	tableFilter := ""
+	if table != "" {
+		tableFilter = fmt.Sprintf(" AND TABLE_NAME = '%s'", upperEscapeSQL(table))
+	}
+	return "SELECT TRIGGER_NAME, TABLE_NAME, TRIGGER_TYPE, TRIGGERING_EVENT, TRIGGER_BODY, STATUS FROM ALL_TRIGGERS WHERE 1 = 1" + ownerFilter + tableFilter + " ORDER BY OWNER, TRIGGER_NAME"
+}
+
+func oracleSequencesSQL(cfg dbipc.Config, database, schema string) string {
+	ownerFilter := ""
+	if owner := oracleOwner(database, schema); owner != "" {
+		ownerFilter = fmt.Sprintf(" AND SEQUENCE_OWNER = '%s'", upperEscapeSQL(owner))
+	}
+	return "SELECT SEQUENCE_NAME, MIN_VALUE, MAX_VALUE, INCREMENT_BY, LAST_NUMBER, CACHE_SIZE, CYCLE_FLAG FROM ALL_SEQUENCES WHERE 1 = 1" + ownerFilter + " ORDER BY SEQUENCE_OWNER, SEQUENCE_NAME"
 }
 
 func oracleViewDefinitionSQL(cfg dbipc.Config, database, schema, view string) string {

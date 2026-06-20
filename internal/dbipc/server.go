@@ -224,7 +224,13 @@ func (s *Server) Handle(ctx context.Context, req ipc.Message) ipc.Message {
 		return s.handleSchemaViews(ctx, req)
 	case "schema/functions":
 		return s.handleSchemaFunctions(ctx, req)
-	case "schema/procedures", "schema/triggers", "schema/sequences", "schema/types":
+	case "schema/procedures":
+		return s.handleSchemaProcedures(ctx, req)
+	case "schema/triggers":
+		return s.handleSchemaTriggers(ctx, req)
+	case "schema/sequences":
+		return s.handleSchemaSequences(ctx, req)
+	case "schema/types":
 		return s.handleEmptySchemaList(req)
 	case "schema/view_definition":
 		return s.handleSchemaViewDefinition(ctx, req)
@@ -1081,8 +1087,39 @@ func (s *Server) handleSchemaObjectView(ctx context.Context, req ipc.Message) ip
 			return s.err(req.ID, ErrSQLSyntax, err.Error())
 		}
 		return s.ok(req.ID, objectViewResult("Functions", objectViewColumns("name", "Name", "returns", "Returns", "language", "Language", "comment", "Comment"), rows))
-	case "procedures", "triggers", "sequences":
-		return s.ok(req.ID, objectViewResult(titleForObjectView(p.View), objectViewColumns("name", "Name"), [][]string{}))
+	case "procedures":
+		if conn.schemaSQL.Procedures == nil {
+			return s.ok(req.ID, objectViewResult("Procedures", objectViewColumns("name", "Name", "status", "Status", "created", "Created", "modified", "Modified"), [][]string{}))
+		}
+		rows, err := queryObjectViewRows(ctx, conn.db, conn.schemaSQL.Procedures(conn.config, p.Database, p.Schema), func(cols []any) []string {
+			return []string{stringCell(cols, 0), stringCell(cols, 5), stringCell(cols, 6), stringCell(cols, 7)}
+		})
+		if err != nil {
+			return s.err(req.ID, ErrSQLSyntax, err.Error())
+		}
+		return s.ok(req.ID, objectViewResult("Procedures", objectViewColumns("name", "Name", "status", "Status", "created", "Created", "modified", "Modified"), rows))
+	case "triggers":
+		if conn.schemaSQL.Triggers == nil {
+			return s.ok(req.ID, objectViewResult("Triggers", objectViewColumns("name", "Name", "table", "Table", "event", "Event", "type", "Type", "status", "Status"), [][]string{}))
+		}
+		rows, err := queryObjectViewRows(ctx, conn.db, conn.schemaSQL.Triggers(conn.config, p.Database, p.Schema, p.Table), func(cols []any) []string {
+			return []string{stringCell(cols, 0), stringCell(cols, 1), stringCell(cols, 3), stringCell(cols, 2), stringCell(cols, 5)}
+		})
+		if err != nil {
+			return s.err(req.ID, ErrSQLSyntax, err.Error())
+		}
+		return s.ok(req.ID, objectViewResult("Triggers", objectViewColumns("name", "Name", "table", "Table", "event", "Event", "type", "Type", "status", "Status"), rows))
+	case "sequences":
+		if conn.schemaSQL.Sequences == nil {
+			return s.ok(req.ID, objectViewResult("Sequences", objectViewColumns("name", "Name", "min", "Min", "max", "Max", "increment", "Increment", "last", "Last Value", "cache", "Cache", "cycle", "Cycle"), [][]string{}))
+		}
+		rows, err := queryObjectViewRows(ctx, conn.db, conn.schemaSQL.Sequences(conn.config, p.Database, p.Schema), func(cols []any) []string {
+			return []string{stringCell(cols, 0), stringCell(cols, 1), stringCell(cols, 2), stringCell(cols, 3), stringCell(cols, 4), stringCell(cols, 5), stringCell(cols, 6)}
+		})
+		if err != nil {
+			return s.err(req.ID, ErrSQLSyntax, err.Error())
+		}
+		return s.ok(req.ID, objectViewResult("Sequences", objectViewColumns("name", "Name", "min", "Min", "max", "Max", "increment", "Increment", "last", "Last Value", "cache", "Cache", "cycle", "Cycle"), rows))
 	default:
 		return s.err(req.ID, ErrNotSupported, fmt.Sprintf("unsupported object view %q", p.View))
 	}
@@ -1348,9 +1385,12 @@ func (s *Server) handleSchemaForeignKeys(ctx context.Context, req ipc.Message) i
 	rows, err := queryObjects(ctx, conn.db, conn.schemaSQL.ForeignKeys(conn.config, p.Database, p.Schema, p.Table), func(cols []any) map[string]any {
 		return map[string]any{
 			"name":               stringCell(cols, 0),
+			"from_columns":       splitListCell(cols, 1),
 			"columns":            splitListCell(cols, 1),
 			"referenced_schema":  stringCell(cols, 2),
+			"to_table":           stringCell(cols, 3),
 			"referenced_table":   stringCell(cols, 3),
+			"to_columns":         splitListCell(cols, 4),
 			"referenced_columns": splitListCell(cols, 4),
 			"on_update":          stringCell(cols, 5),
 			"on_delete":          stringCell(cols, 6),
@@ -1417,11 +1457,107 @@ func (s *Server) handleSchemaFunctions(ctx context.Context, req ipc.Message) ipc
 	}
 	rows, err := queryObjects(ctx, conn.db, conn.schemaSQL.Functions(conn.config, p.Database, p.Schema), func(cols []any) map[string]any {
 		return map[string]any{
-			"name":     stringCell(cols, 0),
-			"schema":   stringCell(cols, 1),
-			"returns":  stringCell(cols, 2),
-			"language": stringCell(cols, 3),
-			"comment":  stringCell(cols, 4),
+			"name":        stringCell(cols, 0),
+			"schema":      stringCell(cols, 1),
+			"return_type": nullableString(cols, 2),
+			"returns":     stringCell(cols, 2),
+			"language":    stringCell(cols, 3),
+			"comment":     stringCell(cols, 4),
+		}
+	})
+	if err != nil {
+		return s.err(req.ID, ErrSQLSyntax, err.Error())
+	}
+	return s.ok(req.ID, rows)
+}
+
+func (s *Server) handleSchemaProcedures(ctx context.Context, req ipc.Message) ipc.Message {
+	var p struct {
+		ConnID   uint64 `json:"conn_id"`
+		Database string `json:"database,omitempty"`
+		Schema   string `json:"schema,omitempty"`
+	}
+	if err := decodeParams(req.Params, &p); err != nil {
+		return s.err(req.ID, ErrInvalidParams, err.Error())
+	}
+	conn, ok := s.conns[p.ConnID]
+	if !ok {
+		return s.err(req.ID, ErrUnknownConnID, fmt.Sprintf("unknown conn_id %d", p.ConnID))
+	}
+	if conn.schemaSQL.Procedures == nil {
+		return s.ok(req.ID, []map[string]any{})
+	}
+	rows, err := queryObjects(ctx, conn.db, conn.schemaSQL.Procedures(conn.config, p.Database, p.Schema), func(cols []any) map[string]any {
+		return map[string]any{
+			"name":        stringCell(cols, 0),
+			"schema":      stringCell(cols, 1),
+			"return_type": nullableString(cols, 2),
+			"language":    stringCell(cols, 3),
+			"comment":     stringCell(cols, 4),
+		}
+	})
+	if err != nil {
+		return s.err(req.ID, ErrSQLSyntax, err.Error())
+	}
+	return s.ok(req.ID, rows)
+}
+
+func (s *Server) handleSchemaTriggers(ctx context.Context, req ipc.Message) ipc.Message {
+	var p struct {
+		ConnID   uint64 `json:"conn_id"`
+		Database string `json:"database,omitempty"`
+		Schema   string `json:"schema,omitempty"`
+		Table    string `json:"table,omitempty"`
+	}
+	if err := decodeParams(req.Params, &p); err != nil {
+		return s.err(req.ID, ErrInvalidParams, err.Error())
+	}
+	conn, ok := s.conns[p.ConnID]
+	if !ok {
+		return s.err(req.ID, ErrUnknownConnID, fmt.Sprintf("unknown conn_id %d", p.ConnID))
+	}
+	if conn.schemaSQL.Triggers == nil {
+		return s.ok(req.ID, []map[string]any{})
+	}
+	rows, err := queryObjects(ctx, conn.db, conn.schemaSQL.Triggers(conn.config, p.Database, p.Schema, p.Table), func(cols []any) map[string]any {
+		return map[string]any{
+			"name":       stringCell(cols, 0),
+			"table":      stringCell(cols, 1),
+			"timing":     stringCell(cols, 2),
+			"event":      stringCell(cols, 3),
+			"definition": nullableString(cols, 4),
+		}
+	})
+	if err != nil {
+		return s.err(req.ID, ErrSQLSyntax, err.Error())
+	}
+	return s.ok(req.ID, rows)
+}
+
+func (s *Server) handleSchemaSequences(ctx context.Context, req ipc.Message) ipc.Message {
+	var p struct {
+		ConnID   uint64 `json:"conn_id"`
+		Database string `json:"database,omitempty"`
+		Schema   string `json:"schema,omitempty"`
+	}
+	if err := decodeParams(req.Params, &p); err != nil {
+		return s.err(req.ID, ErrInvalidParams, err.Error())
+	}
+	conn, ok := s.conns[p.ConnID]
+	if !ok {
+		return s.err(req.ID, ErrUnknownConnID, fmt.Sprintf("unknown conn_id %d", p.ConnID))
+	}
+	if conn.schemaSQL.Sequences == nil {
+		return s.ok(req.ID, []map[string]any{})
+	}
+	rows, err := queryObjects(ctx, conn.db, conn.schemaSQL.Sequences(conn.config, p.Database, p.Schema), func(cols []any) map[string]any {
+		return map[string]any{
+			"name":          stringCell(cols, 0),
+			"min_value":     intCell(cols, 1),
+			"max_value":     intCell(cols, 2),
+			"increment":     intCell(cols, 3),
+			"current_value": intCell(cols, 4),
+			"cycle":         boolCell(cols, 6),
 		}
 	})
 	if err != nil {
@@ -1549,6 +1685,9 @@ func schemaSQLIsEmpty(schemaSQL SchemaSQL) bool {
 		schemaSQL.ForeignKeys == nil &&
 		schemaSQL.Views == nil &&
 		schemaSQL.Functions == nil &&
+		schemaSQL.Procedures == nil &&
+		schemaSQL.Triggers == nil &&
+		schemaSQL.Sequences == nil &&
 		schemaSQL.ViewDefinition == nil
 }
 

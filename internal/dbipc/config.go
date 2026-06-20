@@ -47,6 +47,9 @@ type SchemaSQL struct {
 	ForeignKeys    func(Config, string, string, string) string
 	Views          func(Config, string, string) string
 	Functions      func(Config, string, string) string
+	Procedures     func(Config, string, string) string
+	Triggers       func(Config, string, string, string) string
+	Sequences      func(Config, string, string) string
 	ViewDefinition func(Config, string, string, string) string
 }
 

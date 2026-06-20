@@ -77,17 +77,21 @@
     "bool_true": "1",
     "bool_false": "0",
     "compatible_database_type": "Oracle",
+    "table_reference_schema_mode": "prefer_schema",
+    "row_id_column": "ROWID",
+    "row_id_alias": "__rowid__",
+    "default_order_by": "ROWID",
     "supports_schema": true,
-    "supports_sequences": false,
+    "supports_sequences": true,
     "uses_schema_as_database": true
   },
   "capabilities": {
     "supports_schema": true,
     "uses_schema_as_database": true,
-    "supports_sequences": false,
+    "supports_sequences": true,
     "supports_functions": true,
-    "supports_procedures": false,
-    "supports_triggers": false,
+    "supports_procedures": true,
+    "supports_triggers": true,
     "supports_table_engine": false,
     "supports_table_charset": false,
     "supports_table_collation": false,
@@ -283,8 +287,22 @@
             "toolbar_scope": null
           },
           {
+            "id": "CreateNewQuery",
+            "label_i18n_key": "Query.new_query",
+            "icon": null,
+            "targets": [
+              { "node_type": "Schema" },
+              { "node_type": "QueriesFolder" }
+            ],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
             "id": "OpenTableData",
-            "label_i18n_key": "Table.open_data",
+            "label_i18n_key": "Table.view_data",
             "icon": null,
             "targets": [{ "node_type": "Table" }],
             "placement": "ContextMenu",
@@ -305,8 +323,63 @@
             "toolbar_scope": null
           },
           {
+            "id": "RenameTable",
+            "label_i18n_key": "Table.rename_table",
+            "icon": null,
+            "targets": [{ "node_type": "Table" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "CopyTable",
+            "label_i18n_key": "Table.copy_table",
+            "icon": null,
+            "targets": [{ "node_type": "Table" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "TruncateTable",
+            "label_i18n_key": "Table.truncate_table",
+            "icon": null,
+            "targets": [{ "node_type": "Table" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "DeleteTable",
+            "label_i18n_key": "Table.delete_table",
+            "icon": null,
+            "targets": [{ "node_type": "Table" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
             "id": "OpenViewData",
-            "label_i18n_key": "View.open_data",
+            "label_i18n_key": "View.view_data",
+            "icon": null,
+            "targets": [{ "node_type": "View" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "DeleteView",
+            "label_i18n_key": "View.delete_view",
             "icon": null,
             "targets": [{ "node_type": "View" }],
             "placement": "ContextMenu",
@@ -328,7 +401,7 @@
           },
           {
             "id": "DumpSqlStructure",
-            "label_i18n_key": "ImportExport.dump_sql_structure",
+            "label_i18n_key": "ImportExport.export_structure",
             "icon": null,
             "targets": [
               { "node_type": "Database" },
@@ -343,7 +416,7 @@
           },
           {
             "id": "DumpSqlData",
-            "label_i18n_key": "ImportExport.dump_sql_data",
+            "label_i18n_key": "ImportExport.export_data",
             "icon": null,
             "targets": [{ "node_type": "Table" }],
             "placement": "ContextMenu",
@@ -354,7 +427,7 @@
           },
           {
             "id": "DumpSqlStructureAndData",
-            "label_i18n_key": "ImportExport.dump_sql_structure_and_data",
+            "label_i18n_key": "ImportExport.export_structure_and_data",
             "icon": null,
             "targets": [{ "node_type": "Table" }],
             "placement": "ContextMenu",
@@ -364,8 +437,41 @@
             "toolbar_scope": null
           },
           {
+            "id": "OpenNamedQuery",
+            "label_i18n_key": "Query.open_query",
+            "icon": null,
+            "targets": [{ "node_type": "NamedQuery" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "RenameQuery",
+            "label_i18n_key": "Query.rename_query",
+            "icon": null,
+            "targets": [{ "node_type": "NamedQuery" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
+            "id": "DeleteQuery",
+            "label_i18n_key": "Query.delete_query",
+            "icon": null,
+            "targets": [{ "node_type": "NamedQuery" }],
+            "placement": "ContextMenu",
+            "requires_active_connection": true,
+            "group": null,
+            "submenu_of": null,
+            "toolbar_scope": null
+          },
+          {
             "id": "CloseConnection",
-            "label_i18n_key": "Connection.close",
+            "label_i18n_key": "Connection.close_connection",
             "icon": null,
             "targets": [{ "node_type": "Connection" }],
             "placement": "ContextMenu",
@@ -376,7 +482,7 @@
           },
           {
             "id": "DeleteConnection",
-            "label_i18n_key": "Connection.delete",
+            "label_i18n_key": "Connection.delete_connection",
             "icon": null,
             "targets": [{ "node_type": "Connection" }],
             "placement": "ContextMenu",

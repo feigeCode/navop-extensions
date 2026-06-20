@@ -216,6 +216,37 @@ func TestSpecBuildsOracleSchemasSQLWithDistinctColumnAliases(t *testing.T) {
 	}
 }
 
+func TestSpecBuildsOracleRoutineTriggerAndSequenceSQL(t *testing.T) {
+	cfg := ConfigFromWireNoError(t, map[string]any{
+		"host":         "127.0.0.1",
+		"username":     "system",
+		"password":     "oracle",
+		"service_name": "orclpdb1",
+	})
+	spec := Spec()
+
+	proceduresSQL := spec.SchemaSQL.Procedures(cfg, "", "app")
+	for _, want := range []string{"ALL_OBJECTS", "OBJECT_TYPE = 'PROCEDURE'", "OWNER = 'APP'"} {
+		if !strings.Contains(proceduresSQL, want) {
+			t.Fatalf("procedures SQL %q does not contain %q", proceduresSQL, want)
+		}
+	}
+
+	triggersSQL := spec.SchemaSQL.Triggers(cfg, "", "app", "demo")
+	for _, want := range []string{"ALL_TRIGGERS", "OWNER = 'APP'", "TABLE_NAME = 'DEMO'"} {
+		if !strings.Contains(triggersSQL, want) {
+			t.Fatalf("triggers SQL %q does not contain %q", triggersSQL, want)
+		}
+	}
+
+	sequencesSQL := spec.SchemaSQL.Sequences(cfg, "", "app")
+	for _, want := range []string{"ALL_SEQUENCES", "SEQUENCE_OWNER = 'APP'", "INCREMENT_BY"} {
+		if !strings.Contains(sequencesSQL, want) {
+			t.Fatalf("sequences SQL %q does not contain %q", sequencesSQL, want)
+		}
+	}
+}
+
 func TestSpecBuildsOracleColumnsSQLFromQualifiedTable(t *testing.T) {
 	cfg := ConfigFromWireNoError(t, map[string]any{
 		"host":         "127.0.0.1",

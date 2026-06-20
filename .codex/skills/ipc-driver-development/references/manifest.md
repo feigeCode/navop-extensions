@@ -132,6 +132,10 @@ Supported dialect fields:
 | `limit_style` | Pagination style. Values are `limit_offset` (default) and `offset_fetch`. |
 | `bool_true` / `bool_false` | Boolean literal strings used by host row editing SQL. Defaults are `TRUE` and `FALSE`. |
 | `explain_template` | Explain SQL template. Default behavior is `EXPLAIN {sql}`. Empty/whitespace disables template output. |
+| `table_reference_schema_mode` | Controls host-generated table qualification. `auto` follows capabilities; `prefer_schema` uses the request schema as the qualifier when present. |
+| `row_id_column` | Optional physical row identifier expression included by host-generated table-data SQL. |
+| `row_id_alias` | Optional alias for `row_id_column`; defaults to `__rowid__` when `row_id_column` is set. |
+| `default_order_by` | Optional default `ORDER BY` expression for host-generated paginated table-data SQL when the request has no sort. |
 | `compatible_database_type` | Existing host built-in database type used for fallback SQL builders. |
 | `supports_schema` | Legacy dialect capability; prefer top-level capabilities when available. |
 | `supports_sequences` | Legacy dialect capability. |
@@ -183,6 +187,8 @@ The external plugin uses dialect fields in these places:
 | Pagination for table data queries | `limit_style` |
 | Boolean values in host row editing SQL | `bool_true`, `bool_false` |
 | Explain command/fallback SQL | `explain_template` |
+| Table reference qualification | `table_reference_schema_mode`, `supports_schema`, `uses_schema_as_database` |
+| Table-data row identifiers and default ordering | `row_id_column`, `row_id_alias`, `default_order_by` |
 | Built-in DDL fallback after external method returns NotSupported | `compatible_database_type` |
 
 Pagination rules:
