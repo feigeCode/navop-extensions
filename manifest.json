@@ -8,7 +8,7 @@
       "name": "Dameng DM",
       "version": "0.1.2",
       "release_tag": "dm-v0.1.2",
-      "description": "达梦 DM 数据库 IPC 驱动",
+      "description": "达梦 DM 数据库 Go IPC 驱动",
       "file_extensions": [],
       "manifest": "dm/manifest.json"
     },
@@ -18,7 +18,7 @@
       "name": "DuckDB",
       "version": "0.1.0",
       "release_tag": "duckdb-v0.1.0",
-      "description": "DuckDB embedded analytical database IPC driver",
+      "description": "DuckDB Rust embedded analytical database IPC driver",
       "file_extensions": [],
       "manifest": "duckdb/manifest.json"
     },
@@ -38,7 +38,7 @@
       "name": "Apache IoTDB",
       "version": "0.1.1",
       "release_tag": "iotdb-v0.1.1",
-      "description": "Apache IoTDB time-series database IPC driver",
+      "description": "Apache IoTDB Rust time-series database IPC driver",
       "file_extensions": [],
       "manifest": "iotdb/manifest.json"
     },
@@ -48,7 +48,7 @@
       "name": "KingbaseES",
       "version": "0.1.2",
       "release_tag": "kingbase-v0.1.2",
-      "description": "金仓 KingbaseES 数据库 IPC 驱动",
+      "description": "金仓 KingbaseES 数据库 Go IPC 驱动",
       "file_extensions": [],
       "manifest": "kingbase/manifest.json"
     },
@@ -58,7 +58,7 @@
       "name": "openGauss",
       "version": "0.1.1",
       "release_tag": "opengauss-v0.1.1",
-      "description": "openGauss 数据库 IPC 驱动",
+      "description": "openGauss 数据库 Rust IPC 驱动",
       "file_extensions": [],
       "manifest": "opengauss/manifest.json"
     }
