@@ -1450,6 +1450,112 @@ test("Java workflows use a runner-available JDK while preserving Java 8 bytecode
   );
 });
 
+test("install-local-drivers builds and replaces one selected local driver", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-drivers.sh", workdir);
+  copyScript("package-driver.sh", workdir);
+  copyScript("verify-package.sh", workdir);
+  createRustDriverFixture(workdir, "duckdb", "duckdb_driver", "0.9.0");
+  createRustDriverFixture(workdir, "iotdb", "iotdb_driver", "0.9.0");
+  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+  fs.mkdirSync(path.join(installRoot, "duckdb"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "duckdb/old.txt"), "old duckdb\n");
+  fs.mkdirSync(path.join(installRoot, "iotdb"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "iotdb/old.txt"), "old iotdb\n");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-drivers.sh"), "duckdb"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_DATABASE_DRIVER_DIR: installRoot,
+        PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Installed duckdb ->/);
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "duckdb/driver.json"), "utf8").includes('"version": "0.9.0"'),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "duckdb/duckdb_driver"), "utf8"),
+    "fake duckdb binary\n",
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "duckdb/old.txt")), false);
+  assert.equal(fs.readFileSync(path.join(installRoot, "iotdb/old.txt"), "utf8"), "old iotdb\n");
+  const backups = fs
+    .readdirSync(path.join(installRoot, ".backups"))
+    .filter((name) => name.startsWith("duckdb.backup."));
+  assert.equal(backups.length, 1);
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, ".backups", backups[0], "old.txt"), "utf8"),
+    "old duckdb\n",
+  );
+});
+
+test("install-local-drivers installs all local drivers when no id is passed", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-drivers.sh", workdir);
+  copyScript("package-driver.sh", workdir);
+  copyScript("verify-package.sh", workdir);
+  createRustDriverFixture(workdir, "duckdb", "duckdb_driver", "0.9.0");
+  createRustDriverFixture(workdir, "iotdb", "iotdb_driver", "0.8.0");
+  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+
+  const output = execFileSync("bash", [path.join(workdir, "scripts/install-local-drivers.sh")], {
+    cwd: workdir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ONETCLI_DATABASE_DRIVER_DIR: installRoot,
+      PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+    },
+  });
+
+  assert.match(output, /Installed duckdb ->/);
+  assert.match(output, /Installed iotdb ->/);
+  assert.ok(fs.existsSync(path.join(installRoot, "duckdb/driver.json")));
+  assert.ok(fs.existsSync(path.join(installRoot, "iotdb/driver.json")));
+});
+
+test("install-local-drivers installs universal drivers without requiring rustc", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-drivers.sh", workdir);
+  copyScript("package-driver.sh", workdir);
+  copyScript("verify-package.sh", workdir);
+  copyScript("build-java-driver.sh", workdir);
+  createJavaDriverFixture(workdir, "gbase8s", "gbase8s-ipc-driver", "0.7.0");
+  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-drivers.sh"), "gbase8s"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_DATABASE_DRIVER_DIR: installRoot,
+        PATH: `${createFailingRustc(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Building gbase8s \(java, universal\)/);
+  assert.ok(fs.existsSync(path.join(installRoot, "gbase8s/driver.json")));
+  assert.ok(fs.existsSync(path.join(installRoot, "gbase8s/gbase8s-ipc-driver")));
+  assert.ok(fs.existsSync(path.join(installRoot, "gbase8s/gbase8s-ipc-driver.cmd")));
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "gbase8s/lib/gbase8s-ipc-driver.jar"), "utf8"),
+    "fake shaded jar\n",
+  );
+});
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });
@@ -1499,6 +1605,87 @@ function copyScript(name, workdir) {
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function createRustDriverFixture(workdir, id, binary, version) {
+  writeJson(path.join(workdir, `extensions/ipc/${id}/extension.build.json`), {
+    id,
+    kind: "database_driver",
+    language: "rust",
+    package: `${id}_driver`,
+    binary,
+    path: `extensions/ipc/${id}`,
+    targets: ["aarch64-apple-darwin"],
+  });
+  writeJson(path.join(workdir, `extensions/ipc/${id}/driver.json`), {
+    id,
+    version,
+    entry: {},
+  });
+  fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/locales`), { recursive: true });
+  fs.writeFileSync(path.join(workdir, `extensions/ipc/${id}/locales/en.yml`), `name: ${id}\n`);
+  fs.mkdirSync(path.join(workdir, "target/aarch64-apple-darwin/release"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, `target/aarch64-apple-darwin/release/${binary}`),
+    `fake ${id} binary\n`,
+  );
+}
+
+function createJavaDriverFixture(workdir, id, binary, version) {
+  writeJson(path.join(workdir, `extensions/ipc/${id}/extension.build.json`), {
+    id,
+    kind: "database_driver",
+    language: "java",
+    package: `java/${binary}`,
+    binary,
+    jar: `${binary}.jar`,
+    path: `extensions/ipc/${id}`,
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, `extensions/ipc/${id}/driver.json`), {
+    id,
+    version,
+    entry: {},
+  });
+  fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/locales`), { recursive: true });
+  fs.writeFileSync(path.join(workdir, `extensions/ipc/${id}/locales/en.yml`), `name: ${id}\n`);
+  fs.mkdirSync(path.join(workdir, `java/${binary}/target`), { recursive: true });
+  fs.mkdirSync(path.join(workdir, `java/${binary}/bin`), { recursive: true });
+  fs.writeFileSync(
+    path.join(workdir, `java/${binary}/target/${binary}-0.7.0-all.jar`),
+    "fake shaded jar\n",
+  );
+  fs.writeFileSync(path.join(workdir, `java/${binary}/bin/${binary}`), "#!/usr/bin/env sh\n");
+  fs.writeFileSync(path.join(workdir, `java/${binary}/bin/${binary}.cmd`), "@echo off\r\n");
+}
+
+function createFakeRustToolchain(workdir) {
+  const binDir = path.join(workdir, "fake-bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(binDir, "rustc"),
+    "#!/usr/bin/env bash\nif [ \"$1\" = \"-vV\" ]; then printf 'host: aarch64-apple-darwin\\n'; else exit 1; fi\n",
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    path.join(binDir, "cargo"),
+    "#!/usr/bin/env bash\nif [ \"$1\" = \"build\" ]; then exit 0; fi\nexit 1\n",
+    { mode: 0o755 },
+  );
+  return binDir;
+}
+
+function createFailingRustc(workdir) {
+  const binDir = path.join(workdir, "failing-rustc");
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(binDir, "rustc"),
+    "#!/usr/bin/env bash\nprintf 'rustc should not be called for universal drivers\\n' >&2\nexit 99\n",
+    { mode: 0o755 },
+  );
+  return binDir;
 }
 
 function collectI18nKeys(value, keys = new Set()) {

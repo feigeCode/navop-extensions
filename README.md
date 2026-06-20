@@ -31,6 +31,7 @@ scripts/
   build-java-driver.sh
   changed-extensions.mjs
   generate-marketplace-manifest.mjs
+  install-local-drivers.sh
   package-driver.sh
   verify-package.sh
 tests/
@@ -189,6 +190,18 @@ bash scripts/package-driver.sh gbase8s "$HOST_TRIPLE" artifacts 0.1.0
 Package archives contain the extension directory with `driver.json`, the entry
 binary or launcher, and packaged resources such as locales, icons, and runtime
 libraries.
+
+Build, package, verify, and replace installed local drivers:
+
+```bash
+bash scripts/install-local-drivers.sh
+bash scripts/install-local-drivers.sh dm
+```
+
+By default this installs into
+`$XDG_CONFIG_HOME/onetcli/extensions/database_drivers` or
+`$HOME/.config/onetcli/extensions/database_drivers`. Override the target with
+`ONETCLI_DATABASE_DRIVER_DIR=/path/to/database_drivers`.
 
 ## Marketplace Manifest
 

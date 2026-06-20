@@ -27,6 +27,7 @@ scripts/
   build-java-driver.sh
   changed-extensions.mjs
   generate-marketplace-manifest.mjs
+  install-local-drivers.sh
   package-driver.sh
   verify-package.sh
 tests/
@@ -164,6 +165,17 @@ bash scripts/package-driver.sh gbase8s "$HOST_TRIPLE" artifacts 0.1.0
 ```
 
 扩展包 archive 中包含扩展目录、`driver.json`、入口二进制或 launcher，以及 locales、icons、运行时库等资源。
+
+构建、打包、校验并替换本地已安装驱动：
+
+```bash
+bash scripts/install-local-drivers.sh
+bash scripts/install-local-drivers.sh dm
+```
+
+默认安装到 `$XDG_CONFIG_HOME/onetcli/extensions/database_drivers` 或
+`$HOME/.config/onetcli/extensions/database_drivers`。如需改目标目录，可设置
+`ONETCLI_DATABASE_DRIVER_DIR=/path/to/database_drivers`。
 
 ## 扩展市场 Manifest
 
