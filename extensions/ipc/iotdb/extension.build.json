@@ -1,8 +1,9 @@
 {
   "id": "iotdb",
   "kind": "database_driver",
-  "package": "iotdb_driver",
-  "binary": "iotdb_driver",
+  "language": "go",
+  "package": "./cmd/iotdb-ipc-driver",
+  "binary": "iotdb-ipc-driver",
   "path": "extensions/ipc/iotdb",
   "targets": [
     "aarch64-apple-darwin",

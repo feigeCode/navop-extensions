@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "extensions/ipc/duckdb",
-    "extensions/ipc/iotdb",
     "extensions/ipc/opengauss",
 ]
 resolver = "2"
@@ -20,7 +19,6 @@ extension-host = { git = "https://github.com/feigeCode/onetcli", branch = "dev" 
 extension-protocol = { git = "https://github.com/feigeCode/onetcli", branch = "dev" }
 hex = "0.4"
 interprocess = { version = "2.4.0", features = ["tokio"] }
-iotdb = "0.0.7"
 native-tls = { version = "0.2", features = ["vendored"] }
 opengauss-native-tls = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }

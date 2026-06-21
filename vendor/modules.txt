@@ -17,6 +17,14 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
+# github.com/apache/iotdb-client-go v1.3.3
+## explicit; go 1.13
+github.com/apache/iotdb-client-go/client
+github.com/apache/iotdb-client-go/common
+github.com/apache/iotdb-client-go/rpc
+# github.com/apache/thrift v0.15.0
+## explicit; go 1.16
+github.com/apache/thrift/lib/go/thrift
 # github.com/go-sql-driver/mysql v1.7.0
 ## explicit; go 1.13
 github.com/go-sql-driver/mysql
