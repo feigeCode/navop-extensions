@@ -1736,6 +1736,117 @@ test("install-local-drivers installs universal drivers without requiring rustc",
   );
 });
 
+test("install-local-remote-desktop-providers builds and replaces one selected provider", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-remote-desktop-providers.sh", workdir);
+  copyScript("package-remote-desktop-provider.sh", workdir);
+  copyScript("verify-remote-desktop-provider-package.sh", workdir);
+  createRemoteDesktopProviderFixture(workdir, {
+    id: "rdp",
+    protocol: "rdp",
+    version: "0.9.0",
+    target: "aarch64-apple-darwin",
+  });
+  createRemoteDesktopProviderFixture(workdir, {
+    id: "vnc",
+    protocol: "vnc",
+    version: "0.8.0",
+    target: "aarch64-apple-darwin",
+  });
+  const installRoot = path.join(workdir, "onetcli/extensions/remote_desktop_providers");
+  fs.mkdirSync(path.join(installRoot, "rdp"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "rdp/old.txt"), "old rdp\n");
+  fs.mkdirSync(path.join(installRoot, "vnc"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "vnc/old.txt"), "old vnc\n");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-remote-desktop-providers.sh"), "rdp"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR: installRoot,
+        PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Installed rdp ->/);
+  assert.equal(
+    fs
+      .readFileSync(path.join(installRoot, "rdp/remote_desktop_provider.json"), "utf8")
+      .includes('"version": "0.9.0"'),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "rdp/onetcli-rdp-helper"), "utf8"),
+    "fake rdp helper\n",
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "rdp/old.txt")), false);
+  assert.equal(fs.readFileSync(path.join(installRoot, "vnc/old.txt"), "utf8"), "old vnc\n");
+  const backups = fs
+    .readdirSync(path.join(installRoot, ".backups"))
+    .filter((name) => name.startsWith("rdp.backup."));
+  assert.equal(backups.length, 1);
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, ".backups", backups[0], "old.txt"), "utf8"),
+    "old rdp\n",
+  );
+});
+
+test("install-local-remote-desktop-providers defaults to the one-hub provider directory", () => {
+  const script = fs.readFileSync(
+    path.join(repoRoot, "scripts/install-local-remote-desktop-providers.sh"),
+    "utf8",
+  );
+
+  assert.match(script, /ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR/);
+  assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/remote_desktop_providers/);
+  assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/remote_desktop_providers/);
+  assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/remote_desktop_providers/);
+});
+
+test("install-local-remote-desktop-providers installs all local providers when no id is passed", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-remote-desktop-providers.sh", workdir);
+  copyScript("package-remote-desktop-provider.sh", workdir);
+  copyScript("verify-remote-desktop-provider-package.sh", workdir);
+  createRemoteDesktopProviderFixture(workdir, {
+    id: "rdp",
+    protocol: "rdp",
+    version: "0.9.0",
+    target: "aarch64-apple-darwin",
+  });
+  createRemoteDesktopProviderFixture(workdir, {
+    id: "vnc",
+    protocol: "vnc",
+    version: "0.8.0",
+    target: "aarch64-apple-darwin",
+  });
+  const installRoot = path.join(workdir, "onetcli/extensions/remote_desktop_providers");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-remote-desktop-providers.sh")],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR: installRoot,
+        PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Installed rdp ->/);
+  assert.match(output, /Installed vnc ->/);
+  assert.ok(fs.existsSync(path.join(installRoot, "rdp/remote_desktop_provider.json")));
+  assert.ok(fs.existsSync(path.join(installRoot, "vnc/remote_desktop_provider.json")));
+});
+
 test("release-driver packages selected targets and writes release artifacts", () => {
   const workdir = makeTempDir();
   copyScript("release-driver.mjs", workdir);
@@ -1919,23 +2030,28 @@ function createPackageFixture(workdir, options = {}) {
 }
 
 function createRemoteDesktopProviderFixture(workdir, options = {}) {
+  const id = options.id || "rdp";
+  const protocol = options.protocol || id;
+  const binary = options.binary || `onetcli-${id}-helper`;
+  const version = options.version || "0.0.0";
+  const target = options.target || "x86_64-unknown-linux-gnu";
   copyScript("package-remote-desktop-provider.sh", workdir);
   copyScript("verify-remote-desktop-provider-package.sh", workdir);
-  writeJson(path.join(workdir, "extensions/remote-desktop/rdp/extension.build.json"), {
-    id: "rdp",
+  writeJson(path.join(workdir, `extensions/remote-desktop/${id}/extension.build.json`), {
+    id,
     kind: "remote_desktop_provider",
-    package: "onetcli-rdp-helper",
-    binary: "onetcli-rdp-helper",
+    package: binary,
+    binary,
     ...(options.manifestPath ? { manifest_path: options.manifestPath } : {}),
-    path: "extensions/remote-desktop/rdp",
-    targets: ["x86_64-unknown-linux-gnu"],
+    path: `extensions/remote-desktop/${id}`,
+    targets: [target],
   });
-  writeJson(path.join(workdir, "extensions/remote-desktop/rdp/remote_desktop_provider.json"), {
-    id: "rdp",
-    name: "RDP",
-    description: "RDP remote desktop provider",
-    version: "0.0.0",
-    protocol: "rdp",
+  writeJson(path.join(workdir, `extensions/remote-desktop/${id}/remote_desktop_provider.json`), {
+    id,
+    name: id.toUpperCase(),
+    description: `${id.toUpperCase()} remote desktop provider`,
+    version,
+    protocol,
     entry: {},
     capabilities: {
       resize: "remote_resize",
@@ -1946,12 +2062,12 @@ function createRemoteDesktopProviderFixture(workdir, options = {}) {
     },
   });
   const targetRoot = options.targetRoot || "target";
-  fs.mkdirSync(path.join(workdir, targetRoot, "x86_64-unknown-linux-gnu/release"), {
+  fs.mkdirSync(path.join(workdir, targetRoot, `${target}/release`), {
     recursive: true,
   });
   fs.writeFileSync(
-    path.join(workdir, targetRoot, "x86_64-unknown-linux-gnu/release/onetcli-rdp-helper"),
-    "fake rdp helper\n",
+    path.join(workdir, targetRoot, `${target}/release/${binary}`),
+    `fake ${id} helper\n`,
   );
 }
 
