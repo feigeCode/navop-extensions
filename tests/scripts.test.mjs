@@ -19,7 +19,7 @@ test("go ipc driver metadata excludes GBase8s", () => {
     })
     .sort();
 
-  assert.deepEqual(ids, ["dm", "kingbase", "oceanbase", "oracle-go"]);
+  assert.deepEqual(ids, ["dm", "iotdb", "kingbase", "oceanbase", "oracle-go"]);
 });
 
 test("Go IPC driver manifests expose the full shared method surface", () => {
