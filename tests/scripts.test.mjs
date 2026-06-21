@@ -1591,6 +1591,9 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   assert.match(workflow, /AWS_DEFAULT_REGION:\s+auto\b/);
   assert.match(workflow, /upload_object "\$current_manifest" "\$\{R2_PREFIX\}\/manifest\.json"/);
   assert.match(workflow, /upload_object "manifest\.json" "extensions\/manifest\.json"/);
+  assert.match(workflow, /"extensions\/remote-desktop"/);
+  assert.match(workflow, /remote_desktop_provider/);
+  assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-remote-desktop-provider-\$\{target\}\.tar\.gz/);
   assert.doesNotMatch(workflow, /merge-marketplace-manifest\.mjs/);
   assert.doesNotMatch(workflow, /r2-extension-manifest\.json/);
   assert.doesNotMatch(workflow, /CURRENT_MANIFEST=/);
@@ -2198,6 +2201,41 @@ function createFailingRustc(workdir) {
     { mode: 0o755 },
   );
   return binDir;
+}
+
+function collectExtensionMetadata() {
+  return ["extensions/ipc", "extensions/remote-desktop"].flatMap((root) =>
+    fs
+      .readdirSync(path.join(repoRoot, root))
+      .map((id) => path.join(repoRoot, root, id, "extension.build.json"))
+      .filter((metadataPath) => fs.existsSync(metadataPath))
+      .map((metadataPath) => JSON.parse(fs.readFileSync(metadataPath, "utf8")))
+  ).sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function languageName(metadata) {
+  const language = metadata.language || "rust";
+  switch (language) {
+    case "go":
+      return "Go";
+    case "java":
+      return "Java";
+    case "rust":
+      return "Rust";
+    default:
+      throw new Error(`unsupported extension language for ${metadata.id}: ${language}`);
+  }
+}
+
+function sourceManifestFileName(kind) {
+  switch (kind) {
+    case "database_driver":
+      return "driver.json";
+    case "remote_desktop_provider":
+      return "remote_desktop_provider.json";
+    default:
+      throw new Error(`unsupported extension kind: ${kind}`);
+  }
 }
 
 function collectI18nKeys(value, keys = new Set()) {

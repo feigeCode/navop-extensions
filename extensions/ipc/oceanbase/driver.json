@@ -1,7 +1,7 @@
 {
   "id": "oceanbase",
   "name": "OceanBase",
-  "description": "OceanBase 数据库 Go IPC 驱动",
+  "description": "使用 Go 开发的 OceanBase 数据库 IPC 驱动",
   "version": "0.1.0",
   "category": "domestic_database",
   "license": "MIT",

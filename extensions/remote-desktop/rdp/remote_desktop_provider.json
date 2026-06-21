@@ -1,7 +1,7 @@
 {
   "id": "rdp",
   "name": "RDP",
-  "description": "RDP remote desktop provider",
+  "description": "使用 Rust 开发的 RDP 远程桌面 provider",
   "version": "0.1.0",
   "protocol": "rdp",
   "entry": {

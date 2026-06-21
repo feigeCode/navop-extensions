@@ -1,7 +1,7 @@
 {
   "id": "vnc",
   "name": "VNC",
-  "description": "VNC remote desktop provider",
+  "description": "使用 Rust 开发的 VNC 远程桌面 provider",
   "version": "0.1.0",
   "protocol": "vnc",
   "entry": {

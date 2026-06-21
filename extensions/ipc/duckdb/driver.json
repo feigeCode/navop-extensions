@@ -1,8 +1,8 @@
 {
   "id": "duckdb",
   "name": "DuckDB",
-  "description": "DuckDB embedded analytical database IPC driver",
-  "version": "0.1.0",
+  "description": "使用 Rust 开发的 DuckDB 嵌入式分析数据库 IPC 驱动",
+  "version": "0.1.1",
   "license": "MIT",
   "repository": "https://github.com/duckdb/duckdb",
   "homepage": "https://duckdb.org",

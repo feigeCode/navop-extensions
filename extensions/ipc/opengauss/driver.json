@@ -1,9 +1,9 @@
 {
   "id": "opengauss",
   "name": "openGauss",
-  "description": "openGauss 数据库 IPC 驱动",
+  "description": "使用 Rust 开发的 openGauss 数据库 IPC 驱动",
   "category": "domestic_database",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT OR Apache-2.0",
   "repository": "https://gitee.com/opengauss/openGauss-connector-rust",
   "homepage": "https://opengauss.org",

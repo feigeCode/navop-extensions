@@ -1,9 +1,9 @@
 {
   "id": "gbase8s",
   "name": "GBase 8s",
-  "description": "南大通用 GBase 8s Java IPC 驱动",
+  "description": "使用 Java 开发的南大通用 GBase 8s 数据库 IPC 驱动",
   "category": "domestic_database",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "entry": {
     "command": "./gbase8s-ipc-driver",
     "commands": {
