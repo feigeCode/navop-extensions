@@ -180,7 +180,7 @@ fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         pointer_software_rendering: false,
         multitransport_flags: None,
         compression_type: Some(CompressionType::Rdp61),
-        performance_flags: PerformanceFlags::default(),
+        performance_flags: visual_quality_performance_flags(),
         timezone_info: TimezoneInfo::default(),
     };
 
@@ -298,6 +298,10 @@ fn platform_type() -> MajorPlatformType {
     }
 }
 
+fn visual_quality_performance_flags() -> PerformanceFlags {
+    PerformanceFlags::default() | PerformanceFlags::ENABLE_DESKTOP_COMPOSITION
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,6 +323,24 @@ mod tests {
     #[test]
     fn key_operation_rejects_out_of_range_scancode() {
         assert!(key_operation(0x100, false, true).is_err());
+    }
+
+    #[test]
+    fn build_config_preserves_windows_visual_quality() {
+        let config = build_config(ConnectRequest {
+            destination: "127.0.0.1:3389".to_string(),
+            username: None,
+            password: None,
+            domain: None,
+            width: 1280,
+            height: 720,
+        })
+        .expect("config builds");
+
+        let flags = config.connector.performance_flags;
+
+        assert!(flags.contains(PerformanceFlags::ENABLE_DESKTOP_COMPOSITION));
+        assert!(!flags.contains(PerformanceFlags::DISABLE_THEMING));
     }
 
     #[test]
