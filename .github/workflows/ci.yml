@@ -70,10 +70,20 @@ jobs:
           sudo apt-get install -y pkg-config libasound2-dev libssl-dev
       - name: Test Rust manifest package
         if: ${{ matrix.language == 'rust' && matrix.manifest_path != '' }}
-        run: cargo test --manifest-path "${{ matrix.manifest_path }}" -- --nocapture
+        shell: bash
+        run: |
+          if [ "${{ matrix.kind }}" = "remote_desktop_provider" ]; then
+            export CARGO_TARGET_DIR="${RUNNER_TEMP}/cargo-target"
+          fi
+          cargo test --manifest-path "${{ matrix.manifest_path }}" -- --nocapture
       - name: Test Rust workspace package
         if: ${{ matrix.language == 'rust' && matrix.manifest_path == '' && matrix.package != '' }}
-        run: cargo test -p ${{ matrix.package }} -- --nocapture
+        shell: bash
+        run: |
+          if [ "${{ matrix.kind }}" = "remote_desktop_provider" ]; then
+            export CARGO_TARGET_DIR="${RUNNER_TEMP}/cargo-target"
+          fi
+          cargo test -p "${{ matrix.package }}" -- --nocapture
       - name: Test Go drivers
         if: ${{ matrix.language == 'go' }}
         run: go test ./...
