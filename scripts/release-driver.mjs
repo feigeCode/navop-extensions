@@ -21,7 +21,7 @@ function main() {
   }
 
   const metadata = loadExtensionMetadata(args.extensionId);
-  if (!["database_driver", "remote_desktop_provider"].includes(metadata.kind)) {
+  if (!["database_driver", "remote_desktop_provider", "mcp_helper"].includes(metadata.kind)) {
     fail(`unsupported extension kind: ${metadata.kind}`);
   }
 
@@ -132,7 +132,7 @@ function splitTargets(value) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"];
   let file = "";
   for (const root of roots) {
     const candidate = path.join(repoRoot, root, id, "extension.build.json");
@@ -221,6 +221,10 @@ function packageDriver(metadata, target, artifactDir, version) {
     run("bash", [scriptPath("package-driver.sh"), metadata.id, target, artifactDir, version]);
     return;
   }
+  if (metadata.kind === "mcp_helper") {
+    run("bash", [scriptPath("package-mcp-helper.sh"), metadata.id, target, artifactDir, version]);
+    return;
+  }
   run("bash", [
     scriptPath("package-remote-desktop-provider.sh"),
     metadata.id,
@@ -232,11 +236,21 @@ function packageDriver(metadata, target, artifactDir, version) {
 
 function verifyPackage(metadata, target, artifactDir) {
   console.log(`Verifying ${metadata.id} (${target})`);
-  const script =
-    metadata.kind === "database_driver"
-      ? "verify-package.sh"
-      : "verify-remote-desktop-provider-package.sh";
+  const script = verifyScriptName(metadata.kind);
   run("bash", [scriptPath(script), packagePath(artifactDir, metadata, target)]);
+}
+
+function verifyScriptName(kind) {
+  switch (kind) {
+    case "database_driver":
+      return "verify-package.sh";
+    case "remote_desktop_provider":
+      return "verify-remote-desktop-provider-package.sh";
+    case "mcp_helper":
+      return "verify-mcp-helper-package.sh";
+    default:
+      fail(`unsupported extension kind: ${kind}`);
+  }
 }
 
 function writeChecksums(metadata, targets, artifactDir) {
@@ -275,6 +289,9 @@ function writeReleaseMetadata(artifactDir, extensionId, version, releaseTag) {
 function packagePath(artifactDir, metadata, target) {
   if (metadata.kind === "database_driver") {
     return path.join(artifactDir, `${metadata.id}-driver-${target}.tar.gz`);
+  }
+  if (metadata.kind === "mcp_helper") {
+    return path.join(artifactDir, `${metadata.id}-mcp-helper-${target}.tar.gz`);
   }
   return path.join(artifactDir, `${metadata.id}-remote-desktop-provider-${target}.tar.gz`);
 }

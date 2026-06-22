@@ -603,6 +603,45 @@ test("package-remote-desktop-provider creates an RDP provider package", () => {
   assert.match(output, /Verified/);
 });
 
+test("package-mcp-helper creates a Public MCP helper package", () => {
+  const workdir = makeTempDir();
+  createMcpHelperFixture(workdir);
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-mcp-helper.sh"),
+      "onetcli-public-mcp",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(
+    path.basename(archivePath),
+    "onetcli-public-mcp-mcp-helper-x86_64-unknown-linux-gnu.tar.gz",
+  );
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/mcp_helper.json"), "utf8"),
+  );
+  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.entry.command, "./onetcli-public-mcp");
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/onetcli-public-mcp"), "utf8"),
+    "fake onetcli-public-mcp helper\n",
+  );
+
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-mcp-helper-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+});
+
 test("package-remote-desktop-provider finds manifest-path helper target output", () => {
   const workdir = makeTempDir();
   createRemoteDesktopProviderFixture(workdir, {
@@ -1457,6 +1496,55 @@ test("changed-extensions emits manifest-path metadata for standalone Rust helper
   ]);
 });
 
+test("changed-extensions emits manifest-path metadata for MCP helpers", () => {
+  const workdir = makeTempDir();
+  copyScript("changed-extensions.mjs", workdir);
+  writeJson(path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/extension.build.json"), {
+    id: "onetcli-public-mcp",
+    kind: "mcp_helper",
+    package: "onetcli-public-mcp",
+    binary: "onetcli-public-mcp",
+    manifest_path: "extensions/mcp-helper/onetcli-public-mcp/Cargo.toml",
+    path: "extensions/mcp-helper/onetcli-public-mcp",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  fs.mkdirSync(path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/src"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/src/main.rs"),
+    "fn main() {}\n",
+  );
+  git(workdir, "init");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "base");
+  const base = git(workdir, "rev-parse", "HEAD").trim();
+  fs.writeFileSync(
+    path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/src/main.rs"),
+    "fn main() { println!(\"mcp\"); }\n",
+  );
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "change mcp helper");
+  const head = git(workdir, "rev-parse", "HEAD").trim();
+
+  const output = execFileSync(
+    "node",
+    [path.join(workdir, "scripts/changed-extensions.mjs"), base, head],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.deepEqual(JSON.parse(output).include, [
+    {
+      extension: "onetcli-public-mcp",
+      package: "onetcli-public-mcp",
+      manifest_path: "extensions/mcp-helper/onetcli-public-mcp/Cargo.toml",
+      kind: "mcp_helper",
+      language: "rust",
+      os: "ubuntu-latest",
+    },
+  ]);
+});
+
 test("changed-extensions does not expand workflow-only changes into extension tests", () => {
   const workdir = makeTempDir();
   copyScript("changed-extensions.mjs", workdir);
@@ -1664,6 +1752,49 @@ test("generate-marketplace-manifest supports remote desktop providers", () => {
   );
 });
 
+test("generate-marketplace-manifest supports MCP helpers", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/extension.build.json"), {
+    id: "onetcli-public-mcp",
+    kind: "mcp_helper",
+    path: "extensions/mcp-helper/onetcli-public-mcp",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  writeJson(path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/mcp_helper.json"), {
+    id: "onetcli-public-mcp",
+    name: "OnetCli Public MCP Helper",
+    description: "Public MCP stdio bridge",
+  });
+  const fileName = "onetcli-public-mcp-mcp-helper-x86_64-unknown-linux-gnu.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "0.1.0",
+      EXTENSION_ID: "onetcli-public-mcp",
+      RELEASE_TAG: "onetcli-public-mcp-v0.1.0",
+    },
+  });
+
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].id, "onetcli-public-mcp");
+  assert.equal(extensionManifest.extensions[0].kind, "mcp_helper");
+  assert.equal(
+    extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    fileName,
+  );
+});
+
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
@@ -1681,8 +1812,11 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   assert.match(workflow, /upload_object "\$current_manifest" "\$\{R2_PREFIX\}\/manifest\.json"/);
   assert.match(workflow, /upload_object "manifest\.json" "extensions\/manifest\.json"/);
   assert.match(workflow, /"extensions\/remote-desktop"/);
+  assert.match(workflow, /"extensions\/mcp-helper"/);
   assert.match(workflow, /remote_desktop_provider/);
+  assert.match(workflow, /mcp_helper/);
   assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-remote-desktop-provider-\$\{target\}\.tar\.gz/);
+  assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-mcp-helper-\$\{target\}\.tar\.gz/);
   assert.doesNotMatch(workflow, /merge-marketplace-manifest\.mjs/);
   assert.doesNotMatch(workflow, /r2-extension-manifest\.json/);
   assert.doesNotMatch(workflow, /CURRENT_MANIFEST=/);
@@ -1702,12 +1836,15 @@ test("release workflow keeps extension releases scoped to current extension", ()
   assert.doesNotMatch(workflow, /gh release list/);
   assert.doesNotMatch(workflow, /previous-github-manifests/);
   assert.match(workflow, /artifacts\/extension-manifest\.json/);
+  assert.match(workflow, /"extensions\/mcp-helper"/);
   assert.match(workflow, /target === "aarch64-unknown-linux-gnu" && kind === "remote_desktop_provider"/);
   assert.match(workflow, /return "ubuntu-24\.04-arm"/);
   assert.match(workflow, /export CARGO_TARGET_DIR="\$\{RUNNER_TEMP\}\/cargo-target"/);
   assert.match(workflow, /export CMAKE_GENERATOR=Ninja/);
   assert.match(workflow, /choco install ninja -y --no-progress/);
   assert.match(workflow, /sudo apt-get install -y pkg-config libasound2-dev libssl-dev/);
+  assert.match(workflow, /scripts\/package-mcp-helper\.sh/);
+  assert.match(workflow, /scripts\/verify-mcp-helper-package\.sh/);
   assert.match(workflow, /matrix\.target == 'aarch64-unknown-linux-gnu' && matrix\.kind != 'remote_desktop_provider'/);
   assert.match(workflow, /export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc/);
   assert.doesNotMatch(workflow, /CMAKE_GENERATOR:\s+\$\{\{/);
@@ -1730,7 +1867,7 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.match(workflow, /matrix\.manifest_path != ''/);
   assert.match(workflow, /cargo test --manifest-path "\$\{\{ matrix\.manifest_path \}\}" -- --nocapture/);
   assert.match(workflow, /matrix\.manifest_path == '' && matrix\.package != ''/);
-  assert.match(workflow, /cargo test -p \$\{\{ matrix\.package \}\} -- --nocapture/);
+  assert.match(workflow, /cargo test -p "\$\{\{ matrix\.package \}\}" -- --nocapture/);
   assert.match(workflow, /run: go test \.\/\.\.\./);
   assert.match(workflow, /run: mvn -f "\$\{\{ matrix\.package \}\}\/pom\.xml" test/);
   assert.doesNotMatch(workflow, /name: Package/);
@@ -1991,6 +2128,60 @@ test("install-local-remote-desktop-providers installs all local providers when n
   assert.ok(fs.existsSync(path.join(installRoot, "vnc/remote_desktop_provider.json")));
 });
 
+test("install-local-mcp-helpers builds and replaces one selected helper", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-mcp-helpers.sh", workdir);
+  copyScript("package-mcp-helper.sh", workdir);
+  copyScript("verify-mcp-helper-package.sh", workdir);
+  createMcpHelperFixture(workdir, {
+    id: "onetcli-public-mcp",
+    version: "0.9.0",
+    target: "aarch64-apple-darwin",
+  });
+  const installRoot = path.join(workdir, "onetcli/extensions/mcp_helpers");
+  fs.mkdirSync(path.join(installRoot, "onetcli-public-mcp"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "onetcli-public-mcp/old.txt"), "old helper\n");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-mcp-helpers.sh"), "onetcli-public-mcp"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_MCP_HELPER_DIR: installRoot,
+        PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Installed onetcli-public-mcp ->/);
+  assert.equal(
+    fs
+      .readFileSync(path.join(installRoot, "onetcli-public-mcp/mcp_helper.json"), "utf8")
+      .includes('"version": "0.9.0"'),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "onetcli-public-mcp/onetcli-public-mcp"), "utf8"),
+    "fake onetcli-public-mcp helper\n",
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "onetcli-public-mcp/old.txt")), false);
+});
+
+test("install-local-mcp-helpers defaults to the one-hub helper directory", () => {
+  const script = fs.readFileSync(
+    path.join(repoRoot, "scripts/install-local-mcp-helpers.sh"),
+    "utf8",
+  );
+
+  assert.match(script, /ONETCLI_MCP_HELPER_DIR/);
+  assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/mcp_helpers/);
+  assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/mcp_helpers/);
+  assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/mcp_helpers/);
+});
+
 test("release-driver packages selected targets and writes release artifacts", () => {
   const workdir = makeTempDir();
   copyScript("release-driver.mjs", workdir);
@@ -2109,6 +2300,49 @@ test("release-driver delegates Go driver builds to the existing build script", (
   assert.ok(fs.existsSync(path.join(workdir, "artifacts/dm-driver-x86_64-unknown-linux-gnu.tar.gz")));
 });
 
+test("release-driver packages MCP helpers", () => {
+  const workdir = makeTempDir();
+  copyScript("release-driver.mjs", workdir);
+  copyScript("package-mcp-helper.sh", workdir);
+  copyScript("verify-mcp-helper-package.sh", workdir);
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  createMcpHelperFixture(workdir, {
+    id: "onetcli-public-mcp",
+    version: "0.0.0",
+    target: "x86_64-unknown-linux-gnu",
+  });
+
+  const output = execFileSync(
+    "node",
+    [
+      path.join(workdir, "scripts/release-driver.mjs"),
+      "onetcli-public-mcp",
+      "1.2.3",
+      "--target",
+      "x86_64-unknown-linux-gnu",
+      "--skip-build",
+      "--artifact-dir",
+      "artifacts",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.match(output, /Packaging onetcli-public-mcp \(x86_64-unknown-linux-gnu\)/);
+  assert.ok(
+    fs.existsSync(
+      path.join(workdir, "artifacts/onetcli-public-mcp-mcp-helper-x86_64-unknown-linux-gnu.tar.gz"),
+    ),
+  );
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].kind, "mcp_helper");
+  assert.equal(
+    extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    "onetcli-public-mcp-mcp-helper-x86_64-unknown-linux-gnu.tar.gz",
+  );
+});
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });
@@ -2116,7 +2350,7 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"];
   const entries = [];
   for (const root of roots) {
     for (const id of fs.readdirSync(path.join(repoRoot, root))) {
@@ -2132,6 +2366,7 @@ function extensionBuildEntries() {
 function manifestFileForKind(kind) {
   if (kind === "database_driver") return "driver.json";
   if (kind === "remote_desktop_provider") return "remote_desktop_provider.json";
+  if (kind === "mcp_helper") return "mcp_helper.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 
@@ -2212,6 +2447,42 @@ function createRemoteDesktopProviderFixture(workdir, options = {}) {
   fs.writeFileSync(
     path.join(workdir, targetRoot, `${target}/release/${binary}`),
     `fake ${id} helper\n`,
+  );
+}
+
+function createMcpHelperFixture(workdir, options = {}) {
+  const id = options.id || "onetcli-public-mcp";
+  const binary = options.binary || id;
+  const version = options.version || "0.0.0";
+  const target = options.target || "x86_64-unknown-linux-gnu";
+  copyScript("package-mcp-helper.sh", workdir);
+  copyScript("verify-mcp-helper-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/mcp-helper/${id}/extension.build.json`), {
+    id,
+    kind: "mcp_helper",
+    package: binary,
+    binary,
+    ...(options.manifestPath ? { manifest_path: options.manifestPath } : {}),
+    path: `extensions/mcp-helper/${id}`,
+    targets: [target],
+  });
+  writeJson(path.join(workdir, `extensions/mcp-helper/${id}/mcp_helper.json`), {
+    id,
+    name: "OnetCli Public MCP Helper",
+    description: "Public MCP stdio bridge",
+    version,
+    entry: {
+      command: `./${binary}`,
+    },
+  });
+  const targetRoot = options.targetRoot || "target";
+  fs.mkdirSync(path.join(workdir, targetRoot, `${target}/release`), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, targetRoot, `${target}/release/${binary}`),
+    `fake ${id} helper\n`,
+    { mode: 0o755 },
   );
 }
 
@@ -2307,7 +2578,7 @@ function createFailingRustc(workdir) {
 }
 
 function collectExtensionMetadata() {
-  return ["extensions/ipc", "extensions/remote-desktop"].flatMap((root) =>
+  return ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"].flatMap((root) =>
     fs
       .readdirSync(path.join(repoRoot, root))
       .map((id) => path.join(repoRoot, root, id, "extension.build.json"))
@@ -2336,6 +2607,8 @@ function sourceManifestFileName(kind) {
       return "driver.json";
     case "remote_desktop_provider":
       return "remote_desktop_provider.json";
+    case "mcp_helper":
+      return "mcp_helper.json";
     default:
       throw new Error(`unsupported extension kind: ${kind}`);
   }

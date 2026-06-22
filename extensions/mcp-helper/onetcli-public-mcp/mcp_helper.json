@@ -1,0 +1,9 @@
+{
+  "id": "onetcli-public-mcp",
+  "name": "OnetCli Public MCP Helper",
+  "description": "Rust 公共 MCP stdio 桥接器，连接 OnetCli 桌面运行时",
+  "version": "0.1.0",
+  "entry": {
+    "command": "./onetcli-public-mcp"
+  }
+}
