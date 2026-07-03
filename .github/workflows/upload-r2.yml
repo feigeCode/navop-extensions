@@ -66,7 +66,7 @@ jobs:
           const fs = require("fs");
           const path = require("path");
           const id = process.env.EXTENSION_ID;
-          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/wasm", "extensions/language"];
+          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
           let data = null;
           for (const root of roots) {
             const file = path.join(root, id, "extension.build.json");
@@ -112,6 +112,8 @@ jobs:
             package_pattern="${{ steps.release.outputs.extension_id }}-remote-desktop-provider-*.tar.gz"
           elif [ "${{ steps.extension.outputs.kind }}" = "mcp_helper" ]; then
             package_pattern="${{ steps.release.outputs.extension_id }}-mcp-helper-*.tar.gz"
+          elif [ "${{ steps.extension.outputs.kind }}" = "acp_agent" ]; then
+            package_pattern="${{ steps.release.outputs.extension_id }}-acp-agent-*.tar.gz"
           fi
           gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -140,6 +142,9 @@ jobs:
                 break;
               case "mcp_helper":
                 console.log(`${process.env.EXTENSION_ID}-mcp-helper-${target}.tar.gz`);
+                break;
+              case "acp_agent":
+                console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
                 break;
               default:
                 throw new Error(`unsupported extension kind: ${process.env.EXTENSION_KIND}`);
@@ -192,6 +197,9 @@ jobs:
                 break;
               case "mcp_helper":
                 console.log(`${process.env.EXTENSION_ID}-mcp-helper-${target}.tar.gz`);
+                break;
+              case "acp_agent":
+                console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
                 break;
               default:
                 throw new Error(`unsupported extension kind: ${process.env.EXTENSION_KIND}`);

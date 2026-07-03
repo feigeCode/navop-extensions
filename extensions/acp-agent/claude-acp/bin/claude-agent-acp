@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -eu
+
+PACKAGE="${CLAUDE_AGENT_ACP_PACKAGE:-@agentclientprotocol/claude-agent-acp@0.52.0}"
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm was not found. Install Node.js/npm before starting the Claude Code ACP agent." >&2
+  exit 127
+fi
+
+if [ -z "${CLAUDE_CODE_EXECUTABLE:-}" ] && command -v claude >/dev/null 2>&1; then
+  CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
+  export CLAUDE_CODE_EXECUTABLE
+fi
+
+exec npm exec --yes -- "$PACKAGE" "$@"

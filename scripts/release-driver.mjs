@@ -21,7 +21,7 @@ function main() {
   }
 
   const metadata = loadExtensionMetadata(args.extensionId);
-  if (!["database_driver", "remote_desktop_provider", "mcp_helper"].includes(metadata.kind)) {
+  if (!["database_driver", "remote_desktop_provider", "mcp_helper", "acp_agent"].includes(metadata.kind)) {
     fail(`unsupported extension kind: ${metadata.kind}`);
   }
 
@@ -132,7 +132,7 @@ function splitTargets(value) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent"];
   let file = "";
   for (const root of roots) {
     const candidate = path.join(repoRoot, root, id, "extension.build.json");
@@ -225,6 +225,10 @@ function packageDriver(metadata, target, artifactDir, version) {
     run("bash", [scriptPath("package-mcp-helper.sh"), metadata.id, target, artifactDir, version]);
     return;
   }
+  if (metadata.kind === "acp_agent") {
+    run("bash", [scriptPath("package-acp-agent.sh"), metadata.id, target, artifactDir, version]);
+    return;
+  }
   run("bash", [
     scriptPath("package-remote-desktop-provider.sh"),
     metadata.id,
@@ -248,6 +252,8 @@ function verifyScriptName(kind) {
       return "verify-remote-desktop-provider-package.sh";
     case "mcp_helper":
       return "verify-mcp-helper-package.sh";
+    case "acp_agent":
+      return "verify-acp-agent-package.sh";
     default:
       fail(`unsupported extension kind: ${kind}`);
   }
@@ -292,6 +298,9 @@ function packagePath(artifactDir, metadata, target) {
   }
   if (metadata.kind === "mcp_helper") {
     return path.join(artifactDir, `${metadata.id}-mcp-helper-${target}.tar.gz`);
+  }
+  if (metadata.kind === "acp_agent") {
+    return path.join(artifactDir, `${metadata.id}-acp-agent-${target}.tar.gz`);
   }
   return path.join(artifactDir, `${metadata.id}-remote-desktop-provider-${target}.tar.gz`);
 }

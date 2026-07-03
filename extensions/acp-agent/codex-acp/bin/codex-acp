@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -eu
+
+PACKAGE="${CODEX_ACP_PACKAGE:-@agentclientprotocol/codex-acp@1.0.1}"
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm was not found. Install Node.js/npm before starting the Codex ACP agent." >&2
+  exit 127
+fi
+
+if [ -z "${CODEX_EXECUTABLE:-}" ] && command -v codex >/dev/null 2>&1; then
+  CODEX_EXECUTABLE="$(command -v codex)"
+  export CODEX_EXECUTABLE
+fi
+
+exec npm exec --yes -- "$PACKAGE" "$@"

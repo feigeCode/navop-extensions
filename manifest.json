@@ -13,6 +13,26 @@
       "manifest": "dm/manifest.json"
     },
     {
+      "id": "claude-acp",
+      "kind": "acp_agent",
+      "name": "Claude Code",
+      "version": "0.1.0",
+      "release_tag": "claude-acp-v0.1.0",
+      "description": "Shell ACP Registry wrapper for Anthropic Claude Code via Claude Agent ACP",
+      "file_extensions": [],
+      "manifest": "claude-acp/manifest.json"
+    },
+    {
+      "id": "codex-acp",
+      "kind": "acp_agent",
+      "name": "Codex",
+      "version": "0.1.0",
+      "release_tag": "codex-acp-v0.1.0",
+      "description": "Shell ACP Registry wrapper for OpenAI Codex",
+      "file_extensions": [],
+      "manifest": "codex-acp/manifest.json"
+    },
+    {
       "id": "duckdb",
       "kind": "database_driver",
       "name": "DuckDB",

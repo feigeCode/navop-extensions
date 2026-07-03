@@ -1,0 +1,18 @@
+{
+  "id": "codex-acp",
+  "name": "Codex",
+  "description": "Shell ACP Registry wrapper for OpenAI Codex. Requires Node.js/npm and a Codex authentication method supported by the Codex ACP adapter.",
+  "version": "0.1.0",
+  "agents": [
+    {
+      "id": "codex-acp",
+      "name": "Codex",
+      "transport": {
+        "type": "stdio",
+        "command": "bin/codex-acp",
+        "args": [],
+        "env": {}
+      }
+    }
+  ]
+}

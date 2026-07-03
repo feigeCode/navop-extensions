@@ -49,7 +49,7 @@ jobs:
           const fs = require("fs");
           const path = require("path");
           const id = process.env.EXTENSION_ID;
-          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/wasm", "extensions/language"];
+          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
           let metadata = null;
           for (const root of roots) {
             const file = path.join(root, id, "extension.build.json");
@@ -167,6 +167,9 @@ jobs:
           elif [ "${{ matrix.kind }}" = "mcp_helper" ]; then
             bash scripts/package-mcp-helper.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
             bash scripts/verify-mcp-helper-package.sh "artifacts/${{ matrix.extension }}-mcp-helper-${{ matrix.target }}.tar.gz"
+          elif [ "${{ matrix.kind }}" = "acp_agent" ]; then
+            bash scripts/package-acp-agent.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
+            bash scripts/verify-acp-agent-package.sh "artifacts/${{ matrix.extension }}-acp-agent-${{ matrix.target }}.tar.gz"
           else
             echo "::error::Unsupported extension kind in release workflow: ${{ matrix.kind }}"
             exit 1

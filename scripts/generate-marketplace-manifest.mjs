@@ -68,7 +68,7 @@ function checksumFor(checksums, fileName) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/wasm", "extensions/language"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
   for (const root of roots) {
     const file = path.join(root, id, "extension.build.json");
     if (!fs.existsSync(file)) continue;
@@ -94,6 +94,8 @@ function manifestFileName(kind) {
       return "remote_desktop_provider.json";
     case "mcp_helper":
       return "mcp_helper.json";
+    case "acp_agent":
+      return "acp_agent.json";
     default:
       throw new Error(`unsupported extension kind for marketplace manifest: ${kind}`);
   }
@@ -107,6 +109,8 @@ function artifactFileName(metadata, target) {
       return `${metadata.id}-remote-desktop-provider-${target}.tar.gz`;
     case "mcp_helper":
       return `${metadata.id}-mcp-helper-${target}.tar.gz`;
+    case "acp_agent":
+      return `${metadata.id}-acp-agent-${target}.tar.gz`;
     default:
       throw new Error(`unsupported extension kind for artifact naming: ${metadata.kind}`);
   }

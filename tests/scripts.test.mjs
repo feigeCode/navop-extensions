@@ -642,6 +642,84 @@ test("package-mcp-helper creates a Public MCP helper package", () => {
   );
 });
 
+test("package-acp-agent creates a Codex ACP agent package", () => {
+  const workdir = makeTempDir();
+  createAcpAgentFixture(workdir, {
+    id: "codex-acp",
+    binary: "codex-acp",
+    packageName: "@agentclientprotocol/codex-acp@1.0.1",
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-acp-agent.sh"),
+      "codex-acp",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(
+    path.basename(archivePath),
+    "codex-acp-acp-agent-x86_64-unknown-linux-gnu.tar.gz",
+  );
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/acp_agent.json"), "utf8"),
+  );
+  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.agents[0].transport.type, "stdio");
+  assert.equal(manifest.agents[0].transport.command, "bin/codex-acp");
+  assert.deepEqual(manifest.agents[0].transport.args, []);
+  assert.match(
+    fs.readFileSync(path.join(workdir, "unpacked/bin/codex-acp"), "utf8"),
+    /@agentclientprotocol\/codex-acp@1\.0\.1/,
+  );
+
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-acp-agent-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+});
+
+test("package-acp-agent selects a cmd launcher for Windows packages", () => {
+  const workdir = makeTempDir();
+  createAcpAgentFixture(workdir, {
+    id: "claude-acp",
+    binary: "claude-agent-acp",
+    packageName: "@agentclientprotocol/claude-agent-acp@0.52.0",
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-acp-agent.sh"),
+      "claude-acp",
+      "x86_64-pc-windows-msvc",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(path.basename(archivePath), "claude-acp-acp-agent-x86_64-pc-windows-msvc.tar.gz");
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/acp_agent.json"), "utf8"),
+  );
+  assert.equal(manifest.agents[0].transport.command, "bin/claude-agent-acp.cmd");
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/bin/claude-agent-acp.cmd"), "utf8"),
+    "@echo off\r\nnpm exec --yes -- @agentclientprotocol/claude-agent-acp@0.52.0 %*\r\n",
+  );
+});
+
 test("package-remote-desktop-provider finds manifest-path helper target output", () => {
   const workdir = makeTempDir();
   createRemoteDesktopProviderFixture(workdir, {
@@ -1545,6 +1623,55 @@ test("changed-extensions emits manifest-path metadata for MCP helpers", () => {
   ]);
 });
 
+test("changed-extensions emits shell metadata for ACP agents", () => {
+  const workdir = makeTempDir();
+  copyScript("changed-extensions.mjs", workdir);
+  writeJson(path.join(workdir, "extensions/acp-agent/codex-acp/extension.build.json"), {
+    id: "codex-acp",
+    kind: "acp_agent",
+    language: "shell",
+    package: "",
+    binary: "codex-acp",
+    path: "extensions/acp-agent/codex-acp",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  fs.mkdirSync(path.join(workdir, "extensions/acp-agent/codex-acp/bin"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workdir, "extensions/acp-agent/codex-acp/bin/codex-acp"),
+    "#!/usr/bin/env sh\n",
+  );
+  git(workdir, "init");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "base");
+  const base = git(workdir, "rev-parse", "HEAD").trim();
+  fs.writeFileSync(
+    path.join(workdir, "extensions/acp-agent/codex-acp/bin/codex-acp"),
+    "#!/usr/bin/env sh\nexec npm exec --yes -- @agentclientprotocol/codex-acp@1.0.1 \"$@\"\n",
+  );
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "change codex acp");
+  const head = git(workdir, "rev-parse", "HEAD").trim();
+
+  const output = execFileSync(
+    "node",
+    [path.join(workdir, "scripts/changed-extensions.mjs"), base, head],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.deepEqual(JSON.parse(output).include, [
+    {
+      extension: "codex-acp",
+      package: "",
+      manifest_path: "",
+      kind: "acp_agent",
+      language: "shell",
+      os: "ubuntu-latest",
+    },
+  ]);
+});
+
 test("changed-extensions does not expand workflow-only changes into extension tests", () => {
   const workdir = makeTempDir();
   copyScript("changed-extensions.mjs", workdir);
@@ -1795,6 +1922,49 @@ test("generate-marketplace-manifest supports MCP helpers", () => {
   );
 });
 
+test("generate-marketplace-manifest supports ACP agents", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/acp-agent/codex-acp/extension.build.json"), {
+    id: "codex-acp",
+    kind: "acp_agent",
+    path: "extensions/acp-agent/codex-acp",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  writeJson(path.join(workdir, "extensions/acp-agent/codex-acp/acp_agent.json"), {
+    id: "codex-acp",
+    name: "Codex",
+    description: "Shell wrapper for Codex ACP",
+  });
+  const fileName = "codex-acp-acp-agent-x86_64-unknown-linux-gnu.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "1.2.3",
+      EXTENSION_ID: "codex-acp",
+      RELEASE_TAG: "codex-acp-v1.2.3",
+    },
+  });
+
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].id, "codex-acp");
+  assert.equal(extensionManifest.extensions[0].kind, "acp_agent");
+  assert.equal(
+    extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    fileName,
+  );
+});
+
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
@@ -1813,10 +1983,13 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   assert.match(workflow, /upload_object "manifest\.json" "extensions\/manifest\.json"/);
   assert.match(workflow, /"extensions\/remote-desktop"/);
   assert.match(workflow, /"extensions\/mcp-helper"/);
+  assert.match(workflow, /"extensions\/acp-agent"/);
   assert.match(workflow, /remote_desktop_provider/);
   assert.match(workflow, /mcp_helper/);
+  assert.match(workflow, /acp_agent/);
   assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-remote-desktop-provider-\$\{target\}\.tar\.gz/);
   assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-mcp-helper-\$\{target\}\.tar\.gz/);
+  assert.match(workflow, /\$\{process\.env\.EXTENSION_ID\}-acp-agent-\$\{target\}\.tar\.gz/);
   assert.doesNotMatch(workflow, /merge-marketplace-manifest\.mjs/);
   assert.doesNotMatch(workflow, /r2-extension-manifest\.json/);
   assert.doesNotMatch(workflow, /CURRENT_MANIFEST=/);
@@ -1837,6 +2010,7 @@ test("release workflow keeps extension releases scoped to current extension", ()
   assert.doesNotMatch(workflow, /previous-github-manifests/);
   assert.match(workflow, /artifacts\/extension-manifest\.json/);
   assert.match(workflow, /"extensions\/mcp-helper"/);
+  assert.match(workflow, /"extensions\/acp-agent"/);
   assert.match(workflow, /target === "aarch64-unknown-linux-gnu" && kind === "remote_desktop_provider"/);
   assert.match(workflow, /return "ubuntu-24\.04-arm"/);
   assert.match(workflow, /export CARGO_TARGET_DIR="\$\{RUNNER_TEMP\}\/cargo-target"/);
@@ -1845,6 +2019,8 @@ test("release workflow keeps extension releases scoped to current extension", ()
   assert.match(workflow, /sudo apt-get install -y pkg-config libasound2-dev libssl-dev/);
   assert.match(workflow, /scripts\/package-mcp-helper\.sh/);
   assert.match(workflow, /scripts\/verify-mcp-helper-package\.sh/);
+  assert.match(workflow, /scripts\/package-acp-agent\.sh/);
+  assert.match(workflow, /scripts\/verify-acp-agent-package\.sh/);
   assert.match(workflow, /matrix\.target == 'aarch64-unknown-linux-gnu' && matrix\.kind != 'remote_desktop_provider'/);
   assert.match(workflow, /export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc/);
   assert.doesNotMatch(workflow, /CMAKE_GENERATOR:\s+\$\{\{/);
@@ -2182,6 +2358,62 @@ test("install-local-mcp-helpers defaults to the one-hub helper directory", () =>
   assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/mcp_helpers/);
 });
 
+test("install-local-acp-agents packages and replaces one selected ACP agent", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-acp-agents.sh", workdir);
+  copyScript("package-acp-agent.sh", workdir);
+  copyScript("verify-acp-agent-package.sh", workdir);
+  createAcpAgentFixture(workdir, {
+    id: "codex-acp",
+    binary: "codex-acp",
+    version: "0.9.0",
+    target: "aarch64-apple-darwin",
+    packageName: "@agentclientprotocol/codex-acp@1.0.1",
+  });
+  const installRoot = path.join(workdir, "onetcli/extensions/acp_agents");
+  fs.mkdirSync(path.join(installRoot, "codex-acp"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "codex-acp/old.txt"), "old codex\n");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-acp-agents.sh"), "codex-acp"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_ACP_AGENT_DIR: installRoot,
+        PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.match(output, /Installed codex-acp ->/);
+  assert.equal(
+    fs
+      .readFileSync(path.join(installRoot, "codex-acp/acp_agent.json"), "utf8")
+      .includes('"version": "0.9.0"'),
+    true,
+  );
+  assert.match(
+    fs.readFileSync(path.join(installRoot, "codex-acp/bin/codex-acp"), "utf8"),
+    /@agentclientprotocol\/codex-acp@1\.0\.1/,
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "codex-acp/old.txt")), false);
+});
+
+test("install-local-acp-agents defaults to the one-hub ACP agent directory", () => {
+  const script = fs.readFileSync(
+    path.join(repoRoot, "scripts/install-local-acp-agents.sh"),
+    "utf8",
+  );
+
+  assert.match(script, /ONETCLI_ACP_AGENT_DIR/);
+  assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/acp_agents/);
+  assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/acp_agents/);
+  assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/acp_agents/);
+});
+
 test("release-driver packages selected targets and writes release artifacts", () => {
   const workdir = makeTempDir();
   copyScript("release-driver.mjs", workdir);
@@ -2343,6 +2575,51 @@ test("release-driver packages MCP helpers", () => {
   );
 });
 
+test("release-driver packages ACP agents", () => {
+  const workdir = makeTempDir();
+  copyScript("release-driver.mjs", workdir);
+  copyScript("package-acp-agent.sh", workdir);
+  copyScript("verify-acp-agent-package.sh", workdir);
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  createAcpAgentFixture(workdir, {
+    id: "codex-acp",
+    binary: "codex-acp",
+    version: "0.0.0",
+    target: "x86_64-unknown-linux-gnu",
+    packageName: "@agentclientprotocol/codex-acp@1.0.1",
+  });
+
+  const output = execFileSync(
+    "node",
+    [
+      path.join(workdir, "scripts/release-driver.mjs"),
+      "codex-acp",
+      "1.2.3",
+      "--target",
+      "x86_64-unknown-linux-gnu",
+      "--skip-build",
+      "--artifact-dir",
+      "artifacts",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.match(output, /Packaging codex-acp \(x86_64-unknown-linux-gnu\)/);
+  assert.ok(
+    fs.existsSync(
+      path.join(workdir, "artifacts/codex-acp-acp-agent-x86_64-unknown-linux-gnu.tar.gz"),
+    ),
+  );
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].kind, "acp_agent");
+  assert.equal(
+    extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
+    "codex-acp-acp-agent-x86_64-unknown-linux-gnu.tar.gz",
+  );
+});
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });
@@ -2350,7 +2627,7 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent"];
   const entries = [];
   for (const root of roots) {
     for (const id of fs.readdirSync(path.join(repoRoot, root))) {
@@ -2367,6 +2644,7 @@ function manifestFileForKind(kind) {
   if (kind === "database_driver") return "driver.json";
   if (kind === "remote_desktop_provider") return "remote_desktop_provider.json";
   if (kind === "mcp_helper") return "mcp_helper.json";
+  if (kind === "acp_agent") return "acp_agent.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 
@@ -2486,6 +2764,53 @@ function createMcpHelperFixture(workdir, options = {}) {
   );
 }
 
+function createAcpAgentFixture(workdir, options = {}) {
+  const id = options.id || "codex-acp";
+  const binary = options.binary || id;
+  const version = options.version || "0.0.0";
+  const target = options.target || "x86_64-unknown-linux-gnu";
+  const packageName = options.packageName || "@agentclientprotocol/codex-acp@1.0.1";
+  copyScript("package-acp-agent.sh", workdir);
+  copyScript("verify-acp-agent-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/acp-agent/${id}/extension.build.json`), {
+    id,
+    kind: "acp_agent",
+    language: "shell",
+    package: "",
+    binary,
+    path: `extensions/acp-agent/${id}`,
+    targets: [target],
+  });
+  writeJson(path.join(workdir, `extensions/acp-agent/${id}/acp_agent.json`), {
+    id,
+    name: id,
+    description: "Shell wrapper for an ACP Registry agent",
+    version,
+    agents: [
+      {
+        id,
+        name: id,
+        transport: {
+          type: "stdio",
+          command: `bin/${binary}`,
+          args: [],
+          env: {},
+        },
+      },
+    ],
+  });
+  fs.mkdirSync(path.join(workdir, `extensions/acp-agent/${id}/bin`), { recursive: true });
+  fs.writeFileSync(
+    path.join(workdir, `extensions/acp-agent/${id}/bin/${binary}`),
+    `#!/usr/bin/env sh\nexec npm exec --yes -- ${packageName} "$@"\n`,
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    path.join(workdir, `extensions/acp-agent/${id}/bin/${binary}.cmd`),
+    `@echo off\r\nnpm exec --yes -- ${packageName} %*\r\n`,
+  );
+}
+
 function copyScript(name, workdir) {
   fs.mkdirSync(path.join(workdir, "scripts"), { recursive: true });
   fs.copyFileSync(path.join(repoRoot, "scripts", name), path.join(workdir, "scripts", name));
@@ -2578,7 +2903,7 @@ function createFailingRustc(workdir) {
 }
 
 function collectExtensionMetadata() {
-  return ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper"].flatMap((root) =>
+  return ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent"].flatMap((root) =>
     fs
       .readdirSync(path.join(repoRoot, root))
       .map((id) => path.join(repoRoot, root, id, "extension.build.json"))
@@ -2596,6 +2921,8 @@ function languageName(metadata) {
       return "Java";
     case "rust":
       return "Rust";
+    case "shell":
+      return "Shell";
     default:
       throw new Error(`unsupported extension language for ${metadata.id}: ${language}`);
   }
@@ -2609,6 +2936,8 @@ function sourceManifestFileName(kind) {
       return "remote_desktop_provider.json";
     case "mcp_helper":
       return "mcp_helper.json";
+    case "acp_agent":
+      return "acp_agent.json";
     default:
       throw new Error(`unsupported extension kind: ${kind}`);
   }
