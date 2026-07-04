@@ -1,0 +1,11 @@
+{
+  "id": "html",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/html",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "html-v",
+  "r2Prefix": "extensions/html"
+}

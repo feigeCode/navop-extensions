@@ -10,3 +10,4 @@ extensions/remote-desktop/vnc-helper/target/
 
 # MCP helper build artifacts
 extensions/mcp-helper/onetcli-public-mcp/target/
+*.wasm

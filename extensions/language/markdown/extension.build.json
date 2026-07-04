@@ -1,0 +1,11 @@
+{
+  "id": "markdown",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/markdown",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "markdown-v",
+  "r2Prefix": "extensions/markdown"
+}

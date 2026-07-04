@@ -1,0 +1,8 @@
+{
+  "name": "erb",
+  "version": "0.23.2",
+  "file_extensions": [
+    "erb"
+  ],
+  "sha256_wasm": "c674a1d7244d5d556f4c95745b69e21fe4beca27184d2a16021b33642fe5c0ad"
+}

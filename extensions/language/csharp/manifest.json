@@ -1,0 +1,8 @@
+{
+  "name": "csharp",
+  "version": "0.23.5",
+  "file_extensions": [
+    "cs"
+  ],
+  "sha256_wasm": "b9a0fa2625078ce828a983ea376a3dea1476b9b3c611b94263ad58b7cea36720"
+}

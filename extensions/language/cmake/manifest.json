@@ -1,0 +1,8 @@
+{
+  "name": "cmake",
+  "version": "0.7.1",
+  "file_extensions": [
+    "cmake"
+  ],
+  "sha256_wasm": "178b234af38024e6480299dc84e54fc8d67e2af568e5d37eaa021ed824fdc292"
+}

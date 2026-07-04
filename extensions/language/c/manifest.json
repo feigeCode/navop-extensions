@@ -1,0 +1,9 @@
+{
+  "name": "c",
+  "version": "0.24.2",
+  "file_extensions": [
+    "c",
+    "h"
+  ],
+  "sha256_wasm": "349b377ecdcedb4fc225d56f116144cfe5ce9eb9325d04fb6272ca8f257d9018"
+}

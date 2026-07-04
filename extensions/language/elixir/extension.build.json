@@ -1,0 +1,11 @@
+{
+  "id": "elixir",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/elixir",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "elixir-v",
+  "r2Prefix": "extensions/elixir"
+}

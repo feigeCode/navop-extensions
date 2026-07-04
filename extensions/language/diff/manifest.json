@@ -1,0 +1,9 @@
+{
+  "name": "diff",
+  "version": "0.1.0",
+  "file_extensions": [
+    "diff",
+    "patch"
+  ],
+  "sha256_wasm": "6c6df4b29bec529d707a93dd743ab2cfab4d27231f56d751fba4eae5666bda36"
+}

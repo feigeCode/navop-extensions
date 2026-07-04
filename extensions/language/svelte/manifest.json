@@ -1,0 +1,8 @@
+{
+  "name": "svelte",
+  "version": "0.1.1",
+  "file_extensions": [
+    "svelte"
+  ],
+  "sha256_wasm": "2019c232e912c7d1eb9151f0e3414700e08bce57db34153566ba91a07cf77386"
+}

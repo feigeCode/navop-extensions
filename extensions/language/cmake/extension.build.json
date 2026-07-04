@@ -1,0 +1,11 @@
+{
+  "id": "cmake",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/cmake",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "cmake-v",
+  "r2Prefix": "extensions/cmake"
+}

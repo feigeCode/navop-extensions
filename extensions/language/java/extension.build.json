@@ -1,0 +1,11 @@
+{
+  "id": "java",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/java",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "java-v",
+  "r2Prefix": "extensions/java"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "python",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/python",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "python-v",
+  "r2Prefix": "extensions/python"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "swift",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/swift",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "swift-v",
+  "r2Prefix": "extensions/swift"
+}

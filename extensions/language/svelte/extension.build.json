@@ -1,0 +1,11 @@
+{
+  "id": "svelte",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/svelte",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "svelte-v",
+  "r2Prefix": "extensions/svelte"
+}

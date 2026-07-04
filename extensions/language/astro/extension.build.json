@@ -1,0 +1,11 @@
+{
+  "id": "astro",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/astro",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "astro-v",
+  "r2Prefix": "extensions/astro"
+}

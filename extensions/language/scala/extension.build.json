@@ -1,0 +1,11 @@
+{
+  "id": "scala",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/scala",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "scala-v",
+  "r2Prefix": "extensions/scala"
+}

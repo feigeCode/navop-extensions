@@ -1,0 +1,8 @@
+{
+  "name": "java",
+  "version": "0.23.5",
+  "file_extensions": [
+    "java"
+  ],
+  "sha256_wasm": "d0123829dacfa49f4a0a310810df48fc18ee55fe940a1680c9f0dd7a3e9218df"
+}

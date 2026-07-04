@@ -1,0 +1,8 @@
+{
+  "name": "ruby",
+  "version": "0.23.1",
+  "file_extensions": [
+    "rb"
+  ],
+  "sha256_wasm": "33ca48f8dabbc3bd3699bdba9a9e757aa7ce75493274fca97b34c67ffa8780b8"
+}

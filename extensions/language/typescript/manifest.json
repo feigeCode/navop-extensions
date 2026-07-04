@@ -1,0 +1,8 @@
+{
+  "name": "typescript",
+  "version": "0.23.2",
+  "file_extensions": [
+    "ts"
+  ],
+  "sha256_wasm": "c41395b43d012d8a483f88c16436c516447017c30c1e70067c7b04687f28fafc"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "markdown_inline",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/markdown_inline",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "markdown_inline-v",
+  "r2Prefix": "extensions/markdown_inline"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "ruby",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/ruby",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "ruby-v",
+  "r2Prefix": "extensions/ruby"
+}

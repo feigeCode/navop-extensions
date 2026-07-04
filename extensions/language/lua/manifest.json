@@ -1,0 +1,8 @@
+{
+  "name": "lua",
+  "version": "0.4.1",
+  "file_extensions": [
+    "lua"
+  ],
+  "sha256_wasm": "354e2b6c9d9d275c7aefaaa42c6da28d9b640d24fc2f6694472cc5eba2f2db03"
+}

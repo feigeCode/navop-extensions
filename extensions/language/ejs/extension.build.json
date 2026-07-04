@@ -1,0 +1,11 @@
+{
+  "id": "ejs",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/ejs",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "ejs-v",
+  "r2Prefix": "extensions/ejs"
+}

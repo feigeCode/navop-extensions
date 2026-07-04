@@ -1,0 +1,9 @@
+{
+  "name": "scala",
+  "version": "0.23.4",
+  "file_extensions": [
+    "scala",
+    "sc"
+  ],
+  "sha256_wasm": "830f01a695f4c22c205d9d5b28dbbccc1aed9a1a78a520268e0c463dceacd076"
+}

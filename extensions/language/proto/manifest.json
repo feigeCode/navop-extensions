@@ -1,0 +1,8 @@
+{
+  "name": "proto",
+  "version": "0.2.0",
+  "file_extensions": [
+    "proto"
+  ],
+  "sha256_wasm": "7e39cb57fdf9ef9c057d3cd115eed748b91c9d492deaee6abb68c204ccdd8e6e"
+}

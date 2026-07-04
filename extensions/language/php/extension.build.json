@@ -1,0 +1,11 @@
+{
+  "id": "php",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/php",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "php-v",
+  "r2Prefix": "extensions/php"
+}

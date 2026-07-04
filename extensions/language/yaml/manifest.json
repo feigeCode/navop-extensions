@@ -1,0 +1,9 @@
+{
+  "name": "yaml",
+  "version": "0.7.2",
+  "file_extensions": [
+    "yaml",
+    "yml"
+  ],
+  "sha256_wasm": "c344a1178ea54fba6b1d3641cceff9c98c45ec466fdf04fe58affcd84288779b"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "jsdoc",
+  "version": "0.23.2",
+  "file_extensions": [
+    "jsdoc"
+  ],
+  "sha256_wasm": "4663a565794134ba27e899ab495c5d17e931e200a5e11a5f00a3461d91983661"
+}

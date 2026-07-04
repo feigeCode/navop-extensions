@@ -1,0 +1,10 @@
+{
+  "name": "make",
+  "version": "1.1.1",
+  "file_extensions": [
+    "mk",
+    "mak",
+    "makefile"
+  ],
+  "sha256_wasm": "cca2051081a9af5239d5e43ffd6b273f50b6e7c61d81411e57dc126c4f6a2914"
+}

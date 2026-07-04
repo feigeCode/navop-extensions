@@ -1,0 +1,12 @@
+{
+  "name": "cpp",
+  "version": "0.23.4",
+  "file_extensions": [
+    "cpp",
+    "cc",
+    "cxx",
+    "hpp",
+    "hxx"
+  ],
+  "sha256_wasm": "63c9f2a71991e69f6e77aedd3fffd2042b79871a377147449204bddde5ec76a1"
+}

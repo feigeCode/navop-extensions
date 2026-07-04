@@ -1,0 +1,8 @@
+{
+  "name": "rust",
+  "version": "0.24.2",
+  "file_extensions": [
+    "rs"
+  ],
+  "sha256_wasm": "948972687385957372f1b13b1bd9775145476b7bd44d200ca2db3311a53567d2"
+}

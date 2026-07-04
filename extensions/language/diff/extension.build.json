@@ -1,0 +1,11 @@
+{
+  "id": "diff",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/diff",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "diff-v",
+  "r2Prefix": "extensions/diff"
+}

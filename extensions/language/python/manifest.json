@@ -1,0 +1,9 @@
+{
+  "name": "python",
+  "version": "0.23.6",
+  "file_extensions": [
+    "py",
+    "pyw"
+  ],
+  "sha256_wasm": "9e8fdebe7dd464832b971577a6b2b3bbb08883a3ccc77e79e34f394f01e81da5"
+}

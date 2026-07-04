@@ -1,0 +1,11 @@
+{
+  "id": "lua",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/lua",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "lua-v",
+  "r2Prefix": "extensions/lua"
+}

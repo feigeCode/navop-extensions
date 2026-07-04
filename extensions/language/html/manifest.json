@@ -1,0 +1,9 @@
+{
+  "name": "html",
+  "version": "0.23.2",
+  "file_extensions": [
+    "html",
+    "htm"
+  ],
+  "sha256_wasm": "ff50986e72c6601aabafee12edf738df51cd672363e151d6e0da5421cb14a5fa"
+}

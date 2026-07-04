@@ -1,0 +1,8 @@
+{
+  "name": "swift",
+  "version": "0.7.3",
+  "file_extensions": [
+    "swift"
+  ],
+  "sha256_wasm": "bd34832db5a4b62ffd3729d8b0494e7e04b3e89c6ae00a5571ea62f68331e006"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "elixir",
+  "version": "0.3.5",
+  "file_extensions": [
+    "ex",
+    "exs"
+  ],
+  "sha256_wasm": "423176372b8d86ead1d75027d996b2d8fa6257a26e2c1a869a2e7836da5590bd"
+}

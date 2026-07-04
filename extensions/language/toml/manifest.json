@@ -1,0 +1,8 @@
+{
+  "name": "toml",
+  "version": "0.7.0",
+  "file_extensions": [
+    "toml"
+  ],
+  "sha256_wasm": "c8e9273b076759d023ebccaf5faf5a6929ba7b0755f3726071ef897646a8179c"
+}

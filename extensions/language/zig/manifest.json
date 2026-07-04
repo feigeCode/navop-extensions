@@ -1,0 +1,8 @@
+{
+  "name": "zig",
+  "version": "1.1.2",
+  "file_extensions": [
+    "zig"
+  ],
+  "sha256_wasm": "e6946d50babae1adc097c3172c46ab365ce4045fcc13439d826b75b0d9ebafc7"
+}

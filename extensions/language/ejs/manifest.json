@@ -1,0 +1,8 @@
+{
+  "name": "ejs",
+  "version": "0.23.2",
+  "file_extensions": [
+    "ejs"
+  ],
+  "sha256_wasm": "4152594ad6ae5bb2d91fd05022ef6fa0cf59013a653d6be26b4ac686575f81a4"
+}

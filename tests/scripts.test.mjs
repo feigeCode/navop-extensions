@@ -897,6 +897,52 @@ test("package-composite-extension creates a DBeaver importer package", () => {
   );
 });
 
+test("package-language-extension creates a Tree-sitter language package", () => {
+  const workdir = makeTempDir();
+  createLanguageExtensionFixture(workdir, {
+    id: "rust",
+    version: "0.0.0",
+    fileExtensions: ["rs"],
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-language-extension.sh"),
+      "rust",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(path.basename(archivePath), "rust-language-universal.tar.gz");
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.name, "rust");
+  assert.equal(manifest.version, "1.2.3");
+  assert.deepEqual(manifest.file_extensions, ["rs"]);
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/parser.wasm"), "utf8"),
+    "fake parser wasm\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/highlights.scm"), "utf8"),
+    "(identifier) @variable\n",
+  );
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-language-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+  assert.match(output, /Verified/);
+});
+
 test("package-acp-agent selects a cmd launcher for Windows packages", () => {
   const workdir = makeTempDir();
   createAcpAgentFixture(workdir, {
@@ -1994,6 +2040,88 @@ test("repository manifest is maintained as a lightweight marketplace index", () 
   }
 });
 
+test("Tree-sitter language extensions cover every non-built-in host language", () => {
+  const builtInLanguageIds = new Set(["bash", "sql"]);
+  const expectedLanguageIds = [
+    "astro",
+    "c",
+    "cmake",
+    "cpp",
+    "csharp",
+    "css",
+    "diff",
+    "ejs",
+    "elixir",
+    "erb",
+    "go",
+    "graphql",
+    "html",
+    "java",
+    "javascript",
+    "jsdoc",
+    "kotlin",
+    "lua",
+    "make",
+    "markdown",
+    "markdown_inline",
+    "php",
+    "proto",
+    "python",
+    "ruby",
+    "rust",
+    "scala",
+    "svelte",
+    "swift",
+    "toml",
+    "tsx",
+    "typescript",
+    "yaml",
+    "zig",
+  ];
+  assert.equal(expectedLanguageIds.some((id) => builtInLanguageIds.has(id)), false);
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const globalEntries = new Map(manifest.extensions.map((entry) => [entry.id, entry]));
+  const languageRoot = path.join(repoRoot, "extensions/language");
+  const actualLanguageIds = fs.existsSync(languageRoot)
+    ? fs.readdirSync(languageRoot).filter((id) =>
+        fs.existsSync(path.join(languageRoot, id, "extension.build.json")),
+      ).sort()
+    : [];
+
+  assert.deepEqual(actualLanguageIds, expectedLanguageIds);
+
+  for (const id of expectedLanguageIds) {
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(languageRoot, id, "extension.build.json"), "utf8"),
+    );
+    assert.equal(metadata.id, id);
+    assert.equal(metadata.kind, "language");
+    assert.equal(metadata.language, "tree-sitter-wasm");
+    assert.equal(metadata.path, `extensions/language/${id}`);
+    assert.deepEqual(metadata.targets, ["universal"]);
+    assert.equal(metadata.releaseTagPrefix, `${id}-v`);
+    assert.equal(metadata.r2Prefix, `extensions/${id}`);
+
+    const sourceManifest = JSON.parse(
+      fs.readFileSync(path.join(languageRoot, id, "manifest.json"), "utf8"),
+    );
+    assert.equal(sourceManifest.name, id);
+    assert.equal(typeof sourceManifest.version, "string");
+    assert.ok(sourceManifest.version.length > 0, `${id} manifest version should not be empty`);
+    assert.ok(Array.isArray(sourceManifest.file_extensions), `${id} file_extensions should be an array`);
+    assert.ok(
+      fs.existsSync(path.join(languageRoot, id, "parser.wasm")),
+      `${id} should include parser.wasm`,
+    );
+
+    const entry = globalEntries.get(id);
+    assert.equal(entry?.kind, "language");
+    assert.equal(entry?.manifest, `${id}/manifest.json`);
+    assert.deepEqual(entry?.file_extensions, sourceManifest.file_extensions);
+  }
+});
+
 test("generate-marketplace-manifest writes only the current plugin manifest", () => {
   const workdir = makeTempDir();
   copyScript("generate-marketplace-manifest.mjs", workdir);
@@ -2228,6 +2356,48 @@ test("generate-marketplace-manifest supports ACP agents", () => {
     extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
     fileName,
   );
+});
+
+test("generate-marketplace-manifest supports language extensions", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/language/rust/extension.build.json"), {
+    id: "rust",
+    kind: "language",
+    language: "tree-sitter-wasm",
+    path: "extensions/language/rust",
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, "extensions/language/rust/manifest.json"), {
+    name: "rust",
+    version: "0.24.0",
+    file_extensions: ["rs"],
+  });
+  const fileName = "rust-language-universal.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "0.24.0",
+      EXTENSION_ID: "rust",
+      RELEASE_TAG: "rust-v0.24.0",
+    },
+  });
+
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].id, "rust");
+  assert.equal(extensionManifest.extensions[0].kind, "language");
+  assert.deepEqual(extensionManifest.extensions[0].file_extensions, ["rs"]);
+  assert.equal(extensionManifest.extensions[0].artifacts.universal.file, fileName);
 });
 
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
@@ -2629,6 +2799,71 @@ test("install-local-mcp-helpers defaults to the one-hub helper directory", () =>
   assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/mcp_helpers/);
 });
 
+test("install-local-languages packages and replaces one selected language", () => {
+  const workdir = makeTempDir();
+  copyScript("install-local-languages.sh", workdir);
+  createLanguageExtensionFixture(workdir, {
+    id: "rust",
+    version: "0.24.2",
+    fileExtensions: ["rs"],
+  });
+  createLanguageExtensionFixture(workdir, {
+    id: "python",
+    version: "0.23.6",
+    fileExtensions: ["py"],
+  });
+  const installRoot = path.join(workdir, "onetcli/extensions/languages");
+  fs.mkdirSync(path.join(installRoot, "rust"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "rust/old.txt"), "old rust\n");
+  fs.mkdirSync(path.join(installRoot, "python"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "python/old.txt"), "old python\n");
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/install-local-languages.sh"), "rust"],
+    {
+      cwd: workdir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ONETCLI_LANGUAGE_DIR: installRoot,
+      },
+    },
+  );
+
+  assert.match(output, /Installed rust ->/);
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "rust/manifest.json"), "utf8").includes('"version": "0.24.2"'),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, "rust/parser.wasm"), "utf8"),
+    "fake parser wasm\n",
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "rust/old.txt")), false);
+  assert.equal(fs.readFileSync(path.join(installRoot, "python/old.txt"), "utf8"), "old python\n");
+  const backups = fs
+    .readdirSync(path.join(installRoot, ".backups"))
+    .filter((name) => name.startsWith("rust.backup."));
+  assert.equal(backups.length, 1);
+  assert.equal(
+    fs.readFileSync(path.join(installRoot, ".backups", backups[0], "old.txt"), "utf8"),
+    "old rust\n",
+  );
+});
+
+test("install-local-languages defaults to the one-hub language directory", () => {
+  const script = fs.readFileSync(
+    path.join(repoRoot, "scripts/install-local-languages.sh"),
+    "utf8",
+  );
+
+  assert.match(script, /ONETCLI_LANGUAGE_DIR/);
+  assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/languages/);
+  assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/languages/);
+  assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/languages/);
+});
+
 test("install-local-acp-agents packages and replaces one selected ACP agent", () => {
   const workdir = makeTempDir();
   copyScript("install-local-acp-agents.sh", workdir);
@@ -2937,7 +3172,7 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
   const entries = [];
   for (const root of roots) {
     if (!fs.existsSync(path.join(repoRoot, root))) continue;
@@ -2957,6 +3192,7 @@ function manifestFileForKind(kind) {
   if (kind === "mcp_helper") return "mcp_helper.json";
   if (kind === "acp_agent") return "acp_agent.json";
   if (kind === "composite") return "extension.json";
+  if (kind === "language") return "manifest.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 
@@ -3163,6 +3399,34 @@ function createDbeaverImporterFixture(workdir, options = {}) {
   });
   fs.mkdirSync(path.join(workdir, `extensions/wasm/${id}/wasm`), { recursive: true });
   fs.writeFileSync(path.join(workdir, `extensions/wasm/${id}/wasm/dbeaver_importer_wasm.wasm`), "fake wasm\n");
+}
+
+function createLanguageExtensionFixture(workdir, options = {}) {
+  const id = options.id || "rust";
+  const version = options.version || "0.0.0";
+  const fileExtensions = options.fileExtensions || ["rs"];
+  copyScript("package-language-extension.sh", workdir);
+  copyScript("verify-language-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/language/${id}/extension.build.json`), {
+    id,
+    kind: "language",
+    language: "tree-sitter-wasm",
+    path: `extensions/language/${id}`,
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, `extensions/language/${id}/manifest.json`), {
+    name: id,
+    version,
+    file_extensions: fileExtensions,
+  });
+  fs.writeFileSync(
+    path.join(workdir, `extensions/language/${id}/parser.wasm`),
+    "fake parser wasm\n",
+  );
+  fs.writeFileSync(
+    path.join(workdir, `extensions/language/${id}/highlights.scm`),
+    "(identifier) @variable\n",
+  );
 }
 
 function copyScript(name, workdir) {

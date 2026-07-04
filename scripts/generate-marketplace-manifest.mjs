@@ -35,6 +35,9 @@ const extensionEntry = {
   description: sourceManifest.description || "",
   artifacts,
 };
+if (metadata.kind === "language") {
+  extensionEntry.file_extensions = sourceManifest.file_extensions || [];
+}
 extensionManifest.extensions = [extensionEntry];
 
 fs.mkdirSync(artifactDir, { recursive: true });
@@ -98,6 +101,8 @@ function manifestFileName(kind) {
       return "acp_agent.json";
     case "composite":
       return "extension.json";
+    case "language":
+      return "manifest.json";
     default:
       throw new Error(`unsupported extension kind for marketplace manifest: ${kind}`);
   }
@@ -115,6 +120,8 @@ function artifactFileName(metadata, target) {
       return `${metadata.id}-acp-agent-${target}.tar.gz`;
     case "composite":
       return `${metadata.id}-composite-${target}.tar.gz`;
+    case "language":
+      return `${metadata.id}-language-${target}.tar.gz`;
     default:
       throw new Error(`unsupported extension kind for artifact naming: ${metadata.kind}`);
   }

@@ -1,0 +1,11 @@
+{
+  "id": "tsx",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/tsx",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "tsx-v",
+  "r2Prefix": "extensions/tsx"
+}

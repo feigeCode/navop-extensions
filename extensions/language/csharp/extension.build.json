@@ -1,0 +1,11 @@
+{
+  "id": "csharp",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/csharp",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "csharp-v",
+  "r2Prefix": "extensions/csharp"
+}

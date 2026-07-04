@@ -1,0 +1,10 @@
+{
+  "name": "markdown",
+  "version": "0.5.3",
+  "file_extensions": [
+    "md",
+    "markdown",
+    "mdx"
+  ],
+  "sha256_wasm": "9ece8a1263730c17ef2627dcac0863ed474d9b62a59ef675cce40692633bb08a"
+}

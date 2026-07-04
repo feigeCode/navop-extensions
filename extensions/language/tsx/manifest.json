@@ -1,0 +1,8 @@
+{
+  "name": "tsx",
+  "version": "0.23.2",
+  "file_extensions": [
+    "tsx"
+  ],
+  "sha256_wasm": "ac1fa07a50107f5e3aacb8173cbe3f37953628f88a37c05b27c31f596f029fbd"
+}

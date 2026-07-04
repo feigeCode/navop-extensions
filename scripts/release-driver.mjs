@@ -21,7 +21,7 @@ function main() {
   }
 
   const metadata = loadExtensionMetadata(args.extensionId);
-  if (!["database_driver", "remote_desktop_provider", "mcp_helper", "acp_agent", "composite"].includes(metadata.kind)) {
+  if (!["database_driver", "remote_desktop_provider", "mcp_helper", "acp_agent", "composite", "language"].includes(metadata.kind)) {
     fail(`unsupported extension kind: ${metadata.kind}`);
   }
 
@@ -132,7 +132,7 @@ function splitTargets(value) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
   let file = "";
   for (const root of roots) {
     const candidate = path.join(repoRoot, root, id, "extension.build.json");
@@ -197,6 +197,17 @@ function buildDriver(metadata, target) {
     return;
   }
 
+  if (language === "tree-sitter-wasm") {
+    if (target !== "universal") {
+      fail(`tree-sitter-wasm extensions must declare the universal target, got ${target}`);
+    }
+    const parserPath = path.join(repoRoot, metadata.path, "parser.wasm");
+    if (!fs.existsSync(parserPath)) {
+      fail(`missing Tree-sitter parser wasm: ${parserPath}`);
+    }
+    return;
+  }
+
   if (language === "go") {
     run("bash", [scriptPath("build-go-driver.sh"), metadata.id, target]);
     return;
@@ -248,6 +259,16 @@ function packageDriver(metadata, target, artifactDir, version) {
     ]);
     return;
   }
+  if (metadata.kind === "language") {
+    run("bash", [
+      scriptPath("package-language-extension.sh"),
+      metadata.id,
+      target,
+      artifactDir,
+      version,
+    ]);
+    return;
+  }
   run("bash", [
     scriptPath("package-remote-desktop-provider.sh"),
     metadata.id,
@@ -275,6 +296,8 @@ function verifyScriptName(kind) {
       return "verify-acp-agent-package.sh";
     case "composite":
       return "verify-composite-package.sh";
+    case "language":
+      return "verify-language-package.sh";
     default:
       fail(`unsupported extension kind: ${kind}`);
   }
@@ -325,6 +348,9 @@ function packagePath(artifactDir, metadata, target) {
   }
   if (metadata.kind === "composite") {
     return path.join(artifactDir, `${metadata.id}-composite-${target}.tar.gz`);
+  }
+  if (metadata.kind === "language") {
+    return path.join(artifactDir, `${metadata.id}-language-${target}.tar.gz`);
   }
   return path.join(artifactDir, `${metadata.id}-remote-desktop-provider-${target}.tar.gz`);
 }

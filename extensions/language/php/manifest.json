@@ -1,0 +1,12 @@
+{
+  "name": "php",
+  "version": "0.24.2",
+  "file_extensions": [
+    "php",
+    "php3",
+    "php4",
+    "php5",
+    "phtml"
+  ],
+  "sha256_wasm": "f4e09ce8e2930062012c8165469aeab6217f6adf3552b958e1b0d021003895f3"
+}

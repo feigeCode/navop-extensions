@@ -1,0 +1,8 @@
+{
+  "name": "astro",
+  "version": "0.1.1",
+  "file_extensions": [
+    "astro"
+  ],
+  "sha256_wasm": "e0f969874655fd8b210fdbb624b90f3d701d2989753d5575102225c098cdb25e"
+}

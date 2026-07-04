@@ -1,0 +1,10 @@
+{
+  "name": "kotlin",
+  "version": "0.4.1",
+  "file_extensions": [
+    "kt",
+    "kts",
+    "ktm"
+  ],
+  "sha256_wasm": "b3f230c5e96c131773fb263921a710c432c66342b1679df5e27631899b4b05eb"
+}

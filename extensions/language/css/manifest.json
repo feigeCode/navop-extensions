@@ -1,0 +1,9 @@
+{
+  "name": "css",
+  "version": "0.23.2",
+  "file_extensions": [
+    "css",
+    "scss"
+  ],
+  "sha256_wasm": "14c0d18ffc756fa6b08195693c17e6e11727b911c0ced13b2b11d40083be16fb"
+}

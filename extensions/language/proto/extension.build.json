@@ -1,0 +1,11 @@
+{
+  "id": "proto",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/proto",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "proto-v",
+  "r2Prefix": "extensions/proto"
+}

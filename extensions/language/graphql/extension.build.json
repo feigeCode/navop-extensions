@@ -1,0 +1,11 @@
+{
+  "id": "graphql",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/graphql",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "graphql-v",
+  "r2Prefix": "extensions/graphql"
+}

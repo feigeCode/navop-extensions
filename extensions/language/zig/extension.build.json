@@ -1,0 +1,11 @@
+{
+  "id": "zig",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/zig",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "zig-v",
+  "r2Prefix": "extensions/zig"
+}

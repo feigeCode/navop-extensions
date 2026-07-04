@@ -1,0 +1,11 @@
+{
+  "id": "kotlin",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/kotlin",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "kotlin-v",
+  "r2Prefix": "extensions/kotlin"
+}

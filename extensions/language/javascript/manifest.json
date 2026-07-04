@@ -1,0 +1,10 @@
+{
+  "name": "javascript",
+  "version": "0.23.1",
+  "file_extensions": [
+    "js",
+    "mjs",
+    "cjs"
+  ],
+  "sha256_wasm": "fad8f42f71988f609b69df2f4e7694fa571788e32426f4a56042876856c82ec6"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "rust",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/rust",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "rust-v",
+  "r2Prefix": "extensions/rust"
+}

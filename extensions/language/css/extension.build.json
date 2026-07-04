@@ -1,0 +1,11 @@
+{
+  "id": "css",
+  "kind": "language",
+  "language": "tree-sitter-wasm",
+  "path": "extensions/language/css",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "css-v",
+  "r2Prefix": "extensions/css"
+}

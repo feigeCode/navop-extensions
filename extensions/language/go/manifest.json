@@ -1,0 +1,8 @@
+{
+  "name": "go",
+  "version": "0.23.4",
+  "file_extensions": [
+    "go"
+  ],
+  "sha256_wasm": "ca41be926f333871fe454803527dfb22fd15085fb914ae0a374998b2966fe03e"
+}

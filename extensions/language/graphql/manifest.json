@@ -1,0 +1,9 @@
+{
+  "name": "graphql",
+  "version": "0.1.0",
+  "file_extensions": [
+    "graphql",
+    "gql"
+  ],
+  "sha256_wasm": "9697a5961542651ae5706644f996be5b2fe5be02dedc188bb0e22d29d695740d"
+}
