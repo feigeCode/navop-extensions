@@ -101,6 +101,10 @@ jobs:
         if: ${{ matrix.language == 'rust' && matrix.target != 'universal' }}
         with:
           target: ${{ matrix.target }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: ${{ matrix.language == 'rust-wasm' }}
+        with:
+          target: wasm32-wasip2
       - uses: actions/setup-go@v5
         if: ${{ matrix.language == 'go' && matrix.target != 'universal' }}
         with:
@@ -145,6 +149,10 @@ jobs:
           else
             cargo build --release -p "${{ matrix.package }}" --target "${{ matrix.target }}"
           fi
+      - name: Build Rust WASM component
+        if: ${{ matrix.language == 'rust-wasm' }}
+        shell: bash
+        run: cargo build --release -p "${{ matrix.package }}" --target wasm32-wasip2
       - name: Build Go driver
         if: ${{ matrix.language == 'go' && matrix.target != 'universal' }}
         run: bash scripts/build-go-driver.sh "${{ matrix.extension }}" "${{ matrix.target }}"
@@ -170,6 +178,9 @@ jobs:
           elif [ "${{ matrix.kind }}" = "acp_agent" ]; then
             bash scripts/package-acp-agent.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
             bash scripts/verify-acp-agent-package.sh "artifacts/${{ matrix.extension }}-acp-agent-${{ matrix.target }}.tar.gz"
+          elif [ "${{ matrix.kind }}" = "composite" ]; then
+            bash scripts/package-composite-extension.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
+            bash scripts/verify-composite-package.sh "artifacts/${{ matrix.extension }}-composite-${{ matrix.target }}.tar.gz"
           else
             echo "::error::Unsupported extension kind in release workflow: ${{ matrix.kind }}"
             exit 1

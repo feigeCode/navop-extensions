@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connection Import WASM"
+  short_description: "Build onetcli connection importers"
+  default_prompt: "Use $connection-import-wasm to implement an onetcli WASM connection importer."

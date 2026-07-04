@@ -96,6 +96,8 @@ function manifestFileName(kind) {
       return "mcp_helper.json";
     case "acp_agent":
       return "acp_agent.json";
+    case "composite":
+      return "extension.json";
     default:
       throw new Error(`unsupported extension kind for marketplace manifest: ${kind}`);
   }
@@ -111,6 +113,8 @@ function artifactFileName(metadata, target) {
       return `${metadata.id}-mcp-helper-${target}.tar.gz`;
     case "acp_agent":
       return `${metadata.id}-acp-agent-${target}.tar.gz`;
+    case "composite":
+      return `${metadata.id}-composite-${target}.tar.gz`;
     default:
       throw new Error(`unsupported extension kind for artifact naming: ${metadata.kind}`);
   }

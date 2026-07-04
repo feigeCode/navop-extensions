@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.xshell",
+  "name": "Xshell Importer",
+  "description": "Rust WASM connection importer for Xshell",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "xshell-importer",
+        "module": "wasm/xshell_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:%USERPROFILE%/Documents/NetSarang Computer/8/Xshell/Sessions",
+    "fs:read:%USERPROFILE%/Documents/NetSarang Computer/7/Xshell/Sessions",
+    "fs:read:%USERPROFILE%/Documents/NetSarang Computer/6/Xshell/Sessions",
+    "fs:read:%APPDATA%/NetSarang/Xshell/Sessions"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "xshell",
+        "runtimeId": "xshell-importer",
+        "displayName": "Xshell",
+        "description": "Import SSH sessions from Xshell",
+        "icon": "terminal",
+        "outputKinds": [
+          "ssh"
+        ],
+        "platforms": [
+          "windows"
+        ],
+        "candidateFiles": [
+          {
+            "id": "xshell-windows-v8-sessions",
+            "platform": "windows",
+            "path": "%USERPROFILE%/Documents/NetSarang Computer/8/Xshell/Sessions"
+          },
+          {
+            "id": "xshell-windows-v7-sessions",
+            "platform": "windows",
+            "path": "%USERPROFILE%/Documents/NetSarang Computer/7/Xshell/Sessions"
+          },
+          {
+            "id": "xshell-windows-v6-sessions",
+            "platform": "windows",
+            "path": "%USERPROFILE%/Documents/NetSarang Computer/6/Xshell/Sessions"
+          },
+          {
+            "id": "xshell-windows-appdata-sessions",
+            "platform": "windows",
+            "path": "%APPDATA%/NetSarang/Xshell/Sessions"
+          }
+        ]
+      }
+    ]
+  }
+}

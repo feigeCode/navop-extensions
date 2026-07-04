@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.dbeaver",
+  "name": "DBeaver Importer",
+  "description": "Rust WASM connection importer for DBeaver",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "dbeaver-importer",
+        "module": "wasm/dbeaver_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/Library/DBeaverData/workspace6/General/.dbeaver/data-sources.json",
+    "fs:read:~/Library/DBeaverData/workspace6/General/.dbeaver/credentials-config.json",
+    "fs:read:%APPDATA%/DBeaverData/workspace6/General/.dbeaver/data-sources.json",
+    "fs:read:%APPDATA%/DBeaverData/workspace6/General/.dbeaver/credentials-config.json"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "dbeaver",
+        "runtimeId": "dbeaver-importer",
+        "displayName": "DBeaver",
+        "description": "Import database connections from DBeaver",
+        "icon": "database",
+        "outputKinds": [
+          "database"
+        ],
+        "platforms": [
+          "macos",
+          "windows"
+        ],
+        "candidateFiles": [
+          {
+            "id": "dbeaver-macos-data-sources",
+            "platform": "macos",
+            "path": "~/Library/DBeaverData/workspace6/General/.dbeaver/data-sources.json"
+          },
+          {
+            "id": "dbeaver-macos-credentials",
+            "platform": "macos",
+            "path": "~/Library/DBeaverData/workspace6/General/.dbeaver/credentials-config.json"
+          },
+          {
+            "id": "dbeaver-windows-data-sources",
+            "platform": "windows",
+            "path": "%APPDATA%/DBeaverData/workspace6/General/.dbeaver/data-sources.json"
+          },
+          {
+            "id": "dbeaver-windows-credentials",
+            "platform": "windows",
+            "path": "%APPDATA%/DBeaverData/workspace6/General/.dbeaver/credentials-config.json"
+          }
+        ]
+      }
+    ]
+  }
+}

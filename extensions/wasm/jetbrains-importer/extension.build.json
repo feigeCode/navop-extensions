@@ -1,0 +1,13 @@
+{
+  "id": "jetbrains-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "jetbrains_importer_wasm",
+  "binary": "jetbrains_importer_wasm.wasm",
+  "path": "extensions/wasm/jetbrains-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "jetbrains-importer-v",
+  "r2Prefix": "extensions/jetbrains-importer"
+}

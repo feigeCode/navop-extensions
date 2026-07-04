@@ -2,6 +2,14 @@
 members = [
     "extensions/ipc/duckdb",
     "extensions/ipc/opengauss",
+    "extensions/wasm/dbeaver-importer",
+    "extensions/wasm/jetbrains-importer",
+    "extensions/wasm/mongodb-compass-importer",
+    "extensions/wasm/navicat-importer",
+    "extensions/wasm/openssh-config-importer",
+    "extensions/wasm/redis-desktop-importer",
+    "extensions/wasm/tableplus-importer",
+    "extensions/wasm/xshell-importer",
 ]
 resolver = "2"
 

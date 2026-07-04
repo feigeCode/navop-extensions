@@ -1,0 +1,13 @@
+{
+  "id": "tableplus-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "tableplus_importer_wasm",
+  "binary": "tableplus_importer_wasm.wasm",
+  "path": "extensions/wasm/tableplus-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "tableplus-importer-v",
+  "r2Prefix": "extensions/tableplus-importer"
+}

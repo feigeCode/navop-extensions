@@ -1,0 +1,13 @@
+{
+  "id": "dbeaver-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "dbeaver_importer_wasm",
+  "binary": "dbeaver_importer_wasm.wasm",
+  "path": "extensions/wasm/dbeaver-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "dbeaver-importer-v",
+  "r2Prefix": "extensions/dbeaver-importer"
+}

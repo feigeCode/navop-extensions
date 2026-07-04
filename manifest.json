@@ -33,6 +33,86 @@
       "manifest": "codex-acp/manifest.json"
     },
     {
+      "id": "dbeaver-importer",
+      "kind": "composite",
+      "name": "DBeaver Importer",
+      "version": "0.1.0",
+      "release_tag": "dbeaver-importer-v0.1.0",
+      "description": "Rust WASM connection importer for DBeaver",
+      "file_extensions": [],
+      "manifest": "dbeaver-importer/manifest.json"
+    },
+    {
+      "id": "jetbrains-importer",
+      "kind": "composite",
+      "name": "JetBrains Importer",
+      "version": "0.1.0",
+      "release_tag": "jetbrains-importer-v0.1.0",
+      "description": "Rust WASM connection importer for JetBrains IDE database data sources",
+      "file_extensions": [],
+      "manifest": "jetbrains-importer/manifest.json"
+    },
+    {
+      "id": "mongodb-compass-importer",
+      "kind": "composite",
+      "name": "MongoDB Compass Importer",
+      "version": "0.1.0",
+      "release_tag": "mongodb-compass-importer-v0.1.0",
+      "description": "Rust WASM connection importer for MongoDB Compass",
+      "file_extensions": [],
+      "manifest": "mongodb-compass-importer/manifest.json"
+    },
+    {
+      "id": "openssh-config-importer",
+      "kind": "composite",
+      "name": "OpenSSH Config Importer",
+      "version": "0.1.0",
+      "release_tag": "openssh-config-importer-v0.1.0",
+      "description": "Rust WASM connection importer for OpenSSH client config",
+      "file_extensions": [],
+      "manifest": "openssh-config-importer/manifest.json"
+    },
+    {
+      "id": "redis-desktop-importer",
+      "kind": "composite",
+      "name": "Redis Desktop Importer",
+      "version": "0.1.0",
+      "release_tag": "redis-desktop-importer-v0.1.0",
+      "description": "Rust WASM connection importer for Redis desktop clients",
+      "file_extensions": [],
+      "manifest": "redis-desktop-importer/manifest.json"
+    },
+    {
+      "id": "navicat-importer",
+      "kind": "composite",
+      "name": "Navicat Importer",
+      "version": "0.1.0",
+      "release_tag": "navicat-importer-v0.1.0",
+      "description": "Rust WASM connection importer for Navicat",
+      "file_extensions": [],
+      "manifest": "navicat-importer/manifest.json"
+    },
+    {
+      "id": "tableplus-importer",
+      "kind": "composite",
+      "name": "TablePlus Importer",
+      "version": "0.1.0",
+      "release_tag": "tableplus-importer-v0.1.0",
+      "description": "Rust WASM connection importer for TablePlus",
+      "file_extensions": [],
+      "manifest": "tableplus-importer/manifest.json"
+    },
+    {
+      "id": "xshell-importer",
+      "kind": "composite",
+      "name": "Xshell Importer",
+      "version": "0.1.0",
+      "release_tag": "xshell-importer-v0.1.0",
+      "description": "Rust WASM connection importer for Xshell",
+      "file_extensions": [],
+      "manifest": "xshell-importer/manifest.json"
+    },
+    {
       "id": "duckdb",
       "kind": "database_driver",
       "name": "DuckDB",

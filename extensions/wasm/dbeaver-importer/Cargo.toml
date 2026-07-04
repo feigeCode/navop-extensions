@@ -1,0 +1,19 @@
+[package]
+name = "dbeaver_importer_wasm"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+aes = "0.8"
+base64.workspace = true
+cbc = { version = "0.1", features = ["alloc", "block-padding"] }
+hex.workspace = true
+plist = "1"
+serde.workspace = true
+serde_json.workspace = true
+wit-bindgen = "0.57.1"

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.jetbrains",
+  "name": "JetBrains Importer",
+  "description": "Rust WASM connection importer for JetBrains IDE database data sources",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "jetbrains-importer",
+        "module": "wasm/jetbrains_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/Library/Application Support/JetBrains",
+    "fs:read:%APPDATA%/JetBrains",
+    "fs:read:~/.config/JetBrains"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "jetbrains",
+        "runtimeId": "jetbrains-importer",
+        "displayName": "JetBrains IDEs",
+        "description": "Import database connections from JetBrains DataGrip and IDE dataSources.xml files",
+        "icon": "database",
+        "outputKinds": [
+          "database"
+        ],
+        "platforms": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "candidateFiles": [
+          {
+            "id": "jetbrains-macos-root",
+            "platform": "macos",
+            "path": "~/Library/Application Support/JetBrains"
+          },
+          {
+            "id": "jetbrains-windows-root",
+            "platform": "windows",
+            "path": "%APPDATA%/JetBrains"
+          },
+          {
+            "id": "jetbrains-linux-root",
+            "platform": "linux",
+            "path": "~/.config/JetBrains"
+          }
+        ]
+      }
+    ]
+  }
+}

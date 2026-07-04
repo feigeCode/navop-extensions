@@ -215,6 +215,176 @@ test("extension descriptions include implementation language", () => {
   }
 });
 
+test("WASM connection importers use the shared host connection-import WIT", () => {
+  const sharedWit = path.join(repoRoot, "wit/connection-import.wit");
+  assert.ok(fs.existsSync(sharedWit), "repository should vendor a single shared connection-import WIT");
+
+  const wasmRoot = path.join(repoRoot, "extensions/wasm");
+  for (const id of fs.existsSync(wasmRoot) ? fs.readdirSync(wasmRoot) : []) {
+    assert.equal(
+      fs.existsSync(path.join(wasmRoot, id, "wit/connection-import.wit")),
+      false,
+      `${id} should reference the shared repository WIT instead of carrying a private copy`,
+    );
+  }
+
+  const hostWitCandidates = [
+    path.resolve(
+      repoRoot,
+      "../onetcli/.worktrees/connection-import-center/crates/extension-api/wit/connection-import.wit",
+    ),
+    path.resolve(repoRoot, "../onetcli/crates/extension-api/wit/connection-import.wit"),
+  ];
+  const hostWit = hostWitCandidates.find((candidate) => fs.existsSync(candidate));
+  if (hostWit) {
+    assert.equal(
+      fs.readFileSync(sharedWit, "utf8"),
+      fs.readFileSync(hostWit, "utf8"),
+      `shared connection-import WIT drifted from ${path.relative(repoRoot, hostWit)}`,
+    );
+  }
+});
+
+test("Xshell importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "xshell-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "xshell-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/xshell-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "xshell");
+  assert.deepEqual(importer.outputKinds, ["ssh"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("NetSarang Computer/8/Xshell/Sessions")),
+    "Xshell importer should declare the current NetSarang sessions directory",
+  );
+});
+
+test("Navicat importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "navicat-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "navicat-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/navicat-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "navicat");
+  assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("com.prect.NavicatPremium")),
+    "Navicat importer should declare macOS PremiumSoft preference plist candidates",
+  );
+});
+
+test("TablePlus importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "tableplus-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "tableplus-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/tableplus-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "tableplus");
+  assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("com.tinyapp.TablePlus")),
+    "TablePlus importer should declare TablePlus app support candidates",
+  );
+});
+
+test("JetBrains importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "jetbrains-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "jetbrains-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/jetbrains-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "jetbrains");
+  assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("Application Support/JetBrains")),
+    "JetBrains importer should declare JetBrains app support candidates",
+  );
+});
+
+test("MongoDB Compass importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "mongodb-compass-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "mongodb-compass-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/mongodb-compass-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "mongodb-compass");
+  assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("MongoDB Compass/Connections")),
+    "MongoDB Compass importer should declare Compass Connections candidates",
+  );
+});
+
+test("OpenSSH config importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "openssh-config-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "openssh-config-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/openssh-config-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "openssh-config");
+  assert.deepEqual(importer.outputKinds, ["ssh"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes(".ssh/config")),
+    "OpenSSH config importer should declare user ssh config candidates",
+  );
+});
+
+test("Redis desktop importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "redis-desktop-importer");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "redis-desktop-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/redis-desktop-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "redis-desktop");
+  assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path.includes("com.hepengju.redis/store.json")),
+    "Redis desktop importer should declare com.hepengju.redis store candidates",
+  );
+});
+
 test("RDP helper keeps native TLS backend for RDP compatibility", () => {
   const cargoToml = fs.readFileSync(
     path.join(repoRoot, "extensions/remote-desktop/rdp-helper/Cargo.toml"),
@@ -683,6 +853,46 @@ test("package-acp-agent creates a Codex ACP agent package", () => {
   execFileSync(
     "bash",
     [path.join(workdir, "scripts/verify-acp-agent-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+});
+
+test("package-composite-extension creates a DBeaver importer package", () => {
+  const workdir = makeTempDir();
+  createDbeaverImporterFixture(workdir);
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-composite-extension.sh"),
+      "dbeaver-importer",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(
+    path.basename(archivePath),
+    "dbeaver-importer-composite-universal.tar.gz",
+  );
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/extension.json"), "utf8"),
+  );
+  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.contributes.connectionImporters.length, 1);
+  assert.equal(manifest.contributes.connectionImporters[0].id, "dbeaver");
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/wasm/dbeaver_importer_wasm.wasm"), "utf8"),
+    "fake wasm\n",
+  );
+
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
     { cwd: workdir, encoding: "utf8" },
   );
 });
@@ -1481,6 +1691,61 @@ test("changed-extensions emits one Ubuntu test entry for Go extensions", () => {
   ]);
 });
 
+test("changed-extensions includes Rust WASM extensions for workspace Rust changes", () => {
+  const workdir = makeTempDir();
+  copyScript("changed-extensions.mjs", workdir);
+  writeJson(path.join(workdir, "extensions/ipc/duckdb/extension.build.json"), {
+    id: "duckdb",
+    kind: "database_driver",
+    language: "rust",
+    package: "duckdb_driver",
+    path: "extensions/ipc/duckdb",
+    targets: ["x86_64-unknown-linux-gnu"],
+  });
+  writeJson(path.join(workdir, "extensions/wasm/dbeaver-importer/extension.build.json"), {
+    id: "dbeaver-importer",
+    kind: "composite",
+    language: "rust-wasm",
+    package: "dbeaver_importer_wasm",
+    path: "extensions/wasm/dbeaver-importer",
+    targets: ["universal"],
+  });
+  fs.writeFileSync(path.join(workdir, "Cargo.toml"), "[workspace]\n");
+  git(workdir, "init");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "base");
+  const base = git(workdir, "rev-parse", "HEAD").trim();
+  fs.writeFileSync(path.join(workdir, "Cargo.toml"), "[workspace]\nresolver = \"2\"\n");
+  git(workdir, "add", ".");
+  git(workdir, "commit", "-m", "change workspace");
+  const head = git(workdir, "rev-parse", "HEAD").trim();
+
+  const output = execFileSync(
+    "node",
+    [path.join(workdir, "scripts/changed-extensions.mjs"), base, head],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.deepEqual(JSON.parse(output).include, [
+    {
+      extension: "duckdb",
+      package: "duckdb_driver",
+      manifest_path: "",
+      kind: "database_driver",
+      language: "rust",
+      os: "ubuntu-latest",
+    },
+    {
+      extension: "dbeaver-importer",
+      package: "dbeaver_importer_wasm",
+      manifest_path: "",
+      kind: "composite",
+      language: "rust-wasm",
+      os: "ubuntu-latest",
+    },
+  ]);
+});
+
 test("changed-extensions maps declared source paths to the owning extension", () => {
   const workdir = makeTempDir();
   copyScript("changed-extensions.mjs", workdir);
@@ -2021,6 +2286,9 @@ test("release workflow keeps extension releases scoped to current extension", ()
   assert.match(workflow, /scripts\/verify-mcp-helper-package\.sh/);
   assert.match(workflow, /scripts\/package-acp-agent\.sh/);
   assert.match(workflow, /scripts\/verify-acp-agent-package\.sh/);
+  assert.match(workflow, /scripts\/package-composite-extension\.sh/);
+  assert.match(workflow, /scripts\/verify-composite-package\.sh/);
+  assert.match(workflow, /wasm32-wasip2/);
   assert.match(workflow, /matrix\.target == 'aarch64-unknown-linux-gnu' && matrix\.kind != 'remote_desktop_provider'/);
   assert.match(workflow, /export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc/);
   assert.doesNotMatch(workflow, /CMAKE_GENERATOR:\s+\$\{\{/);
@@ -2028,7 +2296,7 @@ test("release workflow keeps extension releases scoped to current extension", ()
   assert.doesNotMatch(workflow, /sudo dpkg --add-architecture arm64/);
 });
 
-test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
+test("CI workflow routes Rust, Rust WASM, Go, and Java extension jobs by language", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
   const releaseWorkflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/release.yml"), "utf8");
 
@@ -2036,6 +2304,7 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.match(workflow, /node --test tests\/scripts\.test\.mjs/);
   assert.match(workflow, /Validate workflow YAML/);
   assert.match(workflow, /matrix\.language == 'rust'/);
+  assert.match(workflow, /matrix\.language == 'rust-wasm'/);
   assert.match(workflow, /matrix\.language == 'go'/);
   assert.match(workflow, /matrix\.language == 'java'/);
   assert.match(workflow, /actions\/setup-go@v5/);
@@ -2054,6 +2323,8 @@ test("CI workflow routes Rust, Go, and Java extension jobs by language", () => {
   assert.doesNotMatch(workflow, /scripts\/verify-package\.sh/);
   assert.doesNotMatch(workflow, /aarch64-unknown-linux-gnu/);
   assert.match(releaseWorkflow, /if: \$\{\{ matrix\.language == 'java' \}\}\n\s+run: bash scripts\/build-java-driver\.sh/);
+  assert.match(releaseWorkflow, /matrix\.language == 'rust-wasm'/);
+  assert.match(releaseWorkflow, /cargo build --release -p "\$\{\{ matrix\.package \}\}" --target wasm32-wasip2/);
   assert.doesNotMatch(workflow, /DUCKDB_DOWNLOAD_LIB/);
   assert.match(releaseWorkflow, /if \(language === "go"\) return "ubuntu-latest";/);
   assert.match(
@@ -2620,6 +2891,45 @@ test("release-driver packages ACP agents", () => {
   );
 });
 
+test("release-driver packages composite wasm extensions", () => {
+  const workdir = makeTempDir();
+  copyScript("release-driver.mjs", workdir);
+  copyScript("package-composite-extension.sh", workdir);
+  copyScript("verify-composite-package.sh", workdir);
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  createDbeaverImporterFixture(workdir, { version: "0.0.0" });
+
+  const output = execFileSync(
+    "node",
+    [
+      path.join(workdir, "scripts/release-driver.mjs"),
+      "dbeaver-importer",
+      "1.2.3",
+      "--target",
+      "universal",
+      "--skip-build",
+      "--artifact-dir",
+      "artifacts",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  );
+
+  assert.match(output, /Packaging dbeaver-importer \(universal\)/);
+  assert.ok(
+    fs.existsSync(
+      path.join(workdir, "artifacts/dbeaver-importer-composite-universal.tar.gz"),
+    ),
+  );
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  assert.equal(extensionManifest.extensions[0].kind, "composite");
+  assert.equal(
+    extensionManifest.extensions[0].artifacts.universal.file,
+    "dbeaver-importer-composite-universal.tar.gz",
+  );
+});
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });
@@ -2627,9 +2937,10 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm"];
   const entries = [];
   for (const root of roots) {
+    if (!fs.existsSync(path.join(repoRoot, root))) continue;
     for (const id of fs.readdirSync(path.join(repoRoot, root))) {
       const metadataPath = path.join(repoRoot, root, id, "extension.build.json");
       if (fs.existsSync(metadataPath)) {
@@ -2645,6 +2956,7 @@ function manifestFileForKind(kind) {
   if (kind === "remote_desktop_provider") return "remote_desktop_provider.json";
   if (kind === "mcp_helper") return "mcp_helper.json";
   if (kind === "acp_agent") return "acp_agent.json";
+  if (kind === "composite") return "extension.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 
@@ -2811,6 +3123,48 @@ function createAcpAgentFixture(workdir, options = {}) {
   );
 }
 
+function createDbeaverImporterFixture(workdir, options = {}) {
+  const id = options.id || "dbeaver-importer";
+  const version = options.version || "0.0.0";
+  copyScript("package-composite-extension.sh", workdir);
+  copyScript("verify-composite-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/wasm/${id}/extension.build.json`), {
+    id,
+    kind: "composite",
+    language: "rust-wasm",
+    package: "dbeaver_importer_wasm",
+    binary: "dbeaver_importer_wasm.wasm",
+    path: `extensions/wasm/${id}`,
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, `extensions/wasm/${id}/extension.json`), {
+    schema_version: 1,
+    id: "com.onetcli.importer.dbeaver",
+    name: "DBeaver Importer",
+    description: "Rust WASM connection importer for DBeaver",
+    version,
+    engines: { onetcli: ">=0.7.0" },
+    runtime: {
+      wasm: [{
+        id: "dbeaver-importer",
+        module: "wasm/dbeaver_importer_wasm.wasm",
+        kind: "component",
+      }],
+    },
+    contributes: {
+      connectionImporters: [{
+        id: "dbeaver",
+        runtimeId: "dbeaver-importer",
+        displayName: "DBeaver",
+        outputKinds: ["database"],
+        platforms: ["macos", "windows"],
+      }],
+    },
+  });
+  fs.mkdirSync(path.join(workdir, `extensions/wasm/${id}/wasm`), { recursive: true });
+  fs.writeFileSync(path.join(workdir, `extensions/wasm/${id}/wasm/dbeaver_importer_wasm.wasm`), "fake wasm\n");
+}
+
 function copyScript(name, workdir) {
   fs.mkdirSync(path.join(workdir, "scripts"), { recursive: true });
   fs.copyFileSync(path.join(repoRoot, "scripts", name), path.join(workdir, "scripts", name));
@@ -2903,12 +3257,14 @@ function createFailingRustc(workdir) {
 }
 
 function collectExtensionMetadata() {
-  return ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent"].flatMap((root) =>
+  return ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm"].flatMap((root) =>
+    fs.existsSync(path.join(repoRoot, root)) ?
     fs
       .readdirSync(path.join(repoRoot, root))
       .map((id) => path.join(repoRoot, root, id, "extension.build.json"))
       .filter((metadataPath) => fs.existsSync(metadataPath))
       .map((metadataPath) => JSON.parse(fs.readFileSync(metadataPath, "utf8")))
+      : []
   ).sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -2921,6 +3277,8 @@ function languageName(metadata) {
       return "Java";
     case "rust":
       return "Rust";
+    case "rust-wasm":
+      return "Rust WASM";
     case "shell":
       return "Shell";
     default:
@@ -2938,6 +3296,8 @@ function sourceManifestFileName(kind) {
       return "mcp_helper.json";
     case "acp_agent":
       return "acp_agent.json";
+    case "composite":
+      return "extension.json";
     default:
       throw new Error(`unsupported extension kind: ${kind}`);
   }

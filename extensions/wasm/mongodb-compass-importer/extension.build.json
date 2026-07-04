@@ -1,0 +1,13 @@
+{
+  "id": "mongodb-compass-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "mongodb_compass_importer_wasm",
+  "binary": "mongodb_compass_importer_wasm.wasm",
+  "path": "extensions/wasm/mongodb-compass-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "mongodb-compass-importer-v",
+  "r2Prefix": "extensions/mongodb-compass-importer"
+}

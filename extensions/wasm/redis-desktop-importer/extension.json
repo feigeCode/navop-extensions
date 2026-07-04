@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.redis-desktop",
+  "name": "Redis Desktop Importer",
+  "description": "Rust WASM connection importer for Redis desktop clients",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "redis-desktop-importer",
+        "module": "wasm/redis_desktop_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/Library/Application Support/com.hepengju.redis/store.json",
+    "fs:read:%APPDATA%/com.hepengju.redis/store.json",
+    "fs:read:~/.config/com.hepengju.redis/store.json"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "redis-desktop",
+        "runtimeId": "redis-desktop-importer",
+        "displayName": "Redis Desktop",
+        "description": "Import Redis connection metadata from Redis desktop clients",
+        "icon": "database",
+        "outputKinds": [
+          "database"
+        ],
+        "platforms": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "candidateFiles": [
+          {
+            "id": "redis-desktop-macos-store",
+            "platform": "macos",
+            "path": "~/Library/Application Support/com.hepengju.redis/store.json"
+          },
+          {
+            "id": "redis-desktop-windows-store",
+            "platform": "windows",
+            "path": "%APPDATA%/com.hepengju.redis/store.json"
+          },
+          {
+            "id": "redis-desktop-linux-store",
+            "platform": "linux",
+            "path": "~/.config/com.hepengju.redis/store.json"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.navicat",
+  "name": "Navicat Importer",
+  "description": "Rust WASM connection importer for Navicat",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "navicat-importer",
+        "module": "wasm/navicat_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/Library/Preferences/com.prect.NavicatPremium.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatPremium15.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatPremium16.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatPremium17.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatForMySQL.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatForPostgreSQL.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatForSQLite.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatForOracle.plist",
+    "fs:read:~/Library/Preferences/com.prect.NavicatForSQLServer.plist"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "navicat",
+        "runtimeId": "navicat-importer",
+        "displayName": "Navicat",
+        "description": "Import database connections from Navicat preference plists",
+        "icon": "database",
+        "outputKinds": [
+          "database"
+        ],
+        "platforms": [
+          "macos"
+        ],
+        "candidateFiles": [
+          {
+            "id": "navicat-macos-premium",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatPremium.plist"
+          },
+          {
+            "id": "navicat-macos-premium-15",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatPremium15.plist"
+          },
+          {
+            "id": "navicat-macos-premium-16",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatPremium16.plist"
+          },
+          {
+            "id": "navicat-macos-premium-17",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatPremium17.plist"
+          },
+          {
+            "id": "navicat-macos-mysql",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatForMySQL.plist"
+          },
+          {
+            "id": "navicat-macos-postgresql",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatForPostgreSQL.plist"
+          },
+          {
+            "id": "navicat-macos-sqlite",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatForSQLite.plist"
+          },
+          {
+            "id": "navicat-macos-oracle",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatForOracle.plist"
+          },
+          {
+            "id": "navicat-macos-sqlserver",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.prect.NavicatForSQLServer.plist"
+          }
+        ]
+      }
+    ]
+  }
+}

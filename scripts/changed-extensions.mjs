@@ -27,6 +27,7 @@ for (const file of changedFiles) {
 
   if (isRustSharedPath(file)) {
     addExtensionsByLanguage(changedIds, extensions, "rust");
+    addExtensionsByLanguage(changedIds, extensions, "rust-wasm");
   }
   if (isGoSharedPath(file)) {
     addExtensionsByLanguage(changedIds, extensions, "go");

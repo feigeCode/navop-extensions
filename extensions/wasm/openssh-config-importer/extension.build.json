@@ -1,0 +1,13 @@
+{
+  "id": "openssh-config-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "openssh_config_importer_wasm",
+  "binary": "openssh_config_importer_wasm.wasm",
+  "path": "extensions/wasm/openssh-config-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "openssh-config-importer-v",
+  "r2Prefix": "extensions/openssh-config-importer"
+}

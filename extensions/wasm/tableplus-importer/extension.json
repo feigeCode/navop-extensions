@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.tableplus",
+  "name": "TablePlus Importer",
+  "description": "Rust WASM connection importer for TablePlus",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "tableplus-importer",
+        "module": "wasm/tableplus_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/Library/Application Support/com.tinyapp.TablePlus/Data/Connections.json",
+    "fs:read:~/Library/Application Support/com.tinyapp.TablePlus/Data/Connections.plist",
+    "fs:read:~/Library/Application Support/com.tinyapp.TablePlus/Connections.json",
+    "fs:read:~/Library/Application Support/com.tinyapp.TablePlus/Connections.plist",
+    "fs:read:~/Library/Preferences/com.tinyapp.TablePlus.plist",
+    "fs:read:%APPDATA%/TablePlus/Data/Connections.json",
+    "fs:read:%APPDATA%/TablePlus/Data/Connections.plist",
+    "fs:read:%APPDATA%/TablePlus/Connections.json",
+    "fs:read:%APPDATA%/TablePlus/Connections.plist"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "tableplus",
+        "runtimeId": "tableplus-importer",
+        "displayName": "TablePlus",
+        "description": "Import database connections from TablePlus JSON or plist files",
+        "icon": "database",
+        "outputKinds": [
+          "database"
+        ],
+        "platforms": [
+          "macos",
+          "windows"
+        ],
+        "candidateFiles": [
+          {
+            "id": "tableplus-macos-data-json",
+            "platform": "macos",
+            "path": "~/Library/Application Support/com.tinyapp.TablePlus/Data/Connections.json"
+          },
+          {
+            "id": "tableplus-macos-data-plist",
+            "platform": "macos",
+            "path": "~/Library/Application Support/com.tinyapp.TablePlus/Data/Connections.plist"
+          },
+          {
+            "id": "tableplus-macos-root-json",
+            "platform": "macos",
+            "path": "~/Library/Application Support/com.tinyapp.TablePlus/Connections.json"
+          },
+          {
+            "id": "tableplus-macos-root-plist",
+            "platform": "macos",
+            "path": "~/Library/Application Support/com.tinyapp.TablePlus/Connections.plist"
+          },
+          {
+            "id": "tableplus-macos-preferences",
+            "platform": "macos",
+            "path": "~/Library/Preferences/com.tinyapp.TablePlus.plist"
+          },
+          {
+            "id": "tableplus-windows-data-json",
+            "platform": "windows",
+            "path": "%APPDATA%/TablePlus/Data/Connections.json"
+          },
+          {
+            "id": "tableplus-windows-data-plist",
+            "platform": "windows",
+            "path": "%APPDATA%/TablePlus/Data/Connections.plist"
+          },
+          {
+            "id": "tableplus-windows-root-json",
+            "platform": "windows",
+            "path": "%APPDATA%/TablePlus/Connections.json"
+          },
+          {
+            "id": "tableplus-windows-root-plist",
+            "platform": "windows",
+            "path": "%APPDATA%/TablePlus/Connections.plist"
+          }
+        ]
+      }
+    ]
+  }
+}

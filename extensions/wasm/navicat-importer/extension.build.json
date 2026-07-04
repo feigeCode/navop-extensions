@@ -1,0 +1,13 @@
+{
+  "id": "navicat-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "navicat_importer_wasm",
+  "binary": "navicat_importer_wasm.wasm",
+  "path": "extensions/wasm/navicat-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "navicat-importer-v",
+  "r2Prefix": "extensions/navicat-importer"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "xshell-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "xshell_importer_wasm",
+  "binary": "xshell_importer_wasm.wasm",
+  "path": "extensions/wasm/xshell-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "xshell-importer-v",
+  "r2Prefix": "extensions/xshell-importer"
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.openssh-config",
+  "name": "OpenSSH Config Importer",
+  "description": "Rust WASM connection importer for OpenSSH client config",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "openssh-config-importer",
+        "module": "wasm/openssh_config_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/.ssh/config",
+    "fs:read:%USERPROFILE%/.ssh/config"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "openssh-config",
+        "runtimeId": "openssh-config-importer",
+        "displayName": "OpenSSH Config",
+        "description": "Import SSH hosts from OpenSSH client config",
+        "icon": "terminal",
+        "outputKinds": [
+          "ssh"
+        ],
+        "platforms": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "candidateFiles": [
+          {
+            "id": "openssh-config-unix-user",
+            "platform": "macos",
+            "path": "~/.ssh/config"
+          },
+          {
+            "id": "openssh-config-linux-user",
+            "platform": "linux",
+            "path": "~/.ssh/config"
+          },
+          {
+            "id": "openssh-config-windows-user",
+            "platform": "windows",
+            "path": "%USERPROFILE%/.ssh/config"
+          }
+        ]
+      }
+    ]
+  }
+}
