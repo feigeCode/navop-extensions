@@ -2481,6 +2481,51 @@ test("generate-marketplace-manifest supports language extensions", () => {
   assert.equal(extensionManifest.extensions[0].artifacts.universal.file, fileName);
 });
 
+test("generate-marketplace-manifest supports language bundles", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/language-bundle/tree-sitter-languages/extension.build.json"), {
+    id: "tree-sitter-languages",
+    kind: "language_bundle",
+    language: "tree-sitter-wasm-bundle",
+    path: "extensions/language-bundle/tree-sitter-languages",
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, "extensions/language-bundle/tree-sitter-languages/manifest.json"), {
+    id: "tree-sitter-languages",
+    name: "Tree-sitter Languages",
+    version: "0.1.0",
+    languages: ["javascript", "rust"],
+    file_extensions: ["js", "mjs", "rs"],
+  });
+  const fileName = "tree-sitter-languages-language-bundle-universal.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "0.1.0",
+      EXTENSION_ID: "tree-sitter-languages",
+      RELEASE_TAG: "tree-sitter-languages-v0.1.0",
+    },
+  });
+
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  const entry = extensionManifest.extensions[0];
+  assert.equal(entry.id, "tree-sitter-languages");
+  assert.equal(entry.kind, "language_bundle");
+  assert.deepEqual(entry.file_extensions, ["js", "mjs", "rs"]);
+  assert.equal(entry.artifacts.universal.file, fileName);
+});
+
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
@@ -3253,7 +3298,7 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
   const entries = [];
   for (const root of roots) {
     if (!fs.existsSync(path.join(repoRoot, root))) continue;
@@ -3274,6 +3319,7 @@ function manifestFileForKind(kind) {
   if (kind === "acp_agent") return "acp_agent.json";
   if (kind === "composite") return "extension.json";
   if (kind === "language") return "manifest.json";
+  if (kind === "language_bundle") return "manifest.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 

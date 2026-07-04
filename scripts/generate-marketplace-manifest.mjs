@@ -35,7 +35,7 @@ const extensionEntry = {
   description: sourceManifest.description || "",
   artifacts,
 };
-if (metadata.kind === "language") {
+if (metadata.kind === "language" || metadata.kind === "language_bundle") {
   extensionEntry.file_extensions = sourceManifest.file_extensions || [];
 }
 extensionManifest.extensions = [extensionEntry];
@@ -71,7 +71,7 @@ function checksumFor(checksums, fileName) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
   for (const root of roots) {
     const file = path.join(root, id, "extension.build.json");
     if (!fs.existsSync(file)) continue;
@@ -102,6 +102,7 @@ function manifestFileName(kind) {
     case "composite":
       return "extension.json";
     case "language":
+    case "language_bundle":
       return "manifest.json";
     default:
       throw new Error(`unsupported extension kind for marketplace manifest: ${kind}`);
@@ -122,6 +123,8 @@ function artifactFileName(metadata, target) {
       return `${metadata.id}-composite-${target}.tar.gz`;
     case "language":
       return `${metadata.id}-language-${target}.tar.gz`;
+    case "language_bundle":
+      return `${metadata.id}-language-bundle-${target}.tar.gz`;
     default:
       throw new Error(`unsupported extension kind for artifact naming: ${metadata.kind}`);
   }

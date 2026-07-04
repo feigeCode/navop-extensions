@@ -1,0 +1,11 @@
+{
+  "id": "tree-sitter-languages",
+  "kind": "language_bundle",
+  "language": "tree-sitter-wasm-bundle",
+  "path": "extensions/language-bundle/tree-sitter-languages",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "tree-sitter-languages-v",
+  "r2Prefix": "extensions/tree-sitter-languages"
+}

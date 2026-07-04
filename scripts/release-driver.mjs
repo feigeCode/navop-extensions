@@ -21,7 +21,7 @@ function main() {
   }
 
   const metadata = loadExtensionMetadata(args.extensionId);
-  if (!["database_driver", "remote_desktop_provider", "mcp_helper", "acp_agent", "composite", "language"].includes(metadata.kind)) {
+  if (!["database_driver", "remote_desktop_provider", "mcp_helper", "acp_agent", "composite", "language", "language_bundle"].includes(metadata.kind)) {
     fail(`unsupported extension kind: ${metadata.kind}`);
   }
 
@@ -132,7 +132,7 @@ function splitTargets(value) {
 }
 
 function loadExtensionMetadata(id) {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
   let file = "";
   for (const root of roots) {
     const candidate = path.join(repoRoot, root, id, "extension.build.json");
@@ -208,6 +208,14 @@ function buildDriver(metadata, target) {
     return;
   }
 
+  if (language === "tree-sitter-wasm-bundle") {
+    if (target !== "universal") {
+      fail(`tree-sitter-wasm-bundle extensions must declare the universal target, got ${target}`);
+    }
+    validateLanguageBundleParsers(metadata);
+    return;
+  }
+
   if (language === "go") {
     run("bash", [scriptPath("build-go-driver.sh"), metadata.id, target]);
     return;
@@ -269,6 +277,16 @@ function packageDriver(metadata, target, artifactDir, version) {
     ]);
     return;
   }
+  if (metadata.kind === "language_bundle") {
+    run("bash", [
+      scriptPath("package-language-bundle-extension.sh"),
+      metadata.id,
+      target,
+      artifactDir,
+      version,
+    ]);
+    return;
+  }
   run("bash", [
     scriptPath("package-remote-desktop-provider.sh"),
     metadata.id,
@@ -298,6 +316,8 @@ function verifyScriptName(kind) {
       return "verify-composite-package.sh";
     case "language":
       return "verify-language-package.sh";
+    case "language_bundle":
+      return "verify-language-bundle-package.sh";
     default:
       fail(`unsupported extension kind: ${kind}`);
   }
@@ -352,7 +372,27 @@ function packagePath(artifactDir, metadata, target) {
   if (metadata.kind === "language") {
     return path.join(artifactDir, `${metadata.id}-language-${target}.tar.gz`);
   }
+  if (metadata.kind === "language_bundle") {
+    return path.join(artifactDir, `${metadata.id}-language-bundle-${target}.tar.gz`);
+  }
   return path.join(artifactDir, `${metadata.id}-remote-desktop-provider-${target}.tar.gz`);
+}
+
+function validateLanguageBundleParsers(metadata) {
+  const manifestPath = path.join(repoRoot, metadata.path, "manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    fail(`missing Tree-sitter language bundle manifest: ${manifestPath}`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  if (!Array.isArray(manifest.languages) || manifest.languages.length === 0) {
+    fail(`language bundle manifest must declare non-empty languages: ${manifestPath}`);
+  }
+  for (const languageId of manifest.languages) {
+    const parserPath = path.join(repoRoot, "extensions/language", languageId, "parser.wasm");
+    if (!fs.existsSync(parserPath)) {
+      fail(`missing Tree-sitter parser wasm for bundled language ${languageId}: ${parserPath}`);
+    }
+  }
 }
 
 function scriptPath(name) {
