@@ -9,6 +9,12 @@ const repoRoot = path.resolve(import.meta.dirname, "..");
 const hostQueryRoot = path.resolve(repoRoot, "../onetcli/crates/ui/src/highlighter/languages");
 const cargoHome = process.env.CARGO_HOME || path.join(os.homedir(), ".cargo");
 const cargoSrcRoot = path.join(cargoHome, "registry/src");
+const defaultBundle = {
+  id: "tree-sitter-languages",
+  name: "Tree-sitter Languages",
+  version: "0.1.0",
+  description: "Tree-sitter syntax highlighter language bundle",
+};
 
 const languages = [
   lang("astro", "tree-sitter-astro-next", ["astro"]),
@@ -79,7 +85,12 @@ function lang(id, crateName, fileExtensions, options = {}) {
     fileExtensions,
     subdir: options.subdir || "",
     functionFrom: options.functionFrom || "",
+    bundle: options.bundle === false ? false : "default",
   };
+}
+
+function bundledLanguages() {
+  return languages.filter((entry) => entry.bundle !== false);
 }
 
 function syncLanguage(entry, options) {
@@ -314,27 +325,68 @@ function syncRootManifest() {
     throw new Error(`Invalid root manifest: ${manifestPath}`);
   }
 
-  const languageIds = new Set(languages.map((entry) => entry.id));
-  const nonLanguageEntries = manifest.extensions.filter((entry) => !languageIds.has(entry.id));
-  const languageEntries = languages.map((entry) => {
+  const generatedIds = new Set(languages.map((entry) => entry.id));
+  generatedIds.add(defaultBundle.id);
+  const nonGeneratedEntries = manifest.extensions.filter((entry) => !generatedIds.has(entry.id));
+  const bundleEntries = [buildBundleRootEntry()];
+  const standaloneEntries = languages
+    .filter((entry) => entry.bundle === false)
+    .map(languageRootEntry);
+
+  manifest.extensions = [...nonGeneratedEntries, ...bundleEntries, ...standaloneEntries];
+  writeJson(manifestPath, manifest);
+}
+
+function buildBundleRootEntry() {
+  const bundleManifest = readJsonIfExists(
+    path.join(repoRoot, "extensions/language-bundle", defaultBundle.id, "manifest.json"),
+  );
+  if (!bundleManifest) {
+    throw new Error(`Missing generated language bundle manifest for ${defaultBundle.id}`);
+  }
+  return {
+    id: defaultBundle.id,
+    kind: "language_bundle",
+    name: bundleManifest.name || defaultBundle.name,
+    version: bundleManifest.version || defaultBundle.version,
+    release_tag: `${defaultBundle.id}-v${bundleManifest.version || defaultBundle.version}`,
+    description: defaultBundle.description,
+    file_extensions: bundleFileExtensions(),
+    manifest: `${defaultBundle.id}/manifest.json`,
+  };
+}
+
+function languageRootEntry(entry) {
+  const sourceManifest = readJsonIfExists(
+    path.join(repoRoot, "extensions/language", entry.id, "manifest.json"),
+  );
+  if (!sourceManifest) {
+    throw new Error(`Missing generated language manifest for ${entry.id}`);
+  }
+  return {
+    id: entry.id,
+    kind: "language",
+    name: sourceManifest.name || entry.id,
+    version: sourceManifest.version,
+    release_tag: `${entry.id}-v${sourceManifest.version}`,
+    description: `Tree-sitter ${entry.id} syntax highlighter`,
+    file_extensions: sourceManifest.file_extensions || [],
+    manifest: `${entry.id}/manifest.json`,
+  };
+}
+
+function bundleFileExtensions() {
+  const values = new Set();
+  for (const entry of bundledLanguages()) {
     const sourceManifest = readJsonIfExists(
       path.join(repoRoot, "extensions/language", entry.id, "manifest.json"),
     );
     if (!sourceManifest) {
       throw new Error(`Missing generated language manifest for ${entry.id}`);
     }
-    return {
-      id: entry.id,
-      kind: "language",
-      name: sourceManifest.name || entry.id,
-      version: sourceManifest.version,
-      release_tag: `${entry.id}-v${sourceManifest.version}`,
-      description: `Tree-sitter ${entry.id} syntax highlighter`,
-      file_extensions: sourceManifest.file_extensions || [],
-      manifest: `${entry.id}/manifest.json`,
-    };
-  });
-
-  manifest.extensions = [...nonLanguageEntries, ...languageEntries];
-  writeJson(manifestPath, manifest);
+    for (const extension of sourceManifest.file_extensions || []) {
+      values.add(extension);
+    }
+  }
+  return [...values].sort();
 }

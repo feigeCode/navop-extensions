@@ -2096,7 +2096,18 @@ test("changed-extensions does not expand workflow-only changes into extension te
 
 test("repository manifest is maintained as a lightweight marketplace index", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entriesById = new Map(extensionBuildEntries().map((entry) => [entry.id, entry]));
+  const bundleManifest = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "extensions/language-bundle/tree-sitter-languages/manifest.json"),
+      "utf8",
+    ),
+  );
+  const bundledLanguageIds = new Set(bundleManifest.languages || []);
+  const entriesById = new Map(
+    extensionBuildEntries()
+      .filter((entry) => !bundledLanguageIds.has(entry.id))
+      .map((entry) => [entry.id, entry]),
+  );
 
   assert.equal(manifest.schema_version, 2);
   assert.deepEqual(
@@ -2172,6 +2183,11 @@ test("Tree-sitter language extensions cover every non-built-in host language", (
 
   assert.deepEqual(actualLanguageIds, expectedLanguageIds);
 
+  const bundleEntry = globalEntries.get("tree-sitter-languages");
+  assert.equal(bundleEntry?.kind, "language_bundle");
+  assert.equal(bundleEntry?.manifest, "tree-sitter-languages/manifest.json");
+
+  const bundledFileExtensions = new Set();
   for (const id of expectedLanguageIds) {
     const metadata = JSON.parse(
       fs.readFileSync(path.join(languageRoot, id, "extension.build.json"), "utf8"),
@@ -2191,16 +2207,20 @@ test("Tree-sitter language extensions cover every non-built-in host language", (
     assert.equal(typeof sourceManifest.version, "string");
     assert.ok(sourceManifest.version.length > 0, `${id} manifest version should not be empty`);
     assert.ok(Array.isArray(sourceManifest.file_extensions), `${id} file_extensions should be an array`);
+    for (const extension of sourceManifest.file_extensions) {
+      bundledFileExtensions.add(extension);
+    }
     assert.ok(
       fs.existsSync(path.join(languageRoot, id, "parser.wasm")),
       `${id} should include parser.wasm`,
     );
 
-    const entry = globalEntries.get(id);
-    assert.equal(entry?.kind, "language");
-    assert.equal(entry?.manifest, `${id}/manifest.json`);
-    assert.deepEqual(entry?.file_extensions, sourceManifest.file_extensions);
+    assert.equal(globalEntries.has(id), false, `${id} should be represented by the bundle entry`);
   }
+  assert.deepEqual(
+    bundleEntry?.file_extensions,
+    [...bundledFileExtensions].sort(),
+  );
 });
 
 test("generate-marketplace-manifest writes only the current plugin manifest", () => {

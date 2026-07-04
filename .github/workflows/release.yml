@@ -49,7 +49,7 @@ jobs:
           const fs = require("fs");
           const path = require("path");
           const id = process.env.EXTENSION_ID;
-          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
           let metadata = null;
           for (const root of roots) {
             const file = path.join(root, id, "extension.build.json");
@@ -181,6 +181,9 @@ jobs:
           elif [ "${{ matrix.kind }}" = "composite" ]; then
             bash scripts/package-composite-extension.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
             bash scripts/verify-composite-package.sh "artifacts/${{ matrix.extension }}-composite-${{ matrix.target }}.tar.gz"
+          elif [ "${{ matrix.kind }}" = "language_bundle" ]; then
+            bash scripts/package-language-bundle-extension.sh "${{ matrix.extension }}" "${{ matrix.target }}" artifacts "${{ needs.prepare.outputs.version }}"
+            bash scripts/verify-language-bundle-package.sh "artifacts/${{ matrix.extension }}-language-bundle-${{ matrix.target }}.tar.gz"
           else
             echo "::error::Unsupported extension kind in release workflow: ${{ matrix.kind }}"
             exit 1
