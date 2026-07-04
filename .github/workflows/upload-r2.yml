@@ -66,7 +66,7 @@ jobs:
           const fs = require("fs");
           const path = require("path");
           const id = process.env.EXTENSION_ID;
-          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+          const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
           let data = null;
           for (const root of roots) {
             const file = path.join(root, id, "extension.build.json");
@@ -114,6 +114,8 @@ jobs:
             package_pattern="${{ steps.release.outputs.extension_id }}-mcp-helper-*.tar.gz"
           elif [ "${{ steps.extension.outputs.kind }}" = "acp_agent" ]; then
             package_pattern="${{ steps.release.outputs.extension_id }}-acp-agent-*.tar.gz"
+          elif [ "${{ steps.extension.outputs.kind }}" = "language_bundle" ]; then
+            package_pattern="${{ steps.release.outputs.extension_id }}-language-bundle-*.tar.gz"
           fi
           gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -145,6 +147,9 @@ jobs:
                 break;
               case "acp_agent":
                 console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
+                break;
+              case "language_bundle":
+                console.log(`${process.env.EXTENSION_ID}-language-bundle-${target}.tar.gz`);
                 break;
               default:
                 throw new Error(`unsupported extension kind: ${process.env.EXTENSION_KIND}`);
@@ -200,6 +205,9 @@ jobs:
                 break;
               case "acp_agent":
                 console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
+                break;
+              case "language_bundle":
+                console.log(`${process.env.EXTENSION_ID}-language-bundle-${target}.tar.gz`);
                 break;
               default:
                 throw new Error(`unsupported extension kind: ${process.env.EXTENSION_KIND}`);

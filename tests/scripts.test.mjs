@@ -943,6 +943,87 @@ test("package-language-extension creates a Tree-sitter language package", () => 
   assert.match(output, /Verified/);
 });
 
+test("package-language-bundle-extension creates a Tree-sitter language bundle package", () => {
+  const workdir = makeTempDir();
+  createLanguageBundleFixture(workdir, {
+    id: "tree-sitter-languages",
+    version: "0.1.0",
+    languages: [
+      { id: "rust", version: "0.24.0", fileExtensions: ["rs"] },
+      { id: "javascript", version: "0.23.1", fileExtensions: ["js", "mjs"] },
+    ],
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-language-bundle-extension.sh"),
+      "tree-sitter-languages",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "0.1.0",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(
+    path.basename(archivePath),
+    "tree-sitter-languages-language-bundle-universal.tar.gz",
+  );
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+
+  const bundleManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/manifest.json"), "utf8"),
+  );
+  assert.equal(bundleManifest.id, "tree-sitter-languages");
+  assert.equal(bundleManifest.version, "0.1.0");
+  assert.deepEqual(bundleManifest.languages, ["javascript", "rust"]);
+
+  const rustManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/rust/manifest.json"), "utf8"),
+  );
+  assert.equal(rustManifest.name, "rust");
+  assert.equal(rustManifest.version, "0.24.0");
+  assert.deepEqual(rustManifest.file_extensions, ["rs"]);
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/rust/parser.wasm"), "utf8"),
+    "fake rust parser wasm\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(workdir, "unpacked/javascript/parser.wasm"), "utf8"),
+    "fake javascript parser wasm\n",
+  );
+
+  const output = execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-language-bundle-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+  assert.match(output, /Verified language bundle/);
+});
+
+test("verify-language-bundle-package rejects empty bundles", () => {
+  const workdir = makeTempDir();
+  copyScript("verify-language-bundle-package.sh", workdir);
+  const archivePath = path.join(workdir, "empty-language-bundle.tar.gz");
+  writeJson(path.join(workdir, "bundle-root/manifest.json"), {
+    id: "tree-sitter-languages",
+    name: "Tree-sitter Languages",
+    version: "0.1.0",
+    languages: [],
+  });
+  execFileSync("tar", ["czf", archivePath, "-C", path.join(workdir, "bundle-root"), "."]);
+
+  assert.throws(
+    () => execFileSync(
+      "bash",
+      [path.join(workdir, "scripts/verify-language-bundle-package.sh"), archivePath],
+      { cwd: workdir, encoding: "utf8", stdio: "pipe" },
+    ),
+    /language bundle must contain at least one language/,
+  );
+});
+
 test("package-acp-agent selects a cmd launcher for Windows packages", () => {
   const workdir = makeTempDir();
   createAcpAgentFixture(workdir, {
@@ -2015,7 +2096,18 @@ test("changed-extensions does not expand workflow-only changes into extension te
 
 test("repository manifest is maintained as a lightweight marketplace index", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entriesById = new Map(extensionBuildEntries().map((entry) => [entry.id, entry]));
+  const bundleManifest = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "extensions/language-bundle/tree-sitter-languages/manifest.json"),
+      "utf8",
+    ),
+  );
+  const bundledLanguageIds = new Set(bundleManifest.languages || []);
+  const entriesById = new Map(
+    extensionBuildEntries()
+      .filter((entry) => !bundledLanguageIds.has(entry.id))
+      .map((entry) => [entry.id, entry]),
+  );
 
   assert.equal(manifest.schema_version, 2);
   assert.deepEqual(
@@ -2091,6 +2183,11 @@ test("Tree-sitter language extensions cover every non-built-in host language", (
 
   assert.deepEqual(actualLanguageIds, expectedLanguageIds);
 
+  const bundleEntry = globalEntries.get("tree-sitter-languages");
+  assert.equal(bundleEntry?.kind, "language_bundle");
+  assert.equal(bundleEntry?.manifest, "tree-sitter-languages/manifest.json");
+
+  const bundledFileExtensions = new Set();
   for (const id of expectedLanguageIds) {
     const metadata = JSON.parse(
       fs.readFileSync(path.join(languageRoot, id, "extension.build.json"), "utf8"),
@@ -2110,16 +2207,20 @@ test("Tree-sitter language extensions cover every non-built-in host language", (
     assert.equal(typeof sourceManifest.version, "string");
     assert.ok(sourceManifest.version.length > 0, `${id} manifest version should not be empty`);
     assert.ok(Array.isArray(sourceManifest.file_extensions), `${id} file_extensions should be an array`);
+    for (const extension of sourceManifest.file_extensions) {
+      bundledFileExtensions.add(extension);
+    }
     assert.ok(
       fs.existsSync(path.join(languageRoot, id, "parser.wasm")),
       `${id} should include parser.wasm`,
     );
 
-    const entry = globalEntries.get(id);
-    assert.equal(entry?.kind, "language");
-    assert.equal(entry?.manifest, `${id}/manifest.json`);
-    assert.deepEqual(entry?.file_extensions, sourceManifest.file_extensions);
+    assert.equal(globalEntries.has(id), false, `${id} should be represented by the bundle entry`);
   }
+  assert.deepEqual(
+    bundleEntry?.file_extensions,
+    [...bundledFileExtensions].sort(),
+  );
 });
 
 test("generate-marketplace-manifest writes only the current plugin manifest", () => {
@@ -2398,6 +2499,51 @@ test("generate-marketplace-manifest supports language extensions", () => {
   assert.equal(extensionManifest.extensions[0].kind, "language");
   assert.deepEqual(extensionManifest.extensions[0].file_extensions, ["rs"]);
   assert.equal(extensionManifest.extensions[0].artifacts.universal.file, fileName);
+});
+
+test("generate-marketplace-manifest supports language bundles", () => {
+  const workdir = makeTempDir();
+  copyScript("generate-marketplace-manifest.mjs", workdir);
+  fs.mkdirSync(path.join(workdir, "artifacts"), { recursive: true });
+  writeJson(path.join(workdir, "extensions/language-bundle/tree-sitter-languages/extension.build.json"), {
+    id: "tree-sitter-languages",
+    kind: "language_bundle",
+    language: "tree-sitter-wasm-bundle",
+    path: "extensions/language-bundle/tree-sitter-languages",
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, "extensions/language-bundle/tree-sitter-languages/manifest.json"), {
+    id: "tree-sitter-languages",
+    name: "Tree-sitter Languages",
+    version: "0.1.0",
+    languages: ["javascript", "rust"],
+    file_extensions: ["js", "mjs", "rs"],
+  });
+  const fileName = "tree-sitter-languages-language-bundle-universal.tar.gz";
+  fs.writeFileSync(
+    path.join(workdir, "artifacts/sha256sums.txt"),
+    `${createHash("sha256").update(fileName).digest("hex")}  ${fileName}\n`,
+  );
+
+  execFileSync("node", [path.join(workdir, "scripts/generate-marketplace-manifest.mjs")], {
+    cwd: workdir,
+    env: {
+      ...process.env,
+      ARTIFACT_DIR: "artifacts",
+      EXTENSION_VERSION: "0.1.0",
+      EXTENSION_ID: "tree-sitter-languages",
+      RELEASE_TAG: "tree-sitter-languages-v0.1.0",
+    },
+  });
+
+  const extensionManifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "artifacts/extension-manifest.json"), "utf8"),
+  );
+  const entry = extensionManifest.extensions[0];
+  assert.equal(entry.id, "tree-sitter-languages");
+  assert.equal(entry.kind, "language_bundle");
+  assert.deepEqual(entry.file_extensions, ["js", "mjs", "rs"]);
+  assert.equal(entry.artifacts.universal.file, fileName);
 });
 
 test("upload-r2 workflow exports R2 credentials without AWS STS configuration", () => {
@@ -3172,7 +3318,7 @@ function makeTempDir() {
 }
 
 function extensionBuildEntries() {
-  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language"];
+  const roots = ["extensions/ipc", "extensions/remote-desktop", "extensions/mcp-helper", "extensions/acp-agent", "extensions/wasm", "extensions/language", "extensions/language-bundle"];
   const entries = [];
   for (const root of roots) {
     if (!fs.existsSync(path.join(repoRoot, root))) continue;
@@ -3193,6 +3339,7 @@ function manifestFileForKind(kind) {
   if (kind === "acp_agent") return "acp_agent.json";
   if (kind === "composite") return "extension.json";
   if (kind === "language") return "manifest.json";
+  if (kind === "language_bundle") return "manifest.json";
   throw new Error(`unsupported manifest kind: ${kind}`);
 }
 
@@ -3427,6 +3574,47 @@ function createLanguageExtensionFixture(workdir, options = {}) {
     path.join(workdir, `extensions/language/${id}/highlights.scm`),
     "(identifier) @variable\n",
   );
+}
+
+function createLanguageBundleFixture(workdir, options = {}) {
+  const id = options.id || "tree-sitter-languages";
+  const version = options.version || "0.1.0";
+  const languages = options.languages || [
+    { id: "rust", version: "0.24.0", fileExtensions: ["rs"] },
+    { id: "javascript", version: "0.23.1", fileExtensions: ["js"] },
+  ];
+  copyScript("package-language-bundle-extension.sh", workdir);
+  copyScript("verify-language-bundle-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/language-bundle/${id}/extension.build.json`), {
+    id,
+    kind: "language_bundle",
+    language: "tree-sitter-wasm-bundle",
+    path: `extensions/language-bundle/${id}`,
+    targets: ["universal"],
+    releaseTagPrefix: `${id}-v`,
+    r2Prefix: `extensions/${id}`,
+  });
+  writeJson(path.join(workdir, `extensions/language-bundle/${id}/manifest.json`), {
+    id,
+    name: "Tree-sitter Languages",
+    version,
+    languages: languages.map((language) => language.id).sort(),
+  });
+  for (const language of languages) {
+    writeJson(path.join(workdir, `extensions/language/${language.id}/manifest.json`), {
+      name: language.id,
+      version: language.version,
+      file_extensions: language.fileExtensions,
+    });
+    fs.writeFileSync(
+      path.join(workdir, `extensions/language/${language.id}/parser.wasm`),
+      `fake ${language.id} parser wasm\n`,
+    );
+    fs.writeFileSync(
+      path.join(workdir, `extensions/language/${language.id}/highlights.scm`),
+      `(${language.id}_node) @variable\n`,
+    );
+  }
 }
 
 function copyScript(name, workdir) {

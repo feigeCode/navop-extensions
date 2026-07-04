@@ -213,435 +213,73 @@
       "manifest": "vnc/manifest.json"
     },
     {
-      "id": "astro",
-      "kind": "language",
-      "name": "astro",
-      "version": "0.1.1",
-      "release_tag": "astro-v0.1.1",
-      "description": "Tree-sitter astro syntax highlighter",
+      "id": "tree-sitter-languages",
+      "kind": "language_bundle",
+      "name": "Tree-sitter Languages",
+      "version": "0.1.0",
+      "release_tag": "tree-sitter-languages-v0.1.0",
+      "description": "Tree-sitter syntax highlighter language bundle",
       "file_extensions": [
-        "astro"
-      ],
-      "manifest": "astro/manifest.json"
-    },
-    {
-      "id": "c",
-      "kind": "language",
-      "name": "c",
-      "version": "0.24.2",
-      "release_tag": "c-v0.24.2",
-      "description": "Tree-sitter c syntax highlighter",
-      "file_extensions": [
+        "astro",
         "c",
-        "h"
-      ],
-      "manifest": "c/manifest.json"
-    },
-    {
-      "id": "cmake",
-      "kind": "language",
-      "name": "cmake",
-      "version": "0.7.1",
-      "release_tag": "cmake-v0.7.1",
-      "description": "Tree-sitter cmake syntax highlighter",
-      "file_extensions": [
-        "cmake"
-      ],
-      "manifest": "cmake/manifest.json"
-    },
-    {
-      "id": "cpp",
-      "kind": "language",
-      "name": "cpp",
-      "version": "0.23.4",
-      "release_tag": "cpp-v0.23.4",
-      "description": "Tree-sitter cpp syntax highlighter",
-      "file_extensions": [
-        "cpp",
         "cc",
-        "cxx",
-        "hpp",
-        "hxx"
-      ],
-      "manifest": "cpp/manifest.json"
-    },
-    {
-      "id": "csharp",
-      "kind": "language",
-      "name": "csharp",
-      "version": "0.23.5",
-      "release_tag": "csharp-v0.23.5",
-      "description": "Tree-sitter csharp syntax highlighter",
-      "file_extensions": [
-        "cs"
-      ],
-      "manifest": "csharp/manifest.json"
-    },
-    {
-      "id": "css",
-      "kind": "language",
-      "name": "css",
-      "version": "0.23.2",
-      "release_tag": "css-v0.23.2",
-      "description": "Tree-sitter css syntax highlighter",
-      "file_extensions": [
+        "cjs",
+        "cmake",
+        "cpp",
+        "cs",
         "css",
-        "scss"
-      ],
-      "manifest": "css/manifest.json"
-    },
-    {
-      "id": "diff",
-      "kind": "language",
-      "name": "diff",
-      "version": "0.1.0",
-      "release_tag": "diff-v0.1.0",
-      "description": "Tree-sitter diff syntax highlighter",
-      "file_extensions": [
+        "cxx",
         "diff",
-        "patch"
-      ],
-      "manifest": "diff/manifest.json"
-    },
-    {
-      "id": "ejs",
-      "kind": "language",
-      "name": "ejs",
-      "version": "0.23.2",
-      "release_tag": "ejs-v0.23.2",
-      "description": "Tree-sitter ejs syntax highlighter",
-      "file_extensions": [
-        "ejs"
-      ],
-      "manifest": "ejs/manifest.json"
-    },
-    {
-      "id": "elixir",
-      "kind": "language",
-      "name": "elixir",
-      "version": "0.3.5",
-      "release_tag": "elixir-v0.3.5",
-      "description": "Tree-sitter elixir syntax highlighter",
-      "file_extensions": [
+        "ejs",
+        "erb",
         "ex",
-        "exs"
-      ],
-      "manifest": "elixir/manifest.json"
-    },
-    {
-      "id": "erb",
-      "kind": "language",
-      "name": "erb",
-      "version": "0.23.2",
-      "release_tag": "erb-v0.23.2",
-      "description": "Tree-sitter erb syntax highlighter",
-      "file_extensions": [
-        "erb"
-      ],
-      "manifest": "erb/manifest.json"
-    },
-    {
-      "id": "go",
-      "kind": "language",
-      "name": "go",
-      "version": "0.23.4",
-      "release_tag": "go-v0.23.4",
-      "description": "Tree-sitter go syntax highlighter",
-      "file_extensions": [
-        "go"
-      ],
-      "manifest": "go/manifest.json"
-    },
-    {
-      "id": "graphql",
-      "kind": "language",
-      "name": "graphql",
-      "version": "0.1.0",
-      "release_tag": "graphql-v0.1.0",
-      "description": "Tree-sitter graphql syntax highlighter",
-      "file_extensions": [
+        "exs",
+        "go",
+        "gql",
         "graphql",
-        "gql"
-      ],
-      "manifest": "graphql/manifest.json"
-    },
-    {
-      "id": "html",
-      "kind": "language",
-      "name": "html",
-      "version": "0.23.2",
-      "release_tag": "html-v0.23.2",
-      "description": "Tree-sitter html syntax highlighter",
-      "file_extensions": [
+        "h",
+        "hpp",
+        "htm",
         "html",
-        "htm"
-      ],
-      "manifest": "html/manifest.json"
-    },
-    {
-      "id": "java",
-      "kind": "language",
-      "name": "java",
-      "version": "0.23.5",
-      "release_tag": "java-v0.23.5",
-      "description": "Tree-sitter java syntax highlighter",
-      "file_extensions": [
-        "java"
-      ],
-      "manifest": "java/manifest.json"
-    },
-    {
-      "id": "javascript",
-      "kind": "language",
-      "name": "javascript",
-      "version": "0.23.1",
-      "release_tag": "javascript-v0.23.1",
-      "description": "Tree-sitter javascript syntax highlighter",
-      "file_extensions": [
+        "hxx",
+        "java",
         "js",
-        "mjs",
-        "cjs"
-      ],
-      "manifest": "javascript/manifest.json"
-    },
-    {
-      "id": "jsdoc",
-      "kind": "language",
-      "name": "jsdoc",
-      "version": "0.23.2",
-      "release_tag": "jsdoc-v0.23.2",
-      "description": "Tree-sitter jsdoc syntax highlighter",
-      "file_extensions": [
-        "jsdoc"
-      ],
-      "manifest": "jsdoc/manifest.json"
-    },
-    {
-      "id": "kotlin",
-      "kind": "language",
-      "name": "kotlin",
-      "version": "0.4.1",
-      "release_tag": "kotlin-v0.4.1",
-      "description": "Tree-sitter kotlin syntax highlighter",
-      "file_extensions": [
+        "jsdoc",
         "kt",
+        "ktm",
         "kts",
-        "ktm"
-      ],
-      "manifest": "kotlin/manifest.json"
-    },
-    {
-      "id": "lua",
-      "kind": "language",
-      "name": "lua",
-      "version": "0.4.1",
-      "release_tag": "lua-v0.4.1",
-      "description": "Tree-sitter lua syntax highlighter",
-      "file_extensions": [
-        "lua"
-      ],
-      "manifest": "lua/manifest.json"
-    },
-    {
-      "id": "make",
-      "kind": "language",
-      "name": "make",
-      "version": "1.1.1",
-      "release_tag": "make-v1.1.1",
-      "description": "Tree-sitter make syntax highlighter",
-      "file_extensions": [
-        "mk",
+        "lua",
         "mak",
-        "makefile"
-      ],
-      "manifest": "make/manifest.json"
-    },
-    {
-      "id": "markdown",
-      "kind": "language",
-      "name": "markdown",
-      "version": "0.5.3",
-      "release_tag": "markdown-v0.5.3",
-      "description": "Tree-sitter markdown syntax highlighter",
-      "file_extensions": [
-        "md",
+        "makefile",
         "markdown",
-        "mdx"
-      ],
-      "manifest": "markdown/manifest.json"
-    },
-    {
-      "id": "markdown_inline",
-      "kind": "language",
-      "name": "markdown_inline",
-      "version": "0.5.3",
-      "release_tag": "markdown_inline-v0.5.3",
-      "description": "Tree-sitter markdown_inline syntax highlighter",
-      "file_extensions": [],
-      "manifest": "markdown_inline/manifest.json"
-    },
-    {
-      "id": "php",
-      "kind": "language",
-      "name": "php",
-      "version": "0.24.2",
-      "release_tag": "php-v0.24.2",
-      "description": "Tree-sitter php syntax highlighter",
-      "file_extensions": [
+        "md",
+        "mdx",
+        "mjs",
+        "mk",
+        "patch",
         "php",
         "php3",
         "php4",
         "php5",
-        "phtml"
-      ],
-      "manifest": "php/manifest.json"
-    },
-    {
-      "id": "proto",
-      "kind": "language",
-      "name": "proto",
-      "version": "0.2.0",
-      "release_tag": "proto-v0.2.0",
-      "description": "Tree-sitter proto syntax highlighter",
-      "file_extensions": [
-        "proto"
-      ],
-      "manifest": "proto/manifest.json"
-    },
-    {
-      "id": "python",
-      "kind": "language",
-      "name": "python",
-      "version": "0.23.6",
-      "release_tag": "python-v0.23.6",
-      "description": "Tree-sitter python syntax highlighter",
-      "file_extensions": [
+        "phtml",
+        "proto",
         "py",
-        "pyw"
-      ],
-      "manifest": "python/manifest.json"
-    },
-    {
-      "id": "ruby",
-      "kind": "language",
-      "name": "ruby",
-      "version": "0.23.1",
-      "release_tag": "ruby-v0.23.1",
-      "description": "Tree-sitter ruby syntax highlighter",
-      "file_extensions": [
-        "rb"
-      ],
-      "manifest": "ruby/manifest.json"
-    },
-    {
-      "id": "rust",
-      "kind": "language",
-      "name": "rust",
-      "version": "0.24.2",
-      "release_tag": "rust-v0.24.2",
-      "description": "Tree-sitter rust syntax highlighter",
-      "file_extensions": [
-        "rs"
-      ],
-      "manifest": "rust/manifest.json"
-    },
-    {
-      "id": "scala",
-      "kind": "language",
-      "name": "scala",
-      "version": "0.23.4",
-      "release_tag": "scala-v0.23.4",
-      "description": "Tree-sitter scala syntax highlighter",
-      "file_extensions": [
+        "pyw",
+        "rb",
+        "rs",
+        "sc",
         "scala",
-        "sc"
-      ],
-      "manifest": "scala/manifest.json"
-    },
-    {
-      "id": "svelte",
-      "kind": "language",
-      "name": "svelte",
-      "version": "0.1.1",
-      "release_tag": "svelte-v0.1.1",
-      "description": "Tree-sitter svelte syntax highlighter",
-      "file_extensions": [
-        "svelte"
-      ],
-      "manifest": "svelte/manifest.json"
-    },
-    {
-      "id": "swift",
-      "kind": "language",
-      "name": "swift",
-      "version": "0.7.3",
-      "release_tag": "swift-v0.7.3",
-      "description": "Tree-sitter swift syntax highlighter",
-      "file_extensions": [
-        "swift"
-      ],
-      "manifest": "swift/manifest.json"
-    },
-    {
-      "id": "toml",
-      "kind": "language",
-      "name": "toml",
-      "version": "0.7.0",
-      "release_tag": "toml-v0.7.0",
-      "description": "Tree-sitter toml syntax highlighter",
-      "file_extensions": [
-        "toml"
-      ],
-      "manifest": "toml/manifest.json"
-    },
-    {
-      "id": "tsx",
-      "kind": "language",
-      "name": "tsx",
-      "version": "0.23.2",
-      "release_tag": "tsx-v0.23.2",
-      "description": "Tree-sitter tsx syntax highlighter",
-      "file_extensions": [
-        "tsx"
-      ],
-      "manifest": "tsx/manifest.json"
-    },
-    {
-      "id": "typescript",
-      "kind": "language",
-      "name": "typescript",
-      "version": "0.23.2",
-      "release_tag": "typescript-v0.23.2",
-      "description": "Tree-sitter typescript syntax highlighter",
-      "file_extensions": [
-        "ts"
-      ],
-      "manifest": "typescript/manifest.json"
-    },
-    {
-      "id": "yaml",
-      "kind": "language",
-      "name": "yaml",
-      "version": "0.7.2",
-      "release_tag": "yaml-v0.7.2",
-      "description": "Tree-sitter yaml syntax highlighter",
-      "file_extensions": [
+        "scss",
+        "svelte",
+        "swift",
+        "toml",
+        "ts",
+        "tsx",
         "yaml",
-        "yml"
-      ],
-      "manifest": "yaml/manifest.json"
-    },
-    {
-      "id": "zig",
-      "kind": "language",
-      "name": "zig",
-      "version": "1.1.2",
-      "release_tag": "zig-v1.1.2",
-      "description": "Tree-sitter zig syntax highlighter",
-      "file_extensions": [
+        "yml",
         "zig"
       ],
-      "manifest": "zig/manifest.json"
+      "manifest": "tree-sitter-languages/manifest.json"
     }
   ]
 }
