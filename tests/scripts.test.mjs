@@ -416,6 +416,22 @@ test("Redis desktop importer is registered as a composite WASM importer", () => 
   );
 });
 
+test("R2 upload workflow handles composite extension assets", () => {
+  const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
+  const compositeAssetName = "${process.env.EXTENSION_ID}-composite-${target}.tar.gz";
+  const compositePackagePattern = "${{ steps.release.outputs.extension_id }}-composite-*.tar.gz";
+
+  assert.ok(
+    workflow.includes(compositePackagePattern),
+    "Download GitHub Release assets should request composite packages",
+  );
+  assert.equal(
+    workflow.split(compositeAssetName).length - 1,
+    2,
+    "Verify and upload steps should both generate composite package names",
+  );
+});
+
 test("RDP helper keeps native TLS backend for RDP compatibility", () => {
   const cargoToml = fs.readFileSync(
     path.join(repoRoot, "extensions/remote-desktop/rdp-helper/Cargo.toml"),

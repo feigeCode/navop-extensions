@@ -114,6 +114,8 @@ jobs:
             package_pattern="${{ steps.release.outputs.extension_id }}-mcp-helper-*.tar.gz"
           elif [ "${{ steps.extension.outputs.kind }}" = "acp_agent" ]; then
             package_pattern="${{ steps.release.outputs.extension_id }}-acp-agent-*.tar.gz"
+          elif [ "${{ steps.extension.outputs.kind }}" = "composite" ]; then
+            package_pattern="${{ steps.release.outputs.extension_id }}-composite-*.tar.gz"
           elif [ "${{ steps.extension.outputs.kind }}" = "language_bundle" ]; then
             package_pattern="${{ steps.release.outputs.extension_id }}-language-bundle-*.tar.gz"
           fi
@@ -147,6 +149,9 @@ jobs:
                 break;
               case "acp_agent":
                 console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
+                break;
+              case "composite":
+                console.log(`${process.env.EXTENSION_ID}-composite-${target}.tar.gz`);
                 break;
               case "language_bundle":
                 console.log(`${process.env.EXTENSION_ID}-language-bundle-${target}.tar.gz`);
@@ -205,6 +210,9 @@ jobs:
                 break;
               case "acp_agent":
                 console.log(`${process.env.EXTENSION_ID}-acp-agent-${target}.tar.gz`);
+                break;
+              case "composite":
+                console.log(`${process.env.EXTENSION_ID}-composite-${target}.tar.gz`);
                 break;
               case "language_bundle":
                 console.log(`${process.env.EXTENSION_ID}-language-bundle-${target}.tar.gz`);
