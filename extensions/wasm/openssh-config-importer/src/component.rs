@@ -12,7 +12,7 @@ impl Guest for OpensshConfigImporter {
         serde_json::json!({
             "id": "openssh-config",
             "display_name": "OpenSSH Config",
-            "description": "Import SSH hosts from OpenSSH client config",
+            "description": "Import SSH hosts from OpenSSH client config and known_hosts",
             "icon": "terminal",
             "vendor": "OnetCli",
             "supported_platforms": ["macos", "windows", "linux"],

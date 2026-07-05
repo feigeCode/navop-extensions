@@ -279,9 +279,31 @@ test("Navicat importer is registered as a composite WASM importer", () => {
 
   assert.equal(importer.id, "navicat");
   assert.deepEqual(importer.outputKinds, ["database"]);
+  const candidatePaths = importer.candidateFiles.map((candidate) => candidate.path);
   assert.ok(
-    importer.candidateFiles.some((candidate) => candidate.path.includes("com.prect.NavicatPremium")),
+    candidatePaths.some((candidatePath) => candidatePath.includes("com.prect.NavicatPremium")),
     "Navicat importer should declare macOS PremiumSoft preference plist candidates",
+  );
+  assert.ok(
+    candidatePaths.includes("~/Library/Application Support/PremiumSoft CyberTech/Navicat CC/Common/conn.plist"),
+    "Navicat importer should declare macOS Navicat Premium Lite conn.plist candidate",
+  );
+  assert.ok(
+    candidatePaths.includes("%APPDATA%/PremiumSoft CyberTech/Navicat CC/Common/conn.plist"),
+    "Navicat importer should declare Windows Navicat Premium Lite conn.plist candidate",
+  );
+  assert.ok(importer.platforms.includes("windows"), "Navicat Lite candidate should enable Windows scanning");
+  assert.ok(
+    sourceManifest.permissions.includes(
+      "fs:read:~/Library/Application Support/PremiumSoft CyberTech/Navicat CC/Common/conn.plist",
+    ),
+    "Navicat importer should permit macOS Lite conn.plist reads",
+  );
+  assert.ok(
+    sourceManifest.permissions.includes(
+      "fs:read:%APPDATA%/PremiumSoft CyberTech/Navicat CC/Common/conn.plist",
+    ),
+    "Navicat importer should permit Windows Lite conn.plist reads",
   );
 });
 
@@ -359,9 +381,18 @@ test("OpenSSH config importer is registered as a composite WASM importer", () =>
 
   assert.equal(importer.id, "openssh-config");
   assert.deepEqual(importer.outputKinds, ["ssh"]);
+  const candidatePaths = importer.candidateFiles.map((candidate) => candidate.path);
   assert.ok(
-    importer.candidateFiles.some((candidate) => candidate.path.includes(".ssh/config")),
+    candidatePaths.some((candidatePath) => candidatePath.includes(".ssh/config")),
     "OpenSSH config importer should declare user ssh config candidates",
+  );
+  assert.ok(
+    candidatePaths.some((candidatePath) => candidatePath.includes(".ssh/known_hosts")),
+    "OpenSSH config importer should declare user known_hosts candidates",
+  );
+  assert.ok(
+    sourceManifest.permissions.some((permission) => permission.includes(".ssh/known_hosts")),
+    "OpenSSH config importer should permit known_hosts reads",
   );
 });
 

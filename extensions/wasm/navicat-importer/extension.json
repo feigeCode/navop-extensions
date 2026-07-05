@@ -31,7 +31,9 @@
     "fs:read:~/Library/Preferences/com.prect.NavicatForPostgreSQL.plist",
     "fs:read:~/Library/Preferences/com.prect.NavicatForSQLite.plist",
     "fs:read:~/Library/Preferences/com.prect.NavicatForOracle.plist",
-    "fs:read:~/Library/Preferences/com.prect.NavicatForSQLServer.plist"
+    "fs:read:~/Library/Preferences/com.prect.NavicatForSQLServer.plist",
+    "fs:read:~/Library/Application Support/PremiumSoft CyberTech/Navicat CC/Common/conn.plist",
+    "fs:read:%APPDATA%/PremiumSoft CyberTech/Navicat CC/Common/conn.plist"
   ],
   "contributes": {
     "connectionImporters": [
@@ -45,7 +47,8 @@
           "database"
         ],
         "platforms": [
-          "macos"
+          "macos",
+          "windows"
         ],
         "candidateFiles": [
           {
@@ -92,6 +95,16 @@
             "id": "navicat-macos-sqlserver",
             "platform": "macos",
             "path": "~/Library/Preferences/com.prect.NavicatForSQLServer.plist"
+          },
+          {
+            "id": "navicat-macos-lite-cc-conn",
+            "platform": "macos",
+            "path": "~/Library/Application Support/PremiumSoft CyberTech/Navicat CC/Common/conn.plist"
+          },
+          {
+            "id": "navicat-windows-lite-cc-conn",
+            "platform": "windows",
+            "path": "%APPDATA%/PremiumSoft CyberTech/Navicat CC/Common/conn.plist"
           }
         ]
       }

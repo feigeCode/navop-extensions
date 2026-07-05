@@ -1,6 +1,7 @@
 use plist::{Dictionary, Value};
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::io::Cursor;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ImportRecord {
@@ -41,7 +42,7 @@ where
 {
     let mut records = Vec::new();
     for (path, bytes) in plists {
-        let Ok(value) = Value::from_reader_xml(bytes) else {
+        let Ok(value) = Value::from_reader(Cursor::new(bytes)) else {
             continue;
         };
         collect_records(&path, "", &value, &mut records);
@@ -67,14 +68,35 @@ fn collect_records(path: &str, key_path: &str, value: &Value, records: &mut Vec<
 }
 
 fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<ImportRecord> {
+    if is_parameter_dict(key_path) {
+        return None;
+    }
+
     let raw_type = text_field(
         dict,
-        &["ConnType", "Type", "DatabaseType", "DBType", "Driver"],
-    )?;
+        &[
+            "ConnType",
+            "Type",
+            "DatabaseType",
+            "DBType",
+            "Driver",
+            "serviceprovider",
+        ],
+    )
+    .filter(|value| !value.eq_ignore_ascii_case("default"))
+    .or_else(|| database_type_from_key_path(key_path))?;
     let database_type = database_type(&raw_type)?;
-    let host = text_field(dict, &["Host", "Hostname", "Server", "IP", "SocketHost"])
-        .or_else(|| text_field(dict, &["DatabaseFile", "FilePath"]))
-        .unwrap_or_default();
+    let host = text_field(
+        dict,
+        &["Host", "Hostname", "Server", "IP", "SocketHost", "host"],
+    )
+    .or_else(|| {
+        text_field(
+            dict,
+            &["DatabaseFile", "FilePath", "dbfilename", "savepath"],
+        )
+    })
+    .unwrap_or_default();
     if host.is_empty() && database_type != "sqlite" {
         return None;
     }
@@ -93,8 +115,20 @@ fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<Imp
     } else {
         format!("{path}:{fallback_name}")
     };
-    let name = text_field(dict, &["Name", "Title", "ConnectionName", "DisplayName"])
-        .unwrap_or_else(|| fallback_name.to_string());
+    let name = text_field(
+        dict,
+        &[
+            "Name",
+            "Title",
+            "ConnectionName",
+            "DisplayName",
+            "name",
+            "title",
+            "connectionname",
+            "displayname",
+        ],
+    )
+    .unwrap_or_else(|| fallback_name.to_string());
 
     Some(ImportRecord {
         id: format!("navicat:{}", slug(&id_seed)),
@@ -107,13 +141,19 @@ fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<Imp
             database_type,
             name,
             host,
-            port: port_field(dict, &["Port"]),
-            username: text_field(dict, &["UserName", "Username", "User", "UID"])
+            port: port_field(dict, &["Port", "port"]),
+            username: text_field(dict, &["UserName", "Username", "User", "UID", "username"])
                 .unwrap_or_default(),
             password: None,
             database: text_field(
                 dict,
-                &["Database", "DatabaseName", "InitialDatabase", "Schema"],
+                &[
+                    "Database",
+                    "DatabaseName",
+                    "InitialDatabase",
+                    "Schema",
+                    "defaultdatabase",
+                ],
             ),
             extra_params: BTreeMap::new(),
         }),
@@ -125,13 +165,26 @@ fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<Imp
 }
 
 fn text_field(dict: &Dictionary, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|key| {
-        dict.get(*key)
-            .and_then(value_text)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-    })
+    dict_value(dict, keys)
+        .and_then(value_text)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn dict_value<'a>(dict: &'a Dictionary, keys: &[&str]) -> Option<&'a Value> {
+    for key in keys {
+        if let Some(value) = dict.get(*key) {
+            return Some(value);
+        }
+        if let Some((_, value)) = dict
+            .iter()
+            .find(|(existing, _)| existing.eq_ignore_ascii_case(key))
+        {
+            return Some(value);
+        }
+    }
+    None
 }
 
 fn value_text(value: &Value) -> Option<&str> {
@@ -142,13 +195,29 @@ fn value_text(value: &Value) -> Option<&str> {
 }
 
 fn port_field(dict: &Dictionary, keys: &[&str]) -> Option<u16> {
-    keys.iter().find_map(|key| match dict.get(*key) {
-        Some(Value::Integer(_)) => dict
-            .get(*key)
+    keys.iter().find_map(|key| match dict_value(dict, &[*key]) {
+        Some(Value::Integer(_)) => dict_value(dict, &[*key])
             .and_then(Value::as_unsigned_integer)
             .and_then(|port| u16::try_from(port).ok()),
         Some(Value::String(text)) => text.trim().parse::<u16>().ok(),
         _ => None,
+    })
+}
+
+fn database_type_from_key_path(key_path: &str) -> Option<String> {
+    key_path
+        .split('/')
+        .rev()
+        .find(|segment| database_type(segment).is_some())
+        .map(ToOwned::to_owned)
+}
+
+fn is_parameter_dict(key_path: &str) -> bool {
+    key_path.split('/').any(|segment| {
+        matches!(
+            segment.to_ascii_lowercase().as_str(),
+            "ssh_param" | "http_param" | "ssl_param" | "compatibility_param"
+        )
     })
 }
 
@@ -158,11 +227,13 @@ fn database_type(raw: &str) -> Option<String> {
         .to_ascii_lowercase()
         .replace([' ', '-', '.'], "_");
     match normalized.as_str() {
-        "mysql" | "mariadb" => Some("my_sql".to_string()),
-        "postgres" | "postgresql" | "pgsql" => Some("postgre_sql".to_string()),
+        "mysql" | "mariadb" | "mysql8" | "mysql5" => Some("my_sql".to_string()),
+        "postgres" | "postgresql" | "pgsql" | "postgres_jdbc" => Some("postgre_sql".to_string()),
         "sqlite" | "sqlite3" => Some("sqlite".to_string()),
-        "oracle" | "oci" => Some("oracle".to_string()),
-        "sqlserver" | "sql_server" | "mssql" => Some("sql_server".to_string()),
+        "oracle" | "oci" | "oracle_thin" => Some("oracle".to_string()),
+        "sqlserver" | "sql_server" | "mssql" | "microsoft_sql_server" => {
+            Some("sql_server".to_string())
+        }
         _ => None,
     }
 }
@@ -242,6 +313,62 @@ mod tests {
         assert_eq!(Some(3307), database.port);
         assert_eq!("root", database.username);
         assert_eq!(Some("app"), database.database.as_deref());
+        assert!(database.password.is_none());
+    }
+
+    #[test]
+    fn parses_navicat_lite_conn_plist_and_ignores_nested_ssh_params() {
+        let plist = br#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Connections</key>
+  <dict>
+    <key>MySQL</key>
+    <dict>
+      <key>prod-lite</key>
+      <dict>
+        <key>host</key><string>lite-db.example.test</string>
+        <key>port</key><string>3307</string>
+        <key>username</key><string>lite_user</string>
+        <key>defaultdatabase</key><string>orders</string>
+        <key>serviceprovider</key><string>Default</string>
+        <key>savepassword</key><true/>
+        <key>ssh_param</key>
+        <dict>
+          <key>host</key><string>jump.example.test</string>
+          <key>port</key><string>22</string>
+          <key>username</key><string>jump_user</string>
+          <key>authtype</key><integer>0</integer>
+        </dict>
+      </dict>
+    </dict>
+  </dict>
+</dict>
+</plist>"#;
+
+        let records =
+            preview_records_from_plists(vec![("conn.plist".to_string(), plist.as_slice())], true);
+
+        assert_eq!(1, records.len());
+        let record = &records[0];
+        assert_eq!("navicat:conn-prod-lite", record.id);
+        assert_eq!("navicat", record.importer_id);
+        assert_eq!("Navicat", record.source_label);
+        assert_eq!(
+            Some("conn.plist:Connections/MySQL/prod-lite"),
+            record.source_id.as_deref()
+        );
+        assert_eq!("database", record.kind);
+        assert_eq!("prod-lite", record.display_name);
+        assert_eq!("unsupported", record.password_status);
+
+        let database = record.database.as_ref().unwrap();
+        assert_eq!("my_sql", database.database_type);
+        assert_eq!("lite-db.example.test", database.host);
+        assert_eq!(Some(3307), database.port);
+        assert_eq!("lite_user", database.username);
+        assert_eq!(Some("orders"), database.database.as_deref());
         assert!(database.password.is_none());
     }
 }

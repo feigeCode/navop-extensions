@@ -24,7 +24,9 @@
   },
   "permissions": [
     "fs:read:~/.ssh/config",
-    "fs:read:%USERPROFILE%/.ssh/config"
+    "fs:read:~/.ssh/known_hosts",
+    "fs:read:%USERPROFILE%/.ssh/config",
+    "fs:read:%USERPROFILE%/.ssh/known_hosts"
   ],
   "contributes": {
     "connectionImporters": [
@@ -32,7 +34,7 @@
         "id": "openssh-config",
         "runtimeId": "openssh-config-importer",
         "displayName": "OpenSSH Config",
-        "description": "Import SSH hosts from OpenSSH client config",
+        "description": "Import SSH hosts from OpenSSH client config and known_hosts",
         "icon": "terminal",
         "outputKinds": [
           "ssh"
@@ -49,14 +51,29 @@
             "path": "~/.ssh/config"
           },
           {
+            "id": "openssh-known-hosts-unix-user",
+            "platform": "macos",
+            "path": "~/.ssh/known_hosts"
+          },
+          {
             "id": "openssh-config-linux-user",
             "platform": "linux",
             "path": "~/.ssh/config"
           },
           {
+            "id": "openssh-known-hosts-linux-user",
+            "platform": "linux",
+            "path": "~/.ssh/known_hosts"
+          },
+          {
             "id": "openssh-config-windows-user",
             "platform": "windows",
             "path": "%USERPROFILE%/.ssh/config"
+          },
+          {
+            "id": "openssh-known-hosts-windows-user",
+            "platform": "windows",
+            "path": "%USERPROFILE%/.ssh/known_hosts"
           }
         ]
       }
