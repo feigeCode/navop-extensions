@@ -1,6 +1,6 @@
 ---
 name: connection-import-wasm
-description: Use when implementing, debugging, packaging, or host-enabling onetcli WASM connection importers such as DBeaver, Navicat, Termius, connection-import.wit components, wasm32-wasip2 importers, composite extension manifests, local importer visibility, or connection import UI freezes.
+description: Use when implementing, debugging, packaging, or host-enabling onetcli WASM connection importers such as DBeaver, Navicat, Navicat Lite, Termius, connection-import.wit components, wasm32-wasip2 importers, composite extension manifests, local importer visibility, or connection import UI freezes.
 ---
 
 # Connection Import WASM
@@ -10,6 +10,20 @@ description: Use when implementing, debugging, packaging, or host-enabling onetc
 Build one connection importer as one WASM component. Keep parser logic in the extension repo, keep host capabilities generic in `../onetcli`, and verify the whole path from WIT contract to local composite extension visibility.
 
 Use DBeaver as the reference implementation, but avoid baking DBeaver-specific assumptions into the host.
+
+## Reference Library
+
+When developing an importer for a new application, read the playbook first, then load the topic references needed by the app's storage format and output kind:
+
+| Need | Reference |
+| --- | --- |
+| End-to-end workflow for a new application | [New Application Playbook](references/new-application-playbook.md) |
+| Finding app config files across macOS, Windows, and Linux | [Source Discovery](references/source-discovery.md) |
+| Mapping parser output to host protocol JSON | [Protocol and Records](references/protocol-and-records.md) |
+| Writing `extension.json`, root manifest entries, and local installs | [Manifest and Packaging](references/manifest-and-packaging.md) |
+| Fixtures, tests, local host checks, and release verification | [Testing and Troubleshooting](references/testing-and-troubleshooting.md) |
+| Database importer patterns such as DBeaver and Navicat Lite | [Database Importers](references/database-importers.md) |
+| SSH importer patterns such as OpenSSH config and known_hosts | `ssh-connection-import` |
 
 ## Repo Map
 
@@ -95,6 +109,23 @@ Use a composite manifest shape like this:
 }
 ```
 
+## Database Importer Notes
+
+For database tools, fixtures from one product edition are not enough. Check every edition and platform path the importer claims in `extension.json`.
+
+Navicat-specific rules:
+
+- Premium Lite stores shared connection data at macOS `~/Library/Application Support/PremiumSoft CyberTech/Navicat CC/Common/conn.plist`.
+- The Windows analogue is expected under `%APPDATA%/PremiumSoft CyberTech/Navicat CC/Common/conn.plist`; declare it separately from the classic Navicat paths.
+- Navicat plist files may be XML or binary. Use `plist::Value::from_reader(Cursor::new(bytes))` when binary support matters, not XML-only parsing.
+- Lite records may use lowercase fields such as `host`, `port`, `username`, and `defaultdatabase`.
+- `serviceprovider = Default` is not a database type. Infer the database type from stable path/key segments such as `MySQL`, `PostgreSQL`, `Oracle`, or SQL Server-specific containers.
+- Skip nested parameter dictionaries that are not database connections, including `ssh_param`, `http_param`, `ssl_param`, and `compatibility_param`.
+
+Add focused fixtures for each schema variant. At minimum, cover classic Navicat entries and Lite `conn.plist` entries with lowercase fields and path-derived database types.
+
+For SSH-focused importers, use `ssh-connection-import`. Keep this skill for shared WASM packaging, manifests, host capability, and database importer behavior.
+
 ## Testing
 
 Extension repo:
@@ -124,6 +155,8 @@ Add focused tests for every host ability that was missing. Useful examples inclu
 - A manifest with `%APPDATA%/...` permissions and candidate files.
 - A provider/listing test proving the local composite importer appears in Installed extensions.
 - A preview-provider test that runs DBeaver/Termius fixture components.
+- A parser fixture for every product edition/path variant declared in the manifest.
+- A serialized JSON assertion for any field backed by a host serde enum or externally tagged protocol shape.
 
 ## Troubleshooting
 
@@ -134,6 +167,9 @@ Add focused tests for every host ability that was missing. Useful examples inclu
 | Preview dialog freezes | UI thread is running WASM/filesystem work | Replace `block_on` with `Tokio::spawn` and loading-state entity updates. |
 | Records import passwords when disabled | Parser ignores `include_passwords` | Ensure parser omits config and credential passwords unless enabled. |
 | Component returns zero records | Candidate id, permission, or path mismatch | Check `candidateFiles`, `fs:read:*`, platform filtering, and host path expansion. |
+| Navicat Lite returns zero records | Lite path/schema differs from classic Navicat | Add `Navicat CC/Common/conn.plist`, lowercase field handling, path-derived database type inference, and plist binary/XML parsing. |
+| Source is visible but preview has no rows | Availability only proves manifest/candidate visibility | Check host logs for file read, WASM output, and `connection import preview failed` decode errors. |
+| `unknown variant kind` during preview | Importer emitted an internally tagged enum shape rejected by `connection-import-protocol` | Match the host serde JSON shape exactly; for SSH auth use `ssh-connection-import`. |
 
 ## Guardrails
 
@@ -142,3 +178,4 @@ Add focused tests for every host ability that was missing. Useful examples inclu
 - Do not let the extension repo depend on `../onetcli` at build time. Use vendored WIT and drift verification.
 - Do not claim local installation works until the installed composite folder is present and the host provider can list it.
 - Do not leave long-running dev app processes active after build/test work unless the user asked to run the app.
+- Do not trust display labels such as `Default` as database types when the product stores type information in surrounding keys or path segments.
