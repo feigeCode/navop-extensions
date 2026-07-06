@@ -38,7 +38,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.10", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.11", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -226,7 +226,7 @@ public class GBase8sIpcServerTest {
 
         JsonNode tableData = server.handle(request(
             3,
-            "gbase8s/table_data",
+            "x/gbase8s/table_data",
             "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\",\"page\":1,\"page_size\":25}"
         ));
 
