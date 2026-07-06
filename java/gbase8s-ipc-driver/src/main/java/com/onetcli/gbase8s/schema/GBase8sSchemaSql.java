@@ -19,7 +19,7 @@ public final class GBase8sSchemaSql {
     }
 
     public static String columnsSql(String database, String schema, String table) {
-        return "SELECT c.colno + 1, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, '' FROM syscolumns c JOIN systables t ON c.tabid = t.tabid WHERE t.tabname = '" + escapeSql(table) + "' ORDER BY c.colno";
+        return "SELECT c.colno, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, d.default FROM syscolumns c JOIN systables t ON c.tabid = t.tabid LEFT JOIN sysdefaults d ON d.tabid = c.tabid AND d.colno = c.colno WHERE t.tabname = '" + escapeSql(table) + "' ORDER BY c.colno";
     }
 
     public static String primaryKeyColumnsSql(String database, String schema, String table) {

@@ -241,7 +241,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.7");
+        result.put("extension_version", "0.1.8");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -417,7 +417,7 @@ public final class GBase8sIpcServer {
             column.put("type", rawType);
             column.put("raw_type", rawType);
             column.put("nullable", Boolean.valueOf(nullable(rowString(row, 3))));
-            column.put("default", rowValue(row, 4));
+            column.put("default", gbase8sDefault(rowValue(row, 4)));
             column.put("is_primary", Boolean.valueOf(primaryColumns.contains(rowString(row, 1))));
             column.put("is_unique", Boolean.FALSE);
             column.put("is_partition_key", Boolean.FALSE);
@@ -645,7 +645,7 @@ public final class GBase8sIpcServer {
                     rowString(row, 1),
                     gbase8sColumnType(rowString(row, 2)),
                     Boolean.toString(nullable(rowString(row, 3))),
-                    rowString(row, 4),
+                    emptyIfNull(gbase8sDefault(rowValue(row, 4))),
                     ""
                 ));
             }
@@ -1600,6 +1600,36 @@ public final class GBase8sIpcServer {
             return false;
         }
         return true;
+    }
+
+    private String gbase8sDefault(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).replace('\0', ' ').trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        if (text.startsWith("AAAA")) {
+            int split = firstWhitespace(text);
+            if (split >= 0 && split + 1 < text.length()) {
+                text = text.substring(split + 1).trim();
+            }
+        }
+        return text.isEmpty() ? null : text;
+    }
+
+    private String emptyIfNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private int firstWhitespace(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isWhitespace(value.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private String gbase8sColumnType(String value) {

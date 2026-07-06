@@ -37,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.7", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.8", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -108,6 +108,8 @@ public class GBase8sIpcServerTest {
         assertEquals("id", columns.get("result").get(0).get("name").asText());
         assertEquals(true, columns.get("result").get(0).get("is_primary").asBoolean());
         assertEquals(false, columns.get("result").get(0).get("nullable").asBoolean());
+        assertTrue(columns.get("result").get(0).get("default").isNull());
+        assertEquals("abc", columns.get("result").get(1).get("default").asText());
 
         JsonNode indexes = server.handle(request(7, "schema/indexes", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("pk_sample", indexes.get("result").get(0).get("name").asText());
@@ -152,6 +154,8 @@ public class GBase8sIpcServerTest {
         assertEquals(220, columnView.get("result").get("columns").get(0).get("width_px").asInt());
         assertEquals("id", columnView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("INTEGER", columnView.get("result").get("rows").get(0).get(1).asText());
+        assertEquals("", columnView.get("result").get("rows").get(0).get(3).asText());
+        assertEquals("abc", columnView.get("result").get("rows").get(1).get(3).asText());
 
         JsonNode tableView = server.handle(request(13, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
         assertEquals("Tables", tableView.get("result").get("title").asText());
@@ -250,9 +254,11 @@ public class GBase8sIpcServerTest {
                 statement.execute("INSERT INTO systables VALUES (100, 'sample', 'T')");
                 statement.execute("INSERT INTO systables VALUES (101, 'v_sample', 'V')");
                 statement.execute("CREATE TABLE syscolumns (tabid INT, colno INT, colname VARCHAR(64), coltype INT)");
-                statement.execute("INSERT INTO syscolumns VALUES (99, 0, 'id', 258)");
-                statement.execute("INSERT INTO syscolumns VALUES (100, 0, 'id', 258)");
-                statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'name', 13)");
+                statement.execute("INSERT INTO syscolumns VALUES (99, 1, 'id', 258)");
+                statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'id', 258)");
+                statement.execute("INSERT INTO syscolumns VALUES (100, 2, 'name', 13)");
+                statement.execute("CREATE TABLE sysdefaults (tabid INT, colno INT, type CHAR(1), default VARCHAR(255), class CHAR(1))");
+                statement.execute("INSERT INTO sysdefaults VALUES (100, 2, 'L', 'AAAAAw abc', 'T')");
                 statement.execute("CREATE TABLE sysconstraints (constrid INT, constrname VARCHAR(64), owner VARCHAR(64), tabid INT, constrtype CHAR(1), idxname VARCHAR(64), collation VARCHAR(64))");
                 statement.execute("INSERT INTO sysconstraints VALUES (10, 'pk_parent_sample', 'gbasedbt', 99, 'P', 'pk_parent_sample', '')");
                 statement.execute("INSERT INTO sysconstraints VALUES (1, 'pk_sample', 'gbasedbt', 100, 'P', 'pk_sample', '')");
@@ -263,10 +269,10 @@ public class GBase8sIpcServerTest {
                 statement.execute("CREATE TABLE syschecks (constrid INT, type CHAR(1), seqno INT, checktext VARCHAR(255))");
                 statement.execute("INSERT INTO syschecks VALUES (3, 'T', 0, 'name IS NOT NULL')");
                 statement.execute("CREATE TABLE sysindexes (idxname VARCHAR(64), owner VARCHAR(64), tabid INT, idxtype CHAR(1), clustered CHAR(1), part1 INT, part2 INT, part3 INT, part4 INT, part5 INT, part6 INT, part7 INT, part8 INT, part9 INT, part10 INT, part11 INT, part12 INT, part13 INT, part14 INT, part15 INT, part16 INT)");
-                statement.execute("INSERT INTO sysindexes VALUES ('pk_parent_sample', 'gbasedbt', 99, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'gbasedbt', 100, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('zk_sample_parent', 'gbasedbt', 100, 'D', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('zz_sample_name_id', 'gbasedbt', 100, 'D', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('pk_parent_sample', 'gbasedbt', 99, 'U', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'gbasedbt', 100, 'U', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('zk_sample_parent', 'gbasedbt', 100, 'D', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('zz_sample_name_id', 'gbasedbt', 100, 'D', '', 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.execute("CREATE TABLE sysprocedures (procname VARCHAR(64), owner VARCHAR(64), procid INT, isproc CHAR(1))");
                 statement.execute("INSERT INTO sysprocedures VALUES ('demo_add_one', 'gbasedbt', 200, 'f')");
                 statement.execute("INSERT INTO sysprocedures VALUES ('demo_touch_proc', 'gbasedbt', 201, 't')");

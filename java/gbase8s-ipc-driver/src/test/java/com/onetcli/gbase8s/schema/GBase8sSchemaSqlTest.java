@@ -34,7 +34,7 @@ public class GBase8sSchemaSqlTest {
     @Test
     public void columnsSqlEscapesTableName() {
         assertEquals(
-            "SELECT c.colno + 1, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, '' FROM syscolumns c JOIN systables t ON c.tabid = t.tabid WHERE t.tabname = 'order''items' ORDER BY c.colno",
+            "SELECT c.colno, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, d.default FROM syscolumns c JOIN systables t ON c.tabid = t.tabid LEFT JOIN sysdefaults d ON d.tabid = c.tabid AND d.colno = c.colno WHERE t.tabname = 'order''items' ORDER BY c.colno",
             GBase8sSchemaSql.columnsSql("stores", "gbasedbt", "order'items")
         );
     }
