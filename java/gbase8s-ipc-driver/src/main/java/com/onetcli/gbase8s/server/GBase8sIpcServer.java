@@ -123,6 +123,12 @@ public final class GBase8sIpcServer {
         if ("schema/views".equals(method)) {
             return handleSchemaViews(id, params);
         }
+        if ("schema/functions".equals(method)) {
+            return handleSchemaFunctions(id, params);
+        }
+        if ("schema/procedures".equals(method)) {
+            return handleSchemaProcedures(id, params);
+        }
         if ("query/start".equals(method)) {
             return handleQueryStart(id, params);
         }
@@ -189,8 +195,7 @@ public final class GBase8sIpcServer {
         if ("stream/close".equals(method)) {
             return handleStreamClose(id, params);
         }
-        if ("schema/functions".equals(method) || "schema/procedures".equals(method)
-            || "schema/triggers".equals(method) || "schema/sequences".equals(method) || "schema/types".equals(method)) {
+        if ("schema/triggers".equals(method) || "schema/sequences".equals(method) || "schema/types".equals(method)) {
             return ok(id, new ArrayList<Map<String, Object>>());
         }
         if ("schema/view_definition".equals(method)) {
@@ -236,7 +241,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.5");
+        result.put("extension_version", "0.1.6");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -547,6 +552,40 @@ public final class GBase8sIpcServer {
         return ok(id, result);
     }
 
+    private JsonNode handleSchemaFunctions(JsonNode id, JsonNode params) throws SQLException {
+        ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
+        if (state == null) {
+            return lastError;
+        }
+        String database = optionalText(params, "database", state.config.getDatabase());
+        String schema = optionalText(params, "schema", "");
+        List<Map<String, Object>> result = readRoutines(
+            state.connection,
+            database,
+            schema,
+            GBase8sSchemaSql.functionsSql(database, schema),
+            true
+        );
+        return ok(id, result);
+    }
+
+    private JsonNode handleSchemaProcedures(JsonNode id, JsonNode params) throws SQLException {
+        ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
+        if (state == null) {
+            return lastError;
+        }
+        String database = optionalText(params, "database", state.config.getDatabase());
+        String schema = optionalText(params, "schema", "");
+        List<Map<String, Object>> result = readRoutines(
+            state.connection,
+            database,
+            schema,
+            GBase8sSchemaSql.proceduresSql(database, schema),
+            false
+        );
+        return ok(id, result);
+    }
+
     private JsonNode handleSchemaObjectView(JsonNode id, JsonNode params) throws SQLException {
         ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
         if (state == null) {
@@ -627,9 +666,41 @@ public final class GBase8sIpcServer {
             return ok(id, objectView("Indexes", indexObjectViewColumns(), rows));
         }
         if ("functions".equals(view)) {
-            return ok(id, objectView("Functions", objectViewColumns("name", "Name", "returns", "Returns", "language", "Language", "comment", "Comment"), new ArrayList<List<String>>()));
+            List<List<String>> rows = new ArrayList<List<String>>();
+            for (Map<String, Object> function : readRoutines(
+                state.connection,
+                database,
+                schema,
+                GBase8sSchemaSql.functionsSql(database, schema),
+                true
+            )) {
+                rows.add(rowValues(
+                    String.valueOf(function.get("name")),
+                    String.valueOf(function.get("returns")),
+                    String.valueOf(function.get("language")),
+                    String.valueOf(function.get("comment"))
+                ));
+            }
+            return ok(id, objectView("Functions", objectViewColumns("name", "Name", "returns", "Returns", "language", "Language", "comment", "Comment"), rows));
         }
-        if ("procedures".equals(view) || "triggers".equals(view) || "sequences".equals(view)) {
+        if ("procedures".equals(view)) {
+            List<List<String>> rows = new ArrayList<List<String>>();
+            for (Map<String, Object> procedure : readRoutines(
+                state.connection,
+                database,
+                schema,
+                GBase8sSchemaSql.proceduresSql(database, schema),
+                false
+            )) {
+                rows.add(rowValues(
+                    String.valueOf(procedure.get("name")),
+                    String.valueOf(procedure.get("language")),
+                    String.valueOf(procedure.get("comment"))
+                ));
+            }
+            return ok(id, objectView("Procedures", objectViewColumns("name", "Name", "language", "Language", "comment", "Comment"), rows));
+        }
+        if ("triggers".equals(view) || "sequences".equals(view)) {
             return ok(id, objectView(titleForObjectView(view), objectViewColumns("name", "Name"), new ArrayList<List<String>>()));
         }
         return error(id, ProtocolError.NOT_SUPPORTED, "unsupported object view: " + view);
@@ -781,6 +852,48 @@ public final class GBase8sIpcServer {
             return new ArrayList<Map<String, Object>>();
         }
         return new ArrayList<Map<String, Object>>(indexes.values());
+    }
+
+    private List<Map<String, Object>> readRoutines(Connection connection, String database, String schema, String sql, boolean function) throws SQLException {
+        QueryResult query = queryRunner.queryBuffered(connection, sql, null, null);
+        Map<String, Map<String, Object>> routines = new LinkedHashMap<String, Map<String, Object>>();
+        for (List<Map<String, Object>> row : query.getRows()) {
+            String name = rowString(row, 0);
+            if (name.isEmpty()) {
+                continue;
+            }
+            String owner = rowString(row, 1);
+            String key = owner + "." + name;
+            Map<String, Object> routine = routines.get(key);
+            if (routine == null) {
+                String returnType = function ? gbase8sColumnType(rowString(row, 2)) : "";
+                routine = new LinkedHashMap<String, Object>();
+                routine.put("database", database);
+                routine.put("schema", owner);
+                routine.put("name", name);
+                routine.put("return_type", returnType.isEmpty() ? null : returnType);
+                routine.put("returns", returnType);
+                routine.put("language", rowString(row, 3));
+                routine.put("comment", rowString(row, 4));
+                routine.put("definition", "");
+                routine.put("extra", new LinkedHashMap<String, Object>());
+                routines.put(key, routine);
+            }
+            String definition = String.valueOf(routine.get("definition"));
+            routine.put("definition", definition + catalogText(rowString(row, 5)));
+        }
+        return new ArrayList<Map<String, Object>>(routines.values());
+    }
+
+    private String catalogText(String value) {
+        if (value == null) {
+            return "";
+        }
+        int end = value.length();
+        while (end > 0 && value.charAt(end - 1) == '\u0000') {
+            end--;
+        }
+        return value.substring(0, end).trim();
     }
 
     private String referentialAction(String value) {

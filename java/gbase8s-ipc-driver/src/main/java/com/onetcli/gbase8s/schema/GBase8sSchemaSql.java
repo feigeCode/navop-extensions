@@ -69,6 +69,14 @@ public final class GBase8sSchemaSql {
             + "ORDER BY cn.constrname, ck.seqno";
     }
 
+    public static String functionsSql(String database, String schema) {
+        return routinesSql(schema, "f");
+    }
+
+    public static String proceduresSql(String database, String schema) {
+        return routinesSql(schema, "t");
+    }
+
     public static String viewsSql(String database, String schema) {
         return "SELECT tabname, 'view', '' FROM systables WHERE tabid >= 100 AND tabtype = 'V' ORDER BY tabname";
     }
@@ -119,6 +127,20 @@ public final class GBase8sSchemaSql {
                 .append(" THEN ").append(i).append(' ');
         }
         sql.append("ELSE 99 END");
+        return sql.toString();
+    }
+
+    private static String routinesSql(String schema, String isProcedure) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT p.procname, p.owner, pc.paramtype, 'SPL', '', b.data, b.seqno ")
+            .append("FROM sysprocedures p ")
+            .append("LEFT JOIN sysproccolumns pc ON pc.procid = p.procid AND pc.paramattr = 3 ")
+            .append("LEFT JOIN sysprocbody b ON b.procid = p.procid AND b.datakey = 'T' ")
+            .append("WHERE p.isproc = '").append(escapeSql(isProcedure)).append("'");
+        if (schema != null && schema.trim().length() > 0) {
+            sql.append(" AND p.owner = '").append(escapeSql(schema.trim())).append("'");
+        }
+        sql.append(" ORDER BY p.procname, b.seqno");
         return sql.toString();
     }
 

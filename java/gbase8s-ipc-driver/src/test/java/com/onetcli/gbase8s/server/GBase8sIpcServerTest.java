@@ -37,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.5", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.6", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -132,7 +132,20 @@ public class GBase8sIpcServerTest {
         assertEquals("sample", checks.get("result").get(0).get("table").asText());
         assertEquals("name IS NOT NULL", checks.get("result").get(0).get("definition").asText());
 
-        JsonNode columnView = server.handle(request(10, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        JsonNode functions = server.handle(request(10, "schema/functions", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        assertEquals(1, functions.get("result").size());
+        assertEquals("demo_add_one", functions.get("result").get(0).get("name").asText());
+        assertEquals("gbasedbt", functions.get("result").get(0).get("schema").asText());
+        assertEquals("INTEGER", functions.get("result").get(0).get("return_type").asText());
+        assertEquals("SPL", functions.get("result").get(0).get("language").asText());
+
+        JsonNode procedures = server.handle(request(11, "schema/procedures", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        assertEquals(1, procedures.get("result").size());
+        assertEquals("demo_touch_proc", procedures.get("result").get(0).get("name").asText());
+        assertEquals("gbasedbt", procedures.get("result").get(0).get("schema").asText());
+        assertEquals("SPL", procedures.get("result").get(0).get("language").asText());
+
+        JsonNode columnView = server.handle(request(12, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("Columns", columnView.get("result").get("title").asText());
         assertEquals("name", columnView.get("result").get("columns").get(0).get("key").asText());
         assertEquals("Field", columnView.get("result").get("columns").get(0).get("name").asText());
@@ -140,15 +153,24 @@ public class GBase8sIpcServerTest {
         assertEquals("id", columnView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("INTEGER", columnView.get("result").get("rows").get(0).get(1).asText());
 
-        JsonNode tableView = server.handle(request(11, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        JsonNode tableView = server.handle(request(13, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
         assertEquals("Tables", tableView.get("result").get("title").asText());
         assertEquals("name", tableView.get("result").get("columns").get(0).get("key").asText());
         assertEquals(220, tableView.get("result").get("columns").get(0).get("width_px").asInt());
 
-        JsonNode indexView = server.handle(request(12, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        JsonNode indexView = server.handle(request(14, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("Indexes", indexView.get("result").get("title").asText());
         assertEquals("pk_sample", indexView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("id", indexView.get("result").get("rows").get(0).get(1).asText());
+
+        JsonNode functionView = server.handle(request(15, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"functions\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        assertEquals("Functions", functionView.get("result").get("title").asText());
+        assertEquals("demo_add_one", functionView.get("result").get("rows").get(0).get(0).asText());
+        assertEquals("INTEGER", functionView.get("result").get("rows").get(0).get(1).asText());
+
+        JsonNode procedureView = server.handle(request(16, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"procedures\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        assertEquals("Procedures", procedureView.get("result").get("title").asText());
+        assertEquals("demo_touch_proc", procedureView.get("result").get("rows").get(0).get(0).asText());
     }
 
     @Test
@@ -231,6 +253,16 @@ public class GBase8sIpcServerTest {
                 statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'gbasedbt', 100, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.execute("INSERT INTO sysindexes VALUES ('zk_sample_parent', 'gbasedbt', 100, 'D', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.execute("INSERT INTO sysindexes VALUES ('zz_sample_name_id', 'gbasedbt', 100, 'D', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("CREATE TABLE sysprocedures (procname VARCHAR(64), owner VARCHAR(64), procid INT, isproc CHAR(1))");
+                statement.execute("INSERT INTO sysprocedures VALUES ('demo_add_one', 'gbasedbt', 200, 'f')");
+                statement.execute("INSERT INTO sysprocedures VALUES ('demo_touch_proc', 'gbasedbt', 201, 't')");
+                statement.execute("CREATE TABLE sysproccolumns (procid INT, paramid INT, paramname VARCHAR(64), paramtype INT, paramlen INT, paramxid INT, paramattr INT)");
+                statement.execute("INSERT INTO sysproccolumns VALUES (200, 0, NULL, 2, 4, 0, 3)");
+                statement.execute("INSERT INTO sysproccolumns VALUES (200, 1, 'p', 2, 4, 0, 1)");
+                statement.execute("INSERT INTO sysproccolumns VALUES (201, 0, 'p', 2, 4, 0, 1)");
+                statement.execute("CREATE TABLE sysprocbody (procid INT, datakey CHAR(1), seqno INT, data VARCHAR(255))");
+                statement.execute("INSERT INTO sysprocbody VALUES (200, 'T', 1, 'CREATE FUNCTION demo_add_one(p INT) RETURNING INT; RETURN p + 1; END FUNCTION;')");
+                statement.execute("INSERT INTO sysprocbody VALUES (201, 'T', 1, 'CREATE PROCEDURE demo_touch_proc(p INT); UPDATE sample SET name = name WHERE id = p; END PROCEDURE;')");
                 statement.close();
                 return connection;
             }
