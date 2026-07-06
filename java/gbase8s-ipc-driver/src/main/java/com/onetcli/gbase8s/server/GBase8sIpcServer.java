@@ -132,6 +132,9 @@ public final class GBase8sIpcServer {
         if ("query/start".equals(method)) {
             return handleQueryStart(id, params);
         }
+        if ("gbase8s/table_data".equals(method)) {
+            return handleTableData(id, params);
+        }
         if ("cursor/fetch".equals(method)) {
             return handleCursorFetch(id, params);
         }
@@ -230,6 +233,7 @@ public final class GBase8sIpcServer {
         String[] methodNames = new String[]{
             "$/ping", "shutdown", "conn/test", "conn/open", "conn/close", "conn/ping", "conn/use",
             "query/start", "cursor/fetch", "cursor/close", "cursor/cancel", "exec/run", "exec/batch",
+            "gbase8s/table_data",
             "tx/begin", "tx/commit", "tx/rollback", "tx/savepoint", "tx/release",
             "ddl/build", "ddl/build_create_table", "ddl/build_alter_table", "ddl/build_drop",
             "data/export", "data/import_begin", "data/import_chunk", "data/import_commit", "data/import_abort",
@@ -241,7 +245,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.9");
+        result.put("extension_version", "0.1.10");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -947,6 +951,46 @@ public final class GBase8sIpcServer {
         return ok(id, result);
     }
 
+    private JsonNode handleTableData(JsonNode id, JsonNode params) throws SQLException {
+        ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
+        if (state == null) {
+            return lastError;
+        }
+        String database = optionalText(params, "database", state.config.getDatabase());
+        String schema = optionalText(params, "schema", "");
+        String table = requiredText(params, "table");
+        int page = Math.max(1, optionalInt(params, "page") == null ? 1 : optionalInt(params, "page").intValue());
+        int pageSize = Math.max(1, optionalInt(params, "page_size") == null ? 500 : optionalInt(params, "page_size").intValue());
+        int offset = (page - 1) * pageSize;
+
+        String tableRef = qualifiedIdentifier(database, schema, table);
+        String whereClause = sqlClause(params, "where_clause", "WHERE");
+        String orderClause = sqlClause(params, "order_by_clause", "ORDER BY");
+        String countSql = "SELECT COUNT(*) FROM " + tableRef + whereClause;
+        String dataSql = "SELECT * FROM " + tableRef + whereClause + orderClause + " LIMIT " + pageSize + " OFFSET " + offset;
+
+        long started = System.currentTimeMillis();
+        QueryResult countQuery = queryRunner.queryBuffered(state.connection, countSql, null, Integer.valueOf(1));
+        int totalCount = countQuery.getRows().isEmpty() ? 0 : rowInt(countQuery.getRows().get(0), 0);
+        QueryResult dataQuery = queryRunner.queryBuffered(state.connection, dataSql, null, null);
+        long elapsed = System.currentTimeMillis() - started;
+
+        Map<String, Object> queryResult = new LinkedHashMap<String, Object>();
+        queryResult.put("sql", dataSql);
+        queryResult.put("columns", columnNames(dataQuery));
+        queryResult.put("column_meta", hostColumnMeta(dataQuery));
+        queryResult.put("rows", hostRows(dataQuery));
+        queryResult.put("elapsed_ms", Long.valueOf(elapsed));
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("query_result", queryResult);
+        result.put("total_count", Integer.valueOf(totalCount));
+        result.put("page", Integer.valueOf(page));
+        result.put("page_size", Integer.valueOf(pageSize));
+        result.put("duration", Long.valueOf(elapsed));
+        return ok(id, result);
+    }
+
     private JsonNode handleCursorFetch(JsonNode id, JsonNode params) {
         String cursorId = requiredText(params, "cursor_id");
         CursorState cursor = cursors.get(cursorId);
@@ -1505,12 +1549,82 @@ public final class GBase8sIpcServer {
         return rows;
     }
 
+    private List<List<String>> hostRows(QueryResult query) {
+        List<List<String>> rows = new ArrayList<List<String>>();
+        for (List<Map<String, Object>> row : query.getRows()) {
+            List<String> out = new ArrayList<String>();
+            for (int i = 0; i < query.getColumns().size(); i++) {
+                Object value = rowValue(row, i);
+                out.add(value == null ? null : String.valueOf(value));
+            }
+            rows.add(out);
+        }
+        return rows;
+    }
+
+    private List<Map<String, Object>> hostColumnMeta(QueryResult query) {
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (Map<String, Object> column : query.getColumns()) {
+            String name = String.valueOf(column.get("name"));
+            String dbType = String.valueOf(column.get("type"));
+            Map<String, Object> meta = new LinkedHashMap<String, Object>();
+            meta.put("name", name);
+            meta.put("db_type", dbType);
+            meta.put("field_type", hostFieldType(dbType));
+            Object nullable = column.get("nullable");
+            meta.put("nullable", nullable instanceof Boolean ? nullable : Boolean.TRUE);
+            out.add(meta);
+        }
+        return out;
+    }
+
     private List<String> columnNames(QueryResult query) {
         List<String> names = new ArrayList<String>();
         for (Map<String, Object> column : query.getColumns()) {
             names.add(String.valueOf(column.get("name")));
         }
         return names;
+    }
+
+    private String hostFieldType(String dbType) {
+        String upper = dbType == null ? "" : dbType.toUpperCase();
+        if (upper.contains("INT") || upper.contains("SERIAL")) {
+            return "Integer";
+        }
+        if (upper.contains("DECIMAL") || upper.contains("NUMERIC") || upper.contains("FLOAT")
+            || upper.contains("DOUBLE") || upper.contains("REAL") || upper.contains("MONEY")) {
+            return "Decimal";
+        }
+        if (upper.contains("BOOLEAN") || upper.contains("BOOL")) {
+            return "Boolean";
+        }
+        if (upper.contains("DATE") && !upper.contains("TIME")) {
+            return "Date";
+        }
+        if (upper.contains("TIME") && !upper.contains("DATE")) {
+            return "Time";
+        }
+        if (upper.contains("DATETIME") || upper.contains("TIMESTAMP")) {
+            return "DateTime";
+        }
+        if (upper.contains("BLOB") || upper.contains("BYTE") || upper.contains("BINARY")) {
+            return "Binary";
+        }
+        if (upper.contains("TEXT") || upper.contains("CLOB")) {
+            return "LongText";
+        }
+        if (upper.contains("CHAR") || upper.contains("VARCHAR") || upper.contains("LVARCHAR")) {
+            return "Text";
+        }
+        return "Unknown";
+    }
+
+    private String sqlClause(JsonNode params, String field, String keyword) {
+        String value = optionalText(params, field, "");
+        if (value.isEmpty()) {
+            return "";
+        }
+        return " " + keyword + " " + value;
     }
 
     private String insertSql(ImportState state) {

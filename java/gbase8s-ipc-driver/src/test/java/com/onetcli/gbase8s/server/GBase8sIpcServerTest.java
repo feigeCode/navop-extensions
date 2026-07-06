@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class GBase8sIpcServerTest {
+    private static final AtomicInteger SERVER_DB_COUNTER = new AtomicInteger();
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
@@ -37,7 +38,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.9", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.10", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -215,6 +216,35 @@ public class GBase8sIpcServerTest {
     }
 
     @Test
+    public void tableDataMethodReturnsHostTableDataResponseUsingSchemaReference() throws Exception {
+        GBase8sIpcServer server = newServer();
+        server.handle(request(1, "init", "{}"));
+        long connId = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"))
+            .get("result")
+            .get("conn_id")
+            .asLong();
+
+        JsonNode tableData = server.handle(request(
+            3,
+            "gbase8s/table_data",
+            "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\",\"page\":1,\"page_size\":25}"
+        ));
+
+        assertTrue(tableData.toString(), tableData.has("result"));
+        JsonNode result = tableData.get("result");
+        assertEquals(2, result.get("total_count").asInt());
+        assertEquals(1, result.get("page").asInt());
+        assertEquals(25, result.get("page_size").asInt());
+        assertEquals("SELECT * FROM gbasedbt.sample LIMIT 25 OFFSET 0", result.get("query_result").get("sql").asText());
+        assertEquals("ID", result.get("query_result").get("columns").get(0).asText());
+        assertEquals("BIGINT", result.get("query_result").get("column_meta").get(0).get("db_type").asText());
+        assertEquals("Integer", result.get("query_result").get("column_meta").get(0).get("field_type").asText());
+        assertEquals(false, result.get("query_result").get("column_meta").get(0).get("nullable").asBoolean());
+        assertEquals("1", result.get("query_result").get("rows").get(0).get(0).asText());
+        assertEquals("alpha", result.get("query_result").get("rows").get(0).get(1).asText());
+    }
+
+    @Test
     public void schemaDatabasesUsesStatementForCrossDatabaseCatalogSql() throws Exception {
         GBase8sIpcServer server = new GBase8sIpcServer(new JdbcConnectionFactory() {
             @Override
@@ -238,15 +268,18 @@ public class GBase8sIpcServerTest {
     }
 
     private GBase8sIpcServer newServer() {
-        final AtomicInteger counter = new AtomicInteger();
         return new GBase8sIpcServer(new JdbcConnectionFactory() {
             @Override
             public Connection open(GBase8sConfig config) throws Exception {
-                Connection connection = DriverManager.getConnection("jdbc:h2:mem:gbase8s_server_" + counter.incrementAndGet());
+                Connection connection = DriverManager.getConnection("jdbc:h2:mem:gbase8s_server_" + SERVER_DB_COUNTER.incrementAndGet());
                 Statement statement = connection.createStatement();
                 statement.execute("CREATE TABLE sample (id BIGINT, name VARCHAR(64))");
                 statement.execute("INSERT INTO sample VALUES (1, 'alpha')");
                 statement.execute("INSERT INTO sample VALUES (2, 'beta')");
+                statement.execute("CREATE SCHEMA gbasedbt");
+                statement.execute("CREATE TABLE gbasedbt.sample (id BIGINT NOT NULL, name VARCHAR(64))");
+                statement.execute("INSERT INTO gbasedbt.sample VALUES (1, 'alpha')");
+                statement.execute("INSERT INTO gbasedbt.sample VALUES (2, 'beta')");
                 statement.execute("CREATE TABLE sysusers (username VARCHAR(64))");
                 statement.execute("INSERT INTO sysusers VALUES ('gbasedbt')");
                 statement.execute("CREATE TABLE systables (tabid INT, tabname VARCHAR(64), owner VARCHAR(64), tabtype CHAR(1))");
