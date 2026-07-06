@@ -241,7 +241,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.6");
+        result.put("extension_version", "0.1.7");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -1141,20 +1141,10 @@ public final class GBase8sIpcServer {
         List<String> defs = new ArrayList<String>();
         List<String> primary = new ArrayList<String>();
         for (JsonNode col : spec.path("columns")) {
-            String name = requiredText(col, "name");
-            String type = requiredText(col, "type");
-            StringBuilder def = new StringBuilder();
-            def.append(qualifiedIdentifier("", "", name)).append(' ').append(type);
-            if (col.has("nullable") && !col.path("nullable").asBoolean(true)) {
-                def.append(" NOT NULL");
-            }
-            if (col.has("default") && !col.path("default").isNull()) {
-                def.append(" DEFAULT ").append(col.path("default").asText());
-            }
             if (col.path("is_primary").asBoolean(false)) {
-                primary.add(name);
+                primary.add(requiredText(col, "name"));
             }
-            defs.add(def.toString());
+            defs.add(columnDefinition(col));
         }
         JsonNode pk = spec.path("primary_key");
         if (pk.isArray()) {
@@ -1181,18 +1171,76 @@ public final class GBase8sIpcServer {
 
     private JsonNode handleDdlBuildAlterTable(JsonNode id, JsonNode params) {
         JsonNode toSpec = params.path("to_spec");
+        JsonNode fromSpec = params.path("from_spec");
         String table = requiredText(toSpec, "name");
         String schema = optionalText(toSpec, "schema", "");
+        JsonNode options = params.path("options");
+        boolean withRollback = options.path("with_rollback").asBoolean(false);
+        boolean allowDestructive = options.path("allow_destructive").asBoolean(false);
         List<String> statements = new ArrayList<String>();
+        List<String> rollback = new ArrayList<String>();
+        List<String> warnings = new ArrayList<String>();
+        Map<String, JsonNode> fromColumns = columnsByName(fromSpec.path("columns"));
+        Map<String, JsonNode> toColumns = columnsByName(toSpec.path("columns"));
+        String tableName = qualifiedIdentifier("", schema, table);
         for (JsonNode rename : params.path("column_renames")) {
-            statements.add("ALTER TABLE " + qualifiedIdentifier("", schema, table) + " RENAME COLUMN "
-                + quote(rename.path("old_name").asText()) + " TO " + quote(rename.path("new_name").asText()));
+            String oldName = rename.path("old_name").asText("");
+            String newName = rename.path("new_name").asText("");
+            if (!oldName.trim().isEmpty() && !newName.trim().isEmpty() && !oldName.equals(newName)) {
+                statements.add("ALTER TABLE " + tableName + " RENAME COLUMN " + quote(oldName) + " TO " + quote(newName));
+                if (withRollback) {
+                    rollback.add(0, "ALTER TABLE " + tableName + " RENAME COLUMN " + quote(newName) + " TO " + quote(oldName));
+                }
+            }
+        }
+        for (JsonNode column : toSpec.path("columns")) {
+            String name = column.path("name").asText("");
+            if (!name.isEmpty() && !fromColumns.containsKey(name)) {
+                statements.add("ALTER TABLE " + tableName + " ADD " + columnDefinition(column));
+                if (withRollback) {
+                    rollback.add(0, "ALTER TABLE " + tableName + " DROP " + quote(name));
+                }
+            }
+        }
+        if (allowDestructive) {
+            for (JsonNode column : fromSpec.path("columns")) {
+                String name = column.path("name").asText("");
+                if (!name.isEmpty() && !toColumns.containsKey(name)) {
+                    statements.add("ALTER TABLE " + tableName + " DROP " + quote(name));
+                    warnings.add("drop column may lose data: " + name);
+                }
+            }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("statements", statements);
-        result.put("rollback_statements", new ArrayList<String>());
-        result.put("warnings", new ArrayList<String>());
+        result.put("rollback_statements", rollback);
+        result.put("warnings", warnings);
         return ok(id, result);
+    }
+
+    private String columnDefinition(JsonNode col) {
+        String name = requiredText(col, "name");
+        String type = requiredText(col, "type");
+        StringBuilder def = new StringBuilder();
+        def.append(qualifiedIdentifier("", "", name)).append(' ').append(type);
+        if (col.has("nullable") && !col.path("nullable").asBoolean(true)) {
+            def.append(" NOT NULL");
+        }
+        if (col.has("default") && !col.path("default").isNull() && !col.path("default").asText("").isEmpty()) {
+            def.append(" DEFAULT ").append(col.path("default").asText());
+        }
+        return def.toString();
+    }
+
+    private Map<String, JsonNode> columnsByName(JsonNode columns) {
+        Map<String, JsonNode> result = new LinkedHashMap<String, JsonNode>();
+        for (JsonNode column : columns) {
+            String name = column.path("name").asText("");
+            if (!name.isEmpty()) {
+                result.put(name, column);
+            }
+        }
+        return result;
     }
 
     private JsonNode handleDdlBuildDrop(JsonNode id, JsonNode params) {

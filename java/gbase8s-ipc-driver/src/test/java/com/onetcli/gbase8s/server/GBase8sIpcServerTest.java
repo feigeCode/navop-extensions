@@ -37,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.6", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.7", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -188,8 +188,22 @@ public class GBase8sIpcServerTest {
             create.get("result").get("sql").asText()
         );
 
-        JsonNode drop = server.handle(request(
+        JsonNode alter = server.handle(request(
             3,
+            "ddl/build_alter_table",
+            "{\"from_spec\":{\"schema\":\"testuser\",\"name\":\"probe_table\",\"columns\":[{\"name\":\"id\",\"type\":\"INT\",\"nullable\":false},{\"name\":\"name\",\"type\":\"VARCHAR(20)\",\"nullable\":true}]},\"to_spec\":{\"schema\":\"testuser\",\"name\":\"probe_table\",\"columns\":[{\"name\":\"id\",\"type\":\"INT\",\"nullable\":false},{\"name\":\"name\",\"type\":\"VARCHAR(20)\",\"nullable\":true},{\"name\":\"age\",\"type\":\"INT\",\"nullable\":true}]},\"column_renames\":[],\"options\":{\"with_rollback\":true}}"
+        ));
+        assertEquals(
+            "ALTER TABLE testuser.probe_table ADD age INT",
+            alter.get("result").get("statements").get(0).asText()
+        );
+        assertEquals(
+            "ALTER TABLE testuser.probe_table DROP age",
+            alter.get("result").get("rollback_statements").get(0).asText()
+        );
+
+        JsonNode drop = server.handle(request(
+            4,
             "ddl/build_drop",
             "{\"kind\":\"table\",\"database\":\"testdb\",\"schema\":\"testuser\",\"name\":\"probe_table\"}"
         ));
