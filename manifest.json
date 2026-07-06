@@ -126,8 +126,8 @@
       "id": "gbase8s",
       "kind": "database_driver",
       "name": "GBase 8s",
-      "version": "0.1.11",
-      "release_tag": "gbase8s-v0.1.11",
+      "version": "0.1.12",
+      "release_tag": "gbase8s-v0.1.12",
       "description": "使用 Java 开发的南大通用 GBase 8s 数据库 IPC 驱动",
       "file_extensions": [],
       "manifest": "gbase8s/manifest.json"
