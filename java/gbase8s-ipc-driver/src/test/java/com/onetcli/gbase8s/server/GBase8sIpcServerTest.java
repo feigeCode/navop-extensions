@@ -37,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.8", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.9", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -249,10 +249,11 @@ public class GBase8sIpcServerTest {
                 statement.execute("INSERT INTO sample VALUES (2, 'beta')");
                 statement.execute("CREATE TABLE sysusers (username VARCHAR(64))");
                 statement.execute("INSERT INTO sysusers VALUES ('gbasedbt')");
-                statement.execute("CREATE TABLE systables (tabid INT, tabname VARCHAR(64), tabtype CHAR(1))");
-                statement.execute("INSERT INTO systables VALUES (99, 'parent_sample', 'T')");
-                statement.execute("INSERT INTO systables VALUES (100, 'sample', 'T')");
-                statement.execute("INSERT INTO systables VALUES (101, 'v_sample', 'V')");
+                statement.execute("CREATE TABLE systables (tabid INT, tabname VARCHAR(64), owner VARCHAR(64), tabtype CHAR(1))");
+                statement.execute("INSERT INTO systables VALUES (99, 'parent_sample', 'gbasedbt   ', 'T')");
+                statement.execute("INSERT INTO systables VALUES (100, 'sample', 'gbasedbt   ', 'T')");
+                statement.execute("INSERT INTO systables VALUES (101, 'v_sample', 'gbasedbt   ', 'V')");
+                statement.execute("INSERT INTO systables VALUES (102, 'sample', 'otheruser  ', 'T')");
                 statement.execute("CREATE TABLE syscolumns (tabid INT, colno INT, colname VARCHAR(64), coltype INT)");
                 statement.execute("INSERT INTO syscolumns VALUES (99, 1, 'id', 258)");
                 statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'id', 258)");
