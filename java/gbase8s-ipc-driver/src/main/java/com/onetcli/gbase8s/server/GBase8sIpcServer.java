@@ -111,6 +111,9 @@ public final class GBase8sIpcServer {
         if ("schema/columns".equals(method)) {
             return handleSchemaColumns(id, params);
         }
+        if ("schema/indexes".equals(method)) {
+            return handleSchemaIndexes(id, params);
+        }
         if ("schema/views".equals(method)) {
             return handleSchemaViews(id, params);
         }
@@ -180,7 +183,7 @@ public final class GBase8sIpcServer {
         if ("stream/close".equals(method)) {
             return handleStreamClose(id, params);
         }
-        if ("schema/indexes".equals(method) || "schema/foreign_keys".equals(method) || "schema/checks".equals(method)
+        if ("schema/foreign_keys".equals(method) || "schema/checks".equals(method)
             || "schema/functions".equals(method) || "schema/procedures".equals(method)
             || "schema/triggers".equals(method) || "schema/sequences".equals(method) || "schema/types".equals(method)) {
             return ok(id, new ArrayList<Map<String, Object>>());
@@ -228,7 +231,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.2");
+        result.put("extension_version", "0.1.4");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -310,7 +313,7 @@ public final class GBase8sIpcServer {
         if (state == null) {
             return lastError;
         }
-        QueryResult query = queryRunner.queryBuffered(state.connection, GBase8sSchemaSql.databasesSql(), null, null);
+        QueryResult query = queryRunner.queryBufferedStatement(state.connection, GBase8sSchemaSql.databasesSql(), null);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (List<Map<String, Object>> row : query.getRows()) {
             Map<String, Object> database = new LinkedHashMap<String, Object>();
@@ -365,6 +368,8 @@ public final class GBase8sIpcServer {
                 continue;
             }
             Map<String, Object> object = new LinkedHashMap<String, Object>();
+            object.put("database", database);
+            object.put("schema", schema);
             object.put("name", rowString(row, 0));
             object.put("kind", kind);
             object.put("comment", rowString(row, 2));
@@ -386,6 +391,7 @@ public final class GBase8sIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         String table = requiredText(params, "table");
+        List<String> primaryColumns = primaryKeyColumns(state.connection, database, schema, table);
         QueryResult query = queryRunner.queryBuffered(
             state.connection,
             GBase8sSchemaSql.columnsSql(database, schema, table),
@@ -402,7 +408,7 @@ public final class GBase8sIpcServer {
             column.put("raw_type", rawType);
             column.put("nullable", Boolean.valueOf(nullable(rowString(row, 3))));
             column.put("default", rowValue(row, 4));
-            column.put("is_primary", Boolean.FALSE);
+            column.put("is_primary", Boolean.valueOf(primaryColumns.contains(rowString(row, 1))));
             column.put("is_unique", Boolean.FALSE);
             column.put("is_partition_key", Boolean.FALSE);
             column.put("is_clustering_key", Boolean.FALSE);
@@ -413,6 +419,18 @@ public final class GBase8sIpcServer {
             column.put("extra", new LinkedHashMap<String, Object>());
             result.add(column);
         }
+        return ok(id, result);
+    }
+
+    private JsonNode handleSchemaIndexes(JsonNode id, JsonNode params) throws SQLException {
+        ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
+        if (state == null) {
+            return lastError;
+        }
+        String database = optionalText(params, "database", state.config.getDatabase());
+        String schema = optionalText(params, "schema", "");
+        String table = requiredText(params, "table");
+        List<Map<String, Object>> result = readIndexes(state.connection, database, schema, table);
         return ok(id, result);
     }
 
@@ -432,6 +450,8 @@ public final class GBase8sIpcServer {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (List<Map<String, Object>> row : query.getRows()) {
             Map<String, Object> view = new LinkedHashMap<String, Object>();
+            view.put("database", database);
+            view.put("schema", schema);
             view.put("name", rowString(row, 0));
             view.put("kind", rowString(row, 1));
             view.put("definition_sql", rowString(row, 2));
@@ -451,7 +471,7 @@ public final class GBase8sIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         if ("databases".equals(view)) {
-            QueryResult query = queryRunner.queryBuffered(state.connection, GBase8sSchemaSql.databasesSql(), null, null);
+            QueryResult query = queryRunner.queryBufferedStatement(state.connection, GBase8sSchemaSql.databasesSql(), null);
             List<List<String>> rows = new ArrayList<List<String>>();
             for (List<Map<String, Object>> row : query.getRows()) {
                 rows.add(rowValues(rowString(row, 0)));
@@ -508,7 +528,18 @@ public final class GBase8sIpcServer {
             return ok(id, objectView("Columns", columnObjectViewColumns(), rows));
         }
         if ("indexes".equals(view)) {
-            return ok(id, objectView("Indexes", indexObjectViewColumns(), new ArrayList<List<String>>()));
+            String table = requiredText(params, "table");
+            List<List<String>> rows = new ArrayList<List<String>>();
+            for (Map<String, Object> index : readIndexes(state.connection, database, schema, table)) {
+                rows.add(rowValues(
+                    String.valueOf(index.get("name")),
+                    join(stringList(index.get("columns")), ", "),
+                    String.valueOf(index.get("is_unique")),
+                    String.valueOf(index.get("is_primary")),
+                    String.valueOf(index.get("type"))
+                ));
+            }
+            return ok(id, objectView("Indexes", indexObjectViewColumns(), rows));
         }
         if ("functions".equals(view)) {
             return ok(id, objectView("Functions", objectViewColumns("name", "Name", "returns", "Returns", "language", "Language", "comment", "Comment"), new ArrayList<List<String>>()));
@@ -575,6 +606,85 @@ public final class GBase8sIpcServer {
             row.add(value == null ? "" : value);
         }
         return row;
+    }
+
+    private List<String> primaryKeyColumns(Connection connection, String database, String schema, String table) {
+        List<String> columns = new ArrayList<String>();
+        try {
+            QueryResult query = queryRunner.queryBuffered(
+                connection,
+                GBase8sSchemaSql.primaryKeyColumnsSql(database, schema, table),
+                null,
+                null
+            );
+            for (List<Map<String, Object>> row : query.getRows()) {
+                String column = rowString(row, 0);
+                if (!column.isEmpty() && !columns.contains(column)) {
+                    columns.add(column);
+                }
+            }
+        } catch (SQLException error) {
+            return new ArrayList<String>();
+        }
+        return columns;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?>) {
+            List<String> out = new ArrayList<String>();
+            for (Object item : (List<Object>) value) {
+                out.add(String.valueOf(item));
+            }
+            return out;
+        }
+        return new ArrayList<String>();
+    }
+
+    private List<Map<String, Object>> readIndexes(Connection connection, String database, String schema, String table) {
+        Map<String, Map<String, Object>> indexes = new LinkedHashMap<String, Map<String, Object>>();
+        try {
+            QueryResult query = queryRunner.queryBuffered(
+                connection,
+                GBase8sSchemaSql.indexesSql(database, schema, table),
+                null,
+                null
+            );
+            for (List<Map<String, Object>> row : query.getRows()) {
+                String name = rowString(row, 0);
+                if (name.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> index = indexes.get(name);
+                if (index == null) {
+                    boolean primary = "YES".equalsIgnoreCase(rowString(row, 2));
+                    String type = rowString(row, 1);
+                    index = new LinkedHashMap<String, Object>();
+                    index.put("database", database);
+                    index.put("schema", schema);
+                    index.put("table", table);
+                    index.put("name", name);
+                    index.put("columns", new ArrayList<String>());
+                    index.put("is_unique", Boolean.valueOf(primary || "U".equalsIgnoreCase(type)));
+                    index.put("is_primary", Boolean.valueOf(primary));
+                    index.put("type", primary ? "PRIMARY" : ("U".equalsIgnoreCase(type) ? "UNIQUE" : "INDEX"));
+                    index.put("comment", "");
+                    index.put("extra", new LinkedHashMap<String, Object>());
+                    indexes.put(name, index);
+                }
+                String column = rowString(row, 3);
+                if (!column.isEmpty()) {
+                    List<String> columns = stringList(index.get("columns"));
+                    if (!columns.contains(column)) {
+                        columns.add(column);
+                    }
+                    index.put("columns", columns);
+                }
+            }
+        } catch (SQLException error) {
+            return new ArrayList<Map<String, Object>>();
+        }
+        return new ArrayList<Map<String, Object>>(indexes.values());
     }
 
     private String titleForObjectView(String view) {
@@ -1038,14 +1148,11 @@ public final class GBase8sIpcServer {
     }
 
     private static String quote(String name) {
-        return "\"" + name.replace("\"", "\"\"") + "\"";
+        return name;
     }
 
     private static String qualifiedIdentifier(String database, String schema, String name) {
         List<String> parts = new ArrayList<String>();
-        if (database != null && !database.trim().isEmpty()) {
-            parts.add(quote(database));
-        }
         if (schema != null && !schema.trim().isEmpty()) {
             parts.add(quote(schema));
         }
@@ -1199,7 +1306,7 @@ public final class GBase8sIpcServer {
 
     private String rowString(List<Map<String, Object>> row, int index) {
         Object value = rowValue(row, index);
-        return value == null ? "" : String.valueOf(value);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private int rowInt(List<Map<String, Object>> row, int index) {
@@ -1275,7 +1382,7 @@ public final class GBase8sIpcServer {
     }
 
     private String textOrEmpty(JsonNode node) {
-        return node == null || node.isNull() ? "" : node.asText("");
+        return node == null || node.isNull() ? "" : node.asText("").trim();
     }
 
     private JsonNode ok(JsonNode id, Object result) {

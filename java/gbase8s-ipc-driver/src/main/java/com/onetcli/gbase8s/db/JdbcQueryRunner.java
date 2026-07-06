@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -27,6 +28,23 @@ public final class JdbcQueryRunner {
         try {
             bindParams(statement, params);
             ResultSet resultSet = statement.executeQuery();
+            try {
+                ResultSetMetaData meta = resultSet.getMetaData();
+                List<Map<String, Object>> columns = columns(meta);
+                List<List<Map<String, Object>>> rows = rows(resultSet, meta, maxRows);
+                return new QueryResult(columns, rows);
+            } finally {
+                resultSet.close();
+            }
+        } finally {
+            statement.close();
+        }
+    }
+
+    public QueryResult queryBufferedStatement(Connection connection, String sql, Integer maxRows) throws SQLException {
+        Statement statement = connection.createStatement();
+        try {
+            ResultSet resultSet = statement.executeQuery(sql);
             try {
                 ResultSetMetaData meta = resultSet.getMetaData();
                 List<Map<String, Object>> columns = columns(meta);

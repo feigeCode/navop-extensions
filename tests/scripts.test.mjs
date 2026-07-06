@@ -132,6 +132,8 @@ test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   assert.equal(driverJson.entry.command, "./gbase8s-ipc-driver");
   assert.equal(driverJson.entry.commands.windows, "./gbase8s-ipc-driver.cmd");
   assert.equal(driverJson.entry.env_from_config.GBASE8S_JDK_HOME, "extra_params.jdk_home");
+  assert.equal(driverJson.dialect.identifier_quote_left, "");
+  assert.equal(driverJson.dialect.identifier_quote_right, "");
   assert.ok(
     fs.existsSync(
       path.join(
@@ -1549,6 +1551,76 @@ test("build-java-driver stages launcher and shaded jar into target release direc
   );
   assert.ok(
     fs.existsSync(path.join(workdir, "target/x86_64-unknown-linux-gnu/release/gbase8s-ipc-driver")),
+  );
+});
+
+test("build-java-driver rebuilds stale shaded jars before staging", () => {
+  const workdir = makeTempDir();
+  copyScript("build-java-driver.sh", workdir);
+  writeJson(path.join(workdir, "extensions/ipc/gbase8s/extension.build.json"), {
+    id: "gbase8s",
+    kind: "database_driver",
+    language: "java",
+    package: "java/gbase8s-ipc-driver",
+    binary: "gbase8s-ipc-driver",
+    jar: "gbase8s-ipc-driver.jar",
+    path: "extensions/ipc/gbase8s",
+    targets: ["universal"],
+  });
+  const projectDir = path.join(workdir, "java/gbase8s-ipc-driver");
+  fs.mkdirSync(path.join(projectDir, "target"), { recursive: true });
+  fs.mkdirSync(path.join(projectDir, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(projectDir, "pom.xml"), "<project />\n");
+  fs.writeFileSync(
+    path.join(projectDir, "target/gbase8s-ipc-driver-0.1.0-all.jar"),
+    "stale shaded jar\n",
+  );
+  fs.writeFileSync(path.join(projectDir, "bin/gbase8s-ipc-driver"), "#!/usr/bin/env sh\n");
+  fs.writeFileSync(path.join(projectDir, "bin/gbase8s-ipc-driver.cmd"), "@echo off\r\n");
+
+  const binDir = path.join(workdir, "fake-bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  const mvnPath = path.join(binDir, "mvn");
+  fs.writeFileSync(
+    mvnPath,
+    [
+      "#!/usr/bin/env sh",
+      "set -eu",
+      "project=''",
+      "while [ \"$#\" -gt 0 ]; do",
+      "  if [ \"$1\" = '-f' ]; then",
+      "    project=\"$2\"",
+      "    shift 2",
+      "  else",
+      "    shift",
+      "  fi",
+      "done",
+      "target_dir=\"$(dirname \"$project\")/target\"",
+      "mkdir -p \"$target_dir\"",
+      "printf 'fresh shaded jar\\n' > \"$target_dir/gbase8s-ipc-driver-0.1.2-all.jar\"",
+      "",
+    ].join("\n"),
+  );
+  fs.chmodSync(mvnPath, 0o755);
+
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/build-java-driver.sh"), "gbase8s", "universal"],
+    {
+      cwd: workdir,
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.equal(
+    fs.readFileSync(
+      path.join(workdir, "target/universal/release/lib/gbase8s-ipc-driver.jar"),
+      "utf8",
+    ),
+    "fresh shaded jar\n",
   );
 });
 

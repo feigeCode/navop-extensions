@@ -43,11 +43,11 @@ public final class GBase8sConfig {
         }
         Map<String, String> extra = readExtraParams(raw);
         GBase8sConfig config = new GBase8sConfig(
-            stringValue(raw, "host"),
+            trimmedStringValue(raw, "host"),
             portValue(raw.get("port")),
-            stringValue(raw, "username"),
+            trimmedStringValue(raw, "username"),
             stringValue(raw, "password"),
-            stringValue(raw, "database"),
+            trimmedStringValue(raw, "database"),
             defaultString(configString(raw, extra, "driver_class"), DEFAULT_DRIVER_CLASS),
             configString(raw, extra, "jdbc_jar"),
             extra
@@ -80,7 +80,7 @@ public final class GBase8sConfig {
         if (key.startsWith("extra_params.")) {
             key = key.substring("extra_params.".length());
         }
-        out.put(key, value);
+        out.put(key.trim(), value.trim());
     }
 
     private void validate() {
@@ -106,8 +106,12 @@ public final class GBase8sConfig {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private static String trimmedStringValue(Map<String, Object> raw, String key) {
+        return stringValue(raw, key).trim();
+    }
+
     private static String configString(Map<String, Object> raw, Map<String, String> extra, String key) {
-        String value = stringValue(raw, key);
+        String value = trimmedStringValue(raw, key);
         if (value != null && !value.trim().isEmpty()) {
             return value;
         }

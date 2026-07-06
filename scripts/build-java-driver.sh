@@ -43,17 +43,13 @@ if [ ! -d "$PROJECT_DIR" ]; then
 fi
 
 shopt -s nullglob
+if [ -f "${PROJECT_DIR}/pom.xml" ]; then
+  rm -f "${PROJECT_DIR}"/target/*-all.jar
+  mvn -f "${PROJECT_DIR}/pom.xml" -DskipTests package
+fi
 existing_jars=("${PROJECT_DIR}"/target/*-all.jar)
 if [ "${#existing_jars[@]}" -eq 0 ]; then
-  if [ ! -f "${PROJECT_DIR}/pom.xml" ]; then
-    echo "Missing Java shaded jar and pom.xml under ${PROJECT_DIR}" >&2
-    exit 1
-  fi
-  mvn -f "${PROJECT_DIR}/pom.xml" -DskipTests package
-  existing_jars=("${PROJECT_DIR}"/target/*-all.jar)
-fi
-if [ "${#existing_jars[@]}" -eq 0 ]; then
-  echo "Missing shaded Java driver jar under ${PROJECT_DIR}/target" >&2
+  echo "Missing shaded Java driver jar under ${PROJECT_DIR}/target and no pom.xml was available to build it" >&2
   exit 1
 fi
 

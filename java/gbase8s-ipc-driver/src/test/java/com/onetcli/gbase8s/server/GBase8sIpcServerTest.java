@@ -7,7 +7,13 @@ import org.junit.Test;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -31,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.2", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.4", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -83,10 +89,14 @@ public class GBase8sIpcServerTest {
         assertEquals("gbasedbt", schemas.get("result").get(0).get("owner").asText());
 
         JsonNode objects = server.handle(request(4, "schema/objects", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"kinds\":[\"table\"]}"));
+        assertEquals("stores", objects.get("result").get(0).get("database").asText());
+        assertEquals("gbasedbt", objects.get("result").get(0).get("schema").asText());
         assertEquals("sample", objects.get("result").get(0).get("name").asText());
         assertEquals("table", objects.get("result").get(0).get("kind").asText());
 
         JsonNode views = server.handle(request(5, "schema/views", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        assertEquals("stores", views.get("result").get(0).get("database").asText());
+        assertEquals("gbasedbt", views.get("result").get(0).get("schema").asText());
         assertEquals("v_sample", views.get("result").get(0).get("name").asText());
         assertEquals("view", views.get("result").get(0).get("kind").asText());
         assertEquals("", views.get("result").get(0).get("definition_sql").asText());
@@ -94,9 +104,16 @@ public class GBase8sIpcServerTest {
         JsonNode columns = server.handle(request(6, "schema/columns", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals(1, columns.get("result").get(0).get("ordinal").asInt());
         assertEquals("id", columns.get("result").get(0).get("name").asText());
+        assertEquals(true, columns.get("result").get(0).get("is_primary").asBoolean());
         assertEquals(false, columns.get("result").get(0).get("nullable").asBoolean());
 
-        JsonNode columnView = server.handle(request(7, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        JsonNode indexes = server.handle(request(7, "schema/indexes", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        assertEquals("pk_sample", indexes.get("result").get(0).get("name").asText());
+        assertEquals("id", indexes.get("result").get(0).get("columns").get(0).asText());
+        assertEquals(true, indexes.get("result").get(0).get("is_primary").asBoolean());
+        assertEquals(true, indexes.get("result").get(0).get("is_unique").asBoolean());
+
+        JsonNode columnView = server.handle(request(8, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("Columns", columnView.get("result").get("title").asText());
         assertEquals("name", columnView.get("result").get("columns").get(0).get("key").asText());
         assertEquals("Field", columnView.get("result").get("columns").get(0).get("name").asText());
@@ -104,10 +121,61 @@ public class GBase8sIpcServerTest {
         assertEquals("id", columnView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("INTEGER", columnView.get("result").get("rows").get(0).get(1).asText());
 
-        JsonNode tableView = server.handle(request(8, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        JsonNode tableView = server.handle(request(9, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
         assertEquals("Tables", tableView.get("result").get("title").asText());
         assertEquals("name", tableView.get("result").get("columns").get(0).get("key").asText());
         assertEquals(220, tableView.get("result").get("columns").get(0).get("width_px").asInt());
+
+        JsonNode indexView = server.handle(request(10, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        assertEquals("Indexes", indexView.get("result").get("title").asText());
+        assertEquals("pk_sample", indexView.get("result").get("rows").get(0).get(0).asText());
+        assertEquals("id", indexView.get("result").get("rows").get(0).get(1).asText());
+    }
+
+    @Test
+    public void ddlBuildersUseUnquotedGBaseIdentifiers() throws Exception {
+        GBase8sIpcServer server = newServer();
+        server.handle(request(1, "init", "{}"));
+
+        JsonNode create = server.handle(request(
+            2,
+            "ddl/build_create_table",
+            "{\"spec\":{\"schema\":\"testuser\",\"name\":\"probe_table\",\"columns\":[{\"name\":\"id\",\"type\":\"INT\",\"nullable\":false,\"is_primary\":true},{\"name\":\"name\",\"type\":\"VARCHAR(20)\",\"nullable\":true}],\"primary_key\":[\"id\"]},\"options\":{}}"
+        ));
+        assertEquals(
+            "CREATE TABLE testuser.probe_table (id INT NOT NULL, name VARCHAR(20), PRIMARY KEY (id))",
+            create.get("result").get("sql").asText()
+        );
+
+        JsonNode drop = server.handle(request(
+            3,
+            "ddl/build_drop",
+            "{\"kind\":\"table\",\"database\":\"testdb\",\"schema\":\"testuser\",\"name\":\"probe_table\"}"
+        ));
+        assertEquals("DROP TABLE testuser.probe_table", drop.get("result").get("sql").asText());
+    }
+
+    @Test
+    public void schemaDatabasesUsesStatementForCrossDatabaseCatalogSql() throws Exception {
+        GBase8sIpcServer server = new GBase8sIpcServer(new JdbcConnectionFactory() {
+            @Override
+            public Connection open(GBase8sConfig config) {
+                return catalogConnection();
+            }
+        });
+        server.handle(request(1, "init", "{}"));
+        long connId = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"))
+            .get("result")
+            .get("conn_id")
+            .asLong();
+
+        JsonNode databases = server.handle(request(3, "schema/databases", "{\"conn_id\":" + connId + "}"));
+
+        assertTrue(databases.toString(), databases.has("result"));
+        assertEquals("testdb", databases.get("result").get(0).get("name").asText());
+
+        JsonNode databaseView = server.handle(request(4, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"databases\"}"));
+        assertEquals("testdb", databaseView.get("result").get("rows").get(0).get(0).asText());
     }
 
     private GBase8sIpcServer newServer() {
@@ -128,6 +196,10 @@ public class GBase8sIpcServerTest {
                 statement.execute("CREATE TABLE syscolumns (tabid INT, colno INT, colname VARCHAR(64), coltype INT)");
                 statement.execute("INSERT INTO syscolumns VALUES (100, 0, 'id', 258)");
                 statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'name', 13)");
+                statement.execute("CREATE TABLE sysconstraints (constrid INT, constrname VARCHAR(64), owner VARCHAR(64), tabid INT, constrtype CHAR(1), idxname VARCHAR(64), collation VARCHAR(64))");
+                statement.execute("INSERT INTO sysconstraints VALUES (1, 'pk_sample', 'gbasedbt', 100, 'P', 'pk_sample', '')");
+                statement.execute("CREATE TABLE sysindexes (idxname VARCHAR(64), owner VARCHAR(64), tabid INT, idxtype CHAR(1), clustered CHAR(1), part1 INT, part2 INT, part3 INT, part4 INT, part5 INT, part6 INT, part7 INT, part8 INT, part9 INT, part10 INT, part11 INT, part12 INT, part13 INT, part14 INT, part15 INT, part16 INT)");
+                statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'gbasedbt', 100, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.close();
                 return connection;
             }
@@ -140,5 +212,106 @@ public class GBase8sIpcServerTest {
 
     private static String configJson() {
         return "{\"host\":\"127.0.0.1\",\"username\":\"gbasedbt\",\"password\":\"secret\",\"database\":\"stores\",\"extra_params\":{\"GBASEDBTSERVER\":\"gbase01\",\"PROTOCOL\":\"onsoctcp\"}}";
+    }
+
+    private static Connection catalogConnection() {
+        return (Connection) Proxy.newProxyInstance(
+            GBase8sIpcServerTest.class.getClassLoader(),
+            new Class<?>[]{Connection.class},
+            new InvocationHandler() {
+                @Override
+                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                    String name = method.getName();
+                    if ("isValid".equals(name)) {
+                        return Boolean.TRUE;
+                    }
+                    if ("createStatement".equals(name)) {
+                        return catalogStatement();
+                    }
+                    if ("prepareStatement".equals(name)) {
+                        throw new SQLException("prepared sysmaster catalog query is not supported");
+                    }
+                    if ("close".equals(name)) {
+                        return null;
+                    }
+                    throw new UnsupportedOperationException(name);
+                }
+            }
+        );
+    }
+
+    private static Statement catalogStatement() {
+        return (Statement) Proxy.newProxyInstance(
+            GBase8sIpcServerTest.class.getClassLoader(),
+            new Class<?>[]{Statement.class},
+            new InvocationHandler() {
+                @Override
+                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                    String name = method.getName();
+                    if ("executeQuery".equals(name)) {
+                        return singleColumnResultSet("testdb    ");
+                    }
+                    if ("close".equals(name)) {
+                        return null;
+                    }
+                    throw new UnsupportedOperationException(name);
+                }
+            }
+        );
+    }
+
+    private static ResultSet singleColumnResultSet(final String value) {
+        return (ResultSet) Proxy.newProxyInstance(
+            GBase8sIpcServerTest.class.getClassLoader(),
+            new Class<?>[]{ResultSet.class},
+            new InvocationHandler() {
+                private int index = -1;
+
+                @Override
+                public Object invoke(Object proxy, Method method, Object[] args) {
+                    String name = method.getName();
+                    if ("next".equals(name)) {
+                        index++;
+                        return Boolean.valueOf(index == 0);
+                    }
+                    if ("getMetaData".equals(name)) {
+                        return singleColumnMetaData();
+                    }
+                    if ("getObject".equals(name)) {
+                        return value;
+                    }
+                    if ("close".equals(name)) {
+                        return null;
+                    }
+                    throw new UnsupportedOperationException(name);
+                }
+            }
+        );
+    }
+
+    private static ResultSetMetaData singleColumnMetaData() {
+        return (ResultSetMetaData) Proxy.newProxyInstance(
+            GBase8sIpcServerTest.class.getClassLoader(),
+            new Class<?>[]{ResultSetMetaData.class},
+            new InvocationHandler() {
+                @Override
+                public Object invoke(Object proxy, Method method, Object[] args) {
+                    String name = method.getName();
+                    if ("getColumnCount".equals(name)) {
+                        return Integer.valueOf(1);
+                    }
+                    if ("getColumnTypeName".equals(name) || "getColumnLabel".equals(name)) {
+                        return "name";
+                    }
+                    if ("getColumnType".equals(name)) {
+                        return Integer.valueOf(java.sql.Types.VARCHAR);
+                    }
+                    if ("isNullable".equals(name)) {
+                        return Integer.valueOf(ResultSetMetaData.columnNullable);
+                    }
+                    throw new UnsupportedOperationException(name);
+                }
+            }
+        );
     }
 }
