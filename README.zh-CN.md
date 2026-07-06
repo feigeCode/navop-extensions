@@ -52,11 +52,15 @@ scripts/
   verify-remote-desktop-provider-package.sh
 tests/
   scripts.test.mjs
+docs/
+  superpowers/plans/  agent 开发流程使用的实现计划文档
 .codex/
   skills/ipc-driver-development/
 ```
 
 根目录下重复的 `ipc-driver-development/` skill 目录不再使用。驱动开发说明只保留在 `.codex/skills/ipc-driver-development/`。
+
+`docs/superpowers/plans/` 下的实现计划用于记录已经确认过的扩展开发方案。它们可以包含本地发现、验证步骤和后续实现任务，但不属于扩展运行时输入。
 
 ## 数据库驱动矩阵
 
