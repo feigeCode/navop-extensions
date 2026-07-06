@@ -17,6 +17,7 @@ import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class GBase8sIpcServerTest {
@@ -38,9 +39,10 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.10", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.13", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
+        assertFalse(init.get("result").get("methods").toString().contains("gbase8s/table_data"));
 
         JsonNode unknown = server.handle(request(2, "sql/format", "{\"sql\":\"select 1\"}"));
         assertEquals(-32601, unknown.get("error").get("code").asInt());
@@ -213,35 +215,6 @@ public class GBase8sIpcServerTest {
             "{\"kind\":\"table\",\"database\":\"testdb\",\"schema\":\"testuser\",\"name\":\"probe_table\"}"
         ));
         assertEquals("DROP TABLE testuser.probe_table", drop.get("result").get("sql").asText());
-    }
-
-    @Test
-    public void tableDataMethodReturnsHostTableDataResponseUsingSchemaReference() throws Exception {
-        GBase8sIpcServer server = newServer();
-        server.handle(request(1, "init", "{}"));
-        long connId = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"))
-            .get("result")
-            .get("conn_id")
-            .asLong();
-
-        JsonNode tableData = server.handle(request(
-            3,
-            "gbase8s/table_data",
-            "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\",\"page\":1,\"page_size\":25}"
-        ));
-
-        assertTrue(tableData.toString(), tableData.has("result"));
-        JsonNode result = tableData.get("result");
-        assertEquals(2, result.get("total_count").asInt());
-        assertEquals(1, result.get("page").asInt());
-        assertEquals(25, result.get("page_size").asInt());
-        assertEquals("SELECT * FROM gbasedbt.sample LIMIT 25 OFFSET 0", result.get("query_result").get("sql").asText());
-        assertEquals("ID", result.get("query_result").get("columns").get(0).asText());
-        assertEquals("BIGINT", result.get("query_result").get("column_meta").get(0).get("db_type").asText());
-        assertEquals("Integer", result.get("query_result").get("column_meta").get(0).get("field_type").asText());
-        assertEquals(false, result.get("query_result").get("column_meta").get(0).get("nullable").asBoolean());
-        assertEquals("1", result.get("query_result").get("rows").get(0).get(0).asText());
-        assertEquals("alpha", result.get("query_result").get("rows").get(0).get(1).asText());
     }
 
     @Test

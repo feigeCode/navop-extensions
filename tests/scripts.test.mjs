@@ -179,6 +179,16 @@ test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   }
 });
 
+test("GBase8s Java IPC driver does not declare driver-owned table data", () => {
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8s/driver.json"), "utf8"),
+  );
+
+  assert.equal(driverJson.query?.table_data_method, undefined);
+  assert.ok(!driverJson.methods.includes("gbase8s/table_data"));
+  assert.ok(!driverJson.methods.includes("x/gbase8s/table_data"));
+});
+
 test("IPC driver build metadata declares release and R2 manifest routing", () => {
   const ids = fs
     .readdirSync(path.join(repoRoot, "extensions/ipc"))
