@@ -37,7 +37,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.4", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.5", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
 
@@ -51,6 +51,7 @@ public class GBase8sIpcServerTest {
         server.handle(request(1, "init", "{}"));
 
         JsonNode open = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"));
+        assertTrue(open.toString(), open.has("result"));
         long connId = open.get("result").get("conn_id").asLong();
 
         JsonNode query = server.handle(request(3, "query/start", "{\"conn_id\":" + connId + ",\"sql\":\"SELECT id, name FROM sample ORDER BY id\",\"max_rows\":2}"));
@@ -79,8 +80,9 @@ public class GBase8sIpcServerTest {
     public void schemaMethodsReadGBase8sCatalogRows() throws Exception {
         GBase8sIpcServer server = newServer();
         server.handle(request(1, "init", "{}"));
-        long connId = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"))
-            .get("result")
+        JsonNode open = server.handle(request(2, "conn/open", "{\"driver_id\":\"gbase8s\",\"config\":" + configJson() + "}"));
+        assertTrue(open.toString(), open.has("result"));
+        long connId = open.get("result")
             .get("conn_id")
             .asLong();
 
@@ -112,8 +114,25 @@ public class GBase8sIpcServerTest {
         assertEquals("id", indexes.get("result").get(0).get("columns").get(0).asText());
         assertEquals(true, indexes.get("result").get(0).get("is_primary").asBoolean());
         assertEquals(true, indexes.get("result").get(0).get("is_unique").asBoolean());
+        JsonNode orderedIndex = findByName(indexes.get("result"), "zz_sample_name_id");
+        assertEquals("name", orderedIndex.get("columns").get(0).asText());
+        assertEquals("id", orderedIndex.get("columns").get(1).asText());
 
-        JsonNode columnView = server.handle(request(8, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        JsonNode foreignKeys = server.handle(request(8, "schema/foreign_keys", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        assertEquals(1, foreignKeys.get("result").size());
+        assertEquals("fk_sample_parent", foreignKeys.get("result").get(0).get("name").asText());
+        assertEquals("sample", foreignKeys.get("result").get(0).get("from_table").asText());
+        assertEquals("id", foreignKeys.get("result").get(0).get("from_columns").get(0).asText());
+        assertEquals("parent_sample", foreignKeys.get("result").get(0).get("to_table").asText());
+        assertEquals("id", foreignKeys.get("result").get(0).get("to_columns").get(0).asText());
+
+        JsonNode checks = server.handle(request(9, "schema/checks", "{\"conn_id\":" + connId + ",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        assertEquals(1, checks.get("result").size());
+        assertEquals("ck_sample_name", checks.get("result").get(0).get("name").asText());
+        assertEquals("sample", checks.get("result").get(0).get("table").asText());
+        assertEquals("name IS NOT NULL", checks.get("result").get(0).get("definition").asText());
+
+        JsonNode columnView = server.handle(request(10, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("Columns", columnView.get("result").get("title").asText());
         assertEquals("name", columnView.get("result").get("columns").get(0).get("key").asText());
         assertEquals("Field", columnView.get("result").get("columns").get(0).get("name").asText());
@@ -121,12 +140,12 @@ public class GBase8sIpcServerTest {
         assertEquals("id", columnView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("INTEGER", columnView.get("result").get("rows").get(0).get(1).asText());
 
-        JsonNode tableView = server.handle(request(9, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
+        JsonNode tableView = server.handle(request(11, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"stores\",\"schema\":\"gbasedbt\"}"));
         assertEquals("Tables", tableView.get("result").get("title").asText());
         assertEquals("name", tableView.get("result").get("columns").get(0).get("key").asText());
         assertEquals(220, tableView.get("result").get("columns").get(0).get("width_px").asInt());
 
-        JsonNode indexView = server.handle(request(10, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
+        JsonNode indexView = server.handle(request(12, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"stores\",\"schema\":\"gbasedbt\",\"table\":\"sample\"}"));
         assertEquals("Indexes", indexView.get("result").get("title").asText());
         assertEquals("pk_sample", indexView.get("result").get("rows").get(0).get(0).asText());
         assertEquals("id", indexView.get("result").get("rows").get(0).get(1).asText());
@@ -185,21 +204,33 @@ public class GBase8sIpcServerTest {
             public Connection open(GBase8sConfig config) throws Exception {
                 Connection connection = DriverManager.getConnection("jdbc:h2:mem:gbase8s_server_" + counter.incrementAndGet());
                 Statement statement = connection.createStatement();
-                statement.execute("CREATE TABLE sample (id BIGINT PRIMARY KEY, name VARCHAR(64))");
+                statement.execute("CREATE TABLE sample (id BIGINT, name VARCHAR(64))");
                 statement.execute("INSERT INTO sample VALUES (1, 'alpha')");
                 statement.execute("INSERT INTO sample VALUES (2, 'beta')");
                 statement.execute("CREATE TABLE sysusers (username VARCHAR(64))");
                 statement.execute("INSERT INTO sysusers VALUES ('gbasedbt')");
                 statement.execute("CREATE TABLE systables (tabid INT, tabname VARCHAR(64), tabtype CHAR(1))");
+                statement.execute("INSERT INTO systables VALUES (99, 'parent_sample', 'T')");
                 statement.execute("INSERT INTO systables VALUES (100, 'sample', 'T')");
                 statement.execute("INSERT INTO systables VALUES (101, 'v_sample', 'V')");
                 statement.execute("CREATE TABLE syscolumns (tabid INT, colno INT, colname VARCHAR(64), coltype INT)");
+                statement.execute("INSERT INTO syscolumns VALUES (99, 0, 'id', 258)");
                 statement.execute("INSERT INTO syscolumns VALUES (100, 0, 'id', 258)");
                 statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'name', 13)");
                 statement.execute("CREATE TABLE sysconstraints (constrid INT, constrname VARCHAR(64), owner VARCHAR(64), tabid INT, constrtype CHAR(1), idxname VARCHAR(64), collation VARCHAR(64))");
+                statement.execute("INSERT INTO sysconstraints VALUES (10, 'pk_parent_sample', 'gbasedbt', 99, 'P', 'pk_parent_sample', '')");
                 statement.execute("INSERT INTO sysconstraints VALUES (1, 'pk_sample', 'gbasedbt', 100, 'P', 'pk_sample', '')");
+                statement.execute("INSERT INTO sysconstraints VALUES (2, 'fk_sample_parent', 'gbasedbt', 100, 'R', 'zk_sample_parent', '')");
+                statement.execute("INSERT INTO sysconstraints VALUES (3, 'ck_sample_name', 'gbasedbt', 100, 'C', NULL, '')");
+                statement.execute("CREATE TABLE sysreferences (constrid INT, primary_id INT, ptabid INT, updrule CHAR(1), delrule CHAR(1), matchtype CHAR(1), pendant CHAR(1))");
+                statement.execute("INSERT INTO sysreferences VALUES (2, 10, 99, 'R', 'C', 'N', 'N')");
+                statement.execute("CREATE TABLE syschecks (constrid INT, type CHAR(1), seqno INT, checktext VARCHAR(255))");
+                statement.execute("INSERT INTO syschecks VALUES (3, 'T', 0, 'name IS NOT NULL')");
                 statement.execute("CREATE TABLE sysindexes (idxname VARCHAR(64), owner VARCHAR(64), tabid INT, idxtype CHAR(1), clustered CHAR(1), part1 INT, part2 INT, part3 INT, part4 INT, part5 INT, part6 INT, part7 INT, part8 INT, part9 INT, part10 INT, part11 INT, part12 INT, part13 INT, part14 INT, part15 INT, part16 INT)");
+                statement.execute("INSERT INTO sysindexes VALUES ('pk_parent_sample', 'gbasedbt', 99, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'gbasedbt', 100, 'U', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('zk_sample_parent', 'gbasedbt', 100, 'D', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+                statement.execute("INSERT INTO sysindexes VALUES ('zz_sample_name_id', 'gbasedbt', 100, 'D', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
                 statement.close();
                 return connection;
             }
@@ -208,6 +239,15 @@ public class GBase8sIpcServerTest {
 
     private JsonNode request(int id, String method, String params) throws Exception {
         return mapper.readTree("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"" + method + "\",\"params\":" + params + "}");
+    }
+
+    private JsonNode findByName(JsonNode rows, String name) {
+        for (JsonNode row : rows) {
+            if (name.equals(row.get("name").asText())) {
+                return row;
+            }
+        }
+        throw new AssertionError("missing row named " + name + ": " + rows);
     }
 
     private static String configJson() {
