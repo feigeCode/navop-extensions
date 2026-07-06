@@ -132,7 +132,7 @@ public final class GBase8sIpcServer {
         if ("query/start".equals(method)) {
             return handleQueryStart(id, params);
         }
-        if ("x/gbase8s/table_data".equals(method)) {
+        if ("gbase8s/table_data".equals(method)) {
             return handleTableData(id, params);
         }
         if ("cursor/fetch".equals(method)) {
@@ -233,7 +233,7 @@ public final class GBase8sIpcServer {
         String[] methodNames = new String[]{
             "$/ping", "shutdown", "conn/test", "conn/open", "conn/close", "conn/ping", "conn/use",
             "query/start", "cursor/fetch", "cursor/close", "cursor/cancel", "exec/run", "exec/batch",
-            "x/gbase8s/table_data",
+            "gbase8s/table_data",
             "tx/begin", "tx/commit", "tx/rollback", "tx/savepoint", "tx/release",
             "ddl/build", "ddl/build_create_table", "ddl/build_alter_table", "ddl/build_drop",
             "data/export", "data/import_begin", "data/import_chunk", "data/import_commit", "data/import_abort",
@@ -245,7 +245,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.11");
+        result.put("extension_version", "0.1.10");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
