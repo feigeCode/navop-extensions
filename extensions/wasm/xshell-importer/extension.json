@@ -3,7 +3,7 @@
   "id": "com.onetcli.importer.xshell",
   "name": "Xshell Importer",
   "description": "Rust WASM connection importer for Xshell",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "OnetCli",
   "engines": {
     "onetcli": ">=0.7.0"

@@ -106,8 +106,8 @@
       "id": "xshell-importer",
       "kind": "composite",
       "name": "Xshell Importer",
-      "version": "0.1.0",
-      "release_tag": "xshell-importer-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "xshell-importer-v0.1.1",
       "description": "Rust WASM connection importer for Xshell",
       "file_extensions": [],
       "manifest": "xshell-importer/manifest.json"
