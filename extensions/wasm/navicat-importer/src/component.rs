@@ -12,15 +12,16 @@ impl Guest for NavicatImporter {
         serde_json::json!({
             "id": "navicat",
             "display_name": "Navicat",
-            "description": "Import database connections from Navicat",
+            "description": "Import database connections from Navicat preference plists and connection exports",
             "icon": "database",
             "vendor": "OnetCli",
-            "supported_platforms": ["macos"],
+            "supported_platforms": ["macos", "windows"],
             "output_kinds": ["database"],
             "capabilities": {
                 "supports_scan": true,
                 "supports_password_import": false,
                 "supports_manual_file_pick": true,
+                "manual_file_pick_prompt": "选择 Navicat 导出的 connection.ncx 文件",
                 "supports_incremental_preview": false
             }
         })

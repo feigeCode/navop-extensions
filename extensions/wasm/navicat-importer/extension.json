@@ -2,8 +2,8 @@
   "schema_version": 1,
   "id": "com.onetcli.importer.navicat",
   "name": "Navicat Importer",
-  "description": "Rust WASM connection importer for Navicat",
-  "version": "0.1.0",
+  "description": "Rust WASM connection importer for Navicat preference plists and connection exports",
+  "version": "0.1.1",
   "publisher": "OnetCli",
   "engines": {
     "onetcli": ">=0.7.0"
@@ -41,7 +41,7 @@
         "id": "navicat",
         "runtimeId": "navicat-importer",
         "displayName": "Navicat",
-        "description": "Import database connections from Navicat preference plists",
+        "description": "Import database connections from Navicat preference plists and connection exports",
         "icon": "database",
         "outputKinds": [
           "database"
@@ -50,6 +50,9 @@
           "macos",
           "windows"
         ],
+        "manualFilePick": {
+          "prompt": "选择 Navicat 导出的 connection.ncx 文件"
+        },
         "candidateFiles": [
           {
             "id": "navicat-macos-premium",

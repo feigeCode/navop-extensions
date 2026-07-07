@@ -1,4 +1,5 @@
 use plist::{Dictionary, Value};
+use quick_xml::{Reader, events::Event};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::Cursor;
@@ -42,10 +43,14 @@ where
 {
     let mut records = Vec::new();
     for (path, bytes) in plists {
-        let Ok(value) = Value::from_reader(Cursor::new(bytes)) else {
+        if let Ok(value) = Value::from_reader(Cursor::new(bytes)) {
+            collect_records(&path, "", &value, &mut records);
+            continue;
+        }
+        let Ok(text) = std::str::from_utf8(bytes) else {
             continue;
         };
-        collect_records(&path, "", &value, &mut records);
+        records.extend(records_from_ncx(&path, text));
     }
     records
 }
@@ -86,17 +91,7 @@ fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<Imp
     .filter(|value| !value.eq_ignore_ascii_case("default"))
     .or_else(|| database_type_from_key_path(key_path))?;
     let database_type = database_type(&raw_type)?;
-    let host = text_field(
-        dict,
-        &["Host", "Hostname", "Server", "IP", "SocketHost", "host"],
-    )
-    .or_else(|| {
-        text_field(
-            dict,
-            &["DatabaseFile", "FilePath", "dbfilename", "savepath"],
-        )
-    })
-    .unwrap_or_default();
+    let host = database_host(dict, &database_type);
     if host.is_empty() && database_type != "sqlite" {
         return None;
     }
@@ -164,6 +159,80 @@ fn record_from_dict(path: &str, key_path: &str, dict: &Dictionary) -> Option<Imp
     })
 }
 
+fn records_from_ncx(path: &str, text: &str) -> Vec<ImportRecord> {
+    let mut reader = Reader::from_str(text);
+    reader.config_mut().trim_text(true);
+    let mut records = Vec::new();
+
+    loop {
+        match reader.read_event() {
+            Ok(Event::Start(event)) | Ok(Event::Empty(event)) => {
+                if tag_name(event.name().as_ref()) != "Connection" {
+                    continue;
+                }
+                let mut dict = Dictionary::new();
+                for attr in event.attributes().flatten() {
+                    let key = tag_name(attr.key.as_ref());
+                    let Ok(value) = attr.decode_and_unescape_value(reader.decoder()) else {
+                        continue;
+                    };
+                    dict.insert(key, Value::String(value.into_owned()));
+                }
+                let connection_name = text_field(&dict, &["ConnectionName"])
+                    .unwrap_or_else(|| "connection".to_string());
+                let key_path = format!("Connections/{connection_name}");
+                if let Some(record) = record_from_dict(path, &key_path, &dict) {
+                    records.push(record);
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+    }
+
+    records
+}
+
+fn database_host(dict: &Dictionary, database_type: &str) -> String {
+    if database_type == "sqlite" {
+        return text_field(
+            dict,
+            &[
+                "DatabaseFile",
+                "DatabaseFileName",
+                "FilePath",
+                "dbfilename",
+                "savepath",
+            ],
+        )
+        .or_else(|| {
+            text_field(
+                dict,
+                &["Host", "Hostname", "Server", "IP", "SocketHost", "host"],
+            )
+        })
+        .unwrap_or_default();
+    }
+    text_field(
+        dict,
+        &["Host", "Hostname", "Server", "IP", "SocketHost", "host"],
+    )
+    .or_else(|| {
+        text_field(
+            dict,
+            &[
+                "DatabaseFile",
+                "DatabaseFileName",
+                "FilePath",
+                "dbfilename",
+                "savepath",
+            ],
+        )
+    })
+    .unwrap_or_default()
+}
+
 fn text_field(dict: &Dictionary, keys: &[&str]) -> Option<String> {
     dict_value(dict, keys)
         .and_then(value_text)
@@ -192,6 +261,15 @@ fn value_text(value: &Value) -> Option<&str> {
         Value::String(text) => Some(text),
         _ => None,
     }
+}
+
+fn tag_name(name: &[u8]) -> String {
+    std::str::from_utf8(name)
+        .unwrap_or_default()
+        .rsplit(':')
+        .next()
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn port_field(dict: &Dictionary, keys: &[&str]) -> Option<u16> {
@@ -239,7 +317,7 @@ fn database_type(raw: &str) -> Option<String> {
 }
 
 fn slug(value: &str) -> String {
-    let stem = value.replace(".plist", "");
+    let stem = value.replace(".plist", "").replace(".ncx", "");
     let mut out = String::new();
     let mut last_dash = false;
     for ch in stem.chars().flat_map(char::to_lowercase) {
@@ -370,5 +448,41 @@ mod tests {
         assert_eq!("lite_user", database.username);
         assert_eq!(Some("orders"), database.database.as_deref());
         assert!(database.password.is_none());
+    }
+
+    #[test]
+    fn parses_navicat_connection_ncx_export() {
+        let ncx = br#"<?xml version="1.0" encoding="UTF-8"?>
+<Connections Ver="1.5">
+  <Connection ConnectionName="Prod MySQL" ConnType="MYSQL" Host="db.example.test" Port="3308" Database="app" UserName="app_user" DatabaseFileName=""/>
+  <Connection ConnectionName="Local SQLite" ConnType="SQLITE" Host="localhost" Port="" Database="" UserName="" DatabaseFileName="C:\Data\local.db"/>
+</Connections>"#;
+
+        let records =
+            preview_records_from_plists(vec![("connection.ncx".to_string(), ncx.as_slice())], true);
+
+        assert_eq!(2, records.len());
+
+        let mysql = &records[0];
+        assert_eq!("navicat:connection-prod-mysql", mysql.id);
+        assert_eq!(
+            Some("connection.ncx:Connections/Prod MySQL"),
+            mysql.source_id.as_deref()
+        );
+        assert_eq!("Prod MySQL", mysql.display_name);
+        let mysql_database = mysql.database.as_ref().unwrap();
+        assert_eq!("my_sql", mysql_database.database_type);
+        assert_eq!("db.example.test", mysql_database.host);
+        assert_eq!(Some(3308), mysql_database.port);
+        assert_eq!("app_user", mysql_database.username);
+        assert_eq!(Some("app"), mysql_database.database.as_deref());
+        assert!(mysql_database.password.is_none());
+
+        let sqlite = &records[1];
+        assert_eq!("Local SQLite", sqlite.display_name);
+        let sqlite_database = sqlite.database.as_ref().unwrap();
+        assert_eq!("sqlite", sqlite_database.database_type);
+        assert_eq!("C:\\Data\\local.db", sqlite_database.host);
+        assert_eq!(None, sqlite_database.port);
     }
 }

@@ -86,9 +86,9 @@
       "id": "navicat-importer",
       "kind": "composite",
       "name": "Navicat Importer",
-      "version": "0.1.0",
-      "release_tag": "navicat-importer-v0.1.0",
-      "description": "Rust WASM connection importer for Navicat",
+      "version": "0.1.1",
+      "release_tag": "navicat-importer-v0.1.1",
+      "description": "Rust WASM connection importer for Navicat preference plists and connection exports",
       "file_extensions": [],
       "manifest": "navicat-importer/manifest.json"
     },

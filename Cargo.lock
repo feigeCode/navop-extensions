@@ -1571,9 +1571,10 @@ dependencies = [
 
 [[package]]
 name = "navicat_importer_wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "plist",
+ "quick-xml",
  "serde",
  "serde_json",
  "wit-bindgen 0.57.1",

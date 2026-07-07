@@ -291,6 +291,11 @@ test("Navicat importer is registered as a composite WASM importer", () => {
 
   assert.equal(importer.id, "navicat");
   assert.deepEqual(importer.outputKinds, ["database"]);
+  assert.equal(
+    importer.manualFilePick?.prompt,
+    "选择 Navicat 导出的 connection.ncx 文件",
+    "Navicat importer should define the manual file picker prompt in its manifest",
+  );
   const candidatePaths = importer.candidateFiles.map((candidate) => candidate.path);
   assert.ok(
     candidatePaths.some((candidatePath) => candidatePath.includes("com.prect.NavicatPremium")),
