@@ -1,0 +1,17 @@
+{
+  "id": "oscar",
+  "kind": "database_driver",
+  "language": "java",
+  "package": "java/oscar-ipc-driver",
+  "binary": "oscar-ipc-driver",
+  "jar": "oscar-ipc-driver.jar",
+  "path": "extensions/ipc/oscar",
+  "source_paths": [
+    "java/oscar-ipc-driver"
+  ],
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "oscar-v",
+  "r2Prefix": "extensions/oscar"
+}

@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
-test("go ipc driver metadata excludes GBase8s", () => {
+test("go ipc driver metadata excludes Java drivers", () => {
   const ids = fs
     .readdirSync(path.join(repoRoot, "extensions/ipc"))
     .filter((id) => {
@@ -177,6 +177,42 @@ test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
   ]) {
     assert.ok(driverJson.methods.includes(method), `gbase8s methods missing ${method}`);
   }
+});
+
+test("Oscar Java IPC driver manifest exposes configurable JDBC settings", () => {
+  const metadata = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/oscar/extension.build.json"), "utf8"),
+  );
+  assert.equal(metadata.language, "java");
+  assert.equal(metadata.package, "java/oscar-ipc-driver");
+  assert.equal(metadata.binary, "oscar-ipc-driver");
+  assert.equal(metadata.jar, "oscar-ipc-driver.jar");
+  assert.deepEqual(metadata.targets, ["universal"]);
+
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/oscar/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.id, "oscar");
+  assert.equal(driverJson.category, "domestic_database");
+  assert.equal(driverJson.entry.command, "./oscar-ipc-driver");
+  assert.equal(driverJson.entry.commands.windows, "./oscar-ipc-driver.cmd");
+  assert.equal(driverJson.entry.env_from_config.OSCAR_JDK_HOME, "extra_params.jdk_home");
+  assert.equal(driverJson.transport.name, "oscar-driver.sock");
+  assert.equal(driverJson.ui.default_port, 2003);
+  assert.equal(driverJson.dialect.identifier_quote_left, "\"");
+  assert.equal(driverJson.dialect.identifier_quote_right, "\"");
+
+  const connectionForm = driverJson.ui.form.forms.find((form) => form.kind === "Connection");
+  const advancedTab = connectionForm.tabs.find((tab) => tab.id === "advanced");
+  assert.ok(advancedTab, "oscar connection form should expose an advanced tab");
+  assert.deepEqual(
+    advancedTab.fields.map((field) => field.id),
+    ["jdk_home", "jdbc_url", "jdbc_jar", "driver_class"],
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "driver_class").default_value,
+    "com.oscar.Driver",
+  );
 });
 
 test("GBase8s Java IPC driver does not declare driver-owned table data", () => {
@@ -654,7 +690,7 @@ test("IPC driver categories keep domestic database routing manifest-driven", () 
     }
   }
 
-  assert.deepEqual(domesticIds, ["dm", "gbase8s", "kingbase", "oceanbase", "opengauss"]);
+  assert.deepEqual(domesticIds, ["dm", "gbase8s", "kingbase", "oceanbase", "opengauss", "oscar"]);
 });
 
 test("IPC connection form extra params use raw extra parameter keys", () => {
