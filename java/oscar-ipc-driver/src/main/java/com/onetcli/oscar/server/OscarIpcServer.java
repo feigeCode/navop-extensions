@@ -8,18 +8,19 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.onetcli.oscar.db.JdbcQueryRunner;
 import com.onetcli.oscar.db.QueryResult;
 import com.onetcli.oscar.jdbc.OscarConfig;
-import com.onetcli.oscar.schema.OscarSchemaSql;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
-import java.sql.Statement;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public final class OscarIpcServer {
     private static final String DRIVER_ID = "oscar";
@@ -323,20 +324,7 @@ public final class OscarIpcServer {
         if (state == null) {
             return lastError;
         }
-        QueryResult query = queryRunner.queryBufferedStatement(state.connection, OscarSchemaSql.databasesSql(), null);
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            Map<String, Object> database = new LinkedHashMap<String, Object>();
-            database.put("name", rowString(row, 0));
-            database.put("charset", null);
-            database.put("collation", null);
-            database.put("comment", "");
-            database.put("owner", null);
-            database.put("size_bytes", null);
-            database.put("extra", new LinkedHashMap<String, Object>());
-            result.add(database);
-        }
-        return ok(id, result);
+        return ok(id, readDatabases(state));
     }
 
     private JsonNode handleSchemaSchemas(JsonNode id, JsonNode params) throws SQLException {
@@ -344,17 +332,7 @@ public final class OscarIpcServer {
         if (state == null) {
             return lastError;
         }
-        String database = optionalText(params, "database", state.config.getDatabase());
-        QueryResult query = queryRunner.queryBuffered(state.connection, OscarSchemaSql.schemasSql(database), null, null);
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            Map<String, Object> schema = new LinkedHashMap<String, Object>();
-            schema.put("name", rowString(row, 0));
-            schema.put("owner", rowString(row, 1));
-            schema.put("comment", "");
-            result.add(schema);
-        }
-        return ok(id, result);
+        return ok(id, readSchemas(state.connection));
     }
 
     private JsonNode handleSchemaObjects(JsonNode id, JsonNode params) throws SQLException {
@@ -365,32 +343,7 @@ public final class OscarIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         List<String> kinds = readStringArray(params.path("kinds"));
-        QueryResult query = queryRunner.queryBuffered(
-            state.connection,
-            OscarSchemaSql.objectsSql(database, schema, kinds),
-            null,
-            null
-        );
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            String kind = rowString(row, 1);
-            if (!kinds.isEmpty() && !kinds.contains(kind)) {
-                continue;
-            }
-            Map<String, Object> object = new LinkedHashMap<String, Object>();
-            object.put("database", database);
-            object.put("schema", schema);
-            object.put("name", rowString(row, 0));
-            object.put("kind", kind);
-            object.put("comment", rowString(row, 2));
-            object.put("row_count_estimate", null);
-            object.put("size_bytes", null);
-            object.put("created_at", null);
-            object.put("updated_at", null);
-            object.put("extra", new LinkedHashMap<String, Object>());
-            result.add(object);
-        }
-        return ok(id, result);
+        return ok(id, readObjects(state.connection, database, schema, kinds));
     }
 
     private JsonNode handleSchemaColumns(JsonNode id, JsonNode params) throws SQLException {
@@ -401,35 +354,7 @@ public final class OscarIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         String table = requiredText(params, "table");
-        List<String> primaryColumns = primaryKeyColumns(state.connection, database, schema, table);
-        QueryResult query = queryRunner.queryBuffered(
-            state.connection,
-            OscarSchemaSql.columnsSql(database, schema, table),
-            null,
-            null
-        );
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            String rawType = oscarColumnType(rowString(row, 2));
-            Map<String, Object> column = new LinkedHashMap<String, Object>();
-            column.put("ordinal", Integer.valueOf(rowInt(row, 0)));
-            column.put("name", rowString(row, 1));
-            column.put("type", rawType);
-            column.put("raw_type", rawType);
-            column.put("nullable", Boolean.valueOf(nullable(rowString(row, 3))));
-            column.put("default", oscarDefault(rowValue(row, 4)));
-            column.put("is_primary", Boolean.valueOf(primaryColumns.contains(rowString(row, 1))));
-            column.put("is_unique", Boolean.FALSE);
-            column.put("is_partition_key", Boolean.FALSE);
-            column.put("is_clustering_key", Boolean.FALSE);
-            column.put("max_length", null);
-            column.put("precision", null);
-            column.put("scale", null);
-            column.put("comment", "");
-            column.put("extra", new LinkedHashMap<String, Object>());
-            result.add(column);
-        }
-        return ok(id, result);
+        return ok(id, readColumns(state.connection, database, schema, table));
     }
 
     private JsonNode handleSchemaIndexes(JsonNode id, JsonNode params) throws SQLException {
@@ -452,76 +377,15 @@ public final class OscarIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         String table = requiredText(params, "table");
-        QueryResult query = queryRunner.queryBuffered(
-            state.connection,
-            OscarSchemaSql.foreignKeysSql(database, schema, table),
-            null,
-            null
-        );
-        Map<String, Map<String, Object>> foreignKeys = new LinkedHashMap<String, Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            String name = rowString(row, 0);
-            if (name.isEmpty()) {
-                continue;
-            }
-            Map<String, Object> foreignKey = foreignKeys.get(name);
-            if (foreignKey == null) {
-                foreignKey = new LinkedHashMap<String, Object>();
-                foreignKey.put("database", database);
-                foreignKey.put("schema", schema);
-                foreignKey.put("name", name);
-                foreignKey.put("from_table", rowString(row, 1));
-                foreignKey.put("from_columns", new ArrayList<String>());
-                foreignKey.put("to_table", rowString(row, 3));
-                foreignKey.put("to_columns", new ArrayList<String>());
-                foreignKey.put("on_update", referentialAction(rowString(row, 5)));
-                foreignKey.put("on_delete", referentialAction(rowString(row, 6)));
-                foreignKey.put("comment", "");
-                foreignKey.put("extra", new LinkedHashMap<String, Object>());
-                foreignKeys.put(name, foreignKey);
-            }
-            addUniqueString(foreignKey.get("from_columns"), rowString(row, 2));
-            addUniqueString(foreignKey.get("to_columns"), rowString(row, 4));
-        }
-        return ok(id, new ArrayList<Map<String, Object>>(foreignKeys.values()));
+        return ok(id, readForeignKeys(state.connection, database, schema, table));
     }
 
-    private JsonNode handleSchemaChecks(JsonNode id, JsonNode params) throws SQLException {
+    private JsonNode handleSchemaChecks(JsonNode id, JsonNode params) {
         ConnectionState state = requireConnection(id, requiredLong(params, "conn_id"));
         if (state == null) {
             return lastError;
         }
-        String database = optionalText(params, "database", state.config.getDatabase());
-        String schema = optionalText(params, "schema", "");
-        String table = requiredText(params, "table");
-        QueryResult query = queryRunner.queryBuffered(
-            state.connection,
-            OscarSchemaSql.checksSql(database, schema, table),
-            null,
-            null
-        );
-        Map<String, Map<String, Object>> checks = new LinkedHashMap<String, Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            String name = rowString(row, 0);
-            if (name.isEmpty()) {
-                continue;
-            }
-            Map<String, Object> check = checks.get(name);
-            if (check == null) {
-                check = new LinkedHashMap<String, Object>();
-                check.put("database", database);
-                check.put("schema", schema);
-                check.put("name", name);
-                check.put("table", rowString(row, 1));
-                check.put("definition", "");
-                check.put("comment", "");
-                check.put("extra", new LinkedHashMap<String, Object>());
-                checks.put(name, check);
-            }
-            String definition = String.valueOf(check.get("definition"));
-            check.put("definition", definition + rowString(row, 2));
-        }
-        return ok(id, new ArrayList<Map<String, Object>>(checks.values()));
+        return ok(id, new ArrayList<Map<String, Object>>());
     }
 
     private JsonNode handleSchemaViews(JsonNode id, JsonNode params) throws SQLException {
@@ -531,25 +395,7 @@ public final class OscarIpcServer {
         }
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
-        QueryResult query = queryRunner.queryBuffered(
-            state.connection,
-            OscarSchemaSql.viewsSql(database, schema),
-            null,
-            null
-        );
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            Map<String, Object> view = new LinkedHashMap<String, Object>();
-            view.put("database", database);
-            view.put("schema", schema);
-            view.put("name", rowString(row, 0));
-            view.put("kind", rowString(row, 1));
-            view.put("definition_sql", rowString(row, 2));
-            view.put("comment", "");
-            view.put("extra", new LinkedHashMap<String, Object>());
-            result.add(view);
-        }
-        return ok(id, result);
+        return ok(id, readViews(state.connection, database, schema));
     }
 
     private JsonNode handleSchemaFunctions(JsonNode id, JsonNode params) throws SQLException {
@@ -559,13 +405,7 @@ public final class OscarIpcServer {
         }
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
-        List<Map<String, Object>> result = readRoutines(
-            state.connection,
-            database,
-            schema,
-            OscarSchemaSql.functionsSql(database, schema),
-            true
-        );
+        List<Map<String, Object>> result = readFunctions(state.connection, database, schema);
         return ok(id, result);
     }
 
@@ -576,13 +416,7 @@ public final class OscarIpcServer {
         }
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
-        List<Map<String, Object>> result = readRoutines(
-            state.connection,
-            database,
-            schema,
-            OscarSchemaSql.proceduresSql(database, schema),
-            false
-        );
+        List<Map<String, Object>> result = readProcedures(state.connection, database, schema);
         return ok(id, result);
     }
 
@@ -595,58 +429,43 @@ public final class OscarIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         if ("databases".equals(view)) {
-            QueryResult query = queryRunner.queryBufferedStatement(state.connection, OscarSchemaSql.databasesSql(), null);
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (List<Map<String, Object>> row : query.getRows()) {
-                rows.add(rowValues(rowString(row, 0)));
+            for (Map<String, Object> databaseRow : readDatabases(state)) {
+                rows.add(rowValues(String.valueOf(databaseRow.get("name"))));
             }
             return ok(id, objectView("Databases", objectViewColumns("name", "Name"), rows));
         }
         if ("schemas".equals(view)) {
-            QueryResult query = queryRunner.queryBuffered(state.connection, OscarSchemaSql.schemasSql(database), null, null);
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (List<Map<String, Object>> row : query.getRows()) {
-                rows.add(rowValues(rowString(row, 0), rowString(row, 1)));
+            for (Map<String, Object> schemaRow : readSchemas(state.connection)) {
+                rows.add(rowValues(String.valueOf(schemaRow.get("name")), String.valueOf(schemaRow.get("owner"))));
             }
             return ok(id, objectView("Schemas", objectViewColumns("name", "Name", "owner", "Owner"), rows));
         }
         if ("tables".equals(view)) {
-            QueryResult query = queryRunner.queryBuffered(
-                state.connection,
-                OscarSchemaSql.objectsSql(database, schema, java.util.Collections.singletonList("table")),
-                null,
-                null
-            );
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (List<Map<String, Object>> row : query.getRows()) {
-                rows.add(rowValues(rowString(row, 0), rowString(row, 1), rowString(row, 2)));
+            for (Map<String, Object> object : readObjects(state.connection, database, schema, singletonStringList("table"))) {
+                rows.add(rowValues(String.valueOf(object.get("name")), String.valueOf(object.get("kind")), String.valueOf(object.get("comment"))));
             }
             return ok(id, objectView("Tables", objectViewColumns("name", "Name", "kind", "Kind", "comment", "Comment"), rows));
         }
         if ("views".equals(view)) {
-            QueryResult query = queryRunner.queryBuffered(state.connection, OscarSchemaSql.viewsSql(database, schema), null, null);
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (List<Map<String, Object>> row : query.getRows()) {
-                rows.add(rowValues(rowString(row, 0), rowString(row, 1), ""));
+            for (Map<String, Object> object : readViews(state.connection, database, schema)) {
+                rows.add(rowValues(String.valueOf(object.get("name")), String.valueOf(object.get("kind")), String.valueOf(object.get("comment"))));
             }
             return ok(id, objectView("Views", objectViewColumns("name", "Name", "kind", "Kind", "comment", "Comment"), rows));
         }
         if ("columns".equals(view)) {
             String table = requiredText(params, "table");
-            QueryResult query = queryRunner.queryBuffered(
-                state.connection,
-                OscarSchemaSql.columnsSql(database, schema, table),
-                null,
-                null
-            );
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (List<Map<String, Object>> row : query.getRows()) {
+            for (Map<String, Object> column : readColumns(state.connection, database, schema, table)) {
                 rows.add(rowValues(
-                    rowString(row, 1),
-                    oscarColumnType(rowString(row, 2)),
-                    Boolean.toString(nullable(rowString(row, 3))),
-                    emptyIfNull(oscarDefault(rowValue(row, 4))),
-                    ""
+                    String.valueOf(column.get("name")),
+                    String.valueOf(column.get("type")),
+                    String.valueOf(column.get("nullable")),
+                    emptyIfNull((String) column.get("default")),
+                    String.valueOf(column.get("comment"))
                 ));
             }
             return ok(id, objectView("Columns", columnObjectViewColumns(), rows));
@@ -667,13 +486,7 @@ public final class OscarIpcServer {
         }
         if ("functions".equals(view)) {
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (Map<String, Object> function : readRoutines(
-                state.connection,
-                database,
-                schema,
-                OscarSchemaSql.functionsSql(database, schema),
-                true
-            )) {
+            for (Map<String, Object> function : readFunctions(state.connection, database, schema)) {
                 rows.add(rowValues(
                     String.valueOf(function.get("name")),
                     String.valueOf(function.get("returns")),
@@ -685,13 +498,7 @@ public final class OscarIpcServer {
         }
         if ("procedures".equals(view)) {
             List<List<String>> rows = new ArrayList<List<String>>();
-            for (Map<String, Object> procedure : readRoutines(
-                state.connection,
-                database,
-                schema,
-                OscarSchemaSql.proceduresSql(database, schema),
-                false
-            )) {
+            for (Map<String, Object> procedure : readProcedures(state.connection, database, schema)) {
                 rows.add(rowValues(
                     String.valueOf(procedure.get("name")),
                     String.valueOf(procedure.get("language")),
@@ -764,25 +571,51 @@ public final class OscarIpcServer {
         return row;
     }
 
-    private List<String> primaryKeyColumns(Connection connection, String database, String schema, String table) {
-        List<String> columns = new ArrayList<String>();
-        try {
-            QueryResult query = queryRunner.queryBuffered(
-                connection,
-                OscarSchemaSql.primaryKeyColumnsSql(database, schema, table),
-                null,
-                null
-            );
-            for (List<Map<String, Object>> row : query.getRows()) {
-                String column = rowString(row, 0);
-                if (!column.isEmpty() && !columns.contains(column)) {
-                    columns.add(column);
-                }
+    private List<Map<String, Object>> readDatabases(ConnectionState state) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        String name = trim(state.config.getDatabase());
+        if (name.isEmpty()) {
+            try {
+                name = trim(state.connection.getCatalog());
+            } catch (SQLException error) {
+                name = "";
             }
-        } catch (SQLException error) {
-            return new ArrayList<String>();
         }
-        return columns;
+        if (name.isEmpty()) {
+            name = "Oscar";
+        }
+        Map<String, Object> database = new LinkedHashMap<String, Object>();
+        database.put("name", name);
+        database.put("charset", null);
+        database.put("collation", null);
+        database.put("comment", "");
+        database.put("owner", null);
+        database.put("size_bytes", null);
+        database.put("extra", new LinkedHashMap<String, Object>());
+        result.add(database);
+        return result;
+    }
+
+    private List<Map<String, Object>> readSchemas(Connection connection) throws SQLException {
+        DatabaseMetaData metadata = connection.getMetaData();
+        Map<String, Map<String, Object>> schemas = new LinkedHashMap<String, Map<String, Object>>();
+        ResultSet rows = metadata.getSchemas();
+        try {
+            while (rows.next()) {
+                String name = firstNonEmpty(resultString(rows, "TABLE_SCHEM"), resultString(rows, "TABLE_SCHEMA"));
+                if (name.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> schema = new LinkedHashMap<String, Object>();
+                schema.put("name", name);
+                schema.put("owner", name);
+                schema.put("comment", "");
+                schemas.put(name.toUpperCase(), schema);
+            }
+        } finally {
+            rows.close();
+        }
+        return new ArrayList<Map<String, Object>>(schemas.values());
     }
 
     @SuppressWarnings("unchecked")
@@ -797,55 +630,171 @@ public final class OscarIpcServer {
         return new ArrayList<String>();
     }
 
-    @SuppressWarnings("unchecked")
-    private void addUniqueString(Object target, String value) {
-        if (!(target instanceof List<?>) || value == null || value.isEmpty()) {
-            return;
+    private List<Map<String, Object>> readObjects(Connection connection, String database, String schema, List<String> kinds) throws SQLException {
+        List<String> wantedKinds = kinds == null || kinds.isEmpty() ? tableAndViewKinds() : kinds;
+        List<String> types = tableTypes(wantedKinds);
+        if (types.isEmpty()) {
+            return new ArrayList<Map<String, Object>>();
         }
-        List<String> list = (List<String>) target;
-        if (!list.contains(value)) {
-            list.add(value);
+        DatabaseMetaData metadata = connection.getMetaData();
+        Map<String, Map<String, Object>> objects = new LinkedHashMap<String, Map<String, Object>>();
+        for (String catalogPattern : catalogPatterns(database)) {
+            for (String schemaPattern : schemaPatterns(schema)) {
+                ResultSet rows;
+                try {
+                    rows = metadata.getTables(emptyToNull(catalogPattern), emptyToNull(schemaPattern), "%", types.toArray(new String[types.size()]));
+                } catch (SQLException error) {
+                    continue;
+                }
+                try {
+                    while (rows.next()) {
+                        String rowSchema = resultString(rows, "TABLE_SCHEM");
+                        String name = resultString(rows, "TABLE_NAME");
+                        String kind = tableKind(resultString(rows, "TABLE_TYPE"));
+                        if (name.isEmpty() || kind.isEmpty() || !wantedKinds.contains(kind) || !schemaMatches(schema, rowSchema)) {
+                            continue;
+                        }
+                        String key = firstNonEmpty(rowSchema, schema) + "." + name + "." + kind;
+                        if (objects.containsKey(key)) {
+                            continue;
+                        }
+                        Map<String, Object> object = new LinkedHashMap<String, Object>();
+                        object.put("database", database);
+                        object.put("schema", firstNonEmpty(rowSchema, schema));
+                        object.put("name", name);
+                        object.put("kind", kind);
+                        object.put("comment", resultString(rows, "REMARKS"));
+                        object.put("row_count_estimate", null);
+                        object.put("size_bytes", null);
+                        object.put("created_at", null);
+                        object.put("updated_at", null);
+                        object.put("extra", new LinkedHashMap<String, Object>());
+                        objects.put(key, object);
+                    }
+                } finally {
+                    rows.close();
+                }
+                if (!objects.isEmpty()) {
+                    return new ArrayList<Map<String, Object>>(objects.values());
+                }
+            }
         }
+        return new ArrayList<Map<String, Object>>(objects.values());
+    }
+
+    private List<Map<String, Object>> readColumns(Connection connection, String database, String schema, String table) throws SQLException {
+        PrimaryKeyInfo primaryKey = readPrimaryKey(connection, database, schema, table);
+        DatabaseMetaData metadata = connection.getMetaData();
+        List<Map<String, Object>> columns = new ArrayList<Map<String, Object>>();
+        for (String catalogPattern : catalogPatterns(database)) {
+            for (String schemaPattern : schemaPatterns(schema)) {
+                ResultSet rows;
+                try {
+                    rows = metadata.getColumns(emptyToNull(catalogPattern), emptyToNull(schemaPattern), table, "%");
+                } catch (SQLException error) {
+                    continue;
+                }
+                try {
+                    while (rows.next()) {
+                        String rowSchema = resultString(rows, "TABLE_SCHEM");
+                        String rowTable = resultString(rows, "TABLE_NAME");
+                        String name = resultString(rows, "COLUMN_NAME");
+                        if (name.isEmpty() || !schemaMatches(schema, rowSchema) || !nameMatches(table, rowTable)) {
+                            continue;
+                        }
+                        int nullableCode = resultInt(rows, "NULLABLE", DatabaseMetaData.columnNullableUnknown);
+                        int size = resultInt(rows, "COLUMN_SIZE", 0);
+                        int scale = resultInt(rows, "DECIMAL_DIGITS", 0);
+                        String rawType = resultString(rows, "TYPE_NAME");
+                        Map<String, Object> column = new LinkedHashMap<String, Object>();
+                        column.put("ordinal", Integer.valueOf(resultInt(rows, "ORDINAL_POSITION", columns.size() + 1)));
+                        column.put("name", name);
+                        column.put("type", rawType);
+                        column.put("raw_type", rawType);
+                        column.put("nullable", Boolean.valueOf(nullableCode != DatabaseMetaData.columnNoNulls));
+                        column.put("default", metadataDefault(resultString(rows, "COLUMN_DEF")));
+                        column.put("is_primary", Boolean.valueOf(containsIgnoreCase(primaryKey.columns, name)));
+                        column.put("is_unique", Boolean.FALSE);
+                        column.put("is_partition_key", Boolean.FALSE);
+                        column.put("is_clustering_key", Boolean.FALSE);
+                        column.put("max_length", size > 0 ? Integer.valueOf(size) : null);
+                        column.put("precision", size > 0 ? Integer.valueOf(size) : null);
+                        column.put("scale", scale > 0 ? Integer.valueOf(scale) : null);
+                        column.put("comment", resultString(rows, "REMARKS"));
+                        column.put("extra", new LinkedHashMap<String, Object>());
+                        columns.add(column);
+                    }
+                } finally {
+                    rows.close();
+                }
+                if (!columns.isEmpty()) {
+                    return columns;
+                }
+            }
+        }
+        return columns;
     }
 
     private List<Map<String, Object>> readIndexes(Connection connection, String database, String schema, String table) {
+        PrimaryKeyInfo primaryKey = readPrimaryKey(connection, database, schema, table);
         Map<String, Map<String, Object>> indexes = new LinkedHashMap<String, Map<String, Object>>();
+        Map<String, TreeMap<Integer, String>> columnOrders = new LinkedHashMap<String, TreeMap<Integer, String>>();
         try {
-            QueryResult query = queryRunner.queryBuffered(
-                connection,
-                OscarSchemaSql.indexesSql(database, schema, table),
-                null,
-                null
-            );
-            for (List<Map<String, Object>> row : query.getRows()) {
-                String name = rowString(row, 0);
-                if (name.isEmpty()) {
-                    continue;
-                }
-                Map<String, Object> index = indexes.get(name);
-                if (index == null) {
-                    boolean primary = "YES".equalsIgnoreCase(rowString(row, 2));
-                    String type = rowString(row, 1);
-                    index = new LinkedHashMap<String, Object>();
-                    index.put("database", database);
-                    index.put("schema", schema);
-                    index.put("table", table);
-                    index.put("name", name);
-                    index.put("columns", new ArrayList<String>());
-                    index.put("is_unique", Boolean.valueOf(primary || "U".equalsIgnoreCase(type)));
-                    index.put("is_primary", Boolean.valueOf(primary));
-                    index.put("type", primary ? "PRIMARY" : ("U".equalsIgnoreCase(type) ? "UNIQUE" : "INDEX"));
-                    index.put("comment", "");
-                    index.put("extra", new LinkedHashMap<String, Object>());
-                    indexes.put(name, index);
-                }
-                String column = rowString(row, 3);
-                if (!column.isEmpty()) {
-                    List<String> columns = stringList(index.get("columns"));
-                    if (!columns.contains(column)) {
-                        columns.add(column);
+            DatabaseMetaData metadata = connection.getMetaData();
+            for (String catalogPattern : catalogPatterns(database)) {
+                for (String schemaPattern : schemaPatterns(schema)) {
+                    ResultSet rows;
+                    try {
+                        rows = metadata.getIndexInfo(emptyToNull(catalogPattern), emptyToNull(schemaPattern), table, false, false);
+                    } catch (SQLException error) {
+                        continue;
                     }
-                    index.put("columns", columns);
+                    try {
+                        while (rows.next()) {
+                            String rowSchema = resultString(rows, "TABLE_SCHEM");
+                            String rowTable = resultString(rows, "TABLE_NAME");
+                            String name = resultString(rows, "INDEX_NAME");
+                            String column = resultString(rows, "COLUMN_NAME");
+                            if (name.isEmpty() || column.isEmpty() || !schemaMatches(schema, rowSchema) || !nameMatches(table, rowTable)) {
+                                continue;
+                            }
+                            Map<String, Object> index = indexes.get(name);
+                            if (index == null) {
+                                boolean primary = primaryKey.matches(name, new ArrayList<String>());
+                                boolean unique = !resultBoolean(rows, "NON_UNIQUE", true);
+                                index = new LinkedHashMap<String, Object>();
+                                index.put("database", database);
+                                index.put("schema", firstNonEmpty(rowSchema, schema));
+                                index.put("table", table);
+                                index.put("name", name);
+                                index.put("columns", new ArrayList<String>());
+                                index.put("is_unique", Boolean.valueOf(primary || unique));
+                                index.put("is_primary", Boolean.valueOf(primary));
+                                index.put("type", primary ? "PRIMARY" : (unique ? "UNIQUE" : "INDEX"));
+                                index.put("comment", "");
+                                index.put("extra", new LinkedHashMap<String, Object>());
+                                indexes.put(name, index);
+                                columnOrders.put(name, new TreeMap<Integer, String>());
+                            }
+                            int ordinal = resultInt(rows, "ORDINAL_POSITION", columnOrders.get(name).size() + 1);
+                            columnOrders.get(name).put(Integer.valueOf(ordinal), column);
+                        }
+                    } finally {
+                        rows.close();
+                    }
+                    if (!indexes.isEmpty()) {
+                        for (Map.Entry<String, Map<String, Object>> entry : indexes.entrySet()) {
+                            List<String> columns = new ArrayList<String>(columnOrders.get(entry.getKey()).values());
+                            boolean primary = primaryKey.matches(entry.getKey(), columns);
+                            entry.getValue().put("columns", columns);
+                            entry.getValue().put("is_primary", Boolean.valueOf(primary));
+                            if (primary) {
+                                entry.getValue().put("is_unique", Boolean.TRUE);
+                                entry.getValue().put("type", "PRIMARY");
+                            }
+                        }
+                        return new ArrayList<Map<String, Object>>(indexes.values());
+                    }
                 }
             }
         } catch (SQLException error) {
@@ -854,63 +803,382 @@ public final class OscarIpcServer {
         return new ArrayList<Map<String, Object>>(indexes.values());
     }
 
-    private List<Map<String, Object>> readRoutines(Connection connection, String database, String schema, String sql, boolean function) throws SQLException {
-        QueryResult query = queryRunner.queryBuffered(connection, sql, null, null);
+    private List<Map<String, Object>> readForeignKeys(Connection connection, String database, String schema, String table) {
+        Map<String, Map<String, Object>> foreignKeys = new LinkedHashMap<String, Map<String, Object>>();
+        Map<String, TreeMap<Integer, String>> fromColumns = new LinkedHashMap<String, TreeMap<Integer, String>>();
+        Map<String, TreeMap<Integer, String>> toColumns = new LinkedHashMap<String, TreeMap<Integer, String>>();
+        try {
+            DatabaseMetaData metadata = connection.getMetaData();
+            for (String catalogPattern : catalogPatterns(database)) {
+                for (String schemaPattern : schemaPatterns(schema)) {
+                    ResultSet rows;
+                    try {
+                        rows = metadata.getImportedKeys(emptyToNull(catalogPattern), emptyToNull(schemaPattern), table);
+                    } catch (SQLException error) {
+                        continue;
+                    }
+                    try {
+                        while (rows.next()) {
+                            String rowSchema = resultString(rows, "FKTABLE_SCHEM");
+                            String rowTable = resultString(rows, "FKTABLE_NAME");
+                            if (!schemaMatches(schema, rowSchema) || !nameMatches(table, rowTable)) {
+                                continue;
+                            }
+                            String name = firstNonEmpty(resultString(rows, "FK_NAME"), rowTable + "_fk_" + resultString(rows, "PKTABLE_NAME"));
+                            Map<String, Object> foreignKey = foreignKeys.get(name);
+                            if (foreignKey == null) {
+                                foreignKey = new LinkedHashMap<String, Object>();
+                                foreignKey.put("database", database);
+                                foreignKey.put("schema", firstNonEmpty(rowSchema, schema));
+                                foreignKey.put("name", name);
+                                foreignKey.put("from_table", rowTable);
+                                foreignKey.put("from_columns", new ArrayList<String>());
+                                foreignKey.put("to_table", resultString(rows, "PKTABLE_NAME"));
+                                foreignKey.put("to_columns", new ArrayList<String>());
+                                foreignKey.put("on_update", jdbcReferentialAction(resultShort(rows, "UPDATE_RULE", (short) DatabaseMetaData.importedKeyNoAction)));
+                                foreignKey.put("on_delete", jdbcReferentialAction(resultShort(rows, "DELETE_RULE", (short) DatabaseMetaData.importedKeyNoAction)));
+                                foreignKey.put("comment", "");
+                                foreignKey.put("extra", new LinkedHashMap<String, Object>());
+                                foreignKeys.put(name, foreignKey);
+                                fromColumns.put(name, new TreeMap<Integer, String>());
+                                toColumns.put(name, new TreeMap<Integer, String>());
+                            }
+                            int sequence = resultInt(rows, "KEY_SEQ", fromColumns.get(name).size() + 1);
+                            fromColumns.get(name).put(Integer.valueOf(sequence), resultString(rows, "FKCOLUMN_NAME"));
+                            toColumns.get(name).put(Integer.valueOf(sequence), resultString(rows, "PKCOLUMN_NAME"));
+                        }
+                    } finally {
+                        rows.close();
+                    }
+                    if (!foreignKeys.isEmpty()) {
+                        for (Map.Entry<String, Map<String, Object>> entry : foreignKeys.entrySet()) {
+                            entry.getValue().put("from_columns", new ArrayList<String>(fromColumns.get(entry.getKey()).values()));
+                            entry.getValue().put("to_columns", new ArrayList<String>(toColumns.get(entry.getKey()).values()));
+                        }
+                        return new ArrayList<Map<String, Object>>(foreignKeys.values());
+                    }
+                }
+            }
+        } catch (SQLException error) {
+            return new ArrayList<Map<String, Object>>();
+        }
+        return new ArrayList<Map<String, Object>>(foreignKeys.values());
+    }
+
+    private List<Map<String, Object>> readViews(Connection connection, String database, String schema) throws SQLException {
+        List<Map<String, Object>> views = readObjects(connection, database, schema, singletonStringList("view"));
+        for (Map<String, Object> view : views) {
+            view.put("definition_sql", "");
+        }
+        return views;
+    }
+
+    private List<Map<String, Object>> readFunctions(Connection connection, String database, String schema) {
         Map<String, Map<String, Object>> routines = new LinkedHashMap<String, Map<String, Object>>();
-        for (List<Map<String, Object>> row : query.getRows()) {
-            String name = rowString(row, 0);
-            if (name.isEmpty()) {
-                continue;
+        try {
+            DatabaseMetaData metadata = connection.getMetaData();
+            for (String catalogPattern : catalogPatterns(database)) {
+                for (String schemaPattern : schemaPatterns(schema)) {
+                    ResultSet rows;
+                    try {
+                        rows = metadata.getFunctions(emptyToNull(catalogPattern), emptyToNull(schemaPattern), "%");
+                    } catch (SQLException error) {
+                        continue;
+                    }
+                    try {
+                        while (rows.next()) {
+                            String rowSchema = resultString(rows, "FUNCTION_SCHEM");
+                            String name = resultString(rows, "FUNCTION_NAME");
+                            if (name.isEmpty() || !schemaMatches(schema, rowSchema)) {
+                                continue;
+                            }
+                            String returnType = functionReturnType(metadata, catalogPattern, rowSchema, name);
+                            Map<String, Object> routine = new LinkedHashMap<String, Object>();
+                            routine.put("database", database);
+                            routine.put("schema", firstNonEmpty(rowSchema, schema));
+                            routine.put("name", name);
+                            routine.put("return_type", returnType.isEmpty() ? null : returnType);
+                            routine.put("returns", returnType);
+                            routine.put("language", "");
+                            routine.put("comment", resultString(rows, "REMARKS"));
+                            routine.put("definition", "");
+                            routine.put("extra", new LinkedHashMap<String, Object>());
+                            routines.put(firstNonEmpty(rowSchema, schema) + "." + name, routine);
+                        }
+                    } finally {
+                        rows.close();
+                    }
+                    if (!routines.isEmpty()) {
+                        return new ArrayList<Map<String, Object>>(routines.values());
+                    }
+                }
             }
-            String owner = rowString(row, 1);
-            String key = owner + "." + name;
-            Map<String, Object> routine = routines.get(key);
-            if (routine == null) {
-                String returnType = function ? oscarColumnType(rowString(row, 2)) : "";
-                routine = new LinkedHashMap<String, Object>();
-                routine.put("database", database);
-                routine.put("schema", owner);
-                routine.put("name", name);
-                routine.put("return_type", returnType.isEmpty() ? null : returnType);
-                routine.put("returns", returnType);
-                routine.put("language", rowString(row, 3));
-                routine.put("comment", rowString(row, 4));
-                routine.put("definition", "");
-                routine.put("extra", new LinkedHashMap<String, Object>());
-                routines.put(key, routine);
-            }
-            String definition = String.valueOf(routine.get("definition"));
-            routine.put("definition", definition + catalogText(rowString(row, 5)));
+        } catch (SQLException error) {
+            return new ArrayList<Map<String, Object>>();
         }
         return new ArrayList<Map<String, Object>>(routines.values());
     }
 
-    private String catalogText(String value) {
-        if (value == null) {
-            return "";
+    private List<Map<String, Object>> readProcedures(Connection connection, String database, String schema) {
+        Map<String, Map<String, Object>> routines = new LinkedHashMap<String, Map<String, Object>>();
+        try {
+            DatabaseMetaData metadata = connection.getMetaData();
+            for (String catalogPattern : catalogPatterns(database)) {
+                for (String schemaPattern : schemaPatterns(schema)) {
+                    ResultSet rows;
+                    try {
+                        rows = metadata.getProcedures(emptyToNull(catalogPattern), emptyToNull(schemaPattern), "%");
+                    } catch (SQLException error) {
+                        continue;
+                    }
+                    try {
+                        while (rows.next()) {
+                            String rowSchema = resultString(rows, "PROCEDURE_SCHEM");
+                            String name = resultString(rows, "PROCEDURE_NAME");
+                            if (name.isEmpty() || !schemaMatches(schema, rowSchema)) {
+                                continue;
+                            }
+                            Map<String, Object> routine = new LinkedHashMap<String, Object>();
+                            routine.put("database", database);
+                            routine.put("schema", firstNonEmpty(rowSchema, schema));
+                            routine.put("name", name);
+                            routine.put("return_type", null);
+                            routine.put("returns", "");
+                            routine.put("language", "");
+                            routine.put("comment", resultString(rows, "REMARKS"));
+                            routine.put("definition", "");
+                            routine.put("extra", new LinkedHashMap<String, Object>());
+                            routines.put(firstNonEmpty(rowSchema, schema) + "." + name, routine);
+                        }
+                    } finally {
+                        rows.close();
+                    }
+                    if (!routines.isEmpty()) {
+                        return new ArrayList<Map<String, Object>>(routines.values());
+                    }
+                }
+            }
+        } catch (SQLException error) {
+            return new ArrayList<Map<String, Object>>();
         }
-        int end = value.length();
-        while (end > 0 && value.charAt(end - 1) == '\u0000') {
-            end--;
-        }
-        return value.substring(0, end).trim();
+        return new ArrayList<Map<String, Object>>(routines.values());
     }
 
-    private String referentialAction(String value) {
-        String code = value == null ? "" : value.trim().toUpperCase();
-        if ("C".equals(code)) {
+    private String functionReturnType(DatabaseMetaData metadata, String catalog, String schema, String name) {
+        try {
+            ResultSet rows = metadata.getFunctionColumns(emptyToNull(catalog), emptyToNull(schema), name, "%");
+            try {
+                while (rows.next()) {
+                    if (resultInt(rows, "COLUMN_TYPE", -1) == DatabaseMetaData.functionReturn) {
+                        return resultString(rows, "TYPE_NAME");
+                    }
+                }
+            } finally {
+                rows.close();
+            }
+        } catch (SQLException error) {
+            return "";
+        }
+        return "";
+    }
+
+    private PrimaryKeyInfo readPrimaryKey(Connection connection, String database, String schema, String table) {
+        PrimaryKeyInfo info = new PrimaryKeyInfo();
+        try {
+            DatabaseMetaData metadata = connection.getMetaData();
+            for (String catalogPattern : catalogPatterns(database)) {
+                for (String schemaPattern : schemaPatterns(schema)) {
+                    ResultSet rows;
+                    try {
+                        rows = metadata.getPrimaryKeys(emptyToNull(catalogPattern), emptyToNull(schemaPattern), table);
+                    } catch (SQLException error) {
+                        continue;
+                    }
+                    TreeMap<Integer, String> ordered = new TreeMap<Integer, String>();
+                    try {
+                        while (rows.next()) {
+                            String rowSchema = resultString(rows, "TABLE_SCHEM");
+                            String rowTable = resultString(rows, "TABLE_NAME");
+                            String column = resultString(rows, "COLUMN_NAME");
+                            if (column.isEmpty() || !schemaMatches(schema, rowSchema) || !nameMatches(table, rowTable)) {
+                                continue;
+                            }
+                            if (info.name.isEmpty()) {
+                                info.name = resultString(rows, "PK_NAME");
+                            }
+                            ordered.put(Integer.valueOf(resultInt(rows, "KEY_SEQ", ordered.size() + 1)), column);
+                        }
+                    } finally {
+                        rows.close();
+                    }
+                    if (!ordered.isEmpty()) {
+                        info.columns.addAll(ordered.values());
+                        return info;
+                    }
+                }
+            }
+        } catch (SQLException error) {
+            return info;
+        }
+        return info;
+    }
+
+    private List<String> tableAndViewKinds() {
+        List<String> kinds = new ArrayList<String>();
+        kinds.add("table");
+        kinds.add("view");
+        return kinds;
+    }
+
+    private List<String> tableTypes(List<String> kinds) {
+        List<String> types = new ArrayList<String>();
+        if (kinds.contains("table")) {
+            types.add("TABLE");
+        }
+        if (kinds.contains("view")) {
+            types.add("VIEW");
+        }
+        return types;
+    }
+
+    private List<String> singletonStringList(String value) {
+        List<String> values = new ArrayList<String>();
+        values.add(value);
+        return values;
+    }
+
+    private String tableKind(String tableType) {
+        String normalized = tableType == null ? "" : tableType.trim().toUpperCase();
+        if ("TABLE".equals(normalized)) {
+            return "table";
+        }
+        if ("VIEW".equals(normalized)) {
+            return "view";
+        }
+        return "";
+    }
+
+    private List<String> catalogPatterns(String database) {
+        List<String> patterns = new ArrayList<String>();
+        addPattern(patterns, database);
+        addPattern(patterns, null);
+        return patterns;
+    }
+
+    private List<String> schemaPatterns(String schema) {
+        List<String> patterns = new ArrayList<String>();
+        addPattern(patterns, schema);
+        if (schema != null && !schema.trim().isEmpty()) {
+            addPattern(patterns, schema.trim().toUpperCase());
+            addPattern(patterns, schema.trim().toLowerCase());
+        }
+        addPattern(patterns, null);
+        return patterns;
+    }
+
+    private void addPattern(List<String> patterns, String value) {
+        String text = trim(value);
+        if (!patterns.contains(text)) {
+            patterns.add(text);
+        }
+    }
+
+    private String emptyToNull(String value) {
+        return value == null || value.trim().isEmpty() ? null : value;
+    }
+
+    private boolean schemaMatches(String expected, String actual) {
+        String expectedText = trim(expected);
+        if (expectedText.isEmpty()) {
+            return true;
+        }
+        return expectedText.equalsIgnoreCase(trim(actual));
+    }
+
+    private boolean nameMatches(String expected, String actual) {
+        String expectedText = trim(expected);
+        if (expectedText.isEmpty()) {
+            return true;
+        }
+        return expectedText.equalsIgnoreCase(trim(actual));
+    }
+
+    private boolean containsIgnoreCase(List<String> values, String expected) {
+        for (String value : values) {
+            if (trim(value).equalsIgnoreCase(trim(expected))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String firstNonEmpty(String first, String second) {
+        String firstText = trim(first);
+        return firstText.isEmpty() ? trim(second) : firstText;
+    }
+
+    private String trim(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String resultString(ResultSet rows, String column) {
+        try {
+            String value = rows.getString(column);
+            return trim(value);
+        } catch (SQLException error) {
+            return "";
+        }
+    }
+
+    private int resultInt(ResultSet rows, String column, int defaultValue) {
+        try {
+            int value = rows.getInt(column);
+            return rows.wasNull() ? defaultValue : value;
+        } catch (SQLException error) {
+            return defaultValue;
+        }
+    }
+
+    private short resultShort(ResultSet rows, String column, short defaultValue) {
+        try {
+            short value = rows.getShort(column);
+            return rows.wasNull() ? defaultValue : value;
+        } catch (SQLException error) {
+            return defaultValue;
+        }
+    }
+
+    private boolean resultBoolean(ResultSet rows, String column, boolean defaultValue) {
+        try {
+            boolean value = rows.getBoolean(column);
+            return rows.wasNull() ? defaultValue : value;
+        } catch (SQLException error) {
+            return defaultValue;
+        }
+    }
+
+    private String metadataDefault(String value) {
+        String text = trim(value);
+        if (text.length() >= 2 && text.startsWith("'") && text.endsWith("'")) {
+            return text.substring(1, text.length() - 1).replace("''", "'");
+        }
+        return text.isEmpty() ? null : text;
+    }
+
+    private String jdbcReferentialAction(short value) {
+        if (value == DatabaseMetaData.importedKeyCascade) {
             return "CASCADE";
         }
-        if ("N".equals(code)) {
+        if (value == DatabaseMetaData.importedKeySetNull) {
             return "SET NULL";
         }
-        if ("D".equals(code)) {
+        if (value == DatabaseMetaData.importedKeySetDefault) {
             return "SET DEFAULT";
         }
-        if ("R".equals(code)) {
+        if (value == DatabaseMetaData.importedKeyRestrict) {
             return "RESTRICT";
         }
-        return code;
+        return "NO ACTION";
     }
 
     private String titleForObjectView(String view) {
@@ -1640,111 +1908,8 @@ public final class OscarIpcServer {
         return cell.get("value");
     }
 
-    private String rowString(List<Map<String, Object>> row, int index) {
-        Object value = rowValue(row, index);
-        return value == null ? "" : String.valueOf(value).trim();
-    }
-
-    private int rowInt(List<Map<String, Object>> row, int index) {
-        Object value = rowValue(row, index);
-        if (value instanceof Number) {
-            return ((Number) value).intValue();
-        }
-        if (value == null || String.valueOf(value).trim().isEmpty()) {
-            return 0;
-        }
-        return Integer.parseInt(String.valueOf(value));
-    }
-
-    private boolean nullable(String value) {
-        String normalized = value == null ? "" : value.trim().toUpperCase();
-        if ("NO".equals(normalized) || "N".equals(normalized) || "0".equals(normalized) || "FALSE".equals(normalized)) {
-            return false;
-        }
-        return true;
-    }
-
-    private String oscarDefault(Object value) {
-        if (value == null) {
-            return null;
-        }
-        String text = String.valueOf(value).replace('\0', ' ').trim();
-        if (text.isEmpty()) {
-            return null;
-        }
-        if (text.startsWith("AAAA")) {
-            int split = firstWhitespace(text);
-            if (split >= 0 && split + 1 < text.length()) {
-                text = text.substring(split + 1).trim();
-            }
-        }
-        return text.isEmpty() ? null : text;
-    }
-
     private String emptyIfNull(String value) {
         return value == null ? "" : value;
-    }
-
-    private int firstWhitespace(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isWhitespace(value.charAt(i))) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private String oscarColumnType(String value) {
-        int code;
-        try {
-            code = Integer.parseInt(value == null ? "" : value.trim());
-        } catch (NumberFormatException error) {
-            return value == null ? "" : value;
-        }
-        switch (code & 255) {
-            case 0:
-                return "CHAR";
-            case 1:
-                return "SMALLINT";
-            case 2:
-                return "INTEGER";
-            case 3:
-                return "FLOAT";
-            case 4:
-                return "SMALLFLOAT";
-            case 5:
-                return "DECIMAL";
-            case 6:
-                return "SERIAL";
-            case 7:
-                return "DATE";
-            case 8:
-                return "MONEY";
-            case 10:
-                return "DATETIME";
-            case 11:
-                return "BYTE";
-            case 12:
-                return "TEXT";
-            case 13:
-                return "VARCHAR";
-            case 14:
-                return "INTERVAL";
-            case 15:
-                return "NCHAR";
-            case 16:
-                return "NVARCHAR";
-            case 17:
-                return "INT8";
-            case 18:
-                return "SERIAL8";
-            case 23:
-                return "BOOLEAN";
-            case 40:
-                return "LVARCHAR";
-            default:
-                return value == null ? "" : value;
-        }
     }
 
     private String textOrEmpty(JsonNode node) {
@@ -1827,6 +1992,26 @@ public final class OscarIpcServer {
         }
         for (String id : ids) {
             imports.remove(id);
+        }
+    }
+
+    private static final class PrimaryKeyInfo {
+        private String name = "";
+        private final List<String> columns = new ArrayList<String>();
+
+        private boolean matches(String indexName, List<String> indexColumns) {
+            if (!name.isEmpty() && name.equalsIgnoreCase(indexName)) {
+                return true;
+            }
+            if (columns.isEmpty() || indexColumns == null || columns.size() != indexColumns.size()) {
+                return false;
+            }
+            for (int i = 0; i < columns.size(); i++) {
+                if (!columns.get(i).equalsIgnoreCase(indexColumns.get(i))) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

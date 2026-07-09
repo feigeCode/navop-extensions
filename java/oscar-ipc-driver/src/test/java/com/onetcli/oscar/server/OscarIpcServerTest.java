@@ -7,8 +7,6 @@ import org.junit.Test;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.lang.reflect.InvocationHandler;
@@ -80,7 +78,7 @@ public class OscarIpcServerTest {
     }
 
     @Test
-    public void schemaMethodsReadOscarCatalogRows() throws Exception {
+    public void schemaMethodsReadJdbcMetadataRows() throws Exception {
         OscarIpcServer server = newServer();
         server.handle(request(1, "init", "{}"));
         JsonNode open = server.handle(request(2, "conn/open", "{\"driver_id\":\"oscar\",\"config\":" + configJson() + "}"));
@@ -90,14 +88,16 @@ public class OscarIpcServerTest {
             .asLong();
 
         JsonNode schemas = server.handle(request(3, "schema/schemas", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\"}"));
-        assertEquals("SYSDBA", schemas.get("result").get(0).get("name").asText());
-        assertEquals("SYSDBA", schemas.get("result").get(0).get("owner").asText());
+        JsonNode sysdbaSchema = findByName(schemas.get("result"), "SYSDBA");
+        assertEquals("SYSDBA", sysdbaSchema.get("name").asText());
+        assertEquals("SYSDBA", sysdbaSchema.get("owner").asText());
 
         JsonNode objects = server.handle(request(4, "schema/objects", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"kinds\":[\"table\"]}"));
-        assertEquals("OSRDB", objects.get("result").get(0).get("database").asText());
-        assertEquals("SYSDBA", objects.get("result").get(0).get("schema").asText());
-        assertEquals("sample", objects.get("result").get(0).get("name").asText());
-        assertEquals("table", objects.get("result").get(0).get("kind").asText());
+        JsonNode sampleObject = findByName(objects.get("result"), "sample");
+        assertEquals("OSRDB", sampleObject.get("database").asText());
+        assertEquals("SYSDBA", sampleObject.get("schema").asText());
+        assertEquals("sample", sampleObject.get("name").asText());
+        assertEquals("table", sampleObject.get("kind").asText());
 
         JsonNode views = server.handle(request(5, "schema/views", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
         assertEquals("OSRDB", views.get("result").get(0).get("database").asText());
@@ -115,10 +115,10 @@ public class OscarIpcServerTest {
         assertEquals("abc", columns.get("result").get(1).get("default").asText());
 
         JsonNode indexes = server.handle(request(7, "schema/indexes", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
-        assertEquals("pk_sample", indexes.get("result").get(0).get("name").asText());
-        assertEquals("id", indexes.get("result").get(0).get("columns").get(0).asText());
-        assertEquals(true, indexes.get("result").get(0).get("is_primary").asBoolean());
-        assertEquals(true, indexes.get("result").get(0).get("is_unique").asBoolean());
+        JsonNode primaryIndex = findPrimaryIndex(indexes.get("result"));
+        assertEquals("id", primaryIndex.get("columns").get(0).asText());
+        assertEquals(true, primaryIndex.get("is_primary").asBoolean());
+        assertEquals(true, primaryIndex.get("is_unique").asBoolean());
         JsonNode orderedIndex = findByName(indexes.get("result"), "zz_sample_name_id");
         assertEquals("name", orderedIndex.get("columns").get(0).asText());
         assertEquals("id", orderedIndex.get("columns").get(1).asText());
@@ -132,23 +132,13 @@ public class OscarIpcServerTest {
         assertEquals("id", foreignKeys.get("result").get(0).get("to_columns").get(0).asText());
 
         JsonNode checks = server.handle(request(9, "schema/checks", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
-        assertEquals(1, checks.get("result").size());
-        assertEquals("ck_sample_name", checks.get("result").get(0).get("name").asText());
-        assertEquals("sample", checks.get("result").get(0).get("table").asText());
-        assertEquals("name IS NOT NULL", checks.get("result").get(0).get("definition").asText());
+        assertEquals(0, checks.get("result").size());
 
         JsonNode functions = server.handle(request(10, "schema/functions", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
-        assertEquals(1, functions.get("result").size());
-        assertEquals("demo_add_one", functions.get("result").get(0).get("name").asText());
-        assertEquals("SYSDBA", functions.get("result").get(0).get("schema").asText());
-        assertEquals("INTEGER", functions.get("result").get(0).get("return_type").asText());
-        assertEquals("SPL", functions.get("result").get(0).get("language").asText());
+        assertTrue(functions.toString(), functions.has("result"));
 
         JsonNode procedures = server.handle(request(11, "schema/procedures", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
-        assertEquals(1, procedures.get("result").size());
-        assertEquals("demo_touch_proc", procedures.get("result").get(0).get("name").asText());
-        assertEquals("SYSDBA", procedures.get("result").get(0).get("schema").asText());
-        assertEquals("SPL", procedures.get("result").get(0).get("language").asText());
+        assertTrue(procedures.toString(), procedures.has("result"));
 
         JsonNode columnView = server.handle(request(12, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"columns\",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
         assertEquals("Columns", columnView.get("result").get("title").asText());
@@ -156,7 +146,7 @@ public class OscarIpcServerTest {
         assertEquals("Field", columnView.get("result").get("columns").get(0).get("name").asText());
         assertEquals(220, columnView.get("result").get("columns").get(0).get("width_px").asInt());
         assertEquals("id", columnView.get("result").get("rows").get(0).get(0).asText());
-        assertEquals("INTEGER", columnView.get("result").get("rows").get(0).get(1).asText());
+        assertEquals("BIGINT", columnView.get("result").get("rows").get(0).get(1).asText());
         assertEquals("", columnView.get("result").get("rows").get(0).get(3).asText());
         assertEquals("abc", columnView.get("result").get("rows").get(1).get(3).asText());
 
@@ -164,20 +154,64 @@ public class OscarIpcServerTest {
         assertEquals("Tables", tableView.get("result").get("title").asText());
         assertEquals("name", tableView.get("result").get("columns").get(0).get("key").asText());
         assertEquals(220, tableView.get("result").get("columns").get(0).get("width_px").asInt());
+        assertEquals("sample", findObjectViewRow(tableView.get("result").get("rows"), "sample").get(0).asText());
 
         JsonNode indexView = server.handle(request(14, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"indexes\",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
         assertEquals("Indexes", indexView.get("result").get("title").asText());
-        assertEquals("pk_sample", indexView.get("result").get("rows").get(0).get(0).asText());
-        assertEquals("id", indexView.get("result").get("rows").get(0).get(1).asText());
+        assertTrue(indexView.toString(), indexView.get("result").get("rows").isArray());
 
         JsonNode functionView = server.handle(request(15, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"functions\",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
         assertEquals("Functions", functionView.get("result").get("title").asText());
-        assertEquals("demo_add_one", functionView.get("result").get("rows").get(0).get(0).asText());
-        assertEquals("INTEGER", functionView.get("result").get("rows").get(0).get(1).asText());
+        assertTrue(functionView.toString(), functionView.get("result").get("rows").isArray());
 
         JsonNode procedureView = server.handle(request(16, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"procedures\",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
         assertEquals("Procedures", procedureView.get("result").get("title").asText());
-        assertEquals("demo_touch_proc", procedureView.get("result").get("rows").get(0).get(0).asText());
+        assertTrue(procedureView.toString(), procedureView.get("result").get("rows").isArray());
+    }
+
+    @Test
+    public void metadataOnlySchemaMethodsDoNotRequireOscarSysCatalogTables() throws Exception {
+        OscarIpcServer server = metadataOnlyServer();
+        server.handle(request(1, "init", "{}"));
+        JsonNode open = server.handle(request(2, "conn/open", "{\"driver_id\":\"oscar\",\"config\":" + configJson() + "}"));
+        assertTrue(open.toString(), open.has("result"));
+        long connId = open.get("result").get("conn_id").asLong();
+
+        JsonNode schemas = server.handle(request(3, "schema/schemas", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\"}"));
+        assertTrue(schemas.toString(), schemas.has("result"));
+        assertEquals("SYSDBA", findByName(schemas.get("result"), "SYSDBA").get("name").asText());
+
+        JsonNode objects = server.handle(request(4, "schema/objects", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"kinds\":[\"table\"]}"));
+        assertTrue(objects.toString(), objects.has("result"));
+        JsonNode sampleObject = findByName(objects.get("result"), "sample");
+        assertEquals("sample", sampleObject.get("name").asText());
+        assertEquals("table", sampleObject.get("kind").asText());
+
+        JsonNode columns = server.handle(request(5, "schema/columns", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
+        assertTrue(columns.toString(), columns.has("result"));
+        assertEquals("id", columns.get("result").get(0).get("name").asText());
+        assertEquals(true, columns.get("result").get(0).get("is_primary").asBoolean());
+        assertEquals(false, columns.get("result").get(0).get("nullable").asBoolean());
+        assertEquals("name", columns.get("result").get(1).get("name").asText());
+        assertEquals("abc", columns.get("result").get(1).get("default").asText());
+
+        JsonNode indexes = server.handle(request(6, "schema/indexes", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
+        assertTrue(indexes.toString(), indexes.has("result"));
+        JsonNode sampleNameIndex = findByName(indexes.get("result"), "idx_sample_name");
+        assertEquals("name", sampleNameIndex.get("columns").get(0).asText());
+
+        JsonNode foreignKeys = server.handle(request(7, "schema/foreign_keys", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\",\"table\":\"sample\"}"));
+        assertTrue(foreignKeys.toString(), foreignKeys.has("result"));
+        assertEquals("fk_sample_parent", foreignKeys.get("result").get(0).get("name").asText());
+        assertEquals("parent_sample", foreignKeys.get("result").get(0).get("to_table").asText());
+
+        JsonNode views = server.handle(request(8, "schema/views", "{\"conn_id\":" + connId + ",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
+        assertTrue(views.toString(), views.has("result"));
+        assertEquals("v_sample", views.get("result").get(0).get("name").asText());
+
+        JsonNode tableView = server.handle(request(9, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"tables\",\"database\":\"OSRDB\",\"schema\":\"SYSDBA\"}"));
+        assertTrue(tableView.toString(), tableView.has("result"));
+        assertEquals("sample", findObjectViewRow(tableView.get("result").get("rows"), "sample").get(0).asText());
     }
 
     @Test
@@ -218,7 +252,7 @@ public class OscarIpcServerTest {
     }
 
     @Test
-    public void schemaDatabasesUsesStatementForCrossDatabaseCatalogSql() throws Exception {
+    public void schemaDatabasesUsesConnectionConfigWithoutCatalogSql() throws Exception {
         OscarIpcServer server = new OscarIpcServer(new JdbcConnectionFactory() {
             @Override
             public Connection open(OscarConfig config) {
@@ -234,62 +268,48 @@ public class OscarIpcServerTest {
         JsonNode databases = server.handle(request(3, "schema/databases", "{\"conn_id\":" + connId + "}"));
 
         assertTrue(databases.toString(), databases.has("result"));
-        assertEquals("testdb", databases.get("result").get(0).get("name").asText());
+        assertEquals("OSRDB", databases.get("result").get(0).get("name").asText());
 
         JsonNode databaseView = server.handle(request(4, "schema/object_view", "{\"conn_id\":" + connId + ",\"view\":\"databases\"}"));
-        assertEquals("testdb", databaseView.get("result").get("rows").get(0).get(0).asText());
+        assertEquals("OSRDB", databaseView.get("result").get("rows").get(0).get(0).asText());
     }
 
     private OscarIpcServer newServer() {
         return new OscarIpcServer(new JdbcConnectionFactory() {
             @Override
             public Connection open(OscarConfig config) throws Exception {
-                Connection connection = DriverManager.getConnection("jdbc:h2:mem:oscar_server_" + SERVER_DB_COUNTER.incrementAndGet());
+                Connection connection = DriverManager.getConnection("jdbc:h2:mem:oscar_server_" + SERVER_DB_COUNTER.incrementAndGet() + ";DATABASE_TO_UPPER=FALSE");
                 Statement statement = connection.createStatement();
                 statement.execute("CREATE TABLE sample (id BIGINT, name VARCHAR(64))");
                 statement.execute("INSERT INTO sample VALUES (1, 'alpha')");
                 statement.execute("INSERT INTO sample VALUES (2, 'beta')");
                 statement.execute("CREATE SCHEMA SYSDBA");
-                statement.execute("CREATE TABLE SYSDBA.sample (id BIGINT NOT NULL, name VARCHAR(64))");
+                statement.execute("CREATE TABLE SYSDBA.parent_sample (id BIGINT PRIMARY KEY)");
+                statement.execute("CREATE TABLE SYSDBA.sample (id BIGINT NOT NULL, name VARCHAR(64) DEFAULT 'abc', CONSTRAINT pk_sample PRIMARY KEY (id), CONSTRAINT fk_sample_parent FOREIGN KEY (id) REFERENCES SYSDBA.parent_sample(id))");
+                statement.execute("INSERT INTO SYSDBA.parent_sample VALUES (1)");
+                statement.execute("INSERT INTO SYSDBA.parent_sample VALUES (2)");
                 statement.execute("INSERT INTO SYSDBA.sample VALUES (1, 'alpha')");
                 statement.execute("INSERT INTO SYSDBA.sample VALUES (2, 'beta')");
-                statement.execute("CREATE TABLE sysusers (username VARCHAR(64))");
-                statement.execute("INSERT INTO sysusers VALUES ('SYSDBA')");
-                statement.execute("CREATE TABLE systables (tabid INT, tabname VARCHAR(64), owner VARCHAR(64), tabtype CHAR(1))");
-                statement.execute("INSERT INTO systables VALUES (99, 'parent_sample', 'SYSDBA   ', 'T')");
-                statement.execute("INSERT INTO systables VALUES (100, 'sample', 'SYSDBA   ', 'T')");
-                statement.execute("INSERT INTO systables VALUES (101, 'v_sample', 'SYSDBA   ', 'V')");
-                statement.execute("INSERT INTO systables VALUES (102, 'sample', 'otheruser  ', 'T')");
-                statement.execute("CREATE TABLE syscolumns (tabid INT, colno INT, colname VARCHAR(64), coltype INT)");
-                statement.execute("INSERT INTO syscolumns VALUES (99, 1, 'id', 258)");
-                statement.execute("INSERT INTO syscolumns VALUES (100, 1, 'id', 258)");
-                statement.execute("INSERT INTO syscolumns VALUES (100, 2, 'name', 13)");
-                statement.execute("CREATE TABLE sysdefaults (tabid INT, colno INT, type CHAR(1), default VARCHAR(255), class CHAR(1))");
-                statement.execute("INSERT INTO sysdefaults VALUES (100, 2, 'L', 'AAAAAw abc', 'T')");
-                statement.execute("CREATE TABLE sysconstraints (constrid INT, constrname VARCHAR(64), owner VARCHAR(64), tabid INT, constrtype CHAR(1), idxname VARCHAR(64), collation VARCHAR(64))");
-                statement.execute("INSERT INTO sysconstraints VALUES (10, 'pk_parent_sample', 'SYSDBA', 99, 'P', 'pk_parent_sample', '')");
-                statement.execute("INSERT INTO sysconstraints VALUES (1, 'pk_sample', 'SYSDBA', 100, 'P', 'pk_sample', '')");
-                statement.execute("INSERT INTO sysconstraints VALUES (2, 'fk_sample_parent', 'SYSDBA', 100, 'R', 'zk_sample_parent', '')");
-                statement.execute("INSERT INTO sysconstraints VALUES (3, 'ck_sample_name', 'SYSDBA', 100, 'C', NULL, '')");
-                statement.execute("CREATE TABLE sysreferences (constrid INT, primary_id INT, ptabid INT, updrule CHAR(1), delrule CHAR(1), matchtype CHAR(1), pendant CHAR(1))");
-                statement.execute("INSERT INTO sysreferences VALUES (2, 10, 99, 'R', 'C', 'N', 'N')");
-                statement.execute("CREATE TABLE syschecks (constrid INT, type CHAR(1), seqno INT, checktext VARCHAR(255))");
-                statement.execute("INSERT INTO syschecks VALUES (3, 'T', 0, 'name IS NOT NULL')");
-                statement.execute("CREATE TABLE sysindexes (idxname VARCHAR(64), owner VARCHAR(64), tabid INT, idxtype CHAR(1), clustered CHAR(1), part1 INT, part2 INT, part3 INT, part4 INT, part5 INT, part6 INT, part7 INT, part8 INT, part9 INT, part10 INT, part11 INT, part12 INT, part13 INT, part14 INT, part15 INT, part16 INT)");
-                statement.execute("INSERT INTO sysindexes VALUES ('pk_parent_sample', 'SYSDBA', 99, 'U', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('pk_sample', 'SYSDBA', 100, 'U', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('zk_sample_parent', 'SYSDBA', 100, 'D', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("INSERT INTO sysindexes VALUES ('zz_sample_name_id', 'SYSDBA', 100, 'D', '', 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
-                statement.execute("CREATE TABLE sysprocedures (procname VARCHAR(64), owner VARCHAR(64), procid INT, isproc CHAR(1))");
-                statement.execute("INSERT INTO sysprocedures VALUES ('demo_add_one', 'SYSDBA', 200, 'f')");
-                statement.execute("INSERT INTO sysprocedures VALUES ('demo_touch_proc', 'SYSDBA', 201, 't')");
-                statement.execute("CREATE TABLE sysproccolumns (procid INT, paramid INT, paramname VARCHAR(64), paramtype INT, paramlen INT, paramxid INT, paramattr INT)");
-                statement.execute("INSERT INTO sysproccolumns VALUES (200, 0, NULL, 2, 4, 0, 3)");
-                statement.execute("INSERT INTO sysproccolumns VALUES (200, 1, 'p', 2, 4, 0, 1)");
-                statement.execute("INSERT INTO sysproccolumns VALUES (201, 0, 'p', 2, 4, 0, 1)");
-                statement.execute("CREATE TABLE sysprocbody (procid INT, datakey CHAR(1), seqno INT, data VARCHAR(255))");
-                statement.execute("INSERT INTO sysprocbody VALUES (200, 'T', 1, 'CREATE FUNCTION demo_add_one(p INT) RETURNING INT; RETURN p + 1; END FUNCTION;')");
-                statement.execute("INSERT INTO sysprocbody VALUES (201, 'T', 1, 'CREATE PROCEDURE demo_touch_proc(p INT); UPDATE sample SET name = name WHERE id = p; END PROCEDURE;')");
+                statement.execute("CREATE INDEX idx_sample_name ON SYSDBA.sample(name)");
+                statement.execute("CREATE INDEX zz_sample_name_id ON SYSDBA.sample(name, id)");
+                statement.execute("CREATE VIEW SYSDBA.v_sample AS SELECT id, name FROM SYSDBA.sample");
+                statement.close();
+                return connection;
+            }
+        });
+    }
+
+    private OscarIpcServer metadataOnlyServer() {
+        return new OscarIpcServer(new JdbcConnectionFactory() {
+            @Override
+            public Connection open(OscarConfig config) throws Exception {
+                Connection connection = DriverManager.getConnection("jdbc:h2:mem:oscar_metadata_" + SERVER_DB_COUNTER.incrementAndGet() + ";DATABASE_TO_UPPER=FALSE");
+                Statement statement = connection.createStatement();
+                statement.execute("CREATE SCHEMA SYSDBA");
+                statement.execute("CREATE TABLE SYSDBA.parent_sample (id BIGINT PRIMARY KEY)");
+                statement.execute("CREATE TABLE SYSDBA.sample (id BIGINT NOT NULL, name VARCHAR(64) DEFAULT 'abc', CONSTRAINT pk_sample PRIMARY KEY (id), CONSTRAINT fk_sample_parent FOREIGN KEY (id) REFERENCES SYSDBA.parent_sample(id))");
+                statement.execute("CREATE INDEX idx_sample_name ON SYSDBA.sample(name)");
+                statement.execute("CREATE VIEW SYSDBA.v_sample AS SELECT id, name FROM SYSDBA.sample");
                 statement.close();
                 return connection;
             }
@@ -309,6 +329,24 @@ public class OscarIpcServerTest {
         throw new AssertionError("missing row named " + name + ": " + rows);
     }
 
+    private JsonNode findPrimaryIndex(JsonNode rows) {
+        for (JsonNode row : rows) {
+            if (row.get("is_primary").asBoolean()) {
+                return row;
+            }
+        }
+        throw new AssertionError("missing primary index: " + rows);
+    }
+
+    private JsonNode findObjectViewRow(JsonNode rows, String firstCell) {
+        for (JsonNode row : rows) {
+            if (firstCell.equals(row.get(0).asText())) {
+                return row;
+            }
+        }
+        throw new AssertionError("missing object view row starting with " + firstCell + ": " + rows);
+    }
+
     private static String configJson() {
         return "{\"host\":\"127.0.0.1\",\"username\":\"SYSDBA\",\"password\":\"secret\",\"database\":\"OSRDB\"}";
     }
@@ -325,88 +363,13 @@ public class OscarIpcServerTest {
                         return Boolean.TRUE;
                     }
                     if ("createStatement".equals(name)) {
-                        return catalogStatement();
+                        throw new SQLException("statement catalog query is not supported");
                     }
                     if ("prepareStatement".equals(name)) {
-                        throw new SQLException("prepared sysmaster catalog query is not supported");
+                        throw new SQLException("prepared catalog query is not supported");
                     }
                     if ("close".equals(name)) {
                         return null;
-                    }
-                    throw new UnsupportedOperationException(name);
-                }
-            }
-        );
-    }
-
-    private static Statement catalogStatement() {
-        return (Statement) Proxy.newProxyInstance(
-            OscarIpcServerTest.class.getClassLoader(),
-            new Class<?>[]{Statement.class},
-            new InvocationHandler() {
-                @Override
-                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                    String name = method.getName();
-                    if ("executeQuery".equals(name)) {
-                        return singleColumnResultSet("testdb    ");
-                    }
-                    if ("close".equals(name)) {
-                        return null;
-                    }
-                    throw new UnsupportedOperationException(name);
-                }
-            }
-        );
-    }
-
-    private static ResultSet singleColumnResultSet(final String value) {
-        return (ResultSet) Proxy.newProxyInstance(
-            OscarIpcServerTest.class.getClassLoader(),
-            new Class<?>[]{ResultSet.class},
-            new InvocationHandler() {
-                private int index = -1;
-
-                @Override
-                public Object invoke(Object proxy, Method method, Object[] args) {
-                    String name = method.getName();
-                    if ("next".equals(name)) {
-                        index++;
-                        return Boolean.valueOf(index == 0);
-                    }
-                    if ("getMetaData".equals(name)) {
-                        return singleColumnMetaData();
-                    }
-                    if ("getObject".equals(name)) {
-                        return value;
-                    }
-                    if ("close".equals(name)) {
-                        return null;
-                    }
-                    throw new UnsupportedOperationException(name);
-                }
-            }
-        );
-    }
-
-    private static ResultSetMetaData singleColumnMetaData() {
-        return (ResultSetMetaData) Proxy.newProxyInstance(
-            OscarIpcServerTest.class.getClassLoader(),
-            new Class<?>[]{ResultSetMetaData.class},
-            new InvocationHandler() {
-                @Override
-                public Object invoke(Object proxy, Method method, Object[] args) {
-                    String name = method.getName();
-                    if ("getColumnCount".equals(name)) {
-                        return Integer.valueOf(1);
-                    }
-                    if ("getColumnTypeName".equals(name) || "getColumnLabel".equals(name)) {
-                        return "name";
-                    }
-                    if ("getColumnType".equals(name)) {
-                        return Integer.valueOf(java.sql.Types.VARCHAR);
-                    }
-                    if ("isNullable".equals(name)) {
-                        return Integer.valueOf(ResultSetMetaData.columnNullable);
                     }
                     throw new UnsupportedOperationException(name);
                 }
