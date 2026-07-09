@@ -6,6 +6,8 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,7 +87,13 @@ public class LauncherScriptTest {
     }
 
     private ProcessResult runLauncher(Map<String, String> env, String... args) throws Exception {
-        File lib = new File("bin/lib");
+        File runRoot = temporaryFolder.newFolder("launcher-run");
+        File bin = new File(runRoot, "bin");
+        assertTrue(bin.mkdirs());
+        File launcher = new File(bin, "oscar-ipc-driver");
+        copyExecutable(new File("bin/oscar-ipc-driver"), launcher);
+
+        File lib = new File(bin, "lib");
         if (!lib.isDirectory()) {
             assertTrue(lib.mkdirs());
         }
@@ -94,12 +102,12 @@ public class LauncherScriptTest {
             TestFiles.writeExecutable(jar, "fake jar\n");
         }
         List<String> command = new ArrayList<String>();
-        command.add(new File("bin/oscar-ipc-driver").getAbsolutePath());
+        command.add(launcher.getAbsolutePath());
         for (String arg : args) {
             command.add(arg);
         }
         ProcessBuilder builder = new ProcessBuilder(command);
-        builder.directory(new File("."));
+        builder.directory(runRoot);
         builder.redirectErrorStream(true);
         builder.environment().remove("OSCAR_JDK_HOME");
         builder.environment().remove("JAVA_HOME");
@@ -109,6 +117,23 @@ public class LauncherScriptTest {
         TestFiles.copy(process.getInputStream(), output);
         int exitCode = process.waitFor();
         return new ProcessResult(exitCode, new String(output.toByteArray(), "UTF-8"));
+    }
+
+    private void copyExecutable(File source, File target) throws IOException {
+        FileInputStream input = new FileInputStream(source);
+        try {
+            FileOutputStream output = new FileOutputStream(target);
+            try {
+                TestFiles.copy(input, output);
+            } finally {
+                output.close();
+            }
+        } finally {
+            input.close();
+        }
+        if (!target.setExecutable(true)) {
+            throw new IOException("failed to mark executable: " + target);
+        }
     }
 
     private Map<String, String> env(String... keyValues) {
