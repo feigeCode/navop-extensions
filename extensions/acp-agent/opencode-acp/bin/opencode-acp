@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+set -eu
+
+find_opencode() {
+  if [ -n "${OPENCODE_EXECUTABLE:-}" ] && [ -x "$OPENCODE_EXECUTABLE" ]; then
+    printf '%s\n' "$OPENCODE_EXECUTABLE"
+    return 0
+  fi
+
+  if command -v opencode >/dev/null 2>&1; then
+    command -v opencode
+    return 0
+  fi
+
+  for candidate in "$HOME"/.nvm/versions/node/*/bin/opencode; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+OPENCODE_BIN="$(find_opencode || true)"
+if [ -z "$OPENCODE_BIN" ]; then
+  echo "opencode was not found. Install OpenCode before starting the OpenCode ACP agent." >&2
+  exit 127
+fi
+
+OPENCODE_DIR="${OPENCODE_BIN%/*}"
+if [ "$OPENCODE_DIR" != "$OPENCODE_BIN" ]; then
+  PATH="$OPENCODE_DIR:$PATH"
+  export PATH
+fi
+
+exec "$OPENCODE_BIN" acp "$@"

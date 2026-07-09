@@ -33,6 +33,16 @@
       "manifest": "codex-acp/manifest.json"
     },
     {
+      "id": "opencode-acp",
+      "kind": "acp_agent",
+      "name": "OpenCode",
+      "version": "0.1.0",
+      "release_tag": "opencode-acp-v0.1.0",
+      "description": "Shell ACP Registry wrapper for OpenCode",
+      "file_extensions": [],
+      "manifest": "opencode-acp/manifest.json"
+    },
+    {
       "id": "dbeaver-importer",
       "kind": "composite",
       "name": "DBeaver Importer",

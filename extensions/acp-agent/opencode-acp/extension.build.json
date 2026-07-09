@@ -1,0 +1,17 @@
+{
+  "id": "opencode-acp",
+  "kind": "acp_agent",
+  "language": "shell",
+  "package": "",
+  "binary": "opencode-acp",
+  "path": "extensions/acp-agent/opencode-acp",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "opencode-acp-v",
+  "r2Prefix": "extensions/opencode-acp"
+}

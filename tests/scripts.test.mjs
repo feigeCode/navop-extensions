@@ -921,6 +921,74 @@ test("package-acp-agent creates a Codex ACP agent package", () => {
   );
 });
 
+test("OpenCode ACP extension launches local opencode acp", () => {
+  const metadata = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "extensions/acp-agent/opencode-acp/extension.build.json"),
+      "utf8",
+    ),
+  );
+  const manifest = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "extensions/acp-agent/opencode-acp/acp_agent.json"),
+      "utf8",
+    ),
+  );
+
+  assert.equal(metadata.id, "opencode-acp");
+  assert.equal(metadata.kind, "acp_agent");
+  assert.equal(metadata.language, "shell");
+  assert.equal(metadata.binary, "opencode-acp");
+  assert.equal(manifest.id, "opencode-acp");
+  assert.equal(manifest.name, "OpenCode");
+  assert.equal(manifest.agents[0].transport.type, "stdio");
+  assert.equal(manifest.agents[0].transport.command, "bin/opencode-acp");
+  assert.deepEqual(manifest.agents[0].transport.args, []);
+
+  const unixLauncher = fs.readFileSync(
+    path.join(repoRoot, "extensions/acp-agent/opencode-acp/bin/opencode-acp"),
+    "utf8",
+  );
+  const windowsLauncher = fs.readFileSync(
+    path.join(repoRoot, "extensions/acp-agent/opencode-acp/bin/opencode-acp.cmd"),
+    "utf8",
+  );
+  assert.match(unixLauncher, /acp "\$@"/);
+  assert.match(windowsLauncher, /opencode acp %\*/);
+  assert.doesNotMatch(unixLauncher, /npm/);
+  assert.doesNotMatch(windowsLauncher, /npm/);
+});
+
+test("OpenCode ACP launcher finds nvm-installed opencode without shell PATH", () => {
+  const workdir = makeTempDir();
+  const binDir = path.join(workdir, ".nvm/versions/node/v99.0.0/bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(binDir, "opencode"),
+    `#!/usr/bin/env node\n`,
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    path.join(binDir, "node"),
+    `#!/usr/bin/env sh\nshift\nprintf '%s\\n' "$@" > "$HOME/opencode-args.txt"\n`,
+    { mode: 0o755 },
+  );
+
+  execFileSync(
+    path.join(repoRoot, "extensions/acp-agent/opencode-acp/bin/opencode-acp"),
+    {
+      cwd: workdir,
+      env: {
+        HOME: workdir,
+        PATH: "/usr/bin:/bin",
+      },
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(fs.readFileSync(path.join(workdir, "opencode-args.txt"), "utf8"), "acp\n");
+});
+
 test("package-composite-extension creates a DBeaver importer package", () => {
   const workdir = makeTempDir();
   createDbeaverImporterFixture(workdir);
@@ -3186,6 +3254,19 @@ test("install-local-acp-agents packages and replaces one selected ACP agent", ()
     /@agentclientprotocol\/codex-acp@1\.0\.1/,
   );
   assert.equal(fs.existsSync(path.join(installRoot, "codex-acp/old.txt")), false);
+  assert.equal(
+    fs.existsSync(path.join(installRoot, ".backups")),
+    false,
+    "ACP agent backups must not live under the scanned acp_agents root",
+  );
+  const backups = fs
+    .readdirSync(`${installRoot}.backups`)
+    .filter((name) => name.startsWith("codex-acp.backup."));
+  assert.equal(backups.length, 1);
+  assert.equal(
+    fs.readFileSync(path.join(`${installRoot}.backups`, backups[0], "old.txt"), "utf8"),
+    "old codex\n",
+  );
 });
 
 test("install-local-acp-agents defaults to the one-hub ACP agent directory", () => {

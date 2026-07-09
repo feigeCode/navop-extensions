@@ -1,0 +1,18 @@
+{
+  "id": "opencode-acp",
+  "name": "OpenCode",
+  "description": "Shell ACP Registry wrapper for OpenCode. Requires the opencode CLI to be installed locally.",
+  "version": "0.1.0",
+  "agents": [
+    {
+      "id": "opencode-acp",
+      "name": "OpenCode",
+      "transport": {
+        "type": "stdio",
+        "command": "bin/opencode-acp",
+        "args": [],
+        "env": {}
+      }
+    }
+  ]
+}

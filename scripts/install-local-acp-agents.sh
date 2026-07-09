@@ -102,7 +102,7 @@ install_packaged_agent() {
   local target="$2"
   local packaged_dir="${REPO_DIR}/target/extension-packages/${target}/${id}"
   local dest_dir="${INSTALL_ROOT}/${id}"
-  local backup_root="${INSTALL_ROOT}/.backups"
+  local backup_root="${INSTALL_ROOT}.backups"
   local backup_dir base_backup counter
 
   [ -d "$packaged_dir" ] || fail "packaged ACP agent directory does not exist: ${packaged_dir}"
