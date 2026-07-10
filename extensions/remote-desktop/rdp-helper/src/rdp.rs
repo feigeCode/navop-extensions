@@ -1,30 +1,29 @@
-use std::sync::mpsc as std_mpsc;
-
 use anyhow::Context as _;
-use ironrdp::connector::{self, Credentials};
 use ironrdp::input::{Database, MouseButton, MousePosition, Operation, Scancode, WheelRotations};
-use ironrdp::pdu::rdp::capability_sets::{MajorPlatformType, client_codecs_capabilities};
-use ironrdp::pdu::rdp::client_info::{CompressionType, PerformanceFlags, TimezoneInfo};
-use ironrdp_client::config::{ClipboardType, Config, Destination};
 use ironrdp_client::rdp::{DvcPipeProxyFactory, RdpClient, RdpInputEvent, RdpOutputEvent};
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 use crate::clipboard::{TextClipboardController, text_clipboard};
-use crate::pixels::rdp_u32_pixels_to_bgra;
+use crate::output_mailbox::{OutputReceiver, OutputSender, output_mailbox};
 use crate::protocol::{ConnectRequest, HelperEvent, HelperMouseButton, HelperRequest};
+
+mod config;
+mod output;
+
+use output::RdpOutputMapper;
 
 pub struct RdpRuntime {
     pub input_tx: mpsc::UnboundedSender<RdpInputEvent>,
-    pub output_rx: std_mpsc::Receiver<HelperEvent>,
+    pub output_rx: OutputReceiver,
     pub clipboard: TextClipboardController,
 }
 
 pub fn start(connect: ConnectRequest) -> anyhow::Result<RdpRuntime> {
-    let config = build_config(connect)?;
+    let config = config::build_config(connect)?;
     let (input_tx, input_rx) = RdpInputEvent::create_channel();
     let (output_tx, output_rx) = mpsc::channel::<RdpOutputEvent>(64);
-    let (helper_output_tx, helper_output_rx) = std_mpsc::channel::<HelperEvent>();
+    let (helper_output_tx, helper_output_rx) = output_mailbox();
     let (clipboard, cliprdr_factory) = text_clipboard(input_tx.clone(), helper_output_tx.clone());
     let dvc_pipe_proxy_factory = DvcPipeProxyFactory::new(input_tx.clone());
     let client = RdpClient {
@@ -58,30 +57,24 @@ pub fn apply_input_request(
                 physical_size: None,
             })
             .map_err(|_| anyhow::anyhow!("RDP input channel closed"))?,
-        HelperRequest::MouseMove { x, y } => {
-            send_operations(
-                input_database,
-                input_tx,
-                [Operation::MouseMove(MousePosition { x, y })],
-            );
-        }
-        HelperRequest::MouseButton { button, pressed } => {
-            send_operations(
-                input_database,
-                input_tx,
-                [mouse_button_operation(button, pressed)],
-            );
-        }
-        HelperRequest::Wheel { vertical, units } => {
-            send_operations(
-                input_database,
-                input_tx,
-                [Operation::WheelRotations(WheelRotations {
-                    is_vertical: vertical,
-                    rotation_units: units,
-                })],
-            );
-        }
+        HelperRequest::MouseMove { x, y } => send_operations(
+            input_database,
+            input_tx,
+            [Operation::MouseMove(MousePosition { x, y })],
+        ),
+        HelperRequest::MouseButton { button, pressed } => send_operations(
+            input_database,
+            input_tx,
+            [mouse_button_operation(button, pressed)],
+        ),
+        HelperRequest::Wheel { vertical, units } => send_operations(
+            input_database,
+            input_tx,
+            [Operation::WheelRotations(WheelRotations {
+                is_vertical: vertical,
+                rotation_units: units,
+            })],
+        ),
         HelperRequest::Key {
             code,
             extended,
@@ -109,7 +102,7 @@ pub fn apply_input_request(
 fn spawn_client_thread(
     client: RdpClient,
     mut output_rx: mpsc::Receiver<RdpOutputEvent>,
-    helper_output_tx: std_mpsc::Sender<HelperEvent>,
+    helper_output_tx: OutputSender,
 ) -> anyhow::Result<()> {
     std::thread::Builder::new()
         .name("onetcli-rdp-helper-runtime".to_string())
@@ -141,120 +134,12 @@ fn spawn_client_thread(
     Ok(())
 }
 
-fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
-    let codecs = client_codecs_capabilities(&[])
-        .map_err(|help| anyhow::anyhow!("failed to build bitmap codec capabilities: {help}"))?;
-    let connector = connector::Config {
-        credentials: Credentials::UsernamePassword {
-            username: connect.username.unwrap_or_default(),
-            password: connect.password.unwrap_or_default(),
-        },
-        domain: connect.domain,
-        enable_tls: true,
-        enable_credssp: true,
-        desktop_size: connector::DesktopSize {
-            width: connect.width,
-            height: connect.height,
-        },
-        desktop_scale_factor: 0,
-        keyboard_type: ironrdp::pdu::gcc::KeyboardType::IbmEnhanced,
-        keyboard_subtype: 0,
-        keyboard_layout: 0,
-        keyboard_functional_keys_count: 12,
-        ime_file_name: String::new(),
-        bitmap: Some(connector::BitmapConfig {
-            lossy_compression: true,
-            color_depth: 32,
-            codecs,
-        }),
-        dig_product_id: String::new(),
-        client_build: client_build()?,
-        client_name: whoami::fallible::hostname().unwrap_or_else(|_| "onetcli-rdp".to_string()),
-        client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
-        alternate_shell: String::new(),
-        work_dir: String::new(),
-        platform: platform_type(),
-        hardware_id: None,
-        license_cache: None,
-        request_data: None,
-        autologon: true,
-        enable_audio_playback: false,
-        enable_server_pointer: true,
-        pointer_software_rendering: false,
-        multitransport_flags: None,
-        compression_type: Some(CompressionType::Rdp61),
-        performance_flags: PerformanceFlags::default(),
-        timezone_info: TimezoneInfo::default(),
-    };
-
-    Ok(Config {
-        log_file: None,
-        gw: None,
-        kerberos_config: None,
-        destination: connect.destination.parse::<Destination>()?,
-        connector,
-        clipboard_type: ClipboardType::Enable,
-        rdcleanpath: None,
-        fake_events_interval: None,
-        dvc_pipe_proxies: Vec::new(),
-        #[cfg(windows)]
-        dvc_plugins: Vec::new(),
-    })
-}
-
-#[derive(Default)]
-struct RdpOutputMapper {
-    connected: bool,
-}
-
-impl RdpOutputMapper {
-    fn map(&mut self, event: RdpOutputEvent) -> Vec<HelperEvent> {
-        match event {
-            RdpOutputEvent::Image {
-                buffer,
-                width,
-                height,
-            } => {
-                let width = width.get();
-                let height = height.get();
-                let mut events = Vec::with_capacity(if self.connected { 1 } else { 2 });
-                if !self.connected {
-                    events.push(HelperEvent::Connected { width, height });
-                    self.connected = true;
-                }
-                events.push(HelperEvent::frame(
-                    width,
-                    height,
-                    rdp_u32_pixels_to_bgra(&buffer),
-                ));
-                events
-            }
-            RdpOutputEvent::ConnectionFailure(error) => vec![HelperEvent::ConnectionFailure {
-                message: format!("{error:#}"),
-            }],
-            RdpOutputEvent::Terminated(result) => vec![HelperEvent::Terminated {
-                message: match result {
-                    Ok(reason) => reason.to_string(),
-                    Err(error) => format!("{error:#}"),
-                },
-            }],
-            RdpOutputEvent::PointerDefault => vec![HelperEvent::CursorDefault],
-            RdpOutputEvent::PointerHidden => vec![HelperEvent::CursorHidden],
-            RdpOutputEvent::PointerPosition { x, y } => {
-                vec![HelperEvent::CursorPosition { x, y }]
-            }
-            RdpOutputEvent::PointerBitmap(_) => vec![HelperEvent::CursorDefault],
-        }
-    }
-}
-
 fn send_operations<const N: usize>(
     input_database: &mut Database,
     input_tx: &mpsc::UnboundedSender<RdpInputEvent>,
     operations: [Operation; N],
 ) {
-    let events = input_database.apply(operations);
-    send_fast_path(input_tx, events);
+    send_fast_path(input_tx, input_database.apply(operations));
 }
 
 fn send_text(
@@ -308,22 +193,6 @@ fn key_operation(code: u16, extended: bool, pressed: bool) -> anyhow::Result<Ope
     })
 }
 
-fn client_build() -> anyhow::Result<u32> {
-    let version = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
-    Ok((version.major * 100 + version.minor * 10 + version.patch).try_into()?)
-}
-
-fn platform_type() -> MajorPlatformType {
-    match whoami::platform() {
-        whoami::Platform::Windows => MajorPlatformType::WINDOWS,
-        whoami::Platform::Linux => MajorPlatformType::UNIX,
-        whoami::Platform::MacOS => MajorPlatformType::MACINTOSH,
-        whoami::Platform::Ios => MajorPlatformType::IOS,
-        whoami::Platform::Android => MajorPlatformType::ANDROID,
-        _ => MajorPlatformType::UNSPECIFIED,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,14 +200,12 @@ mod tests {
     #[test]
     fn key_operation_builds_plain_scancode_events() {
         let operation = key_operation(0x39, false, true).expect("space key operation");
-
         assert_key_operation(operation, true, false, 0x39);
     }
 
     #[test]
     fn key_operation_builds_extended_scancode_events() {
         let operation = key_operation(0x48, true, false).expect("arrow key operation");
-
         assert_key_operation(operation, false, true, 0x48);
     }
 
@@ -348,60 +215,17 @@ mod tests {
     }
 
     #[test]
-    fn build_config_matches_ironrdp_viewer_performance_flags() {
-        let config = build_config(ConnectRequest {
-            destination: "127.0.0.1:3389".to_string(),
-            username: None,
-            password: None,
-            domain: None,
-            width: 1280,
-            height: 720,
-        })
-        .expect("config builds");
-
-        let flags = config.connector.performance_flags;
-
-        assert_eq!(PerformanceFlags::default(), flags);
-        assert!(!flags.contains(PerformanceFlags::DISABLE_THEMING));
-        assert!(!flags.contains(PerformanceFlags::ENABLE_DESKTOP_COMPOSITION));
-    }
-
-    #[test]
-    fn output_mapper_reports_connected_only_when_first_frame_arrives() {
-        let mut mapper = RdpOutputMapper::default();
-        let first = mapper.map(RdpOutputEvent::Image {
-            buffer: vec![0x00112233],
-            width: std::num::NonZeroU16::new(1).unwrap(),
-            height: std::num::NonZeroU16::new(1).unwrap(),
-        });
-
-        assert_eq!(
-            first,
-            vec![
-                HelperEvent::Connected {
-                    width: 1,
-                    height: 1
-                },
-                HelperEvent::frame(1, 1, vec![0x33, 0x22, 0x11, 0xff])
-            ]
-        );
-
-        let second = mapper.map(RdpOutputEvent::Image {
-            buffer: vec![0x00abcdef],
-            width: std::num::NonZeroU16::new(1).unwrap(),
-            height: std::num::NonZeroU16::new(1).unwrap(),
-        });
-
-        assert_eq!(
-            second,
-            vec![HelperEvent::frame(1, 1, vec![0xef, 0xcd, 0xab, 0xff])]
-        );
+    fn runtime_uses_coalescing_output_receiver() {
+        fn assert_receiver(runtime: &RdpRuntime) {
+            let _: &crate::output_mailbox::OutputReceiver = &runtime.output_rx;
+        }
+        let _contract: fn(&RdpRuntime) = assert_receiver;
     }
 
     #[test]
     fn apply_clipboard_text_request_advertises_local_text() {
         let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, _output_rx) = std_mpsc::channel::<HelperEvent>();
+        let (output_tx, _output_rx) = output_mailbox();
         let (clipboard, _factory) = text_clipboard(input_tx.clone(), output_tx);
         let mut input_database = Database::new();
 
@@ -419,10 +243,9 @@ mod tests {
         match input_rx.try_recv().expect("clipboard advertise") {
             RdpInputEvent::Clipboard(
                 ironrdp::cliprdr::backend::ClipboardMessage::SendInitiateCopy(formats),
-            ) => {
-                assert!(formats.iter().any(|format| format.id()
-                    == ironrdp::cliprdr::pdu::ClipboardFormatId::CF_UNICODETEXT))
-            }
+            ) => assert!(formats.iter().any(|format| {
+                format.id() == ironrdp::cliprdr::pdu::ClipboardFormatId::CF_UNICODETEXT
+            })),
             other => panic!("expected clipboard advertise, got {other:?}"),
         }
     }
@@ -438,7 +261,6 @@ mod tests {
             Operation::KeyReleased(scancode) => (false, scancode),
             other => panic!("expected key operation, got {other:?}"),
         };
-
         assert_eq!(expected_pressed, pressed);
         assert_eq!((expected_extended, expected_code), scancode.as_u8());
     }

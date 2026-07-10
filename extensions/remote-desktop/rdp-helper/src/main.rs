@@ -6,9 +6,11 @@ use tracing::error;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
 
+use crate::output_mailbox::OutputReceiver;
 use crate::protocol::HelperEvent;
 
 mod clipboard;
+mod output_mailbox;
 mod pixels;
 mod protocol;
 mod rdp;
@@ -65,13 +67,11 @@ fn read_connect_request(
     protocol::connect_request(protocol::decode_request_line(&line)?)
 }
 
-fn spawn_output_writer(
-    output_rx: std::sync::mpsc::Receiver<HelperEvent>,
-) -> JoinHandle<anyhow::Result<()>> {
+fn spawn_output_writer(output_rx: OutputReceiver) -> JoinHandle<anyhow::Result<()>> {
     std::thread::Builder::new()
         .name("onetcli-rdp-helper-output".to_string())
         .spawn(move || {
-            for event in output_rx {
+            while let Some(event) = output_rx.recv() {
                 write_event(&event)?;
             }
             Ok(())

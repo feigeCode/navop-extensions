@@ -9,7 +9,11 @@ use ironrdp::core::{AsAny, IntoOwned};
 use ironrdp_client::rdp::RdpInputEvent;
 use tokio::sync::mpsc;
 
+use crate::output_mailbox::OutputSender;
 use crate::protocol::HelperEvent;
+
+#[cfg(test)]
+use crate::output_mailbox::output_mailbox;
 
 #[derive(Clone, Debug)]
 pub struct TextClipboardController {
@@ -39,7 +43,7 @@ struct TextClipboardState {
 struct TextClipboardBackendFactory {
     shared: Arc<Mutex<TextClipboardState>>,
     input_tx: mpsc::UnboundedSender<RdpInputEvent>,
-    output_tx: std::sync::mpsc::Sender<HelperEvent>,
+    output_tx: OutputSender,
 }
 
 impl CliprdrBackendFactory for TextClipboardBackendFactory {
@@ -57,7 +61,7 @@ impl CliprdrBackendFactory for TextClipboardBackendFactory {
 struct TextClipboardBackend {
     shared: Arc<Mutex<TextClipboardState>>,
     input_tx: mpsc::UnboundedSender<RdpInputEvent>,
-    output_tx: std::sync::mpsc::Sender<HelperEvent>,
+    output_tx: OutputSender,
     temporary_directory: String,
 }
 
@@ -152,7 +156,7 @@ impl CliprdrBackend for TextClipboardBackend {
 
 pub fn text_clipboard(
     input_tx: mpsc::UnboundedSender<RdpInputEvent>,
-    output_tx: std::sync::mpsc::Sender<HelperEvent>,
+    output_tx: OutputSender,
 ) -> (
     TextClipboardController,
     Box<dyn CliprdrBackendFactory + Send>,
@@ -186,7 +190,7 @@ mod tests {
     #[test]
     fn local_text_advertises_unicode_clipboard_format() {
         let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, _output_rx) = std::sync::mpsc::channel::<HelperEvent>();
+        let (output_tx, _output_rx) = output_mailbox();
         let (controller, _factory) = text_clipboard(input_tx, output_tx);
 
         controller
@@ -207,7 +211,7 @@ mod tests {
     #[test]
     fn backend_replies_with_local_text_when_remote_requests_unicode_data() {
         let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, _output_rx) = std::sync::mpsc::channel::<HelperEvent>();
+        let (output_tx, _output_rx) = output_mailbox();
         let (controller, factory) = text_clipboard(input_tx, output_tx);
         controller
             .set_local_text("hello 中文".to_string())
@@ -233,7 +237,7 @@ mod tests {
     #[test]
     fn backend_fetches_and_emits_remote_unicode_clipboard_text() {
         let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, output_rx) = std::sync::mpsc::channel::<HelperEvent>();
+        let (output_tx, output_rx) = output_mailbox();
         let (_controller, factory) = text_clipboard(input_tx, output_tx);
         let mut backend = factory.build_cliprdr_backend();
 
@@ -254,7 +258,7 @@ mod tests {
             HelperEvent::ClipboardText {
                 text: "remote 中文".to_string()
             },
-            output_rx.try_recv().expect("clipboard event")
+            output_rx.recv().expect("clipboard event")
         );
     }
 
