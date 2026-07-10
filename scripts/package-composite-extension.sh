@@ -27,30 +27,31 @@ fi
 
 BIN_NAME="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.binary || `${data.id}.wasm`);' "$BUILD_METADATA")"
 PACKAGE_NAME="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.package || data.id);' "$BUILD_METADATA")"
-MODULE_PATH="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const runtime = data.runtime?.wasm?.[0]; process.stdout.write(runtime?.module || `wasm/${process.argv[2]}`);' "${SOURCE_DIR}/extension.json" "$BIN_NAME")"
+MODULE_PATH="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const runtime = data.runtime?.wasm?.[0]; process.stdout.write(runtime?.module || "");' "${SOURCE_DIR}/extension.json")"
 PACKAGE_ROOT="${REPO_DIR}/target/extension-packages/${TARGET}"
 EXTENSION_DIR="${PACKAGE_ROOT}/${EXTENSION_ID}"
 ARCHIVE_NAME="${EXTENSION_ID}-composite-${TARGET}.tar.gz"
 
 SOURCE_WASM=""
-SOURCE_CANDIDATES=()
-if [ -n "${CARGO_TARGET_DIR:-}" ]; then
-  SOURCE_CANDIDATES+=("${CARGO_TARGET_DIR}/wasm32-wasip2/release/${BIN_NAME}")
-fi
-SOURCE_CANDIDATES+=("${REPO_DIR}/target/wasm32-wasip2/release/${BIN_NAME}")
-SOURCE_CANDIDATES+=("${SOURCE_DIR}/${MODULE_PATH}")
-for CANDIDATE in "${SOURCE_CANDIDATES[@]}"; do
-  if [ -f "$CANDIDATE" ]; then
-    SOURCE_WASM="$CANDIDATE"
-    break
+if [ -n "$MODULE_PATH" ]; then
+  SOURCE_CANDIDATES=()
+  if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+    SOURCE_CANDIDATES+=("${CARGO_TARGET_DIR}/wasm32-wasip2/release/${BIN_NAME}")
   fi
-done
-
-if [ ! -f "$SOURCE_WASM" ]; then
-  echo "Missing composite WASM module. Checked:" >&2
-  printf '  %s\n' "${SOURCE_CANDIDATES[@]}" >&2
-  echo "Run: cargo build --release -p ${PACKAGE_NAME} --target wasm32-wasip2" >&2
-  exit 1
+  SOURCE_CANDIDATES+=("${REPO_DIR}/target/wasm32-wasip2/release/${BIN_NAME}")
+  SOURCE_CANDIDATES+=("${SOURCE_DIR}/${MODULE_PATH}")
+  for CANDIDATE in "${SOURCE_CANDIDATES[@]}"; do
+    if [ -f "$CANDIDATE" ]; then
+      SOURCE_WASM="$CANDIDATE"
+      break
+    fi
+  done
+  if [ ! -f "$SOURCE_WASM" ]; then
+    echo "Missing composite WASM module. Checked:" >&2
+    printf '  %s\n' "${SOURCE_CANDIDATES[@]}" >&2
+    echo "Run: cargo build --release -p ${PACKAGE_NAME} --target wasm32-wasip2" >&2
+    exit 1
+  fi
 fi
 
 case "$MODULE_PATH" in
@@ -78,8 +79,10 @@ manifest.version = version;
 fs.writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
 
-mkdir -p "$(dirname "${EXTENSION_DIR}/${MODULE_PATH}")"
-cp "$SOURCE_WASM" "${EXTENSION_DIR}/${MODULE_PATH}"
+if [ -n "$MODULE_PATH" ]; then
+  mkdir -p "$(dirname "${EXTENSION_DIR}/${MODULE_PATH}")"
+  cp "$SOURCE_WASM" "${EXTENSION_DIR}/${MODULE_PATH}"
+fi
 
 for RESOURCE_DIR in icons locales assets; do
   if [ -d "${SOURCE_DIR}/${RESOURCE_DIR}" ]; then

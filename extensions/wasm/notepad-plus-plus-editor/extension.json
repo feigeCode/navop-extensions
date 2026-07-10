@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.editor.notepad-plus-plus",
+  "name": "Notepad++ External Editor",
+  "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad++.",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.8.6"
+  },
+  "categories": [
+    "Editor",
+    "SFTP"
+  ],
+  "contributes": {
+    "remoteFileEditors": [
+      {
+        "id": "notepad-plus-plus",
+        "displayName": "Notepad++",
+        "platforms": [
+          "windows"
+        ],
+        "fileMasks": [
+          "*"
+        ],
+        "priority": 100,
+        "command": {
+          "programCandidates": [
+            "${env:ProgramFiles}\\Notepad++\\notepad++.exe",
+            "${env:ProgramFiles(x86)}\\Notepad++\\notepad++.exe"
+          ],
+          "args": [
+            "{file}"
+          ]
+        }
+      }
+    ]
+  }
+}

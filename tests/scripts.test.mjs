@@ -1065,6 +1065,40 @@ test("package-composite-extension creates a DBeaver importer package", () => {
   );
 });
 
+test("package-composite-extension creates a static remote editor package", () => {
+  const workdir = makeTempDir();
+  createStaticRemoteEditorFixture(workdir);
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-composite-extension.sh"),
+      "notepad-plus-plus-editor",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  assert.equal(
+    path.basename(archivePath),
+    "notepad-plus-plus-editor-composite-universal.tar.gz",
+  );
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/extension.json"), "utf8"),
+  );
+  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.runtime, undefined);
+  assert.equal(manifest.contributes.remoteFileEditors[0].displayName, "Notepad++");
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+});
+
 test("package-language-extension creates a Tree-sitter language package", () => {
   const workdir = makeTempDir();
   createLanguageExtensionFixture(workdir, {
@@ -3799,6 +3833,43 @@ function createDbeaverImporterFixture(workdir, options = {}) {
   fs.writeFileSync(path.join(workdir, `extensions/wasm/${id}/wasm/dbeaver_importer_wasm.wasm`), "fake wasm\n");
 }
 
+function createStaticRemoteEditorFixture(workdir) {
+  const id = "notepad-plus-plus-editor";
+  copyScript("package-composite-extension.sh", workdir);
+  copyScript("verify-composite-package.sh", workdir);
+  writeJson(path.join(workdir, `extensions/wasm/${id}/extension.build.json`), {
+    id,
+    kind: "composite",
+    language: "static",
+    path: `extensions/wasm/${id}`,
+    targets: ["universal"],
+  });
+  writeJson(path.join(workdir, `extensions/wasm/${id}/extension.json`), {
+    schema_version: 1,
+    id: "com.onetcli.editor.notepad-plus-plus",
+    name: "Notepad++ External Editor",
+    description: "Use Notepad++ to edit SFTP remote files from OnetCli.",
+    version: "0.0.0",
+    engines: { onetcli: ">=0.8.6" },
+    contributes: {
+      remoteFileEditors: [{
+        id: "notepad-plus-plus",
+        displayName: "Notepad++",
+        platforms: ["windows"],
+        fileMasks: ["*"],
+        priority: 100,
+        command: {
+          programCandidates: [
+            "${env:ProgramFiles}\\Notepad++\\notepad++.exe",
+            "${env:ProgramFiles(x86)}\\Notepad++\\notepad++.exe",
+          ],
+          args: ["{file}"],
+        },
+      }],
+    },
+  });
+}
+
 function createLanguageExtensionFixture(workdir, options = {}) {
   const id = options.id || "rust";
   const version = options.version || "0.0.0";
@@ -3984,6 +4055,8 @@ function languageName(metadata) {
       return "Rust WASM";
     case "shell":
       return "Shell";
+    case "static":
+      return "Static";
     default:
       throw new Error(`unsupported extension language for ${metadata.id}: ${language}`);
   }

@@ -1,0 +1,11 @@
+{
+  "id": "notepad-plus-plus-editor",
+  "kind": "composite",
+  "language": "static",
+  "path": "extensions/wasm/notepad-plus-plus-editor",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "notepad-plus-plus-editor-v",
+  "r2Prefix": "extensions/notepad-plus-plus-editor"
+}

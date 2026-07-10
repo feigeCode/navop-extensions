@@ -26,19 +26,19 @@ const manifestPath = process.argv[2];
 const packageRoot = process.argv[3];
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
-for (const key of ["id", "name", "version", "runtime", "contributes"]) {
+for (const key of ["id", "name", "version", "contributes"]) {
   if (!manifest[key]) {
     console.error(`extension.json missing ${key}`);
     process.exit(1);
   }
 }
 
-const wasmRuntimes = manifest.runtime?.wasm;
-if (!Array.isArray(wasmRuntimes) || wasmRuntimes.length === 0) {
-  console.error("extension.json runtime.wasm must contain at least one runtime");
+if (Object.keys(manifest.contributes).length === 0) {
+  console.error("extension.json contributes must not be empty");
   process.exit(1);
 }
 
+const wasmRuntimes = manifest.runtime?.wasm || [];
 for (const runtime of wasmRuntimes) {
   if (!runtime.id || !runtime.module || runtime.kind !== "component") {
     console.error("runtime.wasm entries must declare id, module, and kind=component");
@@ -55,11 +55,7 @@ for (const runtime of wasmRuntimes) {
   }
 }
 
-const importers = manifest.contributes?.connectionImporters;
-if (!Array.isArray(importers) || importers.length === 0) {
-  console.error("extension.json contributes.connectionImporters must not be empty");
-  process.exit(1);
-}
+const importers = manifest.contributes?.connectionImporters || [];
 
 for (const importer of importers) {
   for (const key of ["id", "runtimeId", "displayName"]) {
@@ -72,6 +68,30 @@ for (const importer of importers) {
     console.error(`connection importer ${importer.id} missing outputKinds`);
     process.exit(1);
   }
+}
+
+const editors = manifest.contributes?.remoteFileEditors || [];
+for (const editor of editors) {
+  for (const key of ["id", "displayName", "command"]) {
+    if (!editor[key]) {
+      console.error(`remote file editor missing ${key}`);
+      process.exit(1);
+    }
+  }
+  if (!Array.isArray(editor.command.programCandidates)
+      || editor.command.programCandidates.length === 0) {
+    console.error(`remote file editor ${editor.id} missing programCandidates`);
+    process.exit(1);
+  }
+  if (editor.command.args && !Array.isArray(editor.command.args)) {
+    console.error(`remote file editor ${editor.id} args must be an array`);
+    process.exit(1);
+  }
+}
+
+if (importers.length === 0 && editors.length === 0 && wasmRuntimes.length === 0) {
+  console.error("extension.json has no supported composite contributions");
+  process.exit(1);
 }
 NODE
 
