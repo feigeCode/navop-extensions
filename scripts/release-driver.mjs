@@ -197,6 +197,13 @@ function buildDriver(metadata, target) {
     return;
   }
 
+  if (language === "static") {
+    if (target !== "universal") {
+      fail(`static extensions must declare the universal target, got ${target}`);
+    }
+    return;
+  }
+
   if (language === "tree-sitter-wasm") {
     if (target !== "universal") {
       fail(`tree-sitter-wasm extensions must declare the universal target, got ${target}`);

@@ -83,6 +83,16 @@
       "manifest": "openssh-config-importer/manifest.json"
     },
     {
+      "id": "notepad-plus-plus-editor",
+      "kind": "composite",
+      "name": "Notepad++ External Editor",
+      "version": "0.1.0",
+      "release_tag": "notepad-plus-plus-editor-v0.1.0",
+      "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad++.",
+      "file_extensions": [],
+      "manifest": "notepad-plus-plus-editor/manifest.json"
+    },
+    {
       "id": "redis-desktop-importer",
       "kind": "composite",
       "name": "Redis Desktop Importer",
