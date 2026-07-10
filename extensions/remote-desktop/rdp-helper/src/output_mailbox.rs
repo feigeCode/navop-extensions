@@ -214,6 +214,14 @@ mod tests {
         assert_eq!(None, waiter.join().unwrap());
     }
 
+    #[test]
+    fn send_fails_after_receiver_is_dropped() {
+        let (tx, rx) = output_mailbox();
+        drop(rx);
+
+        assert!(tx.send(frame(1)).is_err());
+    }
+
     fn frame(value: u8) -> HelperEvent {
         HelperEvent::frame(1, 1, vec![value, 0, 0, 255])
     }
