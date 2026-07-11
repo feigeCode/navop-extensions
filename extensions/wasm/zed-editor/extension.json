@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.editor.zed",
+  "name": "Zed External Editor",
+  "description": "Static composite extension for editing OnetCli SFTP remote files with Zed.",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.8.6"
+  },
+  "categories": [
+    "Editor",
+    "SFTP"
+  ],
+  "contributes": {
+    "remoteFileEditors": [
+      {
+        "id": "zed-macos",
+        "displayName": "Zed",
+        "platforms": [
+          "macos"
+        ],
+        "fileMasks": [
+          "*"
+        ],
+        "priority": 90,
+        "command": {
+          "programCandidates": [
+            "/Applications/Zed.app/Contents/MacOS/zed"
+          ],
+          "args": [
+            "{file}"
+          ]
+        }
+      },
+      {
+        "id": "zed-linux",
+        "displayName": "Zed",
+        "platforms": [
+          "linux"
+        ],
+        "fileMasks": [
+          "*"
+        ],
+        "priority": 90,
+        "command": {
+          "programCandidates": [
+            "zed"
+          ],
+          "args": [
+            "{file}"
+          ]
+        }
+      }
+    ]
+  }
+}
