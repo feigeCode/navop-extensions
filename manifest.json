@@ -96,8 +96,8 @@
       "id": "notepad-minus-minus-editor",
       "kind": "composite",
       "name": "Notepad-- External Editor",
-      "version": "0.1.0",
-      "release_tag": "notepad-minus-minus-editor-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "notepad-minus-minus-editor-v0.1.1",
       "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad--.",
       "file_extensions": [],
       "manifest": "notepad-minus-minus-editor/manifest.json"
@@ -106,8 +106,8 @@
       "id": "zed-editor",
       "kind": "composite",
       "name": "Zed External Editor",
-      "version": "0.1.0",
-      "release_tag": "zed-editor-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "zed-editor-v0.1.1",
       "description": "Static composite extension for editing OnetCli SFTP remote files with Zed.",
       "file_extensions": [],
       "manifest": "zed-editor/manifest.json"

@@ -4,8 +4,10 @@ This static composite extension contributes Notepad-- as an external editor for
 OnetCli SFTP remote files. The host application owns the SFTP connection,
 temporary file, change watcher, conflict prompt, and upload workflow.
 
-The extension contains no executable code and receives no credentials. It only
-declares the standard macOS Notepad-- executable and the `{file}` argument.
+The extension contains no executable code and receives no credentials. It
+declares the standard macOS Notepad-- executable for availability checks, then
+asks OnetCli to deliver `{file}` through macOS LaunchServices. This also opens
+files in an already-running Notepad-- instance.
 
 After installation, right-click a remote file and choose **Edit With Notepad--**.
 For a non-standard installation, configure the executable path in OnetCli

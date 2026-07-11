@@ -477,13 +477,13 @@ test("Notepad-- and Zed editors are registered as static composite extensions", 
     {
       id: "notepad-minus-minus-editor",
       name: "Notepad-- External Editor",
-      releaseTag: "notepad-minus-minus-editor-v0.1.0",
+      releaseTag: "notepad-minus-minus-editor-v0.1.1",
       manifest: "notepad-minus-minus-editor/manifest.json",
     },
     {
       id: "zed-editor",
       name: "Zed External Editor",
-      releaseTag: "zed-editor-v0.1.0",
+      releaseTag: "zed-editor-v0.1.1",
       manifest: "zed-editor/manifest.json",
     },
   ];
@@ -494,7 +494,7 @@ test("Notepad-- and Zed editors are registered as static composite extensions", 
     );
     assert.equal(entry?.kind, "composite");
     assert.equal(entry?.name, item.name);
-    assert.equal(entry?.version, "0.1.0");
+    assert.equal(entry?.version, "0.1.1");
     assert.equal(entry?.release_tag, item.releaseTag);
     assert.equal(entry?.manifest, item.manifest);
   }
@@ -516,6 +516,7 @@ test("Notepad-- and Zed editor manifests declare platform-specific commands", ()
   assert.deepEqual(notepadEditor.platforms, ["macos"]);
   assert.deepEqual(notepadEditor.fileMasks, ["*"]);
   assert.equal(notepadEditor.priority, 100);
+  assert.equal(notepadEditor.command.launchMode, "macos_open");
   assert.deepEqual(notepadEditor.command.programCandidates, [
     "/Applications/Notepad--.app/Contents/MacOS/Notepad--",
   ]);
@@ -523,11 +524,13 @@ test("Notepad-- and Zed editor manifests declare platform-specific commands", ()
 
   assert.equal(zedMacos.id, "zed-macos");
   assert.deepEqual(zedMacos.platforms, ["macos"]);
+  assert.equal(zedMacos.command.launchMode, "macos_open");
   assert.deepEqual(zedMacos.command.programCandidates, [
     "/Applications/Zed.app/Contents/MacOS/zed",
   ]);
   assert.equal(zedLinux.id, "zed-linux");
   assert.deepEqual(zedLinux.platforms, ["linux"]);
+  assert.equal(zedLinux.command.launchMode, undefined);
   assert.deepEqual(zedLinux.command.programCandidates, ["zed"]);
   assert.deepEqual(zedMacos.fileMasks, ["*"]);
   assert.deepEqual(zedLinux.fileMasks, ["*"]);
