@@ -1,0 +1,11 @@
+{
+  "id": "notepad-minus-minus-editor",
+  "kind": "composite",
+  "language": "static",
+  "path": "extensions/wasm/notepad-minus-minus-editor",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "notepad-minus-minus-editor-v",
+  "r2Prefix": "extensions/notepad-minus-minus-editor"
+}

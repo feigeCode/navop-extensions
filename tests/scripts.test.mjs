@@ -469,6 +469,74 @@ test("Redis desktop importer is registered as a composite WASM importer", () => 
   );
 });
 
+test("Notepad-- and Zed editors are registered as static composite extensions", () => {
+  const globalManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"),
+  );
+  const expected = [
+    {
+      id: "notepad-minus-minus-editor",
+      name: "Notepad-- External Editor",
+      releaseTag: "notepad-minus-minus-editor-v0.1.0",
+      manifest: "notepad-minus-minus-editor/manifest.json",
+    },
+    {
+      id: "zed-editor",
+      name: "Zed External Editor",
+      releaseTag: "zed-editor-v0.1.0",
+      manifest: "zed-editor/manifest.json",
+    },
+  ];
+
+  for (const item of expected) {
+    const entry = globalManifest.extensions.find(
+      (extension) => extension.id === item.id,
+    );
+    assert.equal(entry?.kind, "composite");
+    assert.equal(entry?.name, item.name);
+    assert.equal(entry?.version, "0.1.0");
+    assert.equal(entry?.release_tag, item.releaseTag);
+    assert.equal(entry?.manifest, item.manifest);
+  }
+});
+
+test("Notepad-- and Zed editor manifests declare platform-specific commands", () => {
+  const readManifest = (id) => JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, `extensions/wasm/${id}/extension.json`),
+      "utf8",
+    ),
+  );
+  const notepadManifest = readManifest("notepad-minus-minus-editor");
+  const zedManifest = readManifest("zed-editor");
+  const notepadEditor = notepadManifest.contributes.remoteFileEditors[0];
+  const [zedMacos, zedLinux] = zedManifest.contributes.remoteFileEditors;
+
+  assert.equal(notepadEditor.id, "notepad-minus-minus");
+  assert.deepEqual(notepadEditor.platforms, ["macos"]);
+  assert.deepEqual(notepadEditor.fileMasks, ["*"]);
+  assert.equal(notepadEditor.priority, 100);
+  assert.deepEqual(notepadEditor.command.programCandidates, [
+    "/Applications/Notepad--.app/Contents/MacOS/Notepad--",
+  ]);
+  assert.deepEqual(notepadEditor.command.args, ["{file}"]);
+
+  assert.equal(zedMacos.id, "zed-macos");
+  assert.deepEqual(zedMacos.platforms, ["macos"]);
+  assert.deepEqual(zedMacos.command.programCandidates, [
+    "/Applications/Zed.app/Contents/MacOS/zed",
+  ]);
+  assert.equal(zedLinux.id, "zed-linux");
+  assert.deepEqual(zedLinux.platforms, ["linux"]);
+  assert.deepEqual(zedLinux.command.programCandidates, ["zed"]);
+  assert.deepEqual(zedMacos.fileMasks, ["*"]);
+  assert.deepEqual(zedLinux.fileMasks, ["*"]);
+  assert.equal(zedMacos.priority, 90);
+  assert.equal(zedLinux.priority, 90);
+  assert.deepEqual(zedMacos.command.args, ["{file}"]);
+  assert.deepEqual(zedLinux.command.args, ["{file}"]);
+});
+
 test("R2 upload workflow handles composite extension assets", () => {
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
   const compositeAssetName = "${process.env.EXTENSION_ID}-composite-${target}.tar.gz";

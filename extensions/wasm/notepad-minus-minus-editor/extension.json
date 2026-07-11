@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.editor.notepad-minus-minus",
+  "name": "Notepad-- External Editor",
+  "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad--.",
+  "version": "0.1.0",
+  "publisher": "OnetCli",
+  "engines": {
+    "onetcli": ">=0.8.6"
+  },
+  "categories": [
+    "Editor",
+    "SFTP"
+  ],
+  "contributes": {
+    "remoteFileEditors": [
+      {
+        "id": "notepad-minus-minus",
+        "displayName": "Notepad--",
+        "platforms": [
+          "macos"
+        ],
+        "fileMasks": [
+          "*"
+        ],
+        "priority": 100,
+        "command": {
+          "programCandidates": [
+            "/Applications/Notepad--.app/Contents/MacOS/Notepad--"
+          ],
+          "args": [
+            "{file}"
+          ]
+        }
+      }
+    ]
+  }
+}

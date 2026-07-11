@@ -1,0 +1,11 @@
+{
+  "id": "zed-editor",
+  "kind": "composite",
+  "language": "static",
+  "path": "extensions/wasm/zed-editor",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "zed-editor-v",
+  "r2Prefix": "extensions/zed-editor"
+}
