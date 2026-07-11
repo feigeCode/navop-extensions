@@ -1,5 +1,6 @@
 use vnc_client::{ClientMouseEvent, VncClient, X11Event};
 
+use crate::output_mailbox::OutputSender;
 use crate::runtime::{RemoteDesktopInput, RemoteDesktopOutput, RemoteMouseButton};
 use crate::vnc_keyboard::remote_key_to_keysym;
 
@@ -18,7 +19,7 @@ pub(crate) async fn handle_pending_inputs(
     latest_clipboard_text: &mut Option<String>,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
     pointer: &mut VncPointerState,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> VncInputAction {
     let inputs = match drain_remote_inputs(input_rx) {
         VncInputBatch::Inputs(inputs) => inputs,
@@ -39,7 +40,7 @@ async fn handle_vnc_input(
     latest_clipboard_text: &mut Option<String>,
     pointer: &mut VncPointerState,
     input: RemoteDesktopInput,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> VncInputAction {
     match send_vnc_input(client, latest_clipboard_text, pointer, input, output_tx).await {
         Ok(action) => action,
@@ -52,7 +53,7 @@ async fn send_vnc_input(
     latest_clipboard_text: &mut Option<String>,
     pointer: &mut VncPointerState,
     input: RemoteDesktopInput,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> anyhow::Result<VncInputAction> {
     match input {
         RemoteDesktopInput::Close => close_client(client).await,
@@ -138,7 +139,7 @@ async fn send_clipboard_text(
     client: &VncClient,
     latest_clipboard_text: &mut Option<String>,
     text: String,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> anyhow::Result<VncInputAction> {
     if !text.is_ascii() {
         send_status(
@@ -254,7 +255,7 @@ fn vnc_wheel_bit(vertical: bool, units: i16) -> Option<u8> {
     }
 }
 
-fn send_status(output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>, message: &str) {
+fn send_status(output_tx: &OutputSender, message: &str) {
     let _ = output_tx.send(RemoteDesktopOutput::Status(message.to_string()));
 }
 

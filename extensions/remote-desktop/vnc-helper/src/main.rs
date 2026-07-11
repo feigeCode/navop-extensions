@@ -9,9 +9,11 @@ use tracing::error;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
 
+use crate::output_mailbox::{OutputReceiver, OutputSender, output_mailbox};
 use crate::protocol::{HelperEvent, HelperMouseButton, HelperRequest};
 
 mod framebuffer;
+mod output_mailbox;
 mod protocol;
 mod runtime;
 mod vnc_encoding;
@@ -35,7 +37,7 @@ fn run() -> anyhow::Result<()> {
     let mut lines = stdin.lock().lines();
     let connect = read_connect_request(&mut lines)?;
     let (input_tx, mut input_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (output_tx, output_rx) = std::sync::mpsc::channel();
+    let (output_tx, output_rx) = output_mailbox();
     let output_thread = spawn_output_writer(output_rx);
     let vnc_thread = spawn_vnc_thread(connect_options(connect), &mut input_rx, output_tx)?;
 
@@ -118,7 +120,7 @@ fn scancode_value(code: u16, extended: bool) -> u16 {
 fn spawn_vnc_thread(
     options: RemoteDesktopConnectionOptions,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
-    output_tx: std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: OutputSender,
 ) -> anyhow::Result<JoinHandle<()>> {
     let mut input_rx = std::mem::replace(input_rx, tokio::sync::mpsc::unbounded_channel().1);
     Ok(std::thread::Builder::new()
@@ -126,13 +128,11 @@ fn spawn_vnc_thread(
         .spawn(move || vnc_rfb::run_vnc_thread(options, &mut input_rx, output_tx))?)
 }
 
-fn spawn_output_writer(
-    output_rx: std::sync::mpsc::Receiver<RemoteDesktopOutput>,
-) -> JoinHandle<anyhow::Result<()>> {
+fn spawn_output_writer(output_rx: OutputReceiver) -> JoinHandle<anyhow::Result<()>> {
     std::thread::Builder::new()
         .name("onetcli-vnc-helper-output".to_string())
         .spawn(move || {
-            for output in output_rx {
+            while let Some(output) = output_rx.recv() {
                 write_event(&output_to_event(output))?;
             }
             Ok(())

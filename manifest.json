@@ -236,8 +236,8 @@
       "id": "vnc",
       "kind": "remote_desktop_provider",
       "name": "VNC",
-      "version": "0.1.1",
-      "release_tag": "vnc-v0.1.1",
+      "version": "0.1.2",
+      "release_tag": "vnc-v0.1.2",
       "description": "使用 Rust 开发的 VNC 远程桌面 provider",
       "file_extensions": [],
       "manifest": "vnc/manifest.json"

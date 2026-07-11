@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use tokio::net::TcpStream;
 use vnc_client::{PixelFormat, VncClient, VncConnector, VncEncoding, X11Event};
 
+use crate::output_mailbox::OutputSender;
 use crate::runtime::{RemoteDesktopConnectionOptions, RemoteDesktopInput, RemoteDesktopOutput};
 use crate::vnc_encoding::ConnectedVncSession;
 use crate::vnc_input::{VncInputAction, handle_pending_inputs};
@@ -13,7 +14,7 @@ const VNC_POLL_INTERVAL: Duration = Duration::from_millis(8);
 pub fn run_vnc_thread(
     options: RemoteDesktopConnectionOptions,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
-    output_tx: std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: OutputSender,
 ) {
     let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -28,7 +29,7 @@ pub fn run_vnc_thread(
 async fn run_vnc_backend(
     options: RemoteDesktopConnectionOptions,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) {
     let mut latest_clipboard_text = None;
     let mut reconnect_attempt = 0usize;
@@ -72,7 +73,7 @@ async fn run_vnc_session(
     options: &RemoteDesktopConnectionOptions,
     latest_clipboard_text: &mut Option<String>,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> VncSessionResult {
     send_status(
         output_tx,
@@ -116,7 +117,7 @@ async fn run_connected_vnc_session(
     client: VncClient,
     latest_clipboard_text: &mut Option<String>,
     input_rx: &mut tokio::sync::mpsc::UnboundedReceiver<RemoteDesktopInput>,
-    output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
+    output_tx: &OutputSender,
 ) -> VncSessionResult {
     let mut session = ConnectedVncSession::new(client);
     loop {
@@ -227,10 +228,10 @@ fn handle_wait_input(
     }
 }
 
-fn send_status(output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>, message: &str) {
+fn send_status(output_tx: &OutputSender, message: &str) {
     let _ = output_tx.send(RemoteDesktopOutput::Status(message.to_string()));
 }
 
-fn send_failure(output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>, message: &str) {
+fn send_failure(output_tx: &OutputSender, message: &str) {
     let _ = output_tx.send(RemoteDesktopOutput::ConnectionFailure(message.to_string()));
 }

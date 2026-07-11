@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use vnc_client::{Rect, VncClient, VncEvent, X11Event};
 
 use crate::framebuffer::RgbaFramebuffer;
+use crate::output_mailbox::OutputSender;
 use crate::runtime::{RemoteDesktopCapabilities, RemoteDesktopOutput, ResizeSupport};
 use crate::vnc_input::VncPointerState;
 
@@ -27,10 +28,7 @@ impl ConnectedVncSession {
         }
     }
 
-    pub(crate) async fn poll_events(
-        &mut self,
-        output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
-    ) -> Result<(), String> {
+    pub(crate) async fn poll_events(&mut self, output_tx: &OutputSender) -> Result<(), String> {
         loop {
             match self.client.poll_event().await {
                 Ok(Some(event)) => self.handle_event(event, output_tx)?,
@@ -55,11 +53,7 @@ impl ConnectedVncSession {
         Ok(())
     }
 
-    fn handle_event(
-        &mut self,
-        event: VncEvent,
-        output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
-    ) -> Result<(), String> {
+    fn handle_event(&mut self, event: VncEvent, output_tx: &OutputSender) -> Result<(), String> {
         match event {
             VncEvent::SetResolution(screen) => self.set_resolution(screen, output_tx),
             VncEvent::RawImage(rect, data) => self.patch_rect(rect, &data)?,
@@ -75,11 +69,7 @@ impl ConnectedVncSession {
         Ok(())
     }
 
-    fn set_resolution(
-        &mut self,
-        screen: vnc_client::Screen,
-        output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
-    ) {
+    fn set_resolution(&mut self, screen: vnc_client::Screen, output_tx: &OutputSender) {
         self.framebuffer.set_resolution(screen, output_tx);
         self.was_connected = true;
     }
@@ -100,11 +90,7 @@ struct VncFramebufferState {
 }
 
 impl VncFramebufferState {
-    fn set_resolution(
-        &mut self,
-        screen: vnc_client::Screen,
-        output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>,
-    ) {
+    fn set_resolution(&mut self, screen: vnc_client::Screen, output_tx: &OutputSender) {
         self.framebuffer = Some(RgbaFramebuffer::new(screen.width, screen.height));
         self.dirty = false;
         let _ = output_tx.send(RemoteDesktopOutput::Connected {
@@ -136,7 +122,7 @@ impl VncFramebufferState {
         Ok(())
     }
 
-    fn flush_frame(&mut self, output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>) {
+    fn flush_frame(&mut self, output_tx: &OutputSender) {
         let Some(framebuffer) = &self.framebuffer else {
             return;
         };
@@ -152,7 +138,7 @@ impl VncFramebufferState {
     }
 }
 
-fn send_clipboard(output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>, text: String) {
+fn send_clipboard(output_tx: &OutputSender, text: String) {
     let _ = output_tx.send(RemoteDesktopOutput::ClipboardText { text });
 }
 
@@ -164,17 +150,60 @@ fn vnc_capabilities() -> RemoteDesktopCapabilities {
     }
 }
 
-fn send_status(output_tx: &std::sync::mpsc::Sender<RemoteDesktopOutput>, message: &str) {
+fn send_status(output_tx: &OutputSender, message: &str) {
     let _ = output_tx.send(RemoteDesktopOutput::Status(message.to_string()));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output_mailbox::output_mailbox;
+
+    #[test]
+    fn burst_frames_keep_only_latest_pending_output() {
+        let (output_tx, output_rx) = output_mailbox();
+        let mut framebuffer = VncFramebufferState::default();
+        framebuffer.set_resolution(
+            vnc_client::Screen {
+                width: 1,
+                height: 1,
+            },
+            &output_tx,
+        );
+        for value in [1, 2, 3] {
+            framebuffer
+                .patch_rect(
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        width: 1,
+                        height: 1,
+                    },
+                    &[value, 0, 0, 255],
+                )
+                .unwrap();
+            framebuffer.flush_frame(&output_tx);
+        }
+
+        assert!(matches!(
+            output_rx.recv(),
+            Some(RemoteDesktopOutput::Connected { .. })
+        ));
+        assert_eq!(
+            Some(RemoteDesktopOutput::Frame {
+                width: 1,
+                height: 1,
+                rgba: vec![0, 0, 3, 255],
+            }),
+            output_rx.recv()
+        );
+        drop(output_tx);
+        assert_eq!(None, output_rx.recv());
+    }
 
     #[test]
     fn coalesces_multiple_rectangles_into_one_flushed_frame() {
-        let (output_tx, output_rx) = std::sync::mpsc::channel();
+        let (output_tx, output_rx) = output_mailbox();
         let mut framebuffer = VncFramebufferState::default();
         framebuffer.set_resolution(
             vnc_client::Screen {
@@ -208,25 +237,22 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            output_rx.try_recv().unwrap(),
+            output_rx.recv().unwrap(),
             RemoteDesktopOutput::Connected {
                 width: 2,
                 height: 1,
                 capabilities: vnc_capabilities(),
             }
         );
-        assert!(output_rx.try_recv().is_err());
-
         framebuffer.flush_frame(&output_tx);
 
         assert_eq!(
-            output_rx.try_recv().unwrap(),
+            output_rx.recv().unwrap(),
             RemoteDesktopOutput::Frame {
                 width: 2,
                 height: 1,
                 rgba: vec![0, 0, 255, 255, 255, 0, 0, 255],
             }
         );
-        assert!(output_rx.try_recv().is_err());
     }
 }
