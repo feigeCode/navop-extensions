@@ -43,7 +43,7 @@
       "manifest": "opencode-acp/manifest.json"
     },
     {
-      "id": "dbeaver-importer",
+      "id": "com.onetcli.importer.dbeaver",
       "kind": "composite",
       "name": "DBeaver Importer",
       "version": "0.1.0",
@@ -53,7 +53,7 @@
       "manifest": "dbeaver-importer/manifest.json"
     },
     {
-      "id": "jetbrains-importer",
+      "id": "com.onetcli.importer.jetbrains",
       "kind": "composite",
       "name": "JetBrains Importer",
       "version": "0.1.0",
@@ -63,7 +63,7 @@
       "manifest": "jetbrains-importer/manifest.json"
     },
     {
-      "id": "mongodb-compass-importer",
+      "id": "com.onetcli.importer.mongodb-compass",
       "kind": "composite",
       "name": "MongoDB Compass Importer",
       "version": "0.1.0",
@@ -73,7 +73,7 @@
       "manifest": "mongodb-compass-importer/manifest.json"
     },
     {
-      "id": "openssh-config-importer",
+      "id": "com.onetcli.importer.openssh-config",
       "kind": "composite",
       "name": "OpenSSH Config Importer",
       "version": "0.1.0",
@@ -83,7 +83,7 @@
       "manifest": "openssh-config-importer/manifest.json"
     },
     {
-      "id": "notepad-plus-plus-editor",
+      "id": "com.onetcli.editor.notepad-plus-plus",
       "kind": "composite",
       "name": "Notepad++ External Editor",
       "version": "0.1.0",
@@ -93,7 +93,7 @@
       "manifest": "notepad-plus-plus-editor/manifest.json"
     },
     {
-      "id": "notepad-minus-minus-editor",
+      "id": "com.onetcli.editor.notepad-minus-minus",
       "kind": "composite",
       "name": "Notepad-- External Editor",
       "version": "0.1.1",
@@ -103,7 +103,7 @@
       "manifest": "notepad-minus-minus-editor/manifest.json"
     },
     {
-      "id": "zed-editor",
+      "id": "com.onetcli.editor.zed",
       "kind": "composite",
       "name": "Zed External Editor",
       "version": "0.1.1",
@@ -113,7 +113,7 @@
       "manifest": "zed-editor/manifest.json"
     },
     {
-      "id": "redis-desktop-importer",
+      "id": "com.onetcli.importer.redis-desktop",
       "kind": "composite",
       "name": "Redis Desktop Importer",
       "version": "0.1.0",
@@ -123,7 +123,7 @@
       "manifest": "redis-desktop-importer/manifest.json"
     },
     {
-      "id": "navicat-importer",
+      "id": "com.onetcli.importer.navicat",
       "kind": "composite",
       "name": "Navicat Importer",
       "version": "0.1.1",
@@ -133,7 +133,7 @@
       "manifest": "navicat-importer/manifest.json"
     },
     {
-      "id": "tableplus-importer",
+      "id": "com.onetcli.importer.tableplus",
       "kind": "composite",
       "name": "TablePlus Importer",
       "version": "0.1.0",
@@ -143,7 +143,7 @@
       "manifest": "tableplus-importer/manifest.json"
     },
     {
-      "id": "xshell-importer",
+      "id": "com.onetcli.importer.xshell",
       "kind": "composite",
       "name": "Xshell Importer",
       "version": "0.1.1",

@@ -257,7 +257,7 @@ test("extension descriptions include implementation language", () => {
       `${metadata.id} source manifest description should mention ${language}`,
     );
     assert.ok(
-      globalEntries.get(metadata.id)?.description?.includes(language),
+      globalEntries.get(sourceManifest.id)?.description?.includes(language),
       `${metadata.id} global manifest description should mention ${language}`,
     );
   }
@@ -295,7 +295,7 @@ test("WASM connection importers use the shared host connection-import WIT", () =
 
 test("Xshell importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "xshell-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.xshell");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "xshell-importer/manifest.json");
@@ -315,7 +315,7 @@ test("Xshell importer is registered as a composite WASM importer", () => {
 
 test("Navicat importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "navicat-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.navicat");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "navicat-importer/manifest.json");
@@ -360,9 +360,33 @@ test("Navicat importer is registered as a composite WASM importer", () => {
   );
 });
 
+test("composite marketplace ids match their installed extension manifest ids", () => {
+  const globalManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"),
+  );
+
+  for (const entry of globalManifest.extensions.filter(
+    (extension) => extension.kind === "composite",
+  )) {
+    const artifactSlug = entry.manifest.split("/")[0];
+    const sourceManifest = JSON.parse(
+      fs.readFileSync(
+        path.join(repoRoot, `extensions/wasm/${artifactSlug}/extension.json`),
+        "utf8",
+      ),
+    );
+
+    assert.equal(
+      entry.id,
+      sourceManifest.id,
+      `${artifactSlug} marketplace id must match its installed extension id`,
+    );
+  }
+});
+
 test("TablePlus importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "tableplus-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.tableplus");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "tableplus-importer/manifest.json");
@@ -382,7 +406,7 @@ test("TablePlus importer is registered as a composite WASM importer", () => {
 
 test("JetBrains importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "jetbrains-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.jetbrains");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "jetbrains-importer/manifest.json");
@@ -402,7 +426,7 @@ test("JetBrains importer is registered as a composite WASM importer", () => {
 
 test("MongoDB Compass importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "mongodb-compass-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.mongodb-compass");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "mongodb-compass-importer/manifest.json");
@@ -422,7 +446,7 @@ test("MongoDB Compass importer is registered as a composite WASM importer", () =
 
 test("OpenSSH config importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "openssh-config-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.openssh-config");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "openssh-config-importer/manifest.json");
@@ -451,7 +475,7 @@ test("OpenSSH config importer is registered as a composite WASM importer", () =>
 
 test("Redis desktop importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
-  const entry = globalManifest.extensions.find((extension) => extension.id === "redis-desktop-importer");
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.redis-desktop");
 
   assert.equal(entry?.kind, "composite");
   assert.equal(entry?.manifest, "redis-desktop-importer/manifest.json");
@@ -475,13 +499,13 @@ test("Notepad-- and Zed editors are registered as static composite extensions", 
   );
   const expected = [
     {
-      id: "notepad-minus-minus-editor",
+      id: "com.onetcli.editor.notepad-minus-minus",
       name: "Notepad-- External Editor",
       releaseTag: "notepad-minus-minus-editor-v0.1.1",
       manifest: "notepad-minus-minus-editor/manifest.json",
     },
     {
-      id: "zed-editor",
+      id: "com.onetcli.editor.zed",
       name: "Zed External Editor",
       releaseTag: "zed-editor-v0.1.1",
       manifest: "zed-editor/manifest.json",
@@ -2453,21 +2477,32 @@ test("repository manifest is maintained as a lightweight marketplace index", () 
   );
 
   assert.equal(manifest.schema_version, 2);
+  const expectedMarketplaceIds = [...entriesById.values()].map((buildEntry) => {
+    const sourceManifest = JSON.parse(
+      fs.readFileSync(
+        path.join(repoRoot, buildEntry.path, manifestFileForKind(buildEntry.kind)),
+        "utf8",
+      ),
+    );
+    return sourceManifest.id;
+  });
   assert.deepEqual(
     manifest.extensions.map((entry) => entry.id).sort(),
-    [...entriesById.keys()].sort(),
+    expectedMarketplaceIds.sort(),
   );
 
   for (const entry of manifest.extensions) {
-    const buildEntry = entriesById.get(entry.id);
+    const artifactSlug = entry.manifest.split("/")[0];
+    const buildEntry = entriesById.get(artifactSlug);
     const sourceManifest = JSON.parse(
       fs.readFileSync(path.join(repoRoot, buildEntry.path, manifestFileForKind(entry.kind)), "utf8"),
     );
+    assert.equal(entry.id, sourceManifest.id);
     assert.equal(entry.kind, buildEntry.kind);
     assert.equal(entry.name, sourceManifest.name || entry.id);
     assert.equal(entry.version, sourceManifest.version);
-    assert.equal(entry.release_tag, `${entry.id}-v${entry.version}`);
-    assert.equal(entry.manifest, `${entry.id}/manifest.json`);
+    assert.equal(entry.release_tag, `${artifactSlug}-v${entry.version}`);
+    assert.equal(entry.manifest, `${artifactSlug}/manifest.json`);
     assert.equal(Object.hasOwn(entry, "artifacts"), false);
     assert.equal(Object.hasOwn(entry, "asset_urls"), false);
     assert.equal(Object.hasOwn(entry, "fallback_asset_urls"), false);
