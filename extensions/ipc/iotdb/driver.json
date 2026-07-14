@@ -2,7 +2,7 @@
   "id": "iotdb",
   "name": "Apache IoTDB",
   "description": "使用 Apache IoTDB Go 客户端开发的时序数据库 IPC 驱动",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "Apache-2.0",
   "repository": "https://github.com/apache/iotdb",
   "homepage": "https://iotdb.apache.org",
