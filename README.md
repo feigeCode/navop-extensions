@@ -1,11 +1,11 @@
-# onetcli-extensions
+# navop-extensions
 
 中文版本: [README.zh-CN.md](README.zh-CN.md)
 
-First-party extension repository for `onetcli`.
+First-party extension repository for `Navop`.
 
 This repository builds and publishes official extension packages independently
-from the main `onetcli` application. The host app owns the extension runtime,
+from the main `Navop` application. The host app owns the extension runtime,
 marketplace client, update client, and SDK/runtime contracts. This repository
 owns concrete official extensions, release artifacts, the repository-maintained
 marketplace manifest, and Cloudflare R2 upload automation.
@@ -138,14 +138,14 @@ objects.
 
 ## SDK Dependency
 
-Rust drivers depend on these SDK crates from `feigeCode/onetcli`:
+Rust drivers depend on these SDK crates from `feigeCode/navop`:
 
 - `extension-protocol`
 - `extension-driver`
 - `extension-host`
 
 At the moment, `Cargo.toml` points to the `dev` branch because the existing
-`v0.4.8` tag does not contain those crates. After `onetcli` publishes a release
+`v0.4.8` tag does not contain those crates. After `Navop` publishes a release
 tag that includes the SDK crates, replace the branch dependencies with that
 fixed tag.
 
@@ -355,7 +355,7 @@ checksums, not full download URLs:
 }
 ```
 
-The `onetcli` client owns download source policy. It first loads the global
+The `Navop` client owns download source policy. It first loads the global
 marketplace index, then loads the selected extension's plugin manifest. For R2,
 package URLs are resolved from the plugin manifest directory using
 `<version>/<file>`. If the R2 plugin manifest or package is unavailable, the
@@ -485,11 +485,11 @@ source directory in `source_paths` so that CI change detection works correctly.
 
 ## Host App Integration
 
-The main `onetcli` repository should consume the published global marketplace
+The main `Navop` repository should consume the published global marketplace
 manifest from R2 first. Each global entry points to an extension plugin manifest
 such as `duckdb/manifest.json`; the host loads that file before selecting a
 platform artifact. GitHub fallback is extension-scoped: the host derives
-`https://github.com/feigeCode/onetcli-extensions/releases/download/<release_tag>/extension-manifest.json`
+`https://github.com/feigeCode/navop-extensions/releases/download/<release_tag>/extension-manifest.json`
 for the plugin manifest, then derives package fallback URLs from the same
 release tag and artifact file name.
 

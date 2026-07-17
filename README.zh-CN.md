@@ -1,10 +1,10 @@
-# onetcli-extensions
+# navop-extensions
 
 English version: [README.md](README.md)
 
-`onetcli` 官方一方扩展仓库。
+`Navop` 官方一方扩展仓库。
 
-本仓库用于独立构建和发布官方扩展包，不跟随主应用 `onetcli` 的发布流程。主应用继续负责扩展运行时、扩展市场客户端、更新客户端以及 SDK/运行时协议；本仓库负责官方扩展源码、发布产物、仓库维护的扩展市场 manifest 和 Cloudflare R2 上传自动化。
+本仓库用于独立构建和发布官方扩展包，不跟随主应用 `Navop` 的发布流程。主应用继续负责扩展运行时、扩展市场客户端、更新客户端以及 SDK/运行时协议；本仓库负责官方扩展源码、发布产物、仓库维护的扩展市场 manifest 和 Cloudflare R2 上传自动化。
 
 ## 当前内容
 
@@ -119,13 +119,13 @@ docs/
 
 ## SDK 依赖
 
-Rust 驱动依赖 `feigeCode/onetcli` 中的这些 SDK crates：
+Rust 驱动依赖 `feigeCode/navop` 中的这些 SDK crates：
 
 - `extension-protocol`
 - `extension-driver`
 - `extension-host`
 
-目前 `Cargo.toml` 指向 `dev` 分支，因为现有 `v0.4.8` tag 还不包含这些 crates。等 `onetcli` 发布包含 SDK crates 的正式 release tag 后，应将这些分支依赖替换为固定 tag 依赖。
+目前 `Cargo.toml` 指向 `dev` 分支，因为现有 `v0.4.8` tag 还不包含这些 crates。等 `Navop` 发布包含 SDK crates 的正式 release tag 后，应将这些分支依赖替换为固定 tag 依赖。
 
 Cargo workspace 目前包含 `extensions/ipc/duckdb` 和 `extensions/ipc/opengauss`。RDP 和 VNC helper 是独立的 Cargo 项目，分别位于 `extensions/remote-desktop/rdp-helper` 和 `extensions/remote-desktop/vnc-helper`。
 
@@ -318,7 +318,7 @@ R2 的 `extensions/<id>/manifest.json`，再把已提交的根目录 `manifest.j
 }
 ```
 
-`onetcli` 客户端负责下载源策略：先加载全局市场索引，再加载用户选择扩展的插件级
+`Navop` 客户端负责下载源策略：先加载全局市场索引，再加载用户选择扩展的插件级
 manifest。R2 包地址按插件 manifest 所在目录拼 `<version>/<file>`；如果 R2 插件
 manifest 或包不可用，则根据客户端配置的 GitHub manifest base、条目的 `release_tag`
 以及插件 manifest 或 artifact 文件名推导 GitHub Release fallback 地址。
@@ -436,10 +436,10 @@ helper 二进制是 Rust Cargo 项目，位于 `extensions/remote-desktop/<provi
 
 ## 主应用集成
 
-主仓库 `onetcli` 应优先从 R2 消费已发布的全局市场 manifest。全局条目会指向某个扩展的
+主仓库 `Navop` 应优先从 R2 消费已发布的全局市场 manifest。全局条目会指向某个扩展的
 插件级 manifest，例如 `duckdb/manifest.json`；宿主在选择平台 artifact 前先加载这个文件。
 GitHub fallback 是扩展级的：宿主根据 `release_tag` 推导
-`https://github.com/feigeCode/onetcli-extensions/releases/download/<release_tag>/extension-manifest.json`
+`https://github.com/feigeCode/navop-extensions/releases/download/<release_tag>/extension-manifest.json`
 作为插件 manifest fallback，再用同一个 release tag 和 artifact 文件名推导包 fallback 地址。
 
 不要让主应用 release 依赖本仓库的扩展构建。主应用负责运行时消费；本仓库负责扩展生产和发布。
