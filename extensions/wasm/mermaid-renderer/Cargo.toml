@@ -1,0 +1,17 @@
+[package]
+name = "mermaid_renderer_wasm"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mermaid_render = { git = "https://github.com/zed-industries/zed", rev = "23bb2fc135a69492847c3aa68444a7d14cc282f6" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "23bb2fc135a69492847c3aa68444a7d14cc282f6", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wit-bindgen = "0.57.1"
+
+[workspace]

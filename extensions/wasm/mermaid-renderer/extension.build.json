@@ -1,0 +1,12 @@
+{
+  "id": "mermaid-renderer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "mermaid_renderer_wasm",
+  "binary": "mermaid_renderer_wasm.wasm",
+  "path": "extensions/wasm/mermaid-renderer",
+  "manifest_path": "extensions/wasm/mermaid-renderer/Cargo.toml",
+  "targets": ["universal"],
+  "releaseTagPrefix": "mermaid-renderer-v",
+  "r2Prefix": "extensions/mermaid-renderer"
+}

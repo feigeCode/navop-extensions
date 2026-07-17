@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.renderer.mermaid",
+  "name": "Mermaid Renderer",
+  "description": "Rust WASM renderer for Mermaid document blocks as safe SVG",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "engines": { "onetcli": ">=0.7.0" },
+  "api": { "extension": "1.0" },
+  "runtime": {
+    "wasm": [{
+      "id": "mermaid-renderer",
+      "module": "wasm/mermaid_renderer_wasm.wasm",
+      "kind": "component",
+      "timeout_ms": 5000,
+      "max_memory_mb": 128
+    }]
+  },
+  "permissions": [],
+  "contributes": {
+    "documentRenderers": [{
+      "id": "mermaid",
+      "displayName": "Mermaid",
+      "runtimeId": "mermaid-renderer",
+      "function": "render-document",
+      "blockKinds": ["mermaid"],
+      "outputMediaTypes": ["image/svg+xml"],
+      "priority": 100
+    }]
+  }
+}
