@@ -63,6 +63,16 @@
       "manifest": "jetbrains-importer/manifest.json"
     },
     {
+      "id": "com.navop.renderer.mermaid",
+      "kind": "composite",
+      "name": "Mermaid Renderer",
+      "version": "0.1.0",
+      "release_tag": "mermaid-renderer-v0.1.0",
+      "description": "Rust WASM document renderer for Mermaid blocks in Notes",
+      "file_extensions": [],
+      "manifest": "mermaid-renderer/manifest.json"
+    },
+    {
       "id": "com.onetcli.importer.mongodb-compass",
       "kind": "composite",
       "name": "MongoDB Compass Importer",
@@ -213,14 +223,19 @@
       "manifest": "oceanbase/manifest.json"
     },
     {
-      "id": "onetcli-public-mcp",
+      "id": "navop-mcp",
       "kind": "mcp_helper",
-      "name": "OnetCli Public MCP Helper",
+      "name": "Navop MCP",
       "version": "0.1.0",
-      "release_tag": "onetcli-public-mcp-v0.1.0",
-      "description": "Rust 公共 MCP stdio 桥接器，连接 OnetCli 桌面运行时",
+      "release_tag": "navop-mcp-v0.1.0",
+      "description": "Navop MCP bridge、CLI 与 Agent Skill，通过认证的 loopback runtime 连接 Navop",
       "file_extensions": [],
-      "manifest": "onetcli-public-mcp/manifest.json"
+      "manifest": "navop-mcp/manifest.json",
+      "distribution": {
+        "type": "npm",
+        "package": "@navop/mcp",
+        "version": "0.1.0"
+      }
     },
     {
       "id": "oracle-go",

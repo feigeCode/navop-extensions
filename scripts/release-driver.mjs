@@ -204,6 +204,16 @@ function buildDriver(metadata, target) {
     return;
   }
 
+  if (language === "node") {
+    if (target !== "universal") {
+      fail(`node extensions must declare the universal target, got ${target}`);
+    }
+    const cwd = path.join(repoRoot, metadata.path);
+    run("npm", ["ci"], { cwd });
+    run("npm", ["run", "check"], { cwd });
+    return;
+  }
+
   if (language === "tree-sitter-wasm") {
     if (target !== "universal") {
       fail(`tree-sitter-wasm extensions must declare the universal target, got ${target}`);

@@ -20,6 +20,37 @@ if [ ! -f "$BUILD_METADATA" ]; then
   exit 1
 fi
 
+LANGUAGE="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.language || "rust");' "$BUILD_METADATA")"
+if [ "$LANGUAGE" = "node" ]; then
+  if [ "$TARGET" != "universal" ]; then
+    echo "Node MCP helpers only support the universal target" >&2
+    exit 1
+  fi
+  PACKAGE_ROOT="${REPO_DIR}/target/extension-packages/${TARGET}"
+  HELPER_DIR="${PACKAGE_ROOT}/${HELPER_ID}"
+  ARCHIVE_NAME="${HELPER_ID}-mcp-helper-${TARGET}.tar.gz"
+  rm -rf "$HELPER_DIR"
+  mkdir -p "$HELPER_DIR" "$ARTIFACT_DIR"
+  cp "${SOURCE_DIR}/mcp_helper.json" "${HELPER_DIR}/mcp_helper.json"
+  cp "${SOURCE_DIR}/README.md" "${HELPER_DIR}/README.md"
+  cp -R "${SOURCE_DIR}/skills" "${HELPER_DIR}/skills"
+  SOURCE_DIR="$SOURCE_DIR" HELPER_DIR="$HELPER_DIR" VERSION="$VERSION" node <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const manifestPath = path.join(process.env.HELPER_DIR, "mcp_helper.json");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+manifest.version = process.env.VERSION;
+manifest.distribution.version = process.env.VERSION;
+manifest.entry.command = "npx";
+manifest.entry.args = ["-y", `${manifest.distribution.package}@${process.env.VERSION}`, "mcp"];
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
+  npm pack "$SOURCE_DIR" --pack-destination "$HELPER_DIR" >/dev/null
+  tar czf "${ARTIFACT_DIR}/${ARCHIVE_NAME}" -C "$HELPER_DIR" .
+  echo "${ARTIFACT_DIR}/${ARCHIVE_NAME}"
+  exit 0
+fi
+
 BIN_STEM="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.binary || data.id);' "$BUILD_METADATA")"
 MANIFEST_PATH="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(data.manifest_path || "");' "$BUILD_METADATA")"
 BIN_NAME="$BIN_STEM"

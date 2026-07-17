@@ -1,0 +1,10 @@
+{
+  "id": "navop-mcp",
+  "kind": "mcp_helper",
+  "language": "node",
+  "package": "@navop/mcp",
+  "path": "extensions/mcp-helper/navop-mcp",
+  "targets": ["universal"],
+  "releaseTagPrefix": "navop-mcp-v",
+  "r2Prefix": "extensions/navop-mcp"
+}

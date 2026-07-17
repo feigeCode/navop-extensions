@@ -1,0 +1,31 @@
+{
+  "name": "@navop/mcp",
+  "version": "0.1.0",
+  "description": "Navop MCP bridge, CLI, and agent Skill",
+  "type": "module",
+  "bin": { "navop": "dist/bin.js", "navop-mcp": "dist/bin.js" },
+  "files": ["dist", "skills", "README.md"],
+  "engines": { "node": ">=20" },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsup src/bin.ts --format esm --platform node --target node20 --clean --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "npm run typecheck && npm test",
+    "prepack": "npm run check"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/feigeCode/navop-extensions.git",
+    "directory": "extensions/mcp-helper/navop-mcp"
+  },
+  "homepage": "https://github.com/feigeCode/navop-extensions/tree/main/extensions/mcp-helper/navop-mcp",
+  "bugs": { "url": "https://github.com/feigeCode/navop-extensions/issues" },
+  "keywords": ["navop", "mcp", "model-context-protocol", "cli", "skill"]
+}

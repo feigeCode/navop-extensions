@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -114,6 +115,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
+      - uses: actions/setup-node@v4
+        if: ${{ matrix.language == 'node' }}
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: extensions/mcp-helper/${{ matrix.extension }}/package-lock.json
       - name: Install Linux Rust audio dependencies
         if: ${{ matrix.language == 'rust' && matrix.kind == 'remote_desktop_provider' && contains(matrix.target, 'linux') }}
         run: |
@@ -159,6 +166,12 @@ jobs:
       - name: Build Java driver
         if: ${{ matrix.language == 'java' }}
         run: bash scripts/build-java-driver.sh "${{ matrix.extension }}" "${{ matrix.target }}"
+      - name: Check Node MCP helper
+        if: ${{ matrix.language == 'node' }}
+        working-directory: extensions/mcp-helper/${{ matrix.extension }}
+        run: |
+          npm ci
+          npm run check
       - name: Package
         shell: bash
         run: |
@@ -202,6 +215,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: ${{ needs.prepare.outputs.extension_id == 'navop-mcp' }}
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+      - name: Publish npm package
+        if: ${{ needs.prepare.outputs.extension_id == 'navop-mcp' }}
+        working-directory: extensions/mcp-helper/navop-mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm ci
+          npm publish --access public --provenance
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
