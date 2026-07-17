@@ -689,7 +689,7 @@ dependencies = [
 [[package]]
 name = "extension-driver"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/onetcli?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
+source = "git+https://github.com/feigeCode/navop?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
 dependencies = [
  "anyhow",
  "extension-protocol",
@@ -701,7 +701,7 @@ dependencies = [
 [[package]]
 name = "extension-host"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/onetcli?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
+source = "git+https://github.com/feigeCode/navop?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
 dependencies = [
  "async-trait",
  "extension-protocol",
@@ -717,7 +717,7 @@ dependencies = [
 [[package]]
 name = "extension-protocol"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/onetcli?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
+source = "git+https://github.com/feigeCode/navop?branch=dev#1cd78c45711d6f6660c554a978967a5adb2fc3f2"
 dependencies = [
  "serde",
  "serde_json",
