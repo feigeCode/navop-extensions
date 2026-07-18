@@ -63,12 +63,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
-      - uses: actions/setup-node@v4
-        if: ${{ matrix.language == 'node' }}
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: extensions/mcp-helper/${{ matrix.extension }}/package-lock.json
       - name: Install Linux remote desktop audio dependencies
         if: ${{ matrix.language == 'rust' && matrix.kind == 'remote_desktop_provider' }}
         run: |
@@ -96,10 +90,3 @@ jobs:
       - name: Test Java driver
         if: ${{ matrix.language == 'java' }}
         run: mvn -f "${{ matrix.package }}/pom.xml" test
-      - name: Test Node extension
-        if: ${{ matrix.language == 'node' }}
-        working-directory: extensions/mcp-helper/${{ matrix.extension }}
-        run: |
-          npm ci
-          npm run check
-          npm pack --dry-run

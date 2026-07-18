@@ -35,13 +35,6 @@ const extensionEntry = {
   description: sourceManifest.description || "",
   artifacts,
 };
-if (metadata.kind === "mcp_helper" && sourceManifest.distribution?.type === "npm") {
-  extensionEntry.distribution = {
-    type: "npm",
-    package: sourceManifest.distribution.package,
-    version,
-  };
-}
 if (metadata.kind === "language" || metadata.kind === "language_bundle") {
   extensionEntry.file_extensions = sourceManifest.file_extensions || [];
 }

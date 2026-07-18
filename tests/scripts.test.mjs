@@ -1007,32 +1007,6 @@ test("package-mcp-helper creates a Public MCP helper package", () => {
   );
 });
 
-test("package-mcp-helper creates a universal exact-version npm helper package", () => {
-  const workdir = makeTempDir();
-  createNodeMcpHelperFixture(workdir);
-  const archivePath = execFileSync(
-    "bash",
-    [
-      path.join(workdir, "scripts/package-mcp-helper.sh"),
-      "navop-mcp",
-      "universal",
-      path.join(workdir, "artifacts"),
-      "1.2.3",
-    ],
-    { cwd: workdir, encoding: "utf8" },
-  ).trim();
-  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
-  const manifest = JSON.parse(fs.readFileSync(path.join(workdir, "unpacked/mcp_helper.json"), "utf8"));
-  assert.equal(manifest.distribution.package, "@navop/mcp");
-  assert.equal(manifest.distribution.version, "1.2.3");
-  assert.deepEqual(manifest.entry, {
-    command: "npx",
-    args: ["-y", "@navop/mcp@1.2.3", "mcp"],
-  });
-  assert.equal(fs.readdirSync(path.join(workdir, "unpacked")).filter((name) => name.endsWith(".tgz")).length, 1);
-  execFileSync("bash", [path.join(workdir, "scripts/verify-mcp-helper-package.sh"), archivePath], { cwd: workdir });
-});
-
 test("package-acp-agent creates a Codex ACP agent package", () => {
   const workdir = makeTempDir();
   createAcpAgentFixture(workdir, {
@@ -3874,37 +3848,6 @@ function createMcpHelperFixture(workdir, options = {}) {
     `fake ${id} helper\n`,
     { mode: 0o755 },
   );
-}
-
-function createNodeMcpHelperFixture(workdir) {
-  const root = path.join(workdir, "extensions/mcp-helper/navop-mcp");
-  copyScript("package-mcp-helper.sh", workdir);
-  copyScript("verify-mcp-helper-package.sh", workdir);
-  writeJson(path.join(root, "extension.build.json"), {
-    id: "navop-mcp",
-    kind: "mcp_helper",
-    language: "node",
-    package: "@navop/mcp",
-    path: "extensions/mcp-helper/navop-mcp",
-    targets: ["universal"],
-  });
-  writeJson(path.join(root, "mcp_helper.json"), {
-    id: "navop-mcp",
-    name: "Navop MCP",
-    version: "0.1.0",
-    entry: { command: "npx", args: ["-y", "@navop/mcp@0.1.0", "mcp"] },
-    distribution: { type: "npm", package: "@navop/mcp", version: "0.1.0" },
-  });
-  writeJson(path.join(root, "package.json"), {
-    name: "@navop/mcp",
-    version: "0.1.0",
-    files: ["dist", "skills", "README.md"],
-  });
-  fs.mkdirSync(path.join(root, "dist"), { recursive: true });
-  fs.mkdirSync(path.join(root, "skills/navop"), { recursive: true });
-  fs.writeFileSync(path.join(root, "dist/bin.js"), "#!/usr/bin/env node\n");
-  fs.writeFileSync(path.join(root, "skills/navop/SKILL.md"), "---\nname: navop\n---\n");
-  fs.writeFileSync(path.join(root, "README.md"), "# Navop MCP\n");
 }
 
 function createAcpAgentFixture(workdir, options = {}) {

@@ -1,8 +1,0 @@
-{
-  "id": "navop-mcp",
-  "name": "Navop MCP",
-  "description": "TypeScript MCP bridge, CLI, and Skill for the Navop desktop runtime",
-  "version": "0.1.0",
-  "entry": { "command": "npx", "args": ["-y", "@navop/mcp@0.1.0", "mcp"] },
-  "distribution": { "type": "npm", "package": "@navop/mcp", "version": "0.1.0" }
-}

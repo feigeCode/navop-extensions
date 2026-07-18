@@ -233,21 +233,6 @@
       "manifest": "oceanbase/manifest.json"
     },
     {
-      "id": "navop-mcp",
-      "kind": "mcp_helper",
-      "name": "Navop MCP",
-      "version": "0.1.0",
-      "release_tag": "navop-mcp-v0.1.0",
-      "description": "Navop MCP bridge、CLI 与 Agent Skill，通过认证的 loopback runtime 连接 Navop",
-      "file_extensions": [],
-      "manifest": "navop-mcp/manifest.json",
-      "distribution": {
-        "type": "npm",
-        "package": "@navop/mcp",
-        "version": "0.1.0"
-      }
-    },
-    {
       "id": "oracle-go",
       "kind": "database_driver",
       "name": "Oracle Go",

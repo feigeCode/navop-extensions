@@ -8,11 +8,6 @@ java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar
 extensions/remote-desktop/rdp-helper/target/
 extensions/remote-desktop/vnc-helper/target/
 
-# MCP helper build artifacts
-extensions/mcp-helper/onetcli-public-mcp/target/
-extensions/mcp-helper/navop-mcp/node_modules/
-extensions/mcp-helper/navop-mcp/dist/
-extensions/mcp-helper/navop-mcp/*.tgz
 extensions/wasm/*/target/
 *.wasm
 !extensions/language/*/parser.wasm
