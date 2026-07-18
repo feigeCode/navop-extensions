@@ -4,7 +4,9 @@ use vnc_client::{Rect, VncClient, VncEvent, X11Event};
 
 use crate::framebuffer::RgbaFramebuffer;
 use crate::output_mailbox::OutputSender;
-use crate::runtime::{RemoteDesktopCapabilities, RemoteDesktopOutput, ResizeSupport};
+use crate::runtime::{
+    RemoteDesktopCapabilities, RemoteDesktopFrameRect, RemoteDesktopOutput, ResizeSupport,
+};
 use crate::vnc_input::VncPointerState;
 
 const VNC_REFRESH_INTERVAL: Duration = Duration::from_millis(33);
@@ -86,13 +88,15 @@ impl ConnectedVncSession {
 #[derive(Default)]
 struct VncFramebufferState {
     framebuffer: Option<RgbaFramebuffer>,
-    dirty: bool,
+    keyframe: bool,
+    dirty_rects: Vec<Rect>,
 }
 
 impl VncFramebufferState {
     fn set_resolution(&mut self, screen: vnc_client::Screen, output_tx: &OutputSender) {
         self.framebuffer = Some(RgbaFramebuffer::new(screen.width, screen.height));
-        self.dirty = false;
+        self.keyframe = true;
+        self.dirty_rects.clear();
         let _ = output_tx.send(RemoteDesktopOutput::Connected {
             width: screen.width,
             height: screen.height,
@@ -107,7 +111,7 @@ impl VncFramebufferState {
         framebuffer
             .patch_rgba_rect(rect.x, rect.y, rect.width, rect.height, data)
             .map_err(|error| error.to_string())?;
-        self.dirty = true;
+        self.dirty_rects.push(rect);
         Ok(())
     }
 
@@ -118,7 +122,7 @@ impl VncFramebufferState {
         framebuffer
             .copy_rect(src.x, src.y, dst.x, dst.y, dst.width, dst.height)
             .map_err(|error| error.to_string())?;
-        self.dirty = true;
+        self.dirty_rects.push(dst);
         Ok(())
     }
 
@@ -126,15 +130,41 @@ impl VncFramebufferState {
         let Some(framebuffer) = &self.framebuffer else {
             return;
         };
-        if !self.dirty {
+        if self.dirty_rects.is_empty() && !self.keyframe {
             return;
         }
-        let _ = output_tx.send(RemoteDesktopOutput::Frame {
+        if self.keyframe {
+            let _ = output_tx.send(RemoteDesktopOutput::Frame {
+                width: framebuffer.width(),
+                height: framebuffer.height(),
+                rgba: framebuffer.clone_bgra(),
+            });
+            self.keyframe = false;
+            self.dirty_rects.clear();
+            return;
+        }
+
+        let rects: Vec<RemoteDesktopFrameRect> = self
+            .dirty_rects
+            .drain(..)
+            .map(|rect| RemoteDesktopFrameRect {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                byte_len: usize::from(rect.width) * usize::from(rect.height) * 4,
+            })
+            .collect();
+        let mut bgra = Vec::new();
+        for rect in &rects {
+            bgra.extend(framebuffer.clone_bgra_rect(rect.x, rect.y, rect.width, rect.height));
+        }
+        let _ = output_tx.send(RemoteDesktopOutput::FrameBgraRects {
             width: framebuffer.width(),
             height: framebuffer.height(),
-            rgba: framebuffer.clone_bgra(),
+            rects,
+            bgra,
         });
-        self.dirty = false;
     }
 }
 
@@ -189,14 +219,19 @@ mod tests {
             output_rx.recv(),
             Some(RemoteDesktopOutput::Connected { .. })
         ));
+        let pending = output_rx.recv();
         assert_eq!(
             Some(RemoteDesktopOutput::Frame {
                 width: 1,
                 height: 1,
-                rgba: vec![0, 0, 3, 255],
+                rgba: vec![0, 0, 1, 255],
             }),
-            output_rx.recv()
+            pending
         );
+        assert!(matches!(
+            output_rx.recv(),
+            Some(RemoteDesktopOutput::FrameBgraRects { .. })
+        ));
         drop(output_tx);
         assert_eq!(None, output_rx.recv());
     }

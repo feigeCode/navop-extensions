@@ -49,11 +49,15 @@ pub fn apply_input_request(
     clipboard: &TextClipboardController,
 ) -> anyhow::Result<bool> {
     match request {
-        HelperRequest::Resize { width, height } => input_tx
+        HelperRequest::Resize {
+            width,
+            height,
+            scale_factor,
+        } => input_tx
             .send(RdpInputEvent::Resize {
                 width,
                 height,
-                scale_factor: 100,
+                scale_factor,
                 physical_size: None,
             })
             .map_err(|_| anyhow::anyhow!("RDP input channel closed"))?,
@@ -86,6 +90,7 @@ pub fn apply_input_request(
         ),
         HelperRequest::Text { text } => send_text(input_database, input_tx, &text),
         HelperRequest::ClipboardText { text } => clipboard.set_local_text(text)?,
+        HelperRequest::ClipboardFiles { paths } => clipboard.set_local_files(paths)?,
         HelperRequest::Close => {
             input_tx
                 .send(RdpInputEvent::Close)

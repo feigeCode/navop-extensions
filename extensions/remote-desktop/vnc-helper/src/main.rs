@@ -150,6 +150,26 @@ fn output_to_event(output: RemoteDesktopOutput) -> HelperEvent {
             height,
             rgba,
         } => HelperEvent::frame(width, height, rgba),
+        RemoteDesktopOutput::FrameBgraRects {
+            width,
+            height,
+            rects,
+            bgra,
+        } => HelperEvent::FrameBgraRects {
+            width,
+            height,
+            rects: rects
+                .into_iter()
+                .map(|rect| crate::protocol::HelperFrameRect {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    byte_len: rect.byte_len,
+                })
+                .collect(),
+            bgra,
+        },
         RemoteDesktopOutput::CursorDefault => HelperEvent::CursorDefault,
         RemoteDesktopOutput::CursorHidden => HelperEvent::CursorHidden,
         RemoteDesktopOutput::CursorPosition { x, y } => HelperEvent::CursorPosition { x, y },

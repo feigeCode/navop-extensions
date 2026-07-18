@@ -36,6 +36,18 @@ impl RgbaFramebuffer {
         bgra
     }
 
+    pub fn clone_bgra_rect(&self, x: u16, y: u16, width: u16, height: u16) -> Vec<u8> {
+        let mut bgra = Vec::with_capacity(usize::from(width) * usize::from(height) * 4);
+        for row in 0..usize::from(height) {
+            let start = ((usize::from(y) + row) * usize::from(self.width) + usize::from(x)) * 4;
+            let end = start + usize::from(width) * 4;
+            for pixel in self.rgba[start..end].chunks_exact(4) {
+                bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+            }
+        }
+        bgra
+    }
+
     pub fn patch_rgba_rect(
         &mut self,
         x: u16,

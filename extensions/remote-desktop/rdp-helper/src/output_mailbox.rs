@@ -23,6 +23,7 @@ struct Shared {
 struct State {
     control: VecDeque<HelperEvent>,
     latest_frame: Option<HelperEvent>,
+    latest_delta: Option<HelperEvent>,
     sender_count: usize,
     receiver_alive: bool,
 }
@@ -32,6 +33,7 @@ pub fn output_mailbox() -> (OutputSender, OutputReceiver) {
         state: Mutex::new(State {
             control: VecDeque::new(),
             latest_frame: None,
+            latest_delta: None,
             sender_count: 1,
             receiver_alive: true,
         }),
@@ -52,9 +54,19 @@ impl OutputSender {
             return Err(MailboxClosed);
         }
         match event {
-            frame @ HelperEvent::FrameBgraBytes { .. } => state.latest_frame = Some(frame),
+            frame @ HelperEvent::FrameBgraBytes { .. } => {
+                state.latest_frame = Some(frame);
+                state.latest_delta = None;
+            }
+            delta @ HelperEvent::FrameBgraRects { .. } => {
+                state.latest_delta = Some(match state.latest_delta.take() {
+                    Some(previous) => merge_deltas(previous, delta),
+                    None => delta,
+                });
+            }
             terminal @ (HelperEvent::ConnectionFailure { .. } | HelperEvent::Terminated { .. }) => {
                 state.latest_frame = None;
+                state.latest_delta = None;
                 state.control.push_back(terminal);
             }
             control => state.control.push_back(control),
@@ -96,6 +108,9 @@ impl OutputReceiver {
             if let Some(frame) = state.latest_frame.take() {
                 return Some(frame);
             }
+            if let Some(delta) = state.latest_delta.take() {
+                return Some(delta);
+            }
             if state.sender_count == 0 {
                 return None;
             }
@@ -114,8 +129,38 @@ impl Drop for OutputReceiver {
         state.receiver_alive = false;
         state.control.clear();
         state.latest_frame = None;
+        state.latest_delta = None;
         drop(state);
         self.shared.ready.notify_all();
+    }
+}
+
+fn merge_deltas(previous: HelperEvent, next: HelperEvent) -> HelperEvent {
+    match (previous, next) {
+        (
+            HelperEvent::FrameBgraRects {
+                width,
+                height,
+                mut rects,
+                mut bgra,
+            },
+            HelperEvent::FrameBgraRects {
+                width: next_width,
+                height: next_height,
+                rects: next_rects,
+                bgra: next_bgra,
+            },
+        ) if width == next_width && height == next_height => {
+            rects.extend(next_rects);
+            bgra.extend(next_bgra);
+            HelperEvent::FrameBgraRects {
+                width,
+                height,
+                rects,
+                bgra,
+            }
+        }
+        (_, next) => next,
     }
 }
 
@@ -147,82 +192,5 @@ fn lock(shared: &Shared) -> MutexGuard<'_, State> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn keeps_only_latest_pending_frame() {
-        let (tx, rx) = output_mailbox();
-        tx.send(frame(1)).unwrap();
-        tx.send(frame(2)).unwrap();
-        tx.send(frame(3)).unwrap();
-
-        assert_eq!(Some(frame(3)), rx.recv());
-    }
-
-    #[test]
-    fn preserves_control_order_while_replacing_frames() {
-        let (tx, rx) = output_mailbox();
-        tx.send(HelperEvent::Status {
-            message: "one".into(),
-        })
-        .unwrap();
-        tx.send(frame(1)).unwrap();
-        tx.send(HelperEvent::ClipboardText { text: "two".into() })
-            .unwrap();
-        tx.send(frame(2)).unwrap();
-
-        assert_eq!(
-            Some(HelperEvent::Status {
-                message: "one".into()
-            }),
-            rx.recv()
-        );
-        assert_eq!(
-            Some(HelperEvent::ClipboardText { text: "two".into() }),
-            rx.recv()
-        );
-        assert_eq!(Some(frame(2)), rx.recv());
-    }
-
-    #[test]
-    fn terminal_event_discards_pending_frame() {
-        let (tx, rx) = output_mailbox();
-        tx.send(frame(7)).unwrap();
-        tx.send(HelperEvent::Terminated {
-            message: "closed".into(),
-        })
-        .unwrap();
-
-        assert_eq!(
-            Some(HelperEvent::Terminated {
-                message: "closed".into()
-            }),
-            rx.recv()
-        );
-        drop(tx);
-        assert_eq!(None, rx.recv());
-    }
-
-    #[test]
-    fn last_sender_drop_wakes_receiver() {
-        let (tx, rx) = output_mailbox();
-        let waiter = std::thread::spawn(move || rx.recv());
-
-        drop(tx);
-
-        assert_eq!(None, waiter.join().unwrap());
-    }
-
-    #[test]
-    fn send_fails_after_receiver_is_dropped() {
-        let (tx, rx) = output_mailbox();
-        drop(rx);
-
-        assert!(tx.send(frame(1)).is_err());
-    }
-
-    fn frame(value: u8) -> HelperEvent {
-        HelperEvent::frame(1, 1, vec![value, 0, 0, 255])
-    }
-}
+#[path = "output_mailbox_tests.rs"]
+mod tests;

@@ -20,7 +20,7 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
             width: connect.width,
             height: connect.height,
         },
-        desktop_scale_factor: 0,
+        desktop_scale_factor: connect.scale_factor,
         keyboard_type: ironrdp::pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_layout: 0,
@@ -97,10 +97,12 @@ mod tests {
             domain: None,
             width: 1280,
             height: 720,
+            scale_factor: 200,
         })
         .expect("config builds");
 
         let flags = config.connector.performance_flags;
+        assert_eq!(200, config.connector.desktop_scale_factor);
         assert_eq!(PerformanceFlags::default(), flags);
         assert!(!flags.contains(PerformanceFlags::DISABLE_THEMING));
         assert!(!flags.contains(PerformanceFlags::ENABLE_DESKTOP_COMPOSITION));

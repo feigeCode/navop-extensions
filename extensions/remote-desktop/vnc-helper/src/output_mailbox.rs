@@ -23,6 +23,7 @@ struct Shared {
 struct State {
     control: VecDeque<RemoteDesktopOutput>,
     latest_frame: Option<RemoteDesktopOutput>,
+    latest_delta: Option<RemoteDesktopOutput>,
     sender_count: usize,
     receiver_alive: bool,
 }
@@ -32,6 +33,7 @@ pub fn output_mailbox() -> (OutputSender, OutputReceiver) {
         state: Mutex::new(State {
             control: VecDeque::new(),
             latest_frame: None,
+            latest_delta: None,
             sender_count: 1,
             receiver_alive: true,
         }),
@@ -52,10 +54,20 @@ impl OutputSender {
             return Err(MailboxClosed);
         }
         match output {
-            frame @ RemoteDesktopOutput::Frame { .. } => state.latest_frame = Some(frame),
+            frame @ RemoteDesktopOutput::Frame { .. } => {
+                state.latest_frame = Some(frame);
+                state.latest_delta = None;
+            }
+            delta @ RemoteDesktopOutput::FrameBgraRects { .. } => {
+                state.latest_delta = Some(match state.latest_delta.take() {
+                    Some(previous) => merge_deltas(previous, delta),
+                    None => delta,
+                });
+            }
             terminal @ (RemoteDesktopOutput::ConnectionFailure(_)
             | RemoteDesktopOutput::Terminated(_)) => {
                 state.latest_frame = None;
+                state.latest_delta = None;
                 state.control.push_back(terminal);
             }
             control => state.control.push_back(control),
@@ -97,6 +109,9 @@ impl OutputReceiver {
             if let Some(frame) = state.latest_frame.take() {
                 return Some(frame);
             }
+            if let Some(delta) = state.latest_delta.take() {
+                return Some(delta);
+            }
             if state.sender_count == 0 {
                 return None;
             }
@@ -115,8 +130,38 @@ impl Drop for OutputReceiver {
         state.receiver_alive = false;
         state.control.clear();
         state.latest_frame = None;
+        state.latest_delta = None;
         drop(state);
         self.shared.ready.notify_all();
+    }
+}
+
+fn merge_deltas(previous: RemoteDesktopOutput, next: RemoteDesktopOutput) -> RemoteDesktopOutput {
+    match (previous, next) {
+        (
+            RemoteDesktopOutput::FrameBgraRects {
+                width,
+                height,
+                mut rects,
+                mut bgra,
+            },
+            RemoteDesktopOutput::FrameBgraRects {
+                width: next_width,
+                height: next_height,
+                rects: next_rects,
+                bgra: next_bgra,
+            },
+        ) if width == next_width && height == next_height => {
+            rects.extend(next_rects);
+            bgra.extend(next_bgra);
+            RemoteDesktopOutput::FrameBgraRects {
+                width,
+                height,
+                rects,
+                bgra,
+            }
+        }
+        (_, next) => next,
     }
 }
 

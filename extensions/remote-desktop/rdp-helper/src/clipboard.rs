@@ -1,9 +1,12 @@
+use std::io::{Read, Seek, SeekFrom};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use ironrdp::cliprdr::backend::{ClipboardMessage, CliprdrBackend, CliprdrBackendFactory};
 use ironrdp::cliprdr::pdu::{
-    ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
-    FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
+    ClipboardFileAttributes, ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags,
+    FileContentsFlags, FileContentsRequest, FileContentsResponse, FileDescriptor,
+    FormatDataRequest, FormatDataResponse, LockDataId,
 };
 use ironrdp::core::{AsAny, IntoOwned};
 use ironrdp_client::rdp::RdpInputEvent;
@@ -12,8 +15,7 @@ use tokio::sync::mpsc;
 use crate::output_mailbox::OutputSender;
 use crate::protocol::HelperEvent;
 
-#[cfg(test)]
-use crate::output_mailbox::output_mailbox;
+const MAX_FILE_CHUNK_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct TextClipboardController {
@@ -23,8 +25,27 @@ pub struct TextClipboardController {
 
 impl TextClipboardController {
     pub fn set_local_text(&self, text: String) -> anyhow::Result<()> {
-        self.shared.lock().expect("clipboard mutex").local_text = Some(text);
+        let mut state = self.shared.lock().expect("clipboard mutex");
+        state.local_text = Some(text);
+        state.local_files.clear();
+        drop(state);
         self.send_clipboard(ClipboardMessage::SendInitiateCopy(text_formats()))
+    }
+
+    pub fn set_local_files(&self, paths: Vec<String>) -> anyhow::Result<()> {
+        let files = paths
+            .into_iter()
+            .map(PathBuf::from)
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        anyhow::ensure!(!files.is_empty(), "clipboard file list is empty");
+        let mut state = self.shared.lock().expect("clipboard mutex");
+        state.local_text = None;
+        state.local_files = files.clone();
+        drop(state);
+        self.input_tx
+            .send(RdpInputEvent::ClipboardFileCopy(file_descriptors(&files)))
+            .map_err(|_| anyhow::anyhow!("RDP input channel closed"))
     }
 
     fn send_clipboard(&self, message: ClipboardMessage) -> anyhow::Result<()> {
@@ -37,6 +58,7 @@ impl TextClipboardController {
 #[derive(Debug, Default)]
 struct TextClipboardState {
     local_text: Option<String>,
+    local_files: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -94,6 +116,22 @@ impl TextClipboardBackend {
         };
         self.send_clipboard(ClipboardMessage::SendFormatData(response.into_owned()));
     }
+
+    fn send_file_contents_response(&self, request: FileContentsRequest) {
+        let file = self
+            .shared
+            .lock()
+            .expect("clipboard mutex")
+            .local_files
+            .get(usize::try_from(request.index).unwrap_or(usize::MAX))
+            .cloned();
+        let response = file
+            .and_then(|path| read_file_contents(&path, &request).ok())
+            .unwrap_or_else(|| FileContentsResponse::new_error(request.stream_id));
+        let _ = self.input_tx.send(RdpInputEvent::Clipboard(
+            ClipboardMessage::SendFileContentsResponse(response),
+        ));
+    }
 }
 
 impl CliprdrBackend for TextClipboardBackend {
@@ -102,19 +140,21 @@ impl CliprdrBackend for TextClipboardBackend {
     }
 
     fn client_capabilities(&self) -> ClipboardGeneralCapabilityFlags {
-        ClipboardGeneralCapabilityFlags::empty()
+        ClipboardGeneralCapabilityFlags::CAN_LOCK_CLIPDATA
+            | ClipboardGeneralCapabilityFlags::STREAM_FILECLIP_ENABLED
     }
 
     fn on_ready(&mut self) {}
 
     fn on_request_format_list(&mut self) {
-        if self
-            .shared
-            .lock()
-            .expect("clipboard mutex")
-            .local_text
-            .is_some()
-        {
+        let state = self.shared.lock().expect("clipboard mutex");
+        if !state.local_files.is_empty() {
+            let files = state.local_files.clone();
+            drop(state);
+            let _ = self
+                .input_tx
+                .send(RdpInputEvent::ClipboardFileCopy(file_descriptors(&files)));
+        } else if state.local_text.is_some() {
             self.send_clipboard(ClipboardMessage::SendInitiateCopy(text_formats()));
         }
     }
@@ -145,7 +185,9 @@ impl CliprdrBackend for TextClipboardBackend {
         }
     }
 
-    fn on_file_contents_request(&mut self, _: FileContentsRequest) {}
+    fn on_file_contents_request(&mut self, request: FileContentsRequest) {
+        self.send_file_contents_response(request);
+    }
 
     fn on_file_contents_response(&mut self, _: FileContentsResponse<'_>) {}
 
@@ -178,91 +220,46 @@ fn text_formats() -> Vec<ClipboardFormat> {
     vec![ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)]
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ironrdp::cliprdr::backend::ClipboardMessage;
-    use ironrdp::cliprdr::pdu::{ClipboardFormatId, FormatDataRequest, FormatDataResponse};
-    use ironrdp_client::rdp::RdpInputEvent;
-
-    use crate::protocol::HelperEvent;
-
-    #[test]
-    fn local_text_advertises_unicode_clipboard_format() {
-        let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, _output_rx) = output_mailbox();
-        let (controller, _factory) = text_clipboard(input_tx, output_tx);
-
-        controller
-            .set_local_text("hello 中文".to_string())
-            .expect("local clipboard advertises");
-
-        match input_rx.try_recv().expect("clipboard message") {
-            RdpInputEvent::Clipboard(ClipboardMessage::SendInitiateCopy(formats)) => {
-                assert_eq!(
-                    vec![ClipboardFormatId::CF_UNICODETEXT],
-                    format_ids(&formats)
-                );
-            }
-            other => panic!("expected clipboard advertise, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn backend_replies_with_local_text_when_remote_requests_unicode_data() {
-        let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, _output_rx) = output_mailbox();
-        let (controller, factory) = text_clipboard(input_tx, output_tx);
-        controller
-            .set_local_text("hello 中文".to_string())
-            .expect("local clipboard advertises");
-        let _ = input_rx.try_recv();
-        let mut backend = factory.build_cliprdr_backend();
-
-        backend.on_format_data_request(FormatDataRequest {
-            format: ClipboardFormatId::CF_UNICODETEXT,
-        });
-
-        match input_rx.try_recv().expect("format data response") {
-            RdpInputEvent::Clipboard(ClipboardMessage::SendFormatData(response)) => {
-                assert_eq!(
-                    "hello 中文",
-                    response.to_unicode_string().expect("unicode text decodes")
-                );
-            }
-            other => panic!("expected clipboard data response, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn backend_fetches_and_emits_remote_unicode_clipboard_text() {
-        let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
-        let (output_tx, output_rx) = output_mailbox();
-        let (_controller, factory) = text_clipboard(input_tx, output_tx);
-        let mut backend = factory.build_cliprdr_backend();
-
-        backend.on_remote_copy(&[ironrdp::cliprdr::pdu::ClipboardFormat::new(
-            ClipboardFormatId::CF_UNICODETEXT,
-        )]);
-
-        match input_rx.try_recv().expect("paste request") {
-            RdpInputEvent::Clipboard(ClipboardMessage::SendInitiatePaste(format)) => {
-                assert_eq!(ClipboardFormatId::CF_UNICODETEXT, format);
-            }
-            other => panic!("expected paste request, got {other:?}"),
-        }
-
-        backend.on_format_data_response(FormatDataResponse::new_unicode_string("remote 中文"));
-
-        assert_eq!(
-            HelperEvent::ClipboardText {
-                text: "remote 中文".to_string()
-            },
-            output_rx.recv().expect("clipboard event")
-        );
-    }
-
-    fn format_ids(formats: &[ironrdp::cliprdr::pdu::ClipboardFormat]) -> Vec<ClipboardFormatId> {
-        formats.iter().map(|format| format.id()).collect()
-    }
+fn file_descriptors(paths: &[PathBuf]) -> Vec<FileDescriptor> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let name = path.file_name()?.to_string_lossy().into_owned();
+            let size = std::fs::metadata(path).ok()?.len();
+            Some(
+                FileDescriptor::new(name)
+                    .with_file_size(size)
+                    .with_attributes(ClipboardFileAttributes::ARCHIVE),
+            )
+        })
+        .collect()
 }
+
+fn read_file_contents(
+    path: &PathBuf,
+    request: &FileContentsRequest,
+) -> anyhow::Result<FileContentsResponse<'static>> {
+    let mut file = std::fs::File::open(path)?;
+    let size = file.metadata()?.len();
+    if request.flags.contains(FileContentsFlags::SIZE) {
+        return Ok(FileContentsResponse::new_size_response(
+            request.stream_id,
+            size,
+        ));
+    }
+    anyhow::ensure!(request.position <= size, "file range starts past end");
+    let amount = u64::from(request.requested_size)
+        .min(MAX_FILE_CHUNK_BYTES)
+        .min(size - request.position);
+    let mut data = vec![0; usize::try_from(amount)?];
+    file.seek(SeekFrom::Start(request.position))?;
+    file.read_exact(&mut data)?;
+    Ok(FileContentsResponse::new_data_response(
+        request.stream_id,
+        data,
+    ))
+}
+
+#[cfg(test)]
+#[path = "clipboard_tests.rs"]
+mod tests;

@@ -1,6 +1,6 @@
 [package]
 name = "onetcli-rdp-helper"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2024"
 publish = false
 
@@ -8,12 +8,13 @@ publish = false
 
 [dependencies]
 anyhow = "1"
-ironrdp = { git = "https://github.com/Devolutions/IronRDP", rev = "8fe59c19e253aa106a0a94c72dd0f962b881794c", features = [
+ironrdp = { path = "../../../../ironrdp-filecopy/crates/ironrdp", features = [
     "connector",
+    "cliprdr",
     "input",
     "pdu",
 ] }
-ironrdp-client = { git = "https://github.com/Devolutions/IronRDP", rev = "8fe59c19e253aa106a0a94c72dd0f962b881794c", default-features = false, features = [
+ironrdp-client = { path = "../../../../ironrdp-filecopy/crates/ironrdp-client", default-features = false, features = [
     "native-tls",
 ] }
 semver = "1"
@@ -24,3 +25,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 whoami = "1"
+
+[dev-dependencies]
+tempfile = "3"
