@@ -59,7 +59,9 @@ if [ "$LANGUAGE" = "java" ] && [ "$TARGET" = "universal" ]; then
   fi
   cp "$CMD_SOURCE" "${DRIVER_DIR}/${BIN_STEM}.cmd"
 fi
-cp -R "${SOURCE_DIR}/locales" "${DRIVER_DIR}/locales"
+if [ -d "${SOURCE_DIR}/locales" ]; then
+  cp -R "${SOURCE_DIR}/locales" "${DRIVER_DIR}/locales"
+fi
 if [ -d "${SOURCE_DIR}/icons" ]; then
   cp -R "${SOURCE_DIR}/icons" "${DRIVER_DIR}/icons"
 fi

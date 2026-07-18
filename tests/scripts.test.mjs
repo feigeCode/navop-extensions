@@ -242,6 +242,32 @@ test("IPC driver build metadata declares release and R2 manifest routing", () =>
   }
 });
 
+test("native Redis and MongoDB drivers keep standalone manifests and release metadata", () => {
+  const expected = [
+    ["redis", "redis-driver", "extensions/ipc/redis"],
+    ["mongodb-modern", "mongodb-modern-driver", "extensions/ipc/mongodb-modern"],
+    ["mongodb-legacy", "mongodb-legacy-driver", "extensions/ipc/mongodb-legacy"],
+  ];
+
+  for (const [id, binary, extensionPath] of expected) {
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, extensionPath, "extension.build.json"), "utf8"),
+    );
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, extensionPath, "driver.json"), "utf8"),
+    );
+    assert.equal(metadata.kind, "database_driver");
+    assert.equal(metadata.language, "rust");
+    assert.equal(metadata.binary, binary);
+    assert.equal(metadata.releaseTagPrefix, `${id}-v`);
+    assert.equal(metadata.r2Prefix, `extensions/${id}`);
+    assert.equal(manifest.id, id);
+    assert.equal(manifest.api === "redis" || manifest.api === "mongodb", true);
+    assert.equal(manifest.entry.command, `./${binary}`);
+    assert.ok(manifest.methods.length > 0, `${id} should declare wire methods`);
+  }
+});
+
 test("extension descriptions are bilingual, detailed, and synchronized", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
   const globalEntries = new Map(globalManifest.extensions.map((extension) => [extension.id, extension]));
@@ -848,6 +874,7 @@ test("IPC driver connection forms declare host-managed SSH and remark tabs", () 
     const driverJson = JSON.parse(
       fs.readFileSync(path.join(repoRoot, "extensions/ipc", id, "driver.json"), "utf8"),
     );
+    if (driverJson.api && driverJson.api !== "database") continue;
     const connectionForm = driverJson.ui?.form?.forms?.find((form) => form.kind === "Connection");
     assert.ok(connectionForm, `${id} should declare a Connection form`);
 
@@ -874,6 +901,7 @@ test("IPC driver manifests expose context menu actions for supported object work
     const driverJson = JSON.parse(
       fs.readFileSync(path.join(repoRoot, "extensions/ipc", id, "driver.json"), "utf8"),
     );
+    if (driverJson.api && driverJson.api !== "database") continue;
     const actions = driverJson.ui?.form?.actions?.actions;
     assert.ok(Array.isArray(actions), `${id} should declare ui.form.actions.actions`);
 
@@ -936,6 +964,42 @@ test("package-driver creates a DuckDB package with executable entry command", ()
     fs.readFileSync(path.join(workdir, "unpacked/duckdb_driver"), "utf8"),
     "fake binary\n",
   );
+});
+
+test("package-driver allows native drivers without locales", () => {
+  const workdir = makeTempDir();
+  createPackageFixture(workdir, {
+    id: "redis",
+    binary: "redis-driver",
+    package: "redis-driver",
+    withoutLocales: true,
+    driverJson: {
+      id: "redis",
+      api: "redis",
+      version: "0.0.0",
+      entry: {},
+      methods: ["conn/open"],
+    },
+  });
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-driver.sh"),
+      "redis",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  execFileSync("bash", [path.join(workdir, "scripts/verify-package.sh"), archivePath], {
+    cwd: workdir,
+    encoding: "utf8",
+  });
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+  assert.equal(fs.existsSync(path.join(workdir, "unpacked/locales")), false);
 });
 
 test("package-remote-desktop-provider creates an RDP provider package", () => {
@@ -3767,8 +3831,10 @@ function createPackageFixture(workdir, options = {}) {
     version: "0.0.0",
     entry: {},
   });
-  fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/locales`), { recursive: true });
-  fs.writeFileSync(path.join(workdir, `extensions/ipc/${id}/locales/en.yml`), `name: ${id}\n`);
+  if (!options.withoutLocales) {
+    fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/locales`), { recursive: true });
+    fs.writeFileSync(path.join(workdir, `extensions/ipc/${id}/locales/en.yml`), `name: ${id}\n`);
+  }
   if (options.icons) {
     fs.mkdirSync(path.join(workdir, `extensions/ipc/${id}/icons`), { recursive: true });
     for (const [name, contents] of Object.entries(options.icons)) {

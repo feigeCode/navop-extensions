@@ -1,0 +1,17 @@
+{
+  "id": "redis",
+  "kind": "database_driver",
+  "language": "rust",
+  "package": "redis-driver",
+  "binary": "redis-driver",
+  "path": "extensions/ipc/redis",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "redis-v",
+  "r2Prefix": "extensions/redis"
+}

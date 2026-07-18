@@ -1,0 +1,23 @@
+{
+  "id": "mongodb-legacy",
+  "name": "MongoDB Legacy",
+  "description": "使用 Rust 开发的旧版 MongoDB 原生 IPC sidecar 驱动，专门服务 MongoDB 3.6 及更早兼容场景，保留无损 BSON command/find 与大文档 blob 流，并与现代驱动分开发版。 Rust native IPC sidecar driver for MongoDB 3.6 and earlier compatibility, preserving lossless BSON command and find transport plus large-document blob streaming in a separately released legacy variant.",
+  "api": "mongodb",
+  "protocol_version": "1.0",
+  "version": "0.1.0",
+  "entry": { "command": "./mongodb-legacy-driver" },
+  "transport": { "name": "mongodb-legacy.sock" },
+  "methods": [
+    "conn/open",
+    "conn/close",
+    "mongodb/command",
+    "mongodb/find",
+    "blob/read",
+    "blob/close"
+  ],
+  "compatibility": {
+    "variant": "legacy",
+    "server": { "max": "3.6" }
+  },
+  "process": { "scope": "connection", "kill_on_drop": true }
+}

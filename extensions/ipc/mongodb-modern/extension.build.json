@@ -1,0 +1,19 @@
+{
+  "id": "mongodb-modern",
+  "kind": "database_driver",
+  "language": "rust",
+  "package": "mongodb-driver",
+  "binary": "mongodb-modern-driver",
+  "manifest_path": "drivers/mongodb-driver/Cargo.toml",
+  "path": "extensions/ipc/mongodb-modern",
+  "source_paths": ["drivers/mongodb-driver"],
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "mongodb-modern-v",
+  "r2Prefix": "extensions/mongodb-modern"
+}

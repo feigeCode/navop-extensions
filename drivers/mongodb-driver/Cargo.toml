@@ -1,0 +1,27 @@
+[package]
+name = "mongodb-driver"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mongodb-modern-driver"
+path = "src/bin/modern.rs"
+
+[[bin]]
+name = "mongodb-legacy-driver"
+path = "src/bin/legacy.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bson.workspace = true
+extension-driver.workspace = true
+extension-protocol.workspace = true
+futures-util.workspace = true
+mongodb.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

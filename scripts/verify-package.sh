@@ -34,11 +34,6 @@ if [ ! -f "$BIN_PATH" ]; then
   exit 1
 fi
 
-if [ ! -d "${DRIVER_DIR}/locales" ]; then
-  echo "Missing locales directory" >&2
-  exit 1
-fi
-
 DRIVER_JSON="$DRIVER_JSON" \
 DRIVER_DIR="$DRIVER_DIR" \
 node <<'NODE'
@@ -49,6 +44,10 @@ const driverJson = process.env.DRIVER_JSON;
 const driverDir = process.env.DRIVER_DIR;
 const manifest = JSON.parse(fs.readFileSync(driverJson, "utf8"));
 const ui = manifest.ui || {};
+if (ui.locales_dir && !fs.existsSync(path.join(driverDir, ui.locales_dir))) {
+  console.error(`driver.json ui.locales_dir references missing directory: ${ui.locales_dir}`);
+  process.exit(1);
+}
 
 for (const key of ["icon", "icon_color"]) {
   const value = ui[key];
