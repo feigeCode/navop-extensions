@@ -4,6 +4,8 @@ members = [
     "extensions/ipc/opengauss",
     "extensions/wasm/dbeaver-importer",
     "extensions/wasm/jetbrains-importer",
+    "extensions/wasm/math-renderer",
+    "extensions/wasm/mermaid-renderer",
     "extensions/wasm/mongodb-compass-importer",
     "extensions/wasm/navicat-importer",
     "extensions/wasm/openssh-config-importer",

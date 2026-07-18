@@ -1,8 +1,8 @@
 [package]
 name = "math_renderer_wasm"
 version = "0.1.0"
-edition = "2024"
-publish = false
+edition.workspace = true
+publish.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -13,5 +13,3 @@ kymo-tex-parser = "0.1.11"
 kymo-tex-svg = { version = "0.1.11", features = ["embed-fonts"] }
 kymo-tex-types = "0.1.11"
 wit-bindgen = "0.57.1"
-
-[workspace]
