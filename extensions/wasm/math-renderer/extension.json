@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.renderer.math",
+  "name": "Math Renderer",
+  "description": "Rust WASM renderer for LaTeX math blocks as self-contained SVG",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "engines": { "onetcli": ">=0.7.0" },
+  "api": { "extension": "1.0" },
+  "runtime": { "wasm": [{ "id": "math-renderer", "module": "wasm/math_renderer_wasm.wasm", "kind": "component", "timeout_ms": 5000, "max_memory_mb": 128 }] },
+  "permissions": [],
+  "contributes": { "documentRenderers": [{ "id": "math", "displayName": "Math", "runtimeId": "math-renderer", "function": "render-document", "blockKinds": ["math"], "outputMediaTypes": ["image/svg+xml"], "priority": 100 }] }
+}

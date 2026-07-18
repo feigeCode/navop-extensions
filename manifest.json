@@ -73,6 +73,16 @@
       "manifest": "mermaid-renderer/manifest.json"
     },
     {
+      "id": "com.navop.renderer.math",
+      "kind": "composite",
+      "name": "Math Renderer",
+      "version": "0.1.0",
+      "release_tag": "math-renderer-v0.1.0",
+      "description": "Rust WASM document renderer for LaTeX math blocks in Notes",
+      "file_extensions": [],
+      "manifest": "math-renderer/manifest.json"
+    },
+    {
       "id": "com.onetcli.importer.mongodb-compass",
       "kind": "composite",
       "name": "MongoDB Compass Importer",
