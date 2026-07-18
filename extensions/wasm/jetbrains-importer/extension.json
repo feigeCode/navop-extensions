@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.onetcli.importer.jetbrains",
   "name": "JetBrains Importer",
-  "description": "Rust WASM connection importer for JetBrains IDE database data sources",
+  "description": "从 JetBrains DataGrip 及其他 JetBrains IDE 的 dataSources.xml 配置中读取数据库连接，并通过 Rust WASM 导入到 Navop；适合迁移 IDE 数据源。 Imports database connections from JetBrains DataGrip and other JetBrains IDE dataSources.xml files into Navop through a Rust WASM runtime for IDE data source migration.",
   "version": "0.1.0",
   "publisher": "OnetCli",
   "engines": {
@@ -33,7 +33,7 @@
         "id": "jetbrains",
         "runtimeId": "jetbrains-importer",
         "displayName": "JetBrains IDEs",
-        "description": "Import database connections from JetBrains DataGrip and IDE dataSources.xml files",
+        "description": "从 JetBrains DataGrip 和 IDE 的 dataSources.xml 文件发现并导入数据库连接。 Discover and import database connections from JetBrains DataGrip and IDE dataSources.xml files.",
         "icon": "database",
         "outputKinds": [
           "database"

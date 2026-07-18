@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.onetcli.importer.tableplus",
   "name": "TablePlus Importer",
-  "description": "Rust WASM connection importer for TablePlus",
+  "description": "从 TablePlus JSON 或 plist 文件中读取数据库连接，并通过 Rust WASM 导入到 Navop；支持常见本地导出和配置文件格式。 Reads database connections from TablePlus JSON or plist files and imports them into Navop through Rust WASM, supporting common local export and configuration formats.",
   "version": "0.1.0",
   "publisher": "OnetCli",
   "engines": {
@@ -39,7 +39,7 @@
         "id": "tableplus",
         "runtimeId": "tableplus-importer",
         "displayName": "TablePlus",
-        "description": "Import database connections from TablePlus JSON or plist files",
+        "description": "从 TablePlus JSON 或 plist 文件发现并导入数据库连接。 Discover and import database connections from TablePlus JSON or plist files.",
         "icon": "database",
         "outputKinds": [
           "database"

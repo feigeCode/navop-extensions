@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.onetcli.editor.notepad-plus-plus",
   "name": "Notepad++ External Editor",
-  "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad++.",
+  "description": "静态复合扩展，通过 Notepad++ 编辑 Navop SFTP 远程文件，支持远程文件拉取、保存回传和外部编辑器协作。 Static composite extension for editing Navop SFTP remote files with Notepad++, including remote fetch, save-back, and external editor workflows.",
   "version": "0.1.0",
   "publisher": "OnetCli",
   "engines": {

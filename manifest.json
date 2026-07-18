@@ -8,7 +8,7 @@
       "name": "Dameng DM",
       "version": "0.1.3",
       "release_tag": "dm-v0.1.3",
-      "description": "使用 Go 开发的达梦 DM 数据库 IPC 驱动",
+      "description": "使用 Go 开发的达梦 DM 数据库 IPC 驱动，支持连接管理、SQL 查询、事务、Schema 浏览及数据导入导出。 Go-based IPC driver for Dameng DM with connection management, SQL queries, transactions, schema browsing, and data import/export.",
       "file_extensions": [],
       "manifest": "dm/manifest.json"
     },
@@ -18,7 +18,7 @@
       "name": "Claude Code",
       "version": "0.1.0",
       "release_tag": "claude-acp-v0.1.0",
-      "description": "Shell ACP Registry wrapper for Anthropic Claude Code via Claude Agent ACP",
+      "description": "通过 Claude Agent ACP 将 Anthropic Claude Code 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、编辑和任务协作；需要 Node.js/npm 及适配器支持的 Claude Code 登录方式。 Shell ACP agent extension that connects Anthropic Claude Code to Navop through Claude Agent ACP for code analysis, editing, and task collaboration; requires Node.js/npm and a supported Claude Code authentication method.",
       "file_extensions": [],
       "manifest": "claude-acp/manifest.json"
     },
@@ -28,7 +28,7 @@
       "name": "Codex",
       "version": "0.1.0",
       "release_tag": "codex-acp-v0.1.0",
-      "description": "Shell ACP Registry wrapper for OpenAI Codex",
+      "description": "将 OpenAI Codex 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、修改、命令执行和开发任务协作；需要 Node.js/npm 及 Codex ACP 适配器支持的认证方式。 Shell ACP agent extension that connects OpenAI Codex to Navop for code analysis, editing, command execution, and development workflows; requires Node.js/npm and an authentication method supported by the Codex ACP adapter.",
       "file_extensions": [],
       "manifest": "codex-acp/manifest.json"
     },
@@ -38,7 +38,7 @@
       "name": "OpenCode",
       "version": "0.1.0",
       "release_tag": "opencode-acp-v0.1.0",
-      "description": "Shell ACP Registry wrapper for OpenCode",
+      "description": "将 OpenCode 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码理解、编辑和自动化开发任务；需要本机已安装并配置 opencode CLI。 Shell ACP agent extension that connects OpenCode to Navop for code understanding, editing, and automated development tasks; requires a locally installed and configured opencode CLI.",
       "file_extensions": [],
       "manifest": "opencode-acp/manifest.json"
     },
@@ -48,7 +48,7 @@
       "name": "DBeaver Importer",
       "version": "0.1.0",
       "release_tag": "dbeaver-importer-v0.1.0",
-      "description": "Rust WASM connection importer for DBeaver",
+      "description": "从 DBeaver 工作区读取数据库连接配置和相关凭据元数据，并通过 Rust WASM 安全运行时导入到 Navop；适合迁移本地开发环境。 Imports database connection settings and related credential metadata from DBeaver workspaces into Navop through a Rust WASM runtime, making local development environment migration easier.",
       "file_extensions": [],
       "manifest": "dbeaver-importer/manifest.json"
     },
@@ -58,7 +58,7 @@
       "name": "JetBrains Importer",
       "version": "0.1.0",
       "release_tag": "jetbrains-importer-v0.1.0",
-      "description": "Rust WASM connection importer for JetBrains IDE database data sources",
+      "description": "从 JetBrains DataGrip 及其他 JetBrains IDE 的 dataSources.xml 配置中读取数据库连接，并通过 Rust WASM 导入到 Navop；适合迁移 IDE 数据源。 Imports database connections from JetBrains DataGrip and other JetBrains IDE dataSources.xml files into Navop through a Rust WASM runtime for IDE data source migration.",
       "file_extensions": [],
       "manifest": "jetbrains-importer/manifest.json"
     },
@@ -68,7 +68,7 @@
       "name": "Mermaid Renderer",
       "version": "0.1.0",
       "release_tag": "mermaid-renderer-v0.1.0",
-      "description": "Rust WASM document renderer for Mermaid blocks in Notes",
+      "description": "使用 Rust WASM 将 Notes 中的 Mermaid 图表渲染为安全 SVG，支持流程图、时序图和其他 Mermaid 文档块的预览。 Rust WASM renderer that converts Mermaid blocks in Notes into safe SVG for flowcharts, sequence diagrams, and other Mermaid document previews.",
       "file_extensions": [],
       "manifest": "mermaid-renderer/manifest.json"
     },
@@ -78,7 +78,7 @@
       "name": "Math Renderer",
       "version": "0.1.0",
       "release_tag": "math-renderer-v0.1.0",
-      "description": "Rust WASM document renderer for LaTeX math blocks in Notes",
+      "description": "使用 Rust WASM 将 Notes 中的 LaTeX 数学块渲染为自包含 SVG，支持公式预览、导出和离线文档展示。 Rust WASM renderer that turns LaTeX math blocks in Notes into self-contained SVG for formula previews, exports, and offline document viewing.",
       "file_extensions": [],
       "manifest": "math-renderer/manifest.json"
     },
@@ -88,7 +88,7 @@
       "name": "MongoDB Compass Importer",
       "version": "0.1.0",
       "release_tag": "mongodb-compass-importer-v0.1.0",
-      "description": "Rust WASM connection importer for MongoDB Compass",
+      "description": "从 MongoDB Compass 的本地配置和连接元数据中发现 MongoDB 连接，并通过 Rust WASM 导入到 Navop；不会改变原始配置文件。 Discovers MongoDB connections from local MongoDB Compass configuration and metadata, then imports them into Navop through Rust WASM without modifying the source files.",
       "file_extensions": [],
       "manifest": "mongodb-compass-importer/manifest.json"
     },
@@ -98,7 +98,7 @@
       "name": "OpenSSH Config Importer",
       "version": "0.1.0",
       "release_tag": "openssh-config-importer-v0.1.0",
-      "description": "Rust WASM connection importer for OpenSSH client config",
+      "description": "从 OpenSSH config 和 known_hosts 文件中发现 SSH 主机配置，并通过 Rust WASM 导入到 Navop；支持常见主机别名和认证设置。 Discovers SSH host configurations from OpenSSH config and known_hosts files, then imports them into Navop through Rust WASM with support for common aliases and authentication settings.",
       "file_extensions": [],
       "manifest": "openssh-config-importer/manifest.json"
     },
@@ -108,7 +108,7 @@
       "name": "Notepad++ External Editor",
       "version": "0.1.0",
       "release_tag": "notepad-plus-plus-editor-v0.1.0",
-      "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad++.",
+      "description": "静态复合扩展，通过 Notepad++ 编辑 Navop SFTP 远程文件，支持远程文件拉取、保存回传和外部编辑器协作。 Static composite extension for editing Navop SFTP remote files with Notepad++, including remote fetch, save-back, and external editor workflows.",
       "file_extensions": [],
       "manifest": "notepad-plus-plus-editor/manifest.json"
     },
@@ -118,7 +118,7 @@
       "name": "Notepad-- External Editor",
       "version": "0.1.1",
       "release_tag": "notepad-minus-minus-editor-v0.1.1",
-      "description": "Static composite extension for editing OnetCli SFTP remote files with Notepad--.",
+      "description": "静态复合扩展，通过 Notepad-- 编辑 Navop SFTP 远程文件，支持远程文件拉取、保存回传和外部编辑器协作。 Static composite extension for editing Navop SFTP remote files with Notepad--, including remote fetch, save-back, and external editor workflows.",
       "file_extensions": [],
       "manifest": "notepad-minus-minus-editor/manifest.json"
     },
@@ -128,7 +128,7 @@
       "name": "Zed External Editor",
       "version": "0.1.1",
       "release_tag": "zed-editor-v0.1.1",
-      "description": "Static composite extension for editing OnetCli SFTP remote files with Zed.",
+      "description": "静态复合扩展，通过 Zed 编辑 Navop SFTP 远程文件，支持远程文件拉取、保存回传和外部编辑器协作。 Static composite extension for editing Navop SFTP remote files with Zed, including remote fetch, save-back, and external editor workflows.",
       "file_extensions": [],
       "manifest": "zed-editor/manifest.json"
     },
@@ -138,7 +138,7 @@
       "name": "Redis Desktop Importer",
       "version": "0.1.0",
       "release_tag": "redis-desktop-importer-v0.1.0",
-      "description": "Rust WASM connection importer for Redis desktop clients",
+      "description": "从 Redis Desktop 等桌面客户端的本地配置中发现 Redis 连接，并通过 Rust WASM 导入到 Navop；适合开发环境迁移。 Discovers Redis connections from local Redis desktop client configurations and imports them into Navop through Rust WASM for development environment migration.",
       "file_extensions": [],
       "manifest": "redis-desktop-importer/manifest.json"
     },
@@ -148,7 +148,7 @@
       "name": "Navicat Importer",
       "version": "0.1.1",
       "release_tag": "navicat-importer-v0.1.1",
-      "description": "Rust WASM connection importer for Navicat preference plists and connection exports",
+      "description": "从 Navicat 偏好设置 plist 和连接导出文件中读取数据库连接，并通过 Rust WASM 导入到 Navop；支持本地迁移和离线导入场景。 Reads database connections from Navicat preference plists and connection exports, then imports them into Navop through Rust WASM for local migration and offline import workflows.",
       "file_extensions": [],
       "manifest": "navicat-importer/manifest.json"
     },
@@ -158,7 +158,7 @@
       "name": "TablePlus Importer",
       "version": "0.1.0",
       "release_tag": "tableplus-importer-v0.1.0",
-      "description": "Rust WASM connection importer for TablePlus",
+      "description": "从 TablePlus JSON 或 plist 文件中读取数据库连接，并通过 Rust WASM 导入到 Navop；支持常见本地导出和配置文件格式。 Reads database connections from TablePlus JSON or plist files and imports them into Navop through Rust WASM, supporting common local export and configuration formats.",
       "file_extensions": [],
       "manifest": "tableplus-importer/manifest.json"
     },
@@ -168,7 +168,7 @@
       "name": "Xshell Importer",
       "version": "0.1.1",
       "release_tag": "xshell-importer-v0.1.1",
-      "description": "Rust WASM connection importer for Xshell",
+      "description": "从 Xshell 会话文件中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持批量迁移常用主机设置。 Discovers SSH connection settings from Xshell session files and imports them into Navop through Rust WASM for migrating frequently used hosts in batches.",
       "file_extensions": [],
       "manifest": "xshell-importer/manifest.json"
     },
@@ -178,7 +178,7 @@
       "name": "DuckDB",
       "version": "0.1.1",
       "release_tag": "duckdb-v0.1.1",
-      "description": "使用 Rust 开发的 DuckDB 嵌入式分析数据库 IPC 驱动",
+      "description": "使用 Rust 开发的 DuckDB 嵌入式分析数据库 IPC 驱动，适合本地文件分析、SQL 查询、Schema 浏览及数据导入导出。 Rust-based IPC driver for DuckDB, designed for local file analytics, SQL queries, schema browsing, and data import/export.",
       "file_extensions": [],
       "manifest": "duckdb/manifest.json"
     },
@@ -188,7 +188,7 @@
       "name": "GBase 8s",
       "version": "0.1.13",
       "release_tag": "gbase8s-v0.1.13",
-      "description": "使用 Java 开发的南大通用 GBase 8s 数据库 IPC 驱动",
+      "description": "使用 Java 开发的南大通用 GBase 8s 数据库 IPC 驱动，支持连接测试、SQL 执行、事务处理、对象浏览及数据传输。 Java-based IPC driver for GBase 8s with connection testing, SQL execution, transactions, object browsing, and data transfer.",
       "file_extensions": [],
       "manifest": "gbase8s/manifest.json"
     },
@@ -198,7 +198,7 @@
       "name": "Apache IoTDB",
       "version": "0.1.4",
       "release_tag": "iotdb-v0.1.4",
-      "description": "使用 Apache IoTDB Go 客户端开发的时序数据库 IPC 驱动",
+      "description": "基于 Apache IoTDB Go 客户端开发的时序数据库 IPC 驱动，支持会话管理、时序查询、元数据浏览及数据写入。 Go-based IPC driver built on the Apache IoTDB client, with session management, time-series queries, metadata browsing, and data ingestion.",
       "file_extensions": [],
       "manifest": "iotdb/manifest.json"
     },
@@ -208,7 +208,7 @@
       "name": "KingbaseES",
       "version": "0.1.3",
       "release_tag": "kingbase-v0.1.3",
-      "description": "使用 Go 开发的金仓 KingbaseES 数据库 IPC 驱动",
+      "description": "使用 Go 开发的金仓 KingbaseES 数据库 IPC 驱动，支持连接管理、SQL 查询、事务、Schema 对象浏览及数据导入导出。 Go-based IPC driver for KingbaseES with connection management, SQL queries, transactions, schema object browsing, and data import/export.",
       "file_extensions": [],
       "manifest": "kingbase/manifest.json"
     },
@@ -218,7 +218,7 @@
       "name": "Oscar",
       "version": "0.1.0",
       "release_tag": "oscar-v0.1.0",
-      "description": "使用 Java 开发的神通 Oscar 数据库 IPC 驱动",
+      "description": "使用 Java 开发的神通 Oscar 数据库 IPC 驱动，支持连接测试、SQL 执行、事务处理、Schema 浏览及数据传输。 Java-based IPC driver for Oscar with connection testing, SQL execution, transactions, schema browsing, and data transfer.",
       "file_extensions": [],
       "manifest": "oscar/manifest.json"
     },
@@ -228,7 +228,7 @@
       "name": "OceanBase",
       "version": "0.1.0",
       "release_tag": "oceanbase-v0.1.0",
-      "description": "使用 Go 开发的 OceanBase 数据库 IPC 驱动",
+      "description": "使用 Go 开发的 OceanBase 数据库 IPC 驱动，支持连接测试、SQL 查询、事务、数据库对象浏览及数据传输。 Go-based IPC driver for OceanBase with connection testing, SQL queries, transactions, database object browsing, and data transfer.",
       "file_extensions": [],
       "manifest": "oceanbase/manifest.json"
     },
@@ -238,7 +238,7 @@
       "name": "Oracle Go",
       "version": "0.1.0",
       "release_tag": "oracle-go-v0.1.0",
-      "description": "使用纯 Go 开发的 Oracle 数据库 IPC 驱动",
+      "description": "使用纯 Go 开发的 Oracle 数据库 IPC 驱动，无需额外 Oracle 客户端即可进行连接管理、SQL 查询、事务和对象浏览。 Pure Go IPC driver for Oracle with connection management, SQL queries, transactions, and object browsing without requiring a separate Oracle client.",
       "file_extensions": [],
       "manifest": "oracle-go/manifest.json"
     },
@@ -248,7 +248,7 @@
       "name": "openGauss",
       "version": "0.1.2",
       "release_tag": "opengauss-v0.1.2",
-      "description": "使用 Rust 开发的 openGauss 数据库 IPC 驱动",
+      "description": "使用 Rust 开发的 openGauss 数据库 IPC 驱动，支持连接管理、SQL 执行、事务、Schema 浏览及数据导入导出。 Rust-based IPC driver for openGauss with connection management, SQL execution, transactions, schema browsing, and data import/export.",
       "file_extensions": [],
       "manifest": "opengauss/manifest.json"
     },
@@ -258,7 +258,7 @@
       "name": "RDP",
       "version": "0.1.4",
       "release_tag": "rdp-v0.1.4",
-      "description": "使用 Rust 开发的 RDP 远程桌面 provider",
+      "description": "使用 Rust 开发的 RDP 远程桌面 Provider，为 Navop 提供交互式远程会话、动态分辨率、文本剪贴板和光标同步能力。 Rust-based RDP provider for Navop with interactive remote sessions, dynamic resizing, text clipboard, and cursor synchronization.",
       "file_extensions": [],
       "manifest": "rdp/manifest.json"
     },
@@ -268,7 +268,7 @@
       "name": "VNC",
       "version": "0.1.2",
       "release_tag": "vnc-v0.1.2",
-      "description": "使用 Rust 开发的 VNC 远程桌面 provider",
+      "description": "使用 Rust 开发的 VNC 远程桌面 Provider，为 Navop 提供跨平台远程画面访问、交互输入、窗口缩放和剪贴板协作能力。 Rust-based VNC provider for Navop with cross-platform remote display, interactive input, window resizing, and clipboard integration.",
       "file_extensions": [],
       "manifest": "vnc/manifest.json"
     },
@@ -278,7 +278,7 @@
       "name": "Tree-sitter Languages",
       "version": "0.1.0",
       "release_tag": "tree-sitter-languages-v0.1.0",
-      "description": "Tree-sitter syntax highlighter language bundle",
+      "description": "基于 Tree-sitter WASM 的多语言语法高亮扩展包，为 Navop 的编辑器和文档视图提供常用编程语言、标记语言及配置文件的解析与高亮。 Tree-sitter WASM language bundle that provides parsing and syntax highlighting for common programming, markup, and configuration languages in Navop editors and document views.",
       "file_extensions": [
         "astro",
         "c",

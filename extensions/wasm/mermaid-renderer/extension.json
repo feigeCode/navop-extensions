@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.navop.renderer.mermaid",
   "name": "Mermaid Renderer",
-  "description": "Rust WASM renderer for Mermaid document blocks as safe SVG",
+  "description": "使用 Rust WASM 将 Notes 中的 Mermaid 图表渲染为安全 SVG，支持流程图、时序图和其他 Mermaid 文档块的预览。 Rust WASM renderer that converts Mermaid blocks in Notes into safe SVG for flowcharts, sequence diagrams, and other Mermaid document previews.",
   "version": "0.1.0",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.7.0" },

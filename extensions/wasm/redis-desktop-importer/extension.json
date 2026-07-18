@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.onetcli.importer.redis-desktop",
   "name": "Redis Desktop Importer",
-  "description": "Rust WASM connection importer for Redis desktop clients",
+  "description": "从 Redis Desktop 等桌面客户端的本地配置中发现 Redis 连接，并通过 Rust WASM 导入到 Navop；适合开发环境迁移。 Discovers Redis connections from local Redis desktop client configurations and imports them into Navop through Rust WASM for development environment migration.",
   "version": "0.1.0",
   "publisher": "OnetCli",
   "engines": {
@@ -33,7 +33,7 @@
         "id": "redis-desktop",
         "runtimeId": "redis-desktop-importer",
         "displayName": "Redis Desktop",
-        "description": "Import Redis connection metadata from Redis desktop clients",
+        "description": "从 Redis 桌面客户端配置中发现并导入 Redis 连接元数据。 Discover and import Redis connection metadata from Redis desktop client configurations.",
         "icon": "database",
         "outputKinds": [
           "database"

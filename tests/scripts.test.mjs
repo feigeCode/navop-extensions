@@ -242,7 +242,7 @@ test("IPC driver build metadata declares release and R2 manifest routing", () =>
   }
 });
 
-test("extension descriptions include implementation language", () => {
+test("extension descriptions are bilingual, detailed, and synchronized", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
   const globalEntries = new Map(globalManifest.extensions.map((extension) => [extension.id, extension]));
 
@@ -252,13 +252,23 @@ test("extension descriptions include implementation language", () => {
       fs.readFileSync(path.join(repoRoot, metadata.path, sourceManifestFileName(metadata.kind)), "utf8"),
     );
 
+    const description = sourceManifest.description;
+    assert.equal(typeof description, "string", `${metadata.id} should define a description`);
     assert.ok(
-      sourceManifest.description.includes(language),
+      description.includes(language),
       `${metadata.id} source manifest description should mention ${language}`,
     );
+    assert.match(description, /[\u3400-\u9fff]/, `${metadata.id} description should include Chinese`);
+    assert.match(description, /[A-Za-z]{4}/, `${metadata.id} description should include English`);
+    assert.ok(description.length >= 100, `${metadata.id} description should be sufficiently detailed`);
     assert.ok(
       globalEntries.get(sourceManifest.id)?.description?.includes(language),
       `${metadata.id} global manifest description should mention ${language}`,
+    );
+    assert.equal(
+      globalEntries.get(sourceManifest.id)?.description,
+      description,
+      `${metadata.id} global manifest description should match its source manifest`,
     );
   }
 });

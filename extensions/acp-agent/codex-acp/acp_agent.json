@@ -1,7 +1,7 @@
 {
   "id": "codex-acp",
   "name": "Codex",
-  "description": "Shell ACP Registry wrapper for OpenAI Codex. Requires Node.js/npm and a Codex authentication method supported by the Codex ACP adapter.",
+  "description": "将 OpenAI Codex 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、修改、命令执行和开发任务协作；需要 Node.js/npm 及 Codex ACP 适配器支持的认证方式。 Shell ACP agent extension that connects OpenAI Codex to Navop for code analysis, editing, command execution, and development workflows; requires Node.js/npm and an authentication method supported by the Codex ACP adapter.",
   "version": "0.1.0",
   "agents": [
     {

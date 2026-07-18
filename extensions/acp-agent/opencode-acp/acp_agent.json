@@ -1,7 +1,7 @@
 {
   "id": "opencode-acp",
   "name": "OpenCode",
-  "description": "Shell ACP Registry wrapper for OpenCode. Requires the opencode CLI to be installed locally.",
+  "description": "将 OpenCode 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码理解、编辑和自动化开发任务；需要本机已安装并配置 opencode CLI。 Shell ACP agent extension that connects OpenCode to Navop for code understanding, editing, and automated development tasks; requires a locally installed and configured opencode CLI.",
   "version": "0.1.0",
   "agents": [
     {

@@ -1,7 +1,7 @@
 {
   "id": "claude-acp",
   "name": "Claude Code",
-  "description": "Shell ACP Registry wrapper for Anthropic Claude Code via Claude Agent ACP. Requires Node.js/npm and Claude Code authentication supported by the adapter.",
+  "description": "通过 Claude Agent ACP 将 Anthropic Claude Code 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、编辑和任务协作；需要 Node.js/npm 及适配器支持的 Claude Code 登录方式。 Shell ACP agent extension that connects Anthropic Claude Code to Navop through Claude Agent ACP for code analysis, editing, and task collaboration; requires Node.js/npm and a supported Claude Code authentication method.",
   "version": "0.1.0",
   "agents": [
     {

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.navop.renderer.math",
   "name": "Math Renderer",
-  "description": "Rust WASM renderer for LaTeX math blocks as self-contained SVG",
+  "description": "使用 Rust WASM 将 Notes 中的 LaTeX 数学块渲染为自包含 SVG，支持公式预览、导出和离线文档展示。 Rust WASM renderer that turns LaTeX math blocks in Notes into self-contained SVG for formula previews, exports, and offline document viewing.",
   "version": "0.1.0",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.7.0" },
