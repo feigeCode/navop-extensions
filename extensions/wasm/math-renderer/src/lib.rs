@@ -29,6 +29,7 @@ impl Guest for MathRenderer {
                 font_dir: String::new(),
             },
         );
+        let svg = with_background(svg, input.theme.background)?;
         Ok(Artifact {
             media_type: "image/svg+xml".to_owned(),
             bytes: svg.into_bytes(),
@@ -36,6 +37,18 @@ impl Guest for MathRenderer {
             intrinsic_height: None,
         })
     }
+}
+
+fn with_background(mut svg: String, background: u32) -> Result<String, String> {
+    let root_end = svg
+        .find('>')
+        .ok_or_else(|| "数学公式渲染器生成了无效 SVG".to_owned())?;
+    let rect = format!(
+        r##"<rect width="100%" height="100%" fill="#{:06x}"/>"##,
+        background & 0x00ff_ffff
+    );
+    svg.insert_str(root_end + 1, &rect);
+    Ok(svg)
 }
 
 fn rgb(value: u32) -> Color {
@@ -48,3 +61,21 @@ fn rgb(value: u32) -> Color {
 }
 
 export!(MathRenderer);
+
+#[cfg(test)]
+mod tests {
+    use super::with_background;
+
+    #[test]
+    fn generated_svg_uses_the_document_theme_background() {
+        let svg = with_background(
+            "<svg viewBox=\"0 0 10 10\"><path/></svg>".to_owned(),
+            0xf7f6f3,
+        )
+        .unwrap();
+
+        assert!(svg.starts_with(
+            "<svg viewBox=\"0 0 10 10\"><rect width=\"100%\" height=\"100%\" fill=\"#f7f6f3\"/>"
+        ));
+    }
+}
