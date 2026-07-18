@@ -50,7 +50,7 @@ impl RdpOutputMapper {
             RdpOutputEvent::Terminated(result) => vec![HelperEvent::Terminated {
                 message: match result {
                     Ok(reason) => reason.to_string(),
-                    Err(error) => format!("{error:#}"),
+                    Err(error) => error.report().to_string(),
                 },
             }],
             RdpOutputEvent::PointerDefault => vec![HelperEvent::CursorDefault],

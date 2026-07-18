@@ -123,7 +123,7 @@ fn spawn_client_thread(
             };
 
             let output_sender = helper_output_tx.clone();
-            runtime.spawn(async move {
+            let output_task = runtime.spawn(async move {
                 let mut output_mapper = RdpOutputMapper::default();
                 while let Some(event) = output_rx.recv().await {
                     for helper_event in output_mapper.map(event) {
@@ -133,7 +133,10 @@ fn spawn_client_thread(
                     }
                 }
             });
-            runtime.block_on(client.run());
+            runtime.block_on(async {
+                client.run().await;
+                let _ = output_task.await;
+            });
         })
         .context("spawn RDP client thread")?;
     Ok(())

@@ -4,14 +4,16 @@
 first-frame latency, frame counts, full-vs-delta frames, payload bandwidth, helper CPU, and RSS.
 The benchmark uses a fixed 1280x720 session and sends pointer/wheel activity every 33 ms.
 
+Measured baseline and optimized results are recorded in [RESULTS.md](RESULTS.md).
+
 The Docker servers used for the July 2026 run were:
 
 - RDP: `docker.1ms.run/danielguerra/ubuntu-xrdp:latest` on `127.0.0.1:13389`.
 - VNC: `docker.m.daocloud.io/dorowu/ubuntu-desktop-lxde-vnc:latest` on `127.0.0.1:15900`.
 
-Both images are amd64 and therefore run through Docker Desktop Rosetta on Apple Silicon. RDP
-handshake reached the xrdp session but the IronRDP test client rejected an xrdp Fast-Path PDU;
-that result is recorded as a server compatibility failure, not as an FPS claim.
+Both images are amd64 and therefore run through Docker Desktop Rosetta on Apple Silicon. The
+RDP helper disables the unused rdpsnd channel, which avoids xrdp audio PDUs that older IronRDP
+clients could not decode, so the Docker RDP benchmark reaches the first frame.
 
 Example invocation:
 
@@ -29,7 +31,6 @@ cargo +stable test --release --manifest-path ../rdp-helper/Cargo.toml \
   rdp::output::tests::benchmarks_sparse_frame_transport -- --ignored --nocapture
 ```
 
-The RDP helper currently uses the sibling `ironrdp-filecopy` worktree because the
-file-copy input event is an unreleased IronRDP client API. Build the three worktrees
-together, or replace those path dependencies with the published IronRDP patch before
-building outside this workspace.
+The RDP helper uses the feigeCode/IronRDP fork at revision 5f4b61a because the
+file-copy input event and the audio-channel compatibility fix are not in the upstream
+release yet.

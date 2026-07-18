@@ -8,13 +8,13 @@ publish = false
 
 [dependencies]
 anyhow = "1"
-ironrdp = { path = "../../../../ironrdp-filecopy/crates/ironrdp", features = [
+ironrdp = { git = "https://github.com/feigeCode/IronRDP", rev = "5f4b61a", features = [
     "connector",
     "cliprdr",
     "input",
     "pdu",
 ] }
-ironrdp-client = { path = "../../../../ironrdp-filecopy/crates/ironrdp-client", default-features = false, features = [
+ironrdp-client = { git = "https://github.com/feigeCode/IronRDP", rev = "5f4b61a", default-features = false, features = [
     "native-tls",
 ] }
 semver = "1"

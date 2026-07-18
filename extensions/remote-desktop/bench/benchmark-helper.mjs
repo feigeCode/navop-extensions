@@ -21,6 +21,9 @@ let stdout = Buffer.alloc(0);
 let pendingPayload = null;
 let cpuSamples = [];
 
+child.stdin.on("error", (error) => {
+  metrics.statuses.push("stdin: " + error.message);
+});
 child.stdout.on("data", (chunk) => {
   metrics.wire_bytes += chunk.length;
   stdout = Buffer.concat([stdout, chunk]);
