@@ -5,6 +5,7 @@
   "package": "mermaid_renderer_wasm",
   "binary": "mermaid_renderer_wasm.wasm",
   "path": "extensions/wasm/mermaid-renderer",
+  "source_paths": ["wit/document-renderer.wit"],
   "manifest_path": "extensions/wasm/mermaid-renderer/Cargo.toml",
   "targets": ["universal"],
   "releaseTagPrefix": "mermaid-renderer-v",

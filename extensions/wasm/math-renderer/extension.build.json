@@ -1,5 +1,5 @@
 {
   "id": "math-renderer", "kind": "composite", "language": "rust-wasm", "package": "math_renderer_wasm", "binary": "math_renderer_wasm.wasm",
-  "path": "extensions/wasm/math-renderer", "manifest_path": "extensions/wasm/math-renderer/Cargo.toml", "targets": ["universal"],
+  "path": "extensions/wasm/math-renderer", "source_paths": ["wit/document-renderer.wit"], "manifest_path": "extensions/wasm/math-renderer/Cargo.toml", "targets": ["universal"],
   "releaseTagPrefix": "math-renderer-v", "r2Prefix": "extensions/math-renderer"
 }

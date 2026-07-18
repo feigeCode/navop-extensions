@@ -1,4 +1,4 @@
-wit_bindgen::generate!({ path: "wit", world: "document-renderer" });
+wit_bindgen::generate!({ path: "../../../wit", world: "document-renderer" });
 
 use kymo_tex_layout::{LayoutOptions, layout, to_display_list};
 use kymo_tex_parser::parser::parse;
