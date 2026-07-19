@@ -158,23 +158,27 @@ fn hex_digit(byte: u8) -> Option<u8> {
     }
 }
 
+#[cfg(any(feature = "pdf", feature = "docx"))]
 #[derive(Clone, Debug)]
 struct DocumentLine {
     kind: LineKind,
     text: String,
 }
 
+#[cfg(any(feature = "pdf", feature = "docx"))]
 #[derive(Clone, Debug)]
 struct TableData {
     rows: Vec<Vec<String>>,
 }
 
+#[cfg(any(feature = "pdf", feature = "docx"))]
 #[derive(Clone, Debug)]
 struct ImageData {
     alt: String,
     path: String,
 }
 
+#[cfg(any(feature = "pdf", feature = "docx"))]
 #[derive(Clone, Debug)]
 enum LineKind {
     Blank,
@@ -188,7 +192,7 @@ enum LineKind {
     Image(ImageData),
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn document_lines(source: &str) -> Vec<DocumentLine> {
     let mut lines = Vec::new();
     let mut code = false;
@@ -284,12 +288,12 @@ fn document_lines(source: &str) -> Vec<DocumentLine> {
     lines
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn is_table_row(line: &str) -> bool {
     line.contains('|') && line.trim_matches('|').contains('|')
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn is_table_separator(line: &str) -> bool {
     let cells = line.trim_matches('|').split('|').map(str::trim);
     let mut found = false;
@@ -306,7 +310,7 @@ fn is_table_separator(line: &str) -> bool {
     found
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn parse_table_row(line: &str) -> Vec<String> {
     line.trim_matches('|')
         .split('|')
@@ -314,7 +318,7 @@ fn parse_table_row(line: &str) -> Vec<String> {
         .collect()
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn parse_image(line: &str) -> Option<ImageData> {
     let start = line.strip_prefix("![")?;
     let label_end = start.find("](")?;
@@ -328,7 +332,7 @@ fn parse_image(line: &str) -> Option<ImageData> {
     })
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn ordered_list_item(line: &str) -> Option<(&str, &str)> {
     let dot = line.find(". ")?;
     let number = &line[..dot];
@@ -336,7 +340,7 @@ fn ordered_list_item(line: &str) -> Option<(&str, &str)> {
         .then_some((number, &line[dot + 2..]))
 }
 
-#[cfg(any(feature = "html", feature = "pdf", feature = "docx"))]
+#[cfg(any(feature = "pdf", feature = "docx"))]
 fn clean_inline(source: &str) -> String {
     let mut text = source
         .replace("**", "")
@@ -660,7 +664,7 @@ fn pdf_literal(text: &str) -> String {
         .collect()
 }
 
-#[cfg(any(feature = "pdf", feature = "docx"))]
+#[cfg(feature = "pdf")]
 fn wrap_text(text: &str, size: f32, max_width: f32) -> Vec<String> {
     if text.is_empty() {
         return vec![String::new()];
