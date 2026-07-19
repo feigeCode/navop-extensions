@@ -124,13 +124,13 @@ fn spawn_vnc_thread(
 ) -> anyhow::Result<JoinHandle<()>> {
     let mut input_rx = std::mem::replace(input_rx, tokio::sync::mpsc::unbounded_channel().1);
     Ok(std::thread::Builder::new()
-        .name("onetcli-vnc-helper-session".to_string())
+        .name("navop-vnc-helper-session".to_string())
         .spawn(move || vnc_rfb::run_vnc_thread(options, &mut input_rx, output_tx))?)
 }
 
 fn spawn_output_writer(output_rx: OutputReceiver) -> JoinHandle<anyhow::Result<()>> {
     std::thread::Builder::new()
-        .name("onetcli-vnc-helper-output".to_string())
+        .name("navop-vnc-helper-output".to_string())
         .spawn(move || {
             while let Some(output) = output_rx.recv() {
                 write_event(&output_to_event(output))?;

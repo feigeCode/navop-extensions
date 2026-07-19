@@ -11,7 +11,9 @@ only that provider; omitting it installs every provider under
 extensions/remote-desktop.
 
 Environment:
-  ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR  Override install root. Defaults to
+  NAVOP_REMOTE_DESKTOP_PROVIDER_DIR    Override install root. The legacy
+                                       ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR is
+                                       also supported. Defaults to
                                        $XDG_CONFIG_HOME/one-hub/extensions/remote_desktop_providers
                                        or $HOME/.config/one-hub/extensions/remote_desktop_providers.
 EOF
@@ -33,7 +35,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ARTIFACT_DIR="${REPO_DIR}/target/local-extension-artifacts"
 CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
-INSTALL_ROOT="${ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR:-${CONFIG_HOME}/one-hub/extensions/remote_desktop_providers}"
+INSTALL_ROOT="${NAVOP_REMOTE_DESKTOP_PROVIDER_DIR:-${ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR:-${CONFIG_HOME}/one-hub/extensions/remote_desktop_providers}}"
 
 fail() {
   printf 'error: %s\n' "$*" >&2

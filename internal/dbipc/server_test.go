@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 func TestServerRejectsBusinessMethodBeforeInit(t *testing.T) {

@@ -826,7 +826,7 @@ fn apply_export_projection(raw_sql: &str, columns: &[String]) -> String {
         .map(|column| quote_sql_identifier(column))
         .collect::<Vec<_>>()
         .join(", ");
-    format!("SELECT {projection} FROM ({raw_sql}) AS __onetcli_export_source")
+    format!("SELECT {projection} FROM ({raw_sql}) AS __navop_export_source")
 }
 
 fn quote_sql_identifier(name: &str) -> String {
@@ -1912,7 +1912,7 @@ fn run_query_page(
 
 fn page_query_sql(sql: &str, limit: u32, offset: u64) -> String {
     let inner = trimmed_query_sql(sql);
-    format!("SELECT * FROM ({inner}) AS __onetcli_cursor_page LIMIT {limit} OFFSET {offset}")
+    format!("SELECT * FROM ({inner}) AS __navop_cursor_page LIMIT {limit} OFFSET {offset}")
 }
 
 fn trimmed_query_sql(sql: &str) -> &str {

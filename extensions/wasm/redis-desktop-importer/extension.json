@@ -4,7 +4,7 @@
   "name": "Redis Desktop Importer",
   "description": "从 Redis Desktop 等桌面客户端的本地配置中发现 Redis 连接，并通过 Rust WASM 导入到 Navop；适合开发环境迁移。 Discovers Redis connections from local Redis desktop client configurations and imports them into Navop through Rust WASM for development environment migration.",
   "version": "0.1.0",
-  "publisher": "OnetCli",
+  "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
   },

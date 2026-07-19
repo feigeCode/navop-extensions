@@ -1,4 +1,4 @@
-module onetcli-db-ipc-drivers
+module navop-db-ipc-drivers
 
 go 1.25.0
 

@@ -29,7 +29,7 @@ When developing an importer for a new application, read the playbook first, then
 
 | Area | Path |
 | --- | --- |
-| Extension workspace | `onetcli-extensions` |
+| Extension workspace | `navop-extensions` |
 | Importer crates | `extensions/wasm/<tool>-importer` |
 | Shared extension WIT | `wit/connection-import.wit` |
 | Marketplace entry | `manifest.json` with `"kind": "composite"` |

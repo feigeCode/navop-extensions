@@ -11,8 +11,8 @@ import (
 
 	iotdbclient "github.com/apache/iotdb-client-go/client"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 const (

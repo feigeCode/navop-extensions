@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/dbipc"
 )
 
 func ConfigFromWire(raw map[string]any) (dbipc.Config, error) {

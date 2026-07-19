@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/dbipc"
 )
 
 func TestSchemaObjectViewFunctionsReturnsRows(t *testing.T) {
 	server := NewServer()
 	ctx := context.Background()
 	mustOK(t, server.Handle(ctx, message(1, "init", nil)))
-	server.conns[1] = &connection{cfg: dbipc.Config{Database: "root.onetcli_smoke"}}
+	server.conns[1] = &connection{cfg: dbipc.Config{Database: "root.navop_smoke"}}
 
 	resp := server.Handle(ctx, message(2, "schema/object_view", map[string]any{
 		"conn_id": 1,

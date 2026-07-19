@@ -153,7 +153,7 @@ cargo test -p opengauss_driver -- --nocapture
 运行 Go 共享运行时测试：
 
 ```bash
-GOCACHE=/private/tmp/onetcli-go-cache go test ./internal/dbipc
+GOCACHE=/private/tmp/navop-go-cache go test ./internal/dbipc
 ```
 
 运行 Java 驱动测试：
@@ -225,7 +225,8 @@ bash scripts/install-local-drivers.sh dm
 
 默认安装到 `$XDG_CONFIG_HOME/one-hub/extensions/database_drivers` 或
 `$HOME/.config/one-hub/extensions/database_drivers`。如需改目标目录，可设置
-`ONETCLI_DATABASE_DRIVER_DIR=/path/to/database_drivers`。
+`NAVOP_DATABASE_DRIVER_DIR=/path/to/database_drivers`。为兼容已有脚本，仍支持旧的
+`ONETCLI_DATABASE_DRIVER_DIR` 环境变量。
 
 本地安装远程桌面 provider：
 

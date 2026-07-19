@@ -14,5 +14,5 @@
 "database.iotdb.storage_group.new": "新建儲存組"
 "database.iotdb.storage_group.delete": "刪除儲存組"
 "database.iotdb.storage_group.name": "儲存組名稱"
-"database.iotdb.storage_group.name.placeholder": "root.onetcli_smoke"
+"database.iotdb.storage_group.name.placeholder": "root.navop_smoke"
 "database.iotdb.storage_group.name.help": "請輸入完整路徑，例如 root.factory1；只輸入名稱時會按目前連線前綴補全。"

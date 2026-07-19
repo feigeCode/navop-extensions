@@ -1,8 +1,8 @@
 {
   "id": "rdp",
   "kind": "remote_desktop_provider",
-  "package": "onetcli-rdp-helper",
-  "binary": "onetcli-rdp-helper",
+  "package": "navop-rdp-helper",
+  "binary": "navop-rdp-helper",
   "manifest_path": "extensions/remote-desktop/rdp-helper/Cargo.toml",
   "path": "extensions/remote-desktop/rdp",
   "source_paths": ["extensions/remote-desktop/rdp-helper"],

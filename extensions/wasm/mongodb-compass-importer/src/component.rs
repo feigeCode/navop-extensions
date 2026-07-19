@@ -14,7 +14,7 @@ impl Guest for MongodbCompassImporter {
             "display_name": "MongoDB Compass",
             "description": "Import MongoDB connection metadata from MongoDB Compass",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows", "linux"],
             "output_kinds": ["database"],
             "capabilities": {

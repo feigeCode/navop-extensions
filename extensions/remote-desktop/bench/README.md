@@ -19,7 +19,7 @@ Example invocation:
 
 ```sh
 node benchmark-helper.mjs \
-  --helper ../rdp-helper/target/release/onetcli-rdp-helper \
+  --helper ../rdp-helper/target/release/navop-rdp-helper \
   --protocol rdp --destination 127.0.0.1:13389 \
   --username navop --password navop --duration 10000
 ```

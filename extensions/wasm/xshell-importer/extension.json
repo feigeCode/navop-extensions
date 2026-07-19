@@ -4,7 +4,7 @@
   "name": "Xshell Importer",
   "description": "从 Xshell 会话文件中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持批量迁移常用主机设置。 Discovers SSH connection settings from Xshell session files and imports them into Navop through Rust WASM for migrating frequently used hosts in batches.",
   "version": "0.1.1",
-  "publisher": "OnetCli",
+  "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
   },

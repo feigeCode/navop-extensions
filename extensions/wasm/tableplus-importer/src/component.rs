@@ -14,7 +14,7 @@ impl Guest for TablePlusImporter {
             "display_name": "TablePlus",
             "description": "Import database connections from TablePlus",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows"],
             "output_kinds": ["database"],
             "capabilities": {

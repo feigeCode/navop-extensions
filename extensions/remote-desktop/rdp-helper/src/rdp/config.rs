@@ -33,7 +33,7 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         }),
         dig_product_id: String::new(),
         client_build: client_build()?,
-        client_name: whoami::fallible::hostname().unwrap_or_else(|_| "onetcli-rdp".to_string()),
+        client_name: whoami::fallible::hostname().unwrap_or_else(|_| "navop-rdp".to_string()),
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         alternate_shell: String::new(),
         work_dir: String::new(),

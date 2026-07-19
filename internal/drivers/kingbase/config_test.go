@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestSpecBuildsKingbaseConnInfoFromOnetcliConfig(t *testing.T) {
+func TestSpecBuildsKingbaseConnInfoFromNavopConfig(t *testing.T) {
 	cfg, err := ConfigFromWire(map[string]any{
 		"host":     "127.0.0.1",
 		"port":     float64(54321),
@@ -15,7 +15,7 @@ func TestSpecBuildsKingbaseConnInfoFromOnetcliConfig(t *testing.T) {
 		"extra_params": map[string]any{
 			"sslmode":              "disable",
 			"connect_timeout":      "10",
-			"application_name":     "onetcli",
+			"application_name":     "navop",
 			"target_session_attrs": "read-write",
 		},
 	})
@@ -36,7 +36,7 @@ func TestSpecBuildsKingbaseConnInfoFromOnetcliConfig(t *testing.T) {
 		"dbname=TEST",
 		"sslmode=disable",
 		"connect_timeout=10",
-		"application_name=onetcli",
+		"application_name=navop",
 		"target_session_attrs=read-write",
 	} {
 		if !strings.Contains(connInfo, want) {

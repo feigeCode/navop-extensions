@@ -10,7 +10,8 @@ agent directory. Passing an agent id installs only that agent; omitting it
 installs every agent under extensions/acp-agent.
 
 Environment:
-  ONETCLI_ACP_AGENT_DIR  Override install root. Defaults to
+  NAVOP_ACP_AGENT_DIR    Override install root. The legacy
+                         ONETCLI_ACP_AGENT_DIR is also supported. Defaults to
                          $XDG_CONFIG_HOME/one-hub/extensions/acp_agents
                          or $HOME/.config/one-hub/extensions/acp_agents.
 EOF
@@ -32,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ARTIFACT_DIR="${REPO_DIR}/target/local-extension-artifacts"
 CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
-INSTALL_ROOT="${ONETCLI_ACP_AGENT_DIR:-${CONFIG_HOME}/one-hub/extensions/acp_agents}"
+INSTALL_ROOT="${NAVOP_ACP_AGENT_DIR:-${ONETCLI_ACP_AGENT_DIR:-${CONFIG_HOME}/one-hub/extensions/acp_agents}}"
 
 fail() {
   printf 'error: %s\n' "$*" >&2

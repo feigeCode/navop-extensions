@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 func TestRunConnectsToHostSocketAndServesLifecycle(t *testing.T) {
@@ -34,7 +34,7 @@ func TestRunConnectsToHostSocketAndServesLifecycle(t *testing.T) {
 		return
 	}
 
-	socketName := fmt.Sprintf("onetcli-runner-test-%d.sock", time.Now().UnixNano())
+	socketName := fmt.Sprintf("navop-runner-test-%d.sock", time.Now().UnixNano())
 	listener, cleanup := listenTestSocket(t, socketName)
 	defer cleanup()
 

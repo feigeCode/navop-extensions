@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
-	"onetcli-db-ipc-drivers/internal/drivers/oracle"
+	"navop-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/drivers/oracle"
 )
 
 const (

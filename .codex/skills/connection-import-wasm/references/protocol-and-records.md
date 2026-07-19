@@ -8,8 +8,8 @@ Check these before adding fields:
 
 ```text
 wit/connection-import.wit
-../onetcli/crates/connection-import-protocol/src/model.rs
-../onetcli/crates/extension-runtime/src/connection_import_provider.rs
+../navop/crates/connection-import-protocol/src/model.rs
+../navop/crates/extension-runtime/src/connection_import_provider.rs
 ```
 
 If WIT and the Rust protocol appear to disagree, treat the Rust `connection-import-protocol` decode model as authoritative for JSON returned by `preview`.

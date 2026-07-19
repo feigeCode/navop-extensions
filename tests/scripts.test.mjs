@@ -1028,9 +1028,9 @@ test("package-remote-desktop-provider creates an RDP provider package", () => {
     fs.readFileSync(path.join(workdir, "unpacked/remote_desktop_provider.json"), "utf8"),
   );
   assert.equal(manifest.version, "1.2.3");
-  assert.equal(manifest.entry.command, "./onetcli-rdp-helper");
+  assert.equal(manifest.entry.command, "./navop-rdp-helper");
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/onetcli-rdp-helper"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/navop-rdp-helper"), "utf8"),
     "fake rdp helper\n",
   );
 
@@ -1449,7 +1449,7 @@ test("package-remote-desktop-provider finds manifest-path helper target output",
 
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/onetcli-rdp-helper"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/navop-rdp-helper"), "utf8"),
     "fake rdp helper\n",
   );
 });
@@ -1480,7 +1480,7 @@ test("package-remote-desktop-provider finds helper output in CARGO_TARGET_DIR", 
 
   execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
   assert.equal(
-    fs.readFileSync(path.join(workdir, "unpacked/onetcli-rdp-helper"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/navop-rdp-helper"), "utf8"),
     "fake rdp helper\n",
   );
 });
@@ -2369,8 +2369,8 @@ test("changed-extensions emits manifest-path metadata for standalone Rust helper
   writeJson(path.join(workdir, "extensions/remote-desktop/rdp/extension.build.json"), {
     id: "rdp",
     kind: "remote_desktop_provider",
-    package: "onetcli-rdp-helper",
-    binary: "onetcli-rdp-helper",
+    package: "navop-rdp-helper",
+    binary: "navop-rdp-helper",
     manifest_path: "extensions/remote-desktop/rdp-helper/Cargo.toml",
     path: "extensions/remote-desktop/rdp",
     source_paths: ["extensions/remote-desktop/rdp-helper"],
@@ -2398,7 +2398,7 @@ test("changed-extensions emits manifest-path metadata for standalone Rust helper
   assert.deepEqual(JSON.parse(output).include, [
     {
       extension: "rdp",
-      package: "onetcli-rdp-helper",
+      package: "navop-rdp-helper",
       manifest_path: "extensions/remote-desktop/rdp-helper/Cargo.toml",
       kind: "remote_desktop_provider",
       language: "rust",
@@ -2837,7 +2837,7 @@ test("generate-marketplace-manifest supports MCP helpers", () => {
   });
   writeJson(path.join(workdir, "extensions/mcp-helper/onetcli-public-mcp/mcp_helper.json"), {
     id: "onetcli-public-mcp",
-    name: "OnetCli Public MCP Helper",
+    name: "Navop Public MCP Helper",
     description: "Public MCP stdio bridge",
   });
   const fileName = "onetcli-public-mcp-mcp-helper-x86_64-unknown-linux-gnu.tar.gz";
@@ -3125,7 +3125,7 @@ test("install-local-drivers builds and replaces one selected local driver", () =
   copyScript("verify-package.sh", workdir);
   createRustDriverFixture(workdir, "duckdb", "duckdb_driver", "0.9.0");
   createRustDriverFixture(workdir, "iotdb", "iotdb_driver", "0.9.0");
-  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+  const installRoot = path.join(workdir, "navop/extensions/database_drivers");
   fs.mkdirSync(path.join(installRoot, "duckdb"), { recursive: true });
   fs.writeFileSync(path.join(installRoot, "duckdb/old.txt"), "old duckdb\n");
   fs.mkdirSync(path.join(installRoot, "iotdb"), { recursive: true });
@@ -3139,7 +3139,7 @@ test("install-local-drivers builds and replaces one selected local driver", () =
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_DATABASE_DRIVER_DIR: installRoot,
+        NAVOP_DATABASE_DRIVER_DIR: installRoot,
         PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
       },
     },
@@ -3169,6 +3169,8 @@ test("install-local-drivers builds and replaces one selected local driver", () =
 test("install-local-drivers defaults to the one-hub driver directory", () => {
   const script = fs.readFileSync(path.join(repoRoot, "scripts/install-local-drivers.sh"), "utf8");
 
+  assert.match(script, /NAVOP_DATABASE_DRIVER_DIR/);
+  assert.match(script, /ONETCLI_DATABASE_DRIVER_DIR/);
   assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/database_drivers/);
   assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/database_drivers/);
   assert.match(script, /\$\{CONFIG_HOME\}\/one-hub\/extensions\/database_drivers/);
@@ -3181,7 +3183,7 @@ test("install-local-drivers installs all local drivers when no id is passed", ()
   copyScript("verify-package.sh", workdir);
   createRustDriverFixture(workdir, "duckdb", "duckdb_driver", "0.9.0");
   createRustDriverFixture(workdir, "iotdb", "iotdb_driver", "0.8.0");
-  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+  const installRoot = path.join(workdir, "navop/extensions/database_drivers");
 
   const output = execFileSync("bash", [path.join(workdir, "scripts/install-local-drivers.sh")], {
     cwd: workdir,
@@ -3206,7 +3208,7 @@ test("install-local-drivers installs universal drivers without requiring rustc",
   copyScript("verify-package.sh", workdir);
   copyScript("build-java-driver.sh", workdir);
   createJavaDriverFixture(workdir, "gbase8s", "gbase8s-ipc-driver", "0.7.0");
-  const installRoot = path.join(workdir, "onetcli/extensions/database_drivers");
+  const installRoot = path.join(workdir, "navop/extensions/database_drivers");
 
   const output = execFileSync(
     "bash",
@@ -3216,7 +3218,7 @@ test("install-local-drivers installs universal drivers without requiring rustc",
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_DATABASE_DRIVER_DIR: installRoot,
+        NAVOP_DATABASE_DRIVER_DIR: installRoot,
         PATH: `${createFailingRustc(workdir)}${path.delimiter}${process.env.PATH}`,
       },
     },
@@ -3249,7 +3251,7 @@ test("install-local-remote-desktop-providers builds and replaces one selected pr
     version: "0.8.0",
     target: "aarch64-apple-darwin",
   });
-  const installRoot = path.join(workdir, "onetcli/extensions/remote_desktop_providers");
+  const installRoot = path.join(workdir, "navop/extensions/remote_desktop_providers");
   fs.mkdirSync(path.join(installRoot, "rdp"), { recursive: true });
   fs.writeFileSync(path.join(installRoot, "rdp/old.txt"), "old rdp\n");
   fs.mkdirSync(path.join(installRoot, "vnc"), { recursive: true });
@@ -3277,7 +3279,7 @@ test("install-local-remote-desktop-providers builds and replaces one selected pr
     true,
   );
   assert.equal(
-    fs.readFileSync(path.join(installRoot, "rdp/onetcli-rdp-helper"), "utf8"),
+    fs.readFileSync(path.join(installRoot, "rdp/navop-rdp-helper"), "utf8"),
     "fake rdp helper\n",
   );
   assert.equal(fs.existsSync(path.join(installRoot, "rdp/old.txt")), false);
@@ -3298,6 +3300,7 @@ test("install-local-remote-desktop-providers defaults to the one-hub provider di
     "utf8",
   );
 
+  assert.match(script, /NAVOP_REMOTE_DESKTOP_PROVIDER_DIR/);
   assert.match(script, /ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR/);
   assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/remote_desktop_providers/);
   assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/remote_desktop_providers/);
@@ -3321,7 +3324,7 @@ test("install-local-remote-desktop-providers installs all local providers when n
     version: "0.8.0",
     target: "aarch64-apple-darwin",
   });
-  const installRoot = path.join(workdir, "onetcli/extensions/remote_desktop_providers");
+  const installRoot = path.join(workdir, "navop/extensions/remote_desktop_providers");
 
   const output = execFileSync(
     "bash",
@@ -3331,7 +3334,7 @@ test("install-local-remote-desktop-providers installs all local providers when n
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_REMOTE_DESKTOP_PROVIDER_DIR: installRoot,
+        NAVOP_REMOTE_DESKTOP_PROVIDER_DIR: installRoot,
         PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
       },
     },
@@ -3353,7 +3356,7 @@ test("install-local-mcp-helpers builds and replaces one selected helper", () => 
     version: "0.9.0",
     target: "aarch64-apple-darwin",
   });
-  const installRoot = path.join(workdir, "onetcli/extensions/mcp_helpers");
+  const installRoot = path.join(workdir, "navop/extensions/mcp_helpers");
   fs.mkdirSync(path.join(installRoot, "onetcli-public-mcp"), { recursive: true });
   fs.writeFileSync(path.join(installRoot, "onetcli-public-mcp/old.txt"), "old helper\n");
 
@@ -3365,7 +3368,7 @@ test("install-local-mcp-helpers builds and replaces one selected helper", () => 
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_MCP_HELPER_DIR: installRoot,
+        NAVOP_MCP_HELPER_DIR: installRoot,
         PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
       },
     },
@@ -3391,6 +3394,7 @@ test("install-local-mcp-helpers defaults to the one-hub helper directory", () =>
     "utf8",
   );
 
+  assert.match(script, /NAVOP_MCP_HELPER_DIR/);
   assert.match(script, /ONETCLI_MCP_HELPER_DIR/);
   assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/mcp_helpers/);
   assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/mcp_helpers/);
@@ -3410,7 +3414,7 @@ test("install-local-languages packages and replaces one selected language", () =
     version: "0.23.6",
     fileExtensions: ["py"],
   });
-  const installRoot = path.join(workdir, "onetcli/extensions/languages");
+  const installRoot = path.join(workdir, "navop/extensions/languages");
   fs.mkdirSync(path.join(installRoot, "rust"), { recursive: true });
   fs.writeFileSync(path.join(installRoot, "rust/old.txt"), "old rust\n");
   fs.mkdirSync(path.join(installRoot, "python"), { recursive: true });
@@ -3424,7 +3428,7 @@ test("install-local-languages packages and replaces one selected language", () =
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_LANGUAGE_DIR: installRoot,
+        NAVOP_LANGUAGE_DIR: installRoot,
       },
     },
   );
@@ -3456,6 +3460,7 @@ test("install-local-languages defaults to the one-hub language directory", () =>
     "utf8",
   );
 
+  assert.match(script, /NAVOP_LANGUAGE_DIR/);
   assert.match(script, /ONETCLI_LANGUAGE_DIR/);
   assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/languages/);
   assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/languages/);
@@ -3474,7 +3479,7 @@ test("install-local-acp-agents packages and replaces one selected ACP agent", ()
     target: "aarch64-apple-darwin",
     packageName: "@agentclientprotocol/codex-acp@1.0.1",
   });
-  const installRoot = path.join(workdir, "onetcli/extensions/acp_agents");
+  const installRoot = path.join(workdir, "navop/extensions/acp_agents");
   fs.mkdirSync(path.join(installRoot, "codex-acp"), { recursive: true });
   fs.writeFileSync(path.join(installRoot, "codex-acp/old.txt"), "old codex\n");
 
@@ -3486,7 +3491,7 @@ test("install-local-acp-agents packages and replaces one selected ACP agent", ()
       encoding: "utf8",
       env: {
         ...process.env,
-        ONETCLI_ACP_AGENT_DIR: installRoot,
+        NAVOP_ACP_AGENT_DIR: installRoot,
         PATH: `${createFakeRustToolchain(workdir)}${path.delimiter}${process.env.PATH}`,
       },
     },
@@ -3525,6 +3530,7 @@ test("install-local-acp-agents defaults to the one-hub ACP agent directory", () 
     "utf8",
   );
 
+  assert.match(script, /NAVOP_ACP_AGENT_DIR/);
   assert.match(script, /ONETCLI_ACP_AGENT_DIR/);
   assert.match(script, /\$XDG_CONFIG_HOME\/one-hub\/extensions\/acp_agents/);
   assert.match(script, /\$HOME\/\.config\/one-hub\/extensions\/acp_agents/);
@@ -3777,7 +3783,7 @@ test("release-driver packages composite wasm extensions", () => {
 });
 
 function makeTempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onetcli-extensions-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "navop-extensions-test-"));
   fs.mkdirSync(path.join(dir, "unpacked"), { recursive: true });
   return dir;
 }
@@ -3851,7 +3857,7 @@ function createPackageFixture(workdir, options = {}) {
 function createRemoteDesktopProviderFixture(workdir, options = {}) {
   const id = options.id || "rdp";
   const protocol = options.protocol || id;
-  const binary = options.binary || `onetcli-${id}-helper`;
+  const binary = options.binary || `navop-${id}-helper`;
   const version = options.version || "0.0.0";
   const target = options.target || "x86_64-unknown-linux-gnu";
   copyScript("package-remote-desktop-provider.sh", workdir);
@@ -3908,7 +3914,7 @@ function createMcpHelperFixture(workdir, options = {}) {
   });
   writeJson(path.join(workdir, `extensions/mcp-helper/${id}/mcp_helper.json`), {
     id,
-    name: "OnetCli Public MCP Helper",
+    name: "Navop Public MCP Helper",
     description: "Public MCP stdio bridge",
     version,
     entry: {
@@ -4030,7 +4036,7 @@ function createStaticRemoteEditorFixture(workdir) {
     schema_version: 1,
     id: "com.onetcli.editor.notepad-plus-plus",
     name: "Notepad++ External Editor",
-    description: "Use Notepad++ to edit SFTP remote files from OnetCli.",
+    description: "Use Notepad++ to edit SFTP remote files from Navop.",
     version: "0.0.0",
     engines: { onetcli: ">=0.8.6" },
     contributes: {

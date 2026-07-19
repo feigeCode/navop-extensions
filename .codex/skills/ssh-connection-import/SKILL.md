@@ -22,7 +22,7 @@ For shared WASM component structure, manifests, packaging, and host runtime work
 
 Inspect the host protocol before defining extension structs:
 
-- Host model: `../onetcli/crates/connection-import-protocol/src/model.rs`
+- Host model: `../navop/crates/connection-import-protocol/src/model.rs`
 - Importer output must serialize to the host's serde shape, not a local convenience shape.
 
 For SSH auth, match `SshImportAuthMethod` with `#[serde(rename_all = "snake_case")]`:

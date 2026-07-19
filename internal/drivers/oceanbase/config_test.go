@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/dbipc"
 )
 
 func TestSpecResolvesMySQLProtocolToMySQLWireDriver(t *testing.T) {

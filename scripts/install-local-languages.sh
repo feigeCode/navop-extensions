@@ -10,7 +10,8 @@ one-hub language extension directory. Passing a language id installs only that
 language; omitting it installs every language under extensions/language.
 
 Environment:
-  ONETCLI_LANGUAGE_DIR  Override install root. Defaults to
+  NAVOP_LANGUAGE_DIR    Override install root. The legacy
+                        ONETCLI_LANGUAGE_DIR is also supported. Defaults to
                         $XDG_CONFIG_HOME/one-hub/extensions/languages
                         or $HOME/.config/one-hub/extensions/languages.
 EOF
@@ -32,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ARTIFACT_DIR="${REPO_DIR}/target/local-extension-artifacts"
 CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
-INSTALL_ROOT="${ONETCLI_LANGUAGE_DIR:-${CONFIG_HOME}/one-hub/extensions/languages}"
+INSTALL_ROOT="${NAVOP_LANGUAGE_DIR:-${ONETCLI_LANGUAGE_DIR:-${CONFIG_HOME}/one-hub/extensions/languages}}"
 TARGET="universal"
 
 fail() {

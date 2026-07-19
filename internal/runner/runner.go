@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 func Run(spec dbipc.DriverSpec) error {

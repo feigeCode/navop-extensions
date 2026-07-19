@@ -4,12 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.onetcli</groupId>
+    <groupId>com.navop</groupId>
     <artifactId>gbase8s-ipc-driver</artifactId>
     <version>0.1.13</version>
     <packaging>jar</packaging>
 
-    <name>onetcli GBase 8s IPC Driver</name>
+    <name>Navop GBase 8s IPC Driver</name>
     <description>Java 8 IPC database driver for GBase 8s using the official JDBC driver at runtime.</description>
 
     <properties>
@@ -79,7 +79,7 @@
                             <finalName>gbase8s-ipc-driver-${project.version}-all</finalName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.onetcli.gbase8s.GBase8sDriverMain</mainClass>
+                                    <mainClass>com.navop.gbase8s.GBase8sDriverMain</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>

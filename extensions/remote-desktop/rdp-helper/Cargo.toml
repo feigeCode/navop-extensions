@@ -1,5 +1,5 @@
 [package]
-name = "onetcli-rdp-helper"
+name = "navop-rdp-helper"
 version = "0.2.0"
 edition = "2024"
 publish = false

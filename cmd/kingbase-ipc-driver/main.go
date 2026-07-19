@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"onetcli-db-ipc-drivers/internal/drivers/kingbase"
-	"onetcli-db-ipc-drivers/internal/runner"
+	"navop-db-ipc-drivers/internal/drivers/kingbase"
+	"navop-db-ipc-drivers/internal/runner"
 )
 
 func main() {

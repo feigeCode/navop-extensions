@@ -4,7 +4,7 @@
   "name": "DBeaver Importer",
   "description": "从 DBeaver 工作区读取数据库连接配置和相关凭据元数据，并通过 Rust WASM 安全运行时导入到 Navop；适合迁移本地开发环境。 Imports database connection settings and related credential metadata from DBeaver workspaces into Navop through a Rust WASM runtime, making local development environment migration easier.",
   "version": "0.1.0",
-  "publisher": "OnetCli",
+  "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
   },

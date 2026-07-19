@@ -73,7 +73,7 @@ func TestLocalOceanBaseMySQLIntegration(t *testing.T) {
 		t.Fatalf("ob_compatibility_mode = %q, want MYSQL", compatibilityMode)
 	}
 
-	tableName := fmt.Sprintf("onetcli_ob_smoke_%d", time.Now().UnixNano())
+	tableName := fmt.Sprintf("navop_ob_smoke_%d", time.Now().UnixNano())
 	if _, err := db.ExecContext(ctx, "CREATE TABLE "+tableName+" (id BIGINT PRIMARY KEY, name VARCHAR(64))"); err != nil {
 		t.Fatalf("CREATE TABLE returned error: %v", err)
 	}

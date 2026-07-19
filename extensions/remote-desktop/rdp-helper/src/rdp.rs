@@ -110,7 +110,7 @@ fn spawn_client_thread(
     helper_output_tx: OutputSender,
 ) -> anyhow::Result<()> {
     std::thread::Builder::new()
-        .name("onetcli-rdp-helper-runtime".to_string())
+        .name("navop-rdp-helper-runtime".to_string())
         .spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()

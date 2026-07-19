@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "protocol": "rdp",
   "entry": {
-    "command": "./onetcli-rdp-helper",
+    "command": "./navop-rdp-helper",
     "args": [],
     "working_dir": null
   },
