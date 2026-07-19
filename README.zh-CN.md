@@ -13,8 +13,8 @@ extensions/
   ipc/
     duckdb/       Rust DuckDB IPC 数据库驱动
     redis/        Rust Redis native IPC sidecar 驱动
-    mongodb-modern/ Rust MongoDB 4.0+ native IPC sidecar manifest
-    mongodb-legacy/ Rust MongoDB 3.6 及更早版本 native IPC sidecar manifest
+    mongodb-modern/ Rust MongoDB 4.2+ native IPC sidecar manifest
+    mongodb-legacy/ Rust MongoDB 3.6 native IPC sidecar manifest
     iotdb/        Go Apache IoTDB IPC 数据库驱动
     dm/           Go 达梦 DM IPC 数据库驱动
     kingbase/     Go KingbaseES IPC 数据库驱动
@@ -78,8 +78,8 @@ docs/
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member。使用 `tokio-opengauss` 异步驱动。 |
 | Oracle Go | Go | `extensions/ipc/oracle-go/extension.build.json` | `extensions/ipc/oracle-go/driver.json` | 纯 Go Oracle 驱动，使用 `oracle_go_driver` build tag。 |
 | Redis | Rust | `extensions/ipc/redis/extension.build.json` | `extensions/ipc/redis/driver.json` | native API sidecar，支持 binary-safe command/pipeline、blob 和 bounded Pub/Sub。 |
-| MongoDB Modern | Rust | `extensions/ipc/mongodb-modern/extension.build.json` | `extensions/ipc/mongodb-modern/driver.json` | 与 legacy 变体共享 `drivers/mongodb-driver` crate，服务 MongoDB 4.0+。 |
-| MongoDB Legacy | Rust | `extensions/ipc/mongodb-legacy/extension.build.json` | `extensions/ipc/mongodb-legacy/driver.json` | 与 modern 变体共享 `drivers/mongodb-driver` crate，服务 MongoDB 3.6 及更早版本。 |
+| MongoDB Modern | Rust | `extensions/ipc/mongodb-modern/extension.build.json` | `extensions/ipc/mongodb-modern/driver.json` | 与 legacy 变体共享 IPC 实现 package，使用 MongoDB Rust Driver 3.8，服务 MongoDB 4.2+。 |
+| MongoDB Legacy | Rust | `extensions/ipc/mongodb-legacy/extension.build.json` | `extensions/ipc/mongodb-legacy/driver.json` | 与 modern 变体共享 IPC 实现 package，使用 MongoDB Rust Driver 2.8，服务 MongoDB 3.6。 |
 
 国产数据库驱动在 `driver.json` 中声明 `"category": "domestic_database"`；host 侧应该使用 manifest 元数据做 UI 分组，不要硬编码具体驱动 id。
 

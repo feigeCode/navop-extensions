@@ -35,7 +35,6 @@ hex = "0.4"
 interprocess = { version = "2.4.0", features = ["tokio"] }
 futures = "0.3.32"
 futures-util = "0.3.31"
-mongodb = "3.5.1"
 native-tls = { version = "0.2", features = ["vendored"] }
 opengauss-native-tls = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }

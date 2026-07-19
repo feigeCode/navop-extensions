@@ -17,8 +17,8 @@ extensions/
   ipc/
     duckdb/       Rust DuckDB IPC database driver
     redis/        Rust Redis native IPC sidecar driver
-    mongodb-modern/ Rust MongoDB 4.0+ native IPC sidecar manifest
-    mongodb-legacy/ Rust MongoDB 3.6-and-earlier native IPC sidecar manifest
+    mongodb-modern/ Rust MongoDB 4.2+ native IPC sidecar manifest
+    mongodb-legacy/ Rust MongoDB 3.6 native IPC sidecar manifest
     iotdb/        Go Apache IoTDB IPC database driver
     dm/           Go Dameng DM IPC database driver
     kingbase/     Go KingbaseES IPC database driver
@@ -87,8 +87,8 @@ implementation tasks, but they are not extension runtime inputs.
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member. Uses `tokio-opengauss` async driver. |
 | Oracle Go | Go | `extensions/ipc/oracle-go/extension.build.json` | `extensions/ipc/oracle-go/driver.json` | Pure Go Oracle driver using `oracle_go_driver` build tag. |
 | Redis | Rust | `extensions/ipc/redis/extension.build.json` | `extensions/ipc/redis/driver.json` | Native API sidecar with binary-safe command/pipeline, blob, and bounded Pub/Sub support. |
-| MongoDB Modern | Rust | `extensions/ipc/mongodb-modern/extension.build.json` | `extensions/ipc/mongodb-modern/driver.json` | Shares `drivers/mongodb-driver` with the legacy variant and targets MongoDB 4.0+. |
-| MongoDB Legacy | Rust | `extensions/ipc/mongodb-legacy/extension.build.json` | `extensions/ipc/mongodb-legacy/driver.json` | Shares `drivers/mongodb-driver` with the modern variant and targets MongoDB 3.6 and earlier. |
+| MongoDB Modern | Rust | `extensions/ipc/mongodb-modern/extension.build.json` | `extensions/ipc/mongodb-modern/driver.json` | Shares the IPC implementation package with the legacy variant, uses MongoDB Rust Driver 3.8, and targets MongoDB 4.2+. |
+| MongoDB Legacy | Rust | `extensions/ipc/mongodb-legacy/extension.build.json` | `extensions/ipc/mongodb-legacy/driver.json` | Shares the IPC implementation package with the modern variant, uses MongoDB Rust Driver 2.8, and targets MongoDB 3.6. |
 
 Domestic database drivers declare `"category": "domestic_database"` in
 `driver.json`; the host should use manifest metadata instead of hardcoded ids

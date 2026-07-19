@@ -268,6 +268,23 @@ test("native Redis and MongoDB drivers keep standalone manifests and release met
   }
 });
 
+test("MongoDB variants use separate SDK generations and honest compatibility ranges", () => {
+  const cargo = fs.readFileSync(path.join(repoRoot, "drivers/mongodb-driver/Cargo.toml"), "utf8");
+  assert.match(cargo, /mongodb-modern\s*=\s*\{[^\n]*package\s*=\s*"mongodb"[^\n]*version\s*=\s*"=3\.8\.0"/);
+  assert.match(cargo, /mongodb-legacy\s*=\s*\{[^\n]*package\s*=\s*"mongodb"[^\n]*version\s*=\s*"=2\.8\.2"/);
+  assert.ok(fs.existsSync(path.join(repoRoot, "drivers/mongodb-driver/src/modern.rs")));
+  assert.ok(fs.existsSync(path.join(repoRoot, "drivers/mongodb-driver/src/legacy.rs")));
+
+  const modern = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/mongodb-modern/driver.json"), "utf8"),
+  );
+  const legacy = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/mongodb-legacy/driver.json"), "utf8"),
+  );
+  assert.deepEqual(modern.compatibility.server, { min: "4.2" });
+  assert.deepEqual(legacy.compatibility.server, { min: "3.6", max: "3.6" });
+});
+
 test("extension descriptions are bilingual, detailed, and synchronized", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
   const globalEntries = new Map(globalManifest.extensions.map((extension) => [extension.id, extension]));

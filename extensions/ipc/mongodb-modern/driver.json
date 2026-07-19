@@ -1,7 +1,7 @@
 {
   "id": "mongodb-modern",
   "name": "MongoDB Modern",
-  "description": "使用 Rust 开发的现代 MongoDB 原生 IPC sidecar 驱动，面向 MongoDB 4.0 及以上服务端，支持无损 BSON command/find 传输、大文档 blob 流和结构化旧版本回退。 Rust native IPC sidecar driver for MongoDB 4.0 and newer, with lossless BSON command and find transport, large-document blob streaming, and structured fallback to the legacy variant.",
+  "description": "使用 Rust 开发的现代 MongoDB 原生 IPC sidecar 驱动，面向 MongoDB 4.2 及以上服务端，支持无损 BSON command/find 传输、大文档 blob 流和结构化旧版本回退。 Rust native IPC sidecar driver for MongoDB 4.2 and newer, with lossless BSON command and find transport, large-document blob streaming, and structured fallback to the legacy variant.",
   "api": "mongodb",
   "protocol_version": "1.0",
   "version": "0.1.0",
@@ -17,8 +17,9 @@
   ],
   "compatibility": {
     "variant": "modern",
-    "server": { "min": "4.0" },
+    "server": { "min": "4.2" },
     "fallback": "mongodb-legacy"
   },
+  "ui": { "show_in_new_connection": false },
   "process": { "scope": "connection", "kill_on_drop": true }
 }

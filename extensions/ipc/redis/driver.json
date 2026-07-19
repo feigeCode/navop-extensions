@@ -24,5 +24,6 @@
     "modes": ["standalone"],
     "server": { "min": "5.0" }
   },
+  "ui": { "show_in_new_connection": false },
   "process": { "scope": "connection", "kill_on_drop": true }
 }

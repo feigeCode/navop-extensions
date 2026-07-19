@@ -188,7 +188,7 @@
       "name": "MongoDB Legacy",
       "version": "0.1.0",
       "release_tag": "mongodb-legacy-v0.1.0",
-      "description": "使用 Rust 开发的旧版 MongoDB 原生 IPC sidecar 驱动，专门服务 MongoDB 3.6 及更早兼容场景，保留无损 BSON command/find 与大文档 blob 流，并与现代驱动分开发版。 Rust native IPC sidecar driver for MongoDB 3.6 and earlier compatibility, preserving lossless BSON command and find transport plus large-document blob streaming in a separately released legacy variant.",
+      "description": "使用 Rust 开发的旧版 MongoDB 原生 IPC sidecar 驱动，专门服务 MongoDB 3.6 兼容场景，保留无损 BSON command/find 与大文档 blob 流，并与现代驱动分开发版。 Rust native IPC sidecar driver for MongoDB 3.6 compatibility, preserving lossless BSON command and find transport plus large-document blob streaming in a separately released legacy variant.",
       "file_extensions": [],
       "manifest": "mongodb-legacy/manifest.json"
     },
@@ -198,7 +198,7 @@
       "name": "MongoDB Modern",
       "version": "0.1.0",
       "release_tag": "mongodb-modern-v0.1.0",
-      "description": "使用 Rust 开发的现代 MongoDB 原生 IPC sidecar 驱动，面向 MongoDB 4.0 及以上服务端，支持无损 BSON command/find 传输、大文档 blob 流和结构化旧版本回退。 Rust native IPC sidecar driver for MongoDB 4.0 and newer, with lossless BSON command and find transport, large-document blob streaming, and structured fallback to the legacy variant.",
+      "description": "使用 Rust 开发的现代 MongoDB 原生 IPC sidecar 驱动，面向 MongoDB 4.2 及以上服务端，支持无损 BSON command/find 传输、大文档 blob 流和结构化旧版本回退。 Rust native IPC sidecar driver for MongoDB 4.2 and newer, with lossless BSON command and find transport, large-document blob streaming, and structured fallback to the legacy variant.",
       "file_extensions": [],
       "manifest": "mongodb-modern/manifest.json"
     },

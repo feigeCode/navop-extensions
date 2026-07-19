@@ -22,6 +22,7 @@ bson.workspace = true
 extension-driver.workspace = true
 extension-protocol.workspace = true
 futures-util.workspace = true
-mongodb.workspace = true
+mongodb-modern = { package = "mongodb", version = "=3.8.0" }
+mongodb-legacy = { package = "mongodb", version = "=2.8.2" }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
