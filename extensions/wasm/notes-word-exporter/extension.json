@@ -5,7 +5,7 @@
   "description": "将 Notes 表格和图片导出为 Word DOCX。 Exports Notes tables and images to Word DOCX.",
   "version": "0.1.0",
   "publisher": "Navop",
-  "engines": { "onetcli": ">=0.8.10" },
+  "engines": { "onetcli": ">=0.8.11" },
   "api": { "extension": "1.0" },
   "runtime": { "wasm": [{ "id": "notes-word-exporter", "module": "wasm/notes_word_exporter_wasm.wasm", "kind": "component", "timeout_ms": 20000, "max_memory_mb": 128 }] },
   "permissions": [],
