@@ -88,7 +88,7 @@
       "name": "Notes HTML Exporter",
       "version": "0.1.0",
       "release_tag": "notes-html-exporter-v0.1.0",
-      "description": "将 Notes 导出为包含内嵌图片的自包含 HTML。 Exports Notes as self-contained HTML with embedded images.",
+      "description": "使用 Rust WASM 将 Notes 导出为包含标准表格、样式与内嵌图片的自包含 HTML，适合离线查看和直接分享。 Rust WASM exporter that converts Notes into self-contained HTML with standard tables, styling, and embedded images for offline viewing and sharing.",
       "file_extensions": [],
       "manifest": "notes-html-exporter/manifest.json"
     },
@@ -98,7 +98,7 @@
       "name": "Notes PDF Exporter",
       "version": "0.1.0",
       "release_tag": "notes-pdf-exporter-v0.1.0",
-      "description": "将 Notes 表格、图片和白板预览导出为 PDF。 Exports Notes tables, images, and whiteboard previews to PDF.",
+      "description": "使用 Rust WASM 将 Notes 表格、PNG/JPEG 图片和 SVG 白板预览导出为可离线分享的 PDF，并限制大图栅格尺寸以提升稳定性。 Rust WASM exporter that renders Notes tables, PNG/JPEG images, and SVG whiteboard previews into shareable PDFs with bounded raster sizes for stability.",
       "file_extensions": [],
       "manifest": "notes-pdf-exporter/manifest.json"
     },
@@ -108,7 +108,7 @@
       "name": "Notes Word Exporter",
       "version": "0.1.0",
       "release_tag": "notes-word-exporter-v0.1.0",
-      "description": "将 Notes 表格和图片导出为 Word DOCX。 Exports Notes tables and images to Word DOCX.",
+      "description": "使用 Rust WASM 将 Notes 导出为包含原生表格、列表和图片媒体资源的标准 Word DOCX，适合继续编辑和离线分享。 Rust WASM exporter that creates standard Word DOCX documents with native tables, lists, and image media for further editing and offline sharing.",
       "file_extensions": [],
       "manifest": "notes-word-exporter/manifest.json"
     },

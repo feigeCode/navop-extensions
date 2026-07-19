@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.navop.exporter.notes-html",
   "name": "Notes HTML Exporter",
-  "description": "将 Notes 导出为包含内嵌图片的自包含 HTML。 Exports Notes as self-contained HTML with embedded images.",
+  "description": "使用 Rust WASM 将 Notes 导出为包含标准表格、样式与内嵌图片的自包含 HTML，适合离线查看和直接分享。 Rust WASM exporter that converts Notes into self-contained HTML with standard tables, styling, and embedded images for offline viewing and sharing.",
   "version": "0.1.0",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.8.11" },
