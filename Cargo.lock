@@ -4469,6 +4469,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 
 [[package]]
+name = "notes_document_exporter_wasm"
+version = "0.1.0"
+dependencies = [
+ "pulldown-cmark",
+ "wit-bindgen",
+ "zip",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

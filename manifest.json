@@ -83,6 +83,16 @@
       "manifest": "math-renderer/manifest.json"
     },
     {
+      "id": "com.navop.exporter.notes-documents",
+      "kind": "composite",
+      "name": "Notes Document Exporter",
+      "version": "0.1.0",
+      "release_tag": "notes-document-exporter-v0.1.0",
+      "description": "使用纯 Rust WASM 将 Notes 文档导出为自包含 HTML、PDF 和 Word DOCX，不依赖 Chrome、Office 或宿主转换库。 Pure Rust WASM exporter for self-contained HTML, PDF, and Word DOCX files without Chrome, Office, or host-side conversion libraries.",
+      "file_extensions": [],
+      "manifest": "notes-document-exporter/manifest.json"
+    },
+    {
       "id": "com.onetcli.importer.mongodb-compass",
       "kind": "composite",
       "name": "MongoDB Compass Importer",
