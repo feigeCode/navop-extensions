@@ -10,6 +10,17 @@ use crate::runtime::{
 use crate::vnc_input::VncPointerState;
 
 const VNC_REFRESH_INTERVAL: Duration = Duration::from_millis(33);
+const VNC_REFRESH_RESPONSE_TIMEOUT: Duration = Duration::from_millis(500);
+const VNC_LIVENESS_TIMEOUT: Duration = Duration::from_secs(15);
+const VNC_LIVENESS_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RefreshAction {
+    Wait,
+    Incremental,
+    LivenessProbe,
+    Reconnect,
+}
 
 pub(crate) struct ConnectedVncSession {
     pub(crate) client: VncClient,
@@ -17,23 +28,35 @@ pub(crate) struct ConnectedVncSession {
     pub(crate) was_connected: bool,
     framebuffer: VncFramebufferState,
     last_refresh: Instant,
+    last_server_activity: Instant,
+    refresh_in_flight_since: Option<Instant>,
+    liveness_probe_since: Option<Instant>,
 }
 
 impl ConnectedVncSession {
     pub(crate) fn new(client: VncClient) -> Self {
+        let now = Instant::now();
         Self {
             client,
             pointer: VncPointerState::default(),
             was_connected: false,
             framebuffer: VncFramebufferState::default(),
-            last_refresh: Instant::now(),
+            last_refresh: now,
+            last_server_activity: now,
+            refresh_in_flight_since: None,
+            liveness_probe_since: None,
         }
     }
 
     pub(crate) async fn poll_events(&mut self, output_tx: &OutputSender) -> Result<(), String> {
         loop {
             match self.client.poll_event().await {
-                Ok(Some(event)) => self.handle_event(event, output_tx)?,
+                Ok(Some(event)) => {
+                    self.last_server_activity = Instant::now();
+                    self.refresh_in_flight_since = None;
+                    self.liveness_probe_since = None;
+                    self.handle_event(event, output_tx)?;
+                }
                 Ok(None) => {
                     self.framebuffer.flush_frame(output_tx);
                     return Ok(());
@@ -44,15 +67,36 @@ impl ConnectedVncSession {
     }
 
     pub(crate) async fn refresh_if_needed(&mut self) -> Result<(), String> {
-        if self.last_refresh.elapsed() < VNC_REFRESH_INTERVAL {
-            return Ok(());
+        let now = Instant::now();
+        match refresh_action(
+            now,
+            self.last_refresh,
+            self.last_server_activity,
+            self.refresh_in_flight_since,
+            self.liveness_probe_since,
+        ) {
+            RefreshAction::Wait => Ok(()),
+            RefreshAction::Reconnect => Err("VNC liveness probe timed out".to_string()),
+            RefreshAction::Incremental => {
+                self.client
+                    .input(X11Event::Refresh)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                self.last_refresh = now;
+                self.refresh_in_flight_since = Some(now);
+                Ok(())
+            }
+            RefreshAction::LivenessProbe => {
+                self.client
+                    .input(X11Event::FullRefresh)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                self.liveness_probe_since = Some(now);
+                self.refresh_in_flight_since = Some(now);
+                self.last_refresh = now;
+                Ok(())
+            }
         }
-        self.client
-            .input(X11Event::Refresh)
-            .await
-            .map_err(|error| error.to_string())?;
-        self.last_refresh = Instant::now();
-        Ok(())
     }
 
     fn handle_event(&mut self, event: VncEvent, output_tx: &OutputSender) -> Result<(), String> {
@@ -83,6 +127,38 @@ impl ConnectedVncSession {
     fn copy_rect(&mut self, dst: Rect, src: Rect) -> Result<(), String> {
         self.framebuffer.copy_rect(dst, src)
     }
+}
+
+fn refresh_action(
+    now: Instant,
+    last_refresh: Instant,
+    last_server_activity: Instant,
+    refresh_in_flight_since: Option<Instant>,
+    liveness_probe_since: Option<Instant>,
+) -> RefreshAction {
+    if let Some(probe_since) = liveness_probe_since {
+        return if now.duration_since(probe_since) >= VNC_LIVENESS_PROBE_TIMEOUT {
+            RefreshAction::Reconnect
+        } else {
+            RefreshAction::Wait
+        };
+    }
+
+    if refresh_in_flight_since
+        .is_some_and(|sent_at| now.duration_since(sent_at) < VNC_REFRESH_RESPONSE_TIMEOUT)
+    {
+        return RefreshAction::Wait;
+    }
+
+    if now.duration_since(last_server_activity) >= VNC_LIVENESS_TIMEOUT {
+        return RefreshAction::LivenessProbe;
+    }
+
+    if now.duration_since(last_refresh) < VNC_REFRESH_INTERVAL {
+        return RefreshAction::Wait;
+    }
+
+    RefreshAction::Incremental
 }
 
 #[derive(Default)]
@@ -188,6 +264,70 @@ fn send_status(output_tx: &OutputSender, message: &str) {
 mod tests {
     use super::*;
     use crate::output_mailbox::output_mailbox;
+
+    #[test]
+    fn waits_while_incremental_refresh_is_in_flight() {
+        let now = Instant::now();
+
+        assert_eq!(
+            RefreshAction::Wait,
+            refresh_action(
+                now,
+                now - Duration::from_secs(1),
+                now - Duration::from_secs(1),
+                Some(now - Duration::from_millis(100)),
+                None,
+            )
+        );
+    }
+
+    #[test]
+    fn resumes_incremental_refresh_after_empty_update_grace_period() {
+        let now = Instant::now();
+
+        assert_eq!(
+            RefreshAction::Incremental,
+            refresh_action(
+                now,
+                now - Duration::from_secs(1),
+                now - Duration::from_secs(1),
+                Some(now - VNC_REFRESH_RESPONSE_TIMEOUT),
+                None,
+            )
+        );
+    }
+
+    #[test]
+    fn probes_idle_connection_with_non_incremental_refresh() {
+        let now = Instant::now();
+
+        assert_eq!(
+            RefreshAction::LivenessProbe,
+            refresh_action(
+                now,
+                now - Duration::from_secs(1),
+                now - VNC_LIVENESS_TIMEOUT,
+                None,
+                None,
+            )
+        );
+    }
+
+    #[test]
+    fn reconnects_when_liveness_probe_has_no_response() {
+        let now = Instant::now();
+
+        assert_eq!(
+            RefreshAction::Reconnect,
+            refresh_action(
+                now,
+                now - Duration::from_secs(1),
+                now - Duration::from_secs(30),
+                Some(now - VNC_LIVENESS_PROBE_TIMEOUT),
+                Some(now - VNC_LIVENESS_PROBE_TIMEOUT),
+            )
+        );
+    }
 
     #[test]
     fn burst_frames_keep_only_latest_pending_output() {
