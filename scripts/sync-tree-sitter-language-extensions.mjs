@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const hostQueryRoot = path.resolve(repoRoot, "../onetcli/crates/ui/src/highlighter/languages");
+const hostQueryRoot = path.resolve(repoRoot, "../navop/crates/ui/src/highlighter/languages");
 const cargoHome = process.env.CARGO_HOME || path.join(os.homedir(), ".cargo");
 const cargoSrcRoot = path.join(cargoHome, "registry/src");
 const defaultBundle = {
@@ -206,7 +206,7 @@ function prepareBuildDir(entry, sourceDir) {
     return sourceDir;
   }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `onetcli-${entry.id}-grammar-`));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `navop-${entry.id}-grammar-`));
   copyDir(sourceDir, tempDir);
   replaceParserSymbol(tempDir, entry.functionFrom, entry.id);
   return tempDir;

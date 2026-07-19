@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"onetcli-db-ipc-drivers/internal/drivers/iotdb"
+	"navop-db-ipc-drivers/internal/drivers/iotdb"
 )
 
 func main() {

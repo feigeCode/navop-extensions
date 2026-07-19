@@ -10,7 +10,8 @@ MCP helper directory. Passing a helper id installs only that helper; omitting it
 installs every helper under extensions/mcp-helper.
 
 Environment:
-  ONETCLI_MCP_HELPER_DIR  Override install root. Defaults to
+  NAVOP_MCP_HELPER_DIR    Override install root. The legacy
+                          ONETCLI_MCP_HELPER_DIR is also supported. Defaults to
                           $XDG_CONFIG_HOME/one-hub/extensions/mcp_helpers
                           or $HOME/.config/one-hub/extensions/mcp_helpers.
 EOF
@@ -32,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ARTIFACT_DIR="${REPO_DIR}/target/local-extension-artifacts"
 CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
-INSTALL_ROOT="${ONETCLI_MCP_HELPER_DIR:-${CONFIG_HOME}/one-hub/extensions/mcp_helpers}"
+INSTALL_ROOT="${NAVOP_MCP_HELPER_DIR:-${ONETCLI_MCP_HELPER_DIR:-${CONFIG_HOME}/one-hub/extensions/mcp_helpers}}"
 
 fail() {
   printf 'error: %s\n' "$*" >&2

@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/dbipc"
 )
 
-func TestSpecBuildsDamengDSNFromOnetcliConfig(t *testing.T) {
+func TestSpecBuildsDamengDSNFromNavopConfig(t *testing.T) {
 	cfg, err := ConfigFromWire(map[string]any{
 		"host":     "127.0.0.1",
 		"port":     float64(5236),

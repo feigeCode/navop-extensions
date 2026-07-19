@@ -69,7 +69,7 @@ When preview fails:
 2. Confirm the WASM component read the file through `read-file`, not a direct local path.
 3. Add or inspect parser tests for the source file.
 4. Serialize the first record to JSON in a unit test.
-5. Compare enum shapes with `../onetcli/crates/connection-import-protocol/src/model.rs`.
+5. Compare enum shapes with `../navop/crates/connection-import-protocol/src/model.rs`.
 6. Repackage and reinstall the composite extension.
 7. Check host logs again.
 

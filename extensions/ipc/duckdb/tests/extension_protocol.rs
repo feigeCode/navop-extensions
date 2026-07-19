@@ -23,7 +23,7 @@ async fn duckdb_driver_supports_extension_database_protocol() {
     let init: InitResult = handle
         .call(
             method::INIT,
-            serde_json::to_value(InitParams::new("onetcli-test", "duckdb-test")).unwrap(),
+            serde_json::to_value(InitParams::new("navop-test", "duckdb-test")).unwrap(),
             timeout.clone(),
         )
         .await

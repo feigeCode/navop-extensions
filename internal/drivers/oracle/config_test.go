@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/dbipc"
+	"navop-db-ipc-drivers/internal/dbipc"
 )
 
 func TestSpecExposesOracleGoExternalIDWhileUsingGoOraSQLDriver(t *testing.T) {
@@ -21,7 +21,7 @@ func TestSpecExposesOracleGoExternalIDWhileUsingGoOraSQLDriver(t *testing.T) {
 	}
 }
 
-func TestSpecBuildsGoOraV2DSNFromOnetcliConfig(t *testing.T) {
+func TestSpecBuildsGoOraV2DSNFromNavopConfig(t *testing.T) {
 	cfg, err := ConfigFromWire(map[string]any{
 		"host":         "db.example.test",
 		"port":         float64(1522),

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"onetcli-db-ipc-drivers/internal/drivers/dm"
-	"onetcli-db-ipc-drivers/internal/runner"
+	"navop-db-ipc-drivers/internal/drivers/dm"
+	"navop-db-ipc-drivers/internal/runner"
 )
 
 func main() {

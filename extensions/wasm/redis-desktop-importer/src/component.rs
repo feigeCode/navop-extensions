@@ -14,7 +14,7 @@ impl Guest for RedisDesktopImporter {
             "display_name": "Redis Desktop",
             "description": "Import Redis connection metadata from Redis desktop clients",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows", "linux"],
             "output_kinds": ["database"],
             "capabilities": {

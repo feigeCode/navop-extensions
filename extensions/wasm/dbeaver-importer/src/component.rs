@@ -14,7 +14,7 @@ impl Guest for DbeaverImporter {
             "display_name": "DBeaver",
             "description": "Import database connections from DBeaver",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows"],
             "output_kinds": ["database"],
             "capabilities": {

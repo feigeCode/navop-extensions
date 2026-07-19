@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
     let socket_name = std::env::var("ONETCLI_EXT_SOCKET")
         .ok()
         .or_else(|| std::env::args().nth(1))
-        .unwrap_or_else(|| "onetcli-duckdb-driver.sock".to_string());
+        .unwrap_or_else(|| "navop-duckdb-driver.sock".to_string());
 
     duckdb_driver::server::run(&socket_name).await
 }

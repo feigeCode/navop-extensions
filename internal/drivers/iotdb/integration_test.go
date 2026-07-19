@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 func TestLocalIoTDBQueryTimestamps(t *testing.T) {
@@ -25,7 +25,7 @@ func TestLocalIoTDBQueryTimestamps(t *testing.T) {
 			"port":     6667,
 			"username": "root",
 			"password": "root",
-			"database": "root.onetcli_go_switch",
+			"database": "root.navop_go_switch",
 		},
 	}))
 	connID := uint64(resultMap(t, open)["conn_id"].(float64))
@@ -33,19 +33,19 @@ func TestLocalIoTDBQueryTimestamps(t *testing.T) {
 	// The storage group may not exist on the first run.
 	_ = server.Handle(ctx, message(3, "exec/run", map[string]any{
 		"conn_id": connID,
-		"sql":     "DROP DATABASE root.onetcli_go_switch",
+		"sql":     "DROP DATABASE root.navop_go_switch",
 	}))
 	mustOK(t, server.Handle(ctx, message(4, "exec/run", map[string]any{
 		"conn_id": connID,
-		"sql":     "CREATE DATABASE root.onetcli_go_switch",
+		"sql":     "CREATE DATABASE root.navop_go_switch",
 	})))
 	mustOK(t, server.Handle(ctx, message(5, "exec/run", map[string]any{
 		"conn_id": connID,
-		"sql":     "CREATE TIMESERIES root.onetcli_go_switch.d1.temperature WITH DATATYPE=FLOAT, ENCODING=PLAIN, COMPRESSOR=SNAPPY",
+		"sql":     "CREATE TIMESERIES root.navop_go_switch.d1.temperature WITH DATATYPE=FLOAT, ENCODING=PLAIN, COMPRESSOR=SNAPPY",
 	})))
 	mustOK(t, server.Handle(ctx, message(6, "exec/run", map[string]any{
 		"conn_id": connID,
-		"sql":     "CREATE TIMESERIES root.onetcli_go_switch.d1.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN, COMPRESSOR=SNAPPY",
+		"sql":     "CREATE TIMESERIES root.navop_go_switch.d1.status WITH DATATYPE=BOOLEAN, ENCODING=PLAIN, COMPRESSOR=SNAPPY",
 	})))
 	mustOK(t, server.Handle(ctx, message(7, "exec/run", map[string]any{
 		"conn_id": connID,

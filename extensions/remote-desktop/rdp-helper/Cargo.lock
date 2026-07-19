@@ -2024,6 +2024,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "navop-rdp-helper"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "ironrdp",
+ "ironrdp-client",
+ "semver",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "whoami",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2252,24 +2270,6 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
-
-[[package]]
-name = "onetcli-rdp-helper"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "ironrdp",
- "ironrdp-client",
- "semver",
- "serde",
- "serde_json",
- "smallvec",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "whoami",
-]
 
 [[package]]
 name = "openssl"

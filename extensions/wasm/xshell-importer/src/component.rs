@@ -14,7 +14,7 @@ impl Guest for XshellImporter {
             "display_name": "Xshell",
             "description": "Import SSH sessions from Xshell",
             "icon": "terminal",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["windows"],
             "output_kinds": ["ssh"],
             "capabilities": {

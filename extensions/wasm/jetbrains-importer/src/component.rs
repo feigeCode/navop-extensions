@@ -14,7 +14,7 @@ impl Guest for JetbrainsImporter {
             "display_name": "JetBrains IDEs",
             "description": "Import database connections from JetBrains DataGrip and IDE dataSources.xml files",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows", "linux"],
             "output_kinds": ["database"],
             "capabilities": {

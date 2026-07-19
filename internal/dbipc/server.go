@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"onetcli-db-ipc-drivers/internal/ipc"
+	"navop-db-ipc-drivers/internal/ipc"
 )
 
 type Opener func(driverName, dsn string) (*sql.DB, error)

@@ -14,7 +14,7 @@ impl Guest for NavicatImporter {
             "display_name": "Navicat",
             "description": "Import database connections from Navicat preference plists and connection exports",
             "icon": "database",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows"],
             "output_kinds": ["database"],
             "capabilities": {

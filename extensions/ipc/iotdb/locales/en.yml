@@ -14,5 +14,5 @@
 "database.iotdb.storage_group.new": "New Storage Group"
 "database.iotdb.storage_group.delete": "Delete Storage Group"
 "database.iotdb.storage_group.name": "Storage Group Name"
-"database.iotdb.storage_group.name.placeholder": "root.onetcli_smoke"
+"database.iotdb.storage_group.name.placeholder": "root.navop_smoke"
 "database.iotdb.storage_group.name.help": "Enter a full path such as root.factory1. A relative name is completed from the current connection prefix."

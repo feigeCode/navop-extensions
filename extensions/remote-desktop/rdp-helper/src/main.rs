@@ -69,7 +69,7 @@ fn read_connect_request(
 
 fn spawn_output_writer(output_rx: OutputReceiver) -> JoinHandle<anyhow::Result<()>> {
     std::thread::Builder::new()
-        .name("onetcli-rdp-helper-output".to_string())
+        .name("navop-rdp-helper-output".to_string())
         .spawn(move || {
             while let Some(event) = output_rx.recv() {
                 write_event(&event)?;

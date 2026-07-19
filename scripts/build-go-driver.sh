@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_DIR="${REPO_DIR}/extensions/ipc/${EXTENSION_ID}"
 BUILD_METADATA="${SOURCE_DIR}/extension.build.json"
-BUILD_TMP_DIR="${TMPDIR:-/tmp}/onetcli-go-driver-build.$$"
+BUILD_TMP_DIR="${TMPDIR:-/tmp}/navop-go-driver-build.$$"
 VENDOR_DIR="${REPO_DIR}/vendor"
 
 cleanup() {
@@ -187,7 +187,7 @@ if [ "${#GO_BUILD_ARGS[@]}" -gt 0 ]; then
   GOOS="$GOOS_VALUE" \
   GOARCH="$GOARCH_VALUE" \
   CGO_ENABLED="${CGO_ENABLED:-0}" \
-  GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/onetcli-extensions-go-cache}" \
+  GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/navop-extensions-go-cache}" \
   GOPROXY="${GOPROXY:-direct}" \
   GOSUMDB="${GOSUMDB:-off}" \
   go build "${GO_BUILD_ARGS[@]}" -o "${OUT_DIR}/${BIN_STEM}${EXE_SUFFIX}" "$CMD_PACKAGE"
@@ -195,7 +195,7 @@ else
   GOOS="$GOOS_VALUE" \
   GOARCH="$GOARCH_VALUE" \
   CGO_ENABLED="${CGO_ENABLED:-0}" \
-  GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/onetcli-extensions-go-cache}" \
+  GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/navop-extensions-go-cache}" \
   GOPROXY="${GOPROXY:-direct}" \
   GOSUMDB="${GOSUMDB:-off}" \
   go build -o "${OUT_DIR}/${BIN_STEM}${EXE_SUFFIX}" "$CMD_PACKAGE"

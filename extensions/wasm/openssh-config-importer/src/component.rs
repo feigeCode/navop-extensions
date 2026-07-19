@@ -14,7 +14,7 @@ impl Guest for OpensshConfigImporter {
             "display_name": "OpenSSH Config",
             "description": "Import SSH hosts from OpenSSH client config and known_hosts",
             "icon": "terminal",
-            "vendor": "OnetCli",
+            "vendor": "Navop",
             "supported_platforms": ["macos", "windows", "linux"],
             "output_kinds": ["ssh"],
             "capabilities": {

@@ -4,7 +4,7 @@
   "name": "OpenSSH Config Importer",
   "description": "从 OpenSSH config 和 known_hosts 文件中发现 SSH 主机配置，并通过 Rust WASM 导入到 Navop；支持常见主机别名和认证设置。 Discovers SSH host configurations from OpenSSH config and known_hosts files, then imports them into Navop through Rust WASM with support for common aliases and authentication settings.",
   "version": "0.1.0",
-  "publisher": "OnetCli",
+  "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
   },

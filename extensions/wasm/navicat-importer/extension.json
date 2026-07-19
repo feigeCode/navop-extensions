@@ -4,7 +4,7 @@
   "name": "Navicat Importer",
   "description": "从 Navicat 偏好设置 plist 和连接导出文件中读取数据库连接，并通过 Rust WASM 导入到 Navop；支持本地迁移和离线导入场景。 Reads database connections from Navicat preference plists and connection exports, then imports them into Navop through Rust WASM for local migration and offline import workflows.",
   "version": "0.1.1",
-  "publisher": "OnetCli",
+  "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
   },
