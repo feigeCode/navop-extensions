@@ -1,0 +1,12 @@
+[package]
+name = "notes_word_exporter_wasm"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+notes_document_export_core = { path = "../notes-document-export-core", features = ["docx"] }
+wit-bindgen = "0.57.1"

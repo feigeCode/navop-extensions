@@ -4469,12 +4469,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 
 [[package]]
-name = "notes_document_exporter_wasm"
+name = "notes_document_export_core"
 version = "0.1.0"
 dependencies = [
+ "image",
  "pulldown-cmark",
- "wit-bindgen",
+ "resvg",
  "zip",
+]
+
+[[package]]
+name = "notes_html_exporter_wasm"
+version = "0.1.0"
+dependencies = [
+ "notes_document_export_core",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "notes_pdf_exporter_wasm"
+version = "0.1.0"
+dependencies = [
+ "notes_document_export_core",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "notes_word_exporter_wasm"
+version = "0.1.0"
+dependencies = [
+ "notes_document_export_core",
+ "wit-bindgen",
 ]
 
 [[package]]

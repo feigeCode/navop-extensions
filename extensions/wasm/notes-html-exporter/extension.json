@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.exporter.notes-html",
+  "name": "Notes HTML Exporter",
+  "description": "将 Notes 导出为包含内嵌图片的自包含 HTML。 Exports Notes as self-contained HTML with embedded images.",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "engines": { "onetcli": ">=0.8.10" },
+  "api": { "extension": "1.0" },
+  "runtime": { "wasm": [{ "id": "notes-html-exporter", "module": "wasm/notes_html_exporter_wasm.wasm", "kind": "component", "timeout_ms": 15000, "max_memory_mb": 128 }] },
+  "permissions": [],
+  "contributes": { "documentExporters": [{ "id": "notes-html", "displayName": "HTML", "runtimeId": "notes-html-exporter", "function": "export-document", "formats": ["html"], "outputMediaTypes": ["text/html"], "priority": 100 }] }
+}

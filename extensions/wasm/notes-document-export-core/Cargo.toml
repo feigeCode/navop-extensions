@@ -1,0 +1,20 @@
+[package]
+name = "notes_document_export_core"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+pulldown-cmark = { version = "0.12.2", optional = true }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"], optional = true }
+resvg = { version = "0.46", default-features = false, features = ["raster-images", "text"], optional = true }
+zip = { version = "6.0.0", default-features = false, optional = true }
+
+[features]
+default = []
+html = ["dep:pulldown-cmark"]
+pdf = ["dep:image", "dep:resvg"]
+docx = ["dep:image", "dep:zip"]

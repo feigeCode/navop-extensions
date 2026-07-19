@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.exporter.notes-pdf",
+  "name": "Notes PDF Exporter",
+  "description": "将 Notes 表格、图片和白板预览导出为 PDF。 Exports Notes tables, images, and whiteboard previews to PDF.",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "engines": { "onetcli": ">=0.8.10" },
+  "api": { "extension": "1.0" },
+  "runtime": { "wasm": [{ "id": "notes-pdf-exporter", "module": "wasm/notes_pdf_exporter_wasm.wasm", "kind": "component", "timeout_ms": 30000, "max_memory_mb": 192 }] },
+  "permissions": [],
+  "contributes": { "documentExporters": [{ "id": "notes-pdf", "displayName": "PDF", "runtimeId": "notes-pdf-exporter", "function": "export-document", "formats": ["pdf"], "outputMediaTypes": ["application/pdf"], "priority": 100 }] }
+}

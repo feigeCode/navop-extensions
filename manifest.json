@@ -83,14 +83,34 @@
       "manifest": "math-renderer/manifest.json"
     },
     {
-      "id": "com.navop.exporter.notes-documents",
+      "id": "com.navop.exporter.notes-html",
       "kind": "composite",
-      "name": "Notes Document Exporter",
+      "name": "Notes HTML Exporter",
       "version": "0.1.0",
-      "release_tag": "notes-document-exporter-v0.1.0",
-      "description": "使用纯 Rust WASM 将 Notes 文档导出为自包含 HTML、PDF 和 Word DOCX，不依赖 Chrome、Office 或宿主转换库。 Pure Rust WASM exporter for self-contained HTML, PDF, and Word DOCX files without Chrome, Office, or host-side conversion libraries.",
+      "release_tag": "notes-html-exporter-v0.1.0",
+      "description": "将 Notes 导出为包含内嵌图片的自包含 HTML。 Exports Notes as self-contained HTML with embedded images.",
       "file_extensions": [],
-      "manifest": "notes-document-exporter/manifest.json"
+      "manifest": "notes-html-exporter/manifest.json"
+    },
+    {
+      "id": "com.navop.exporter.notes-pdf",
+      "kind": "composite",
+      "name": "Notes PDF Exporter",
+      "version": "0.1.0",
+      "release_tag": "notes-pdf-exporter-v0.1.0",
+      "description": "将 Notes 表格、图片和白板预览导出为 PDF。 Exports Notes tables, images, and whiteboard previews to PDF.",
+      "file_extensions": [],
+      "manifest": "notes-pdf-exporter/manifest.json"
+    },
+    {
+      "id": "com.navop.exporter.notes-word",
+      "kind": "composite",
+      "name": "Notes Word Exporter",
+      "version": "0.1.0",
+      "release_tag": "notes-word-exporter-v0.1.0",
+      "description": "将 Notes 表格和图片导出为 Word DOCX。 Exports Notes tables and images to Word DOCX.",
+      "file_extensions": [],
+      "manifest": "notes-word-exporter/manifest.json"
     },
     {
       "id": "com.onetcli.importer.mongodb-compass",

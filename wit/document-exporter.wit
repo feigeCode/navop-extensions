@@ -17,7 +17,14 @@ interface document-export {
         format: string,
         title: string,
         source: string,
+        assets: list<asset>,
         theme: theme,
+    }
+
+    record asset {
+        path: string,
+        media-type: string,
+        bytes: list<u8>,
     }
 
     record artifact {
