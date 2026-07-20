@@ -98,6 +98,28 @@ fn parses_xshell_xts_backup_sessions() {
 }
 
 #[test]
+fn decodes_legacy_gbk_xts_session_names() {
+    let mut archive = xts_backup(&[("Xshell/abcd.xsh", session("cn.example.test", 22, "deploy"))]);
+    replace_zip_filename(
+        &mut archive,
+        b"Xshell/abcd.xsh",
+        b"Xshell/\xd6\xd0\xce\xc4.xsh",
+    );
+
+    let records = preview_records_from_sessions(
+        vec![("chinese-backup.xts".to_string(), archive.as_slice())],
+        false,
+    );
+
+    assert_eq!(1, records.len());
+    assert_eq!("中文", records[0].display_name);
+    assert_eq!(
+        Some("chinese-backup.xts!/Xshell/中文.xsh"),
+        records[0].source_id.as_deref()
+    );
+}
+
+#[test]
 fn serializes_auth_method_with_host_protocol_shape() {
     let session = br#"
 [CONNECTION]
@@ -141,4 +163,16 @@ fn session(host: &str, port: u16, username: &str) -> String {
         "[CONNECTION]\nHost={host}\nPort={port}\nProtocol=SSH\n\n\
          [CONNECTION:AUTHENTICATION]\nUserName={username}\n"
     )
+}
+
+fn replace_zip_filename(archive: &mut [u8], from: &[u8], to: &[u8]) {
+    assert_eq!(from.len(), to.len());
+    let mut replacements = 0;
+    for index in 0..=archive.len() - from.len() {
+        if &archive[index..index + from.len()] == from {
+            archive[index..index + to.len()].copy_from_slice(to);
+            replacements += 1;
+        }
+    }
+    assert_eq!(2, replacements, "replace local and central ZIP names");
 }

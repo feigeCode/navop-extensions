@@ -1,3 +1,4 @@
+use encoding_rs::GBK;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
@@ -96,7 +97,8 @@ fn parse_xts_backup(archive_path: &str, bytes: &[u8]) -> Vec<ImportRecord> {
         let Ok(mut entry) = archive.by_index(index) else {
             continue;
         };
-        if !is_xts_session_entry(entry.name(), entry.is_dir()) {
+        let entry_name = decode_xts_entry_name(entry.name_raw(), entry.name());
+        if !is_xts_session_entry(&entry_name, entry.is_dir()) {
             continue;
         }
         let entry_size = entry.size();
@@ -110,7 +112,7 @@ fn parse_xts_backup(archive_path: &str, bytes: &[u8]) -> Vec<ImportRecord> {
             continue;
         }
         total_size += entry_size;
-        sessions.push((format!("{archive_path}!/{}", entry.name()), session));
+        sessions.push((format!("{archive_path}!/{entry_name}"), session));
         if sessions.len() >= MAX_XTS_SESSION_COUNT {
             break;
         }
@@ -120,6 +122,18 @@ fn parse_xts_backup(archive_path: &str, bytes: &[u8]) -> Vec<ImportRecord> {
         .into_iter()
         .filter_map(|(path, bytes)| parse_session(&path, &bytes))
         .collect()
+}
+
+fn decode_xts_entry_name(raw_name: &[u8], fallback: &str) -> String {
+    if let Ok(name) = std::str::from_utf8(raw_name) {
+        return name.to_string();
+    }
+    let (name, _, had_errors) = GBK.decode(raw_name);
+    if had_errors {
+        fallback.to_string()
+    } else {
+        name.into_owned()
+    }
 }
 
 fn is_xts_session_entry(path: &str, is_dir: bool) -> bool {

@@ -3,7 +3,7 @@
   "id": "com.onetcli.importer.xshell",
   "name": "Xshell Importer",
   "description": "从 Xshell .xsh 会话文件或 .xts 备份包中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持跨平台手动迁移常用主机设置。 Discovers SSH connection settings from Xshell .xsh session files or .xts backups and imports them into Navop through Rust WASM, including cross-platform manual migration.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"

@@ -3,11 +3,11 @@
   "id": "com.navop.exporter.notes-word",
   "name": "Notes Word Exporter",
   "description": "使用 Rust WASM 将 Notes 导出为包含原生表格、列表和图片媒体资源的标准 Word DOCX，适合继续编辑和离线分享。 Rust WASM exporter that creates standard Word DOCX documents with native tables, lists, and image media for further editing and offline sharing.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.8.11" },
   "api": { "extension": "1.0" },
-  "runtime": { "wasm": [{ "id": "notes-word-exporter", "module": "wasm/notes_word_exporter_wasm.wasm", "kind": "component", "timeout_ms": 20000, "max_memory_mb": 128 }] },
+  "runtime": { "wasm": [{ "id": "notes-word-exporter", "module": "wasm/notes_word_exporter_wasm.wasm", "kind": "component", "timeout_ms": 20000, "max_memory_mb": 128, "fuel_per_call": 1000000000 }] },
   "permissions": [],
   "contributes": { "documentExporters": [{ "id": "notes-word", "displayName": "Word (.docx)", "runtimeId": "notes-word-exporter", "function": "export-document", "formats": ["docx"], "outputMediaTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"], "priority": 100 }] }
 }

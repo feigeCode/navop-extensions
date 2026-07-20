@@ -96,8 +96,8 @@
       "id": "com.navop.exporter.notes-pdf",
       "kind": "composite",
       "name": "Notes PDF Exporter",
-      "version": "0.1.1",
-      "release_tag": "notes-pdf-exporter-v0.1.1",
+      "version": "0.1.2",
+      "release_tag": "notes-pdf-exporter-v0.1.2",
       "description": "使用 Rust WASM 将 Notes 表格、PNG/JPEG 图片和 SVG 白板预览导出为可离线分享的 PDF，并限制大图栅格尺寸以提升稳定性。 Rust WASM exporter that renders Notes tables, PNG/JPEG images, and SVG whiteboard previews into shareable PDFs with bounded raster sizes for stability.",
       "file_extensions": [],
       "manifest": "notes-pdf-exporter/manifest.json"
@@ -106,8 +106,8 @@
       "id": "com.navop.exporter.notes-word",
       "kind": "composite",
       "name": "Notes Word Exporter",
-      "version": "0.1.1",
-      "release_tag": "notes-word-exporter-v0.1.1",
+      "version": "0.1.2",
+      "release_tag": "notes-word-exporter-v0.1.2",
       "description": "使用 Rust WASM 将 Notes 导出为包含原生表格、列表和图片媒体资源的标准 Word DOCX，适合继续编辑和离线分享。 Rust WASM exporter that creates standard Word DOCX documents with native tables, lists, and image media for further editing and offline sharing.",
       "file_extensions": [],
       "manifest": "notes-word-exporter/manifest.json"
@@ -196,8 +196,8 @@
       "id": "com.onetcli.importer.xshell",
       "kind": "composite",
       "name": "Xshell Importer",
-      "version": "0.1.2",
-      "release_tag": "xshell-importer-v0.1.2",
+      "version": "0.1.3",
+      "release_tag": "xshell-importer-v0.1.3",
       "description": "从 Xshell .xsh 会话文件或 .xts 备份包中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持跨平台手动迁移常用主机设置。 Discovers SSH connection settings from Xshell .xsh session files or .xts backups and imports them into Navop through Rust WASM, including cross-platform manual migration.",
       "file_extensions": [],
       "manifest": "xshell-importer/manifest.json"

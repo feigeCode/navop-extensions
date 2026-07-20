@@ -372,6 +372,28 @@ test("Xshell importer is registered as a composite WASM importer", () => {
   );
 });
 
+test("Notes PDF exporter has enough fuel for rendered Mermaid SVG", () => {
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/notes-pdf-exporter/extension.json"), "utf8"),
+  );
+  const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-pdf-exporter");
+
+  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(runtime?.fuel_per_call, 1_000_000_000);
+  assert.equal(runtime?.timeout_ms, 30_000);
+});
+
+test("Notes Word exporter has enough fuel for bounded multi-image documents", () => {
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/notes-word-exporter/extension.json"), "utf8"),
+  );
+  const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-word-exporter");
+
+  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(runtime?.fuel_per_call, 1_000_000_000);
+  assert.equal(runtime?.timeout_ms, 20_000);
+});
+
 test("Navicat importer is registered as a composite WASM importer", () => {
   const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
   const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.navicat");
