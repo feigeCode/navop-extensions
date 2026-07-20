@@ -23,7 +23,8 @@ use extension_protocol::redis::{
     RedisPipelineResult, RedisRespValue,
 };
 use futures::StreamExt;
-use redis_client::aio::ConnectionManager;
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use redis_client::aio::{ConnectionManager, ConnectionManagerConfig};
 use redis_client::{Client, Cmd, Value};
 use serde_json::{Value as JsonValue, json};
 use tokio::sync::{Mutex, mpsc};
@@ -31,6 +32,11 @@ use tokio::task::JoinHandle;
 use tokio::time::{Duration, timeout};
 
 const SOCKET_ENV: &str = "ONETCLI_EXT_SOCKET";
+const REDIS_USERINFO_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 struct RedisDriver {
     next_conn_id: AtomicU64,
@@ -64,6 +70,10 @@ impl AsyncNativeDriver for RedisDriver {
             .with_feature(Capability::CANCEL_REQUEST)
             .with_method(method::REDIS_COMMAND)
             .with_method(method::REDIS_PIPELINE)
+            .with_method(method::EVENT_OPEN)
+            .with_method(method::EVENT_READ)
+            .with_method(method::EVENT_CLOSE)
+            .with_method(method::REDIS_PUBSUB_CONTROL)
             .with_driver("redis");
         serde_json::to_value(result).map_err(internal_error)
     }
@@ -76,11 +86,7 @@ impl AsyncNativeDriver for RedisDriver {
             serde_json::from_value(params.clone()).map_err(invalid_params)?;
         let config: RedisConnectionConfig =
             serde_json::from_value(open.config).map_err(invalid_params)?;
-        let client = Client::open(connection_url(&config).as_str()).map_err(connection_error)?;
-        let manager = client
-            .get_connection_manager()
-            .await
-            .map_err(connection_error)?;
+        let manager = open_connection_manager(&config).await?;
         let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
         let mut connections = HashMap::new();
         connections.insert(config.database, manager);
@@ -165,12 +171,7 @@ impl RedisConnection {
         if !self.connections.contains_key(&database) {
             let mut config = self.config.clone();
             config.database = database;
-            let client =
-                Client::open(connection_url(&config).as_str()).map_err(connection_error)?;
-            let manager = client
-                .get_connection_manager()
-                .await
-                .map_err(connection_error)?;
+            let manager = open_connection_manager(&config).await?;
             self.connections.insert(database, manager);
         }
         self.connections.get_mut(&database).ok_or_else(|| {
@@ -212,7 +213,13 @@ impl RedisConnection {
         let capacity = params.capacity.unwrap_or(128).clamp(1, 1024) as usize;
         let client =
             Client::open(connection_url(&self.config).as_str()).map_err(connection_error)?;
-        let pubsub = client.get_async_pubsub().await.map_err(connection_error)?;
+        let pubsub = match connection_timeout(&self.config) {
+            Some(duration) => timeout(duration, client.get_async_pubsub())
+                .await
+                .map_err(|_| connection_error("Redis Pub/Sub connection timed out"))?,
+            None => client.get_async_pubsub().await,
+        }
+        .map_err(connection_error)?;
         let stream_id = format!("redis-events-{}", EVENT_ID.fetch_add(1, Ordering::Relaxed));
         let (command_tx, mut command_rx) = mpsc::channel::<PubSubCommand>(32);
         let (event_tx, event_rx) = mpsc::channel::<JsonValue>(capacity);
@@ -399,14 +406,49 @@ fn redis_value(value: Value) -> RedisRespValue {
 fn connection_url(config: &RedisConnectionConfig) -> String {
     let scheme = if config.use_tls { "rediss" } else { "redis" };
     let auth = match (&config.username, &config.password) {
-        (Some(username), Some(password)) => format!("{username}:{password}@"),
-        (None, Some(password)) => format!("default:{password}@"),
+        (Some(username), Some(password)) => format!(
+            "{}:{}@",
+            encode_userinfo(username),
+            encode_userinfo(password)
+        ),
+        (None, Some(password)) => format!("default:{}@", encode_userinfo(password)),
         _ => String::new(),
     };
+    let host = if config.host.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{}]", config.host)
+    } else {
+        config.host.clone()
+    };
     format!(
-        "{scheme}://{auth}{}:{}/{}",
-        config.host, config.port, config.database
+        "{scheme}://{auth}{host}:{}/{}",
+        config.port, config.database
     )
+}
+
+fn encode_userinfo(value: &str) -> String {
+    utf8_percent_encode(value, REDIS_USERINFO_ENCODE_SET).to_string()
+}
+
+fn connection_timeout(config: &RedisConnectionConfig) -> Option<Duration> {
+    config
+        .connect_timeout_ms
+        .filter(|milliseconds| *milliseconds > 0)
+        .map(|milliseconds| Duration::from_millis(milliseconds.into()))
+}
+
+async fn open_connection_manager(
+    config: &RedisConnectionConfig,
+) -> Result<ConnectionManager, ProtocolError> {
+    let client = Client::open(connection_url(config).as_str()).map_err(connection_error)?;
+    let manager_config = match connection_timeout(config) {
+        Some(duration) => ConnectionManagerConfig::new()
+            .set_connection_timeout(duration)
+            .set_response_timeout(duration),
+        None => ConnectionManagerConfig::new(),
+    };
+    ConnectionManager::new_with_config(client, manager_config)
+        .await
+        .map_err(connection_error)
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> ProtocolError {
@@ -458,6 +500,77 @@ mod tests {
                 Value::Int(1),
                 Value::BulkString(b"ok".to_vec()),
             ]))
+        );
+    }
+
+    #[test]
+    fn connection_url_percent_encodes_username_and_password() {
+        let config = RedisConnectionConfig {
+            host: "redis.internal".into(),
+            port: 6379,
+            username: Some("user:name@example.com".into()),
+            password: Some("p@ss:/?#%word".into()),
+            database: 3,
+            use_tls: false,
+            connect_timeout_ms: None,
+        };
+
+        assert_eq!(
+            "redis://user%3Aname%40example.com:p%40ss%3A%2F%3F%23%25word@redis.internal:6379/3",
+            connection_url(&config)
+        );
+        Client::open(connection_url(&config).as_str()).expect("encoded Redis URL should parse");
+    }
+
+    #[test]
+    fn connection_url_uses_default_username_for_password_only_auth() {
+        let config = RedisConnectionConfig {
+            host: "127.0.0.1".into(),
+            port: 6379,
+            username: None,
+            password: Some("secret".into()),
+            database: 0,
+            use_tls: true,
+            connect_timeout_ms: None,
+        };
+
+        assert_eq!(
+            "rediss://default:secret@127.0.0.1:6379/0",
+            connection_url(&config)
+        );
+    }
+
+    #[test]
+    fn connection_url_brackets_ipv6_hosts() {
+        let config = RedisConnectionConfig {
+            host: "::1".into(),
+            port: 6379,
+            username: None,
+            password: None,
+            database: 0,
+            use_tls: false,
+            connect_timeout_ms: None,
+        };
+
+        assert_eq!("redis://[::1]:6379/0", connection_url(&config));
+        Client::open(connection_url(&config).as_str()).expect("IPv6 Redis URL should parse");
+    }
+
+    #[test]
+    fn connection_timeout_uses_wire_milliseconds() {
+        let config = RedisConnectionConfig {
+            host: "127.0.0.1".into(),
+            port: 6379,
+            username: None,
+            password: None,
+            database: 0,
+            use_tls: false,
+            connect_timeout_ms: Some(2500),
+        };
+
+        assert_eq!(
+            Some(Duration::from_millis(2500)),
+            connection_timeout(&config)
         );
     }
 }

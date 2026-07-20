@@ -1,6 +1,7 @@
 use crate::common::{
-    BlobStore, close_blob, command_error, connection_error, decode_document, encode_document,
-    internal_error, invalid_params, next_blob_id, read_blob, unsupported_method,
+    BlobStore, append_admin_auth_source, close_blob, command_error, connection_error,
+    decode_document, encode_document, internal_error, invalid_params, next_blob_id, read_blob,
+    should_retry_with_admin_auth_source, unsupported_method,
 };
 use async_trait::async_trait;
 use extension_driver::{
@@ -46,6 +47,8 @@ impl AsyncNativeDriver for MongoDriver {
             .with_feature(Capability::CANCEL_REQUEST)
             .with_method(method::MONGODB_COMMAND)
             .with_method(method::MONGODB_FIND)
+            .with_method(method::BLOB_READ)
+            .with_method(method::BLOB_CLOSE)
             .with_driver("mongodb-legacy");
         serde_json::to_value(result).map_err(internal_error)
     }
@@ -58,14 +61,20 @@ impl AsyncNativeDriver for MongoDriver {
             serde_json::from_value(params.clone()).map_err(invalid_params)?;
         let config: MongoConnectionConfig =
             serde_json::from_value(open.config).map_err(invalid_params)?;
-        let client = Client::with_uri_str(&config.connection_string)
-            .await
-            .map_err(connection_error)?;
-        client
-            .database("admin")
-            .run_command(mongodb_legacy::bson::doc! { "buildInfo": 1 }, None)
-            .await
-            .map_err(connection_error)?;
+        let client = match connect_and_read_build_info(&config.connection_string).await {
+            Ok(client) => client,
+            Err(error)
+                if should_retry_with_admin_auth_source(
+                    &config.connection_string,
+                    &error.to_string(),
+                ) =>
+            {
+                connect_and_read_build_info(&append_admin_auth_source(&config.connection_string))
+                    .await
+                    .map_err(connection_error)?
+            }
+            Err(error) => return Err(connection_error(error)),
+        };
         let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
         Ok(AsyncOpenedConnection {
             conn_id,
@@ -88,6 +97,17 @@ impl AsyncNativeDriver for MongoDriver {
     ) -> Result<Value, ProtocolError> {
         Err(unsupported_method(method_name))
     }
+}
+
+async fn connect_and_read_build_info(
+    connection_string: &str,
+) -> Result<Client, mongodb_legacy::error::Error> {
+    let client = Client::with_uri_str(connection_string).await?;
+    client
+        .database("admin")
+        .run_command(mongodb_legacy::bson::doc! { "buildInfo": 1 }, None)
+        .await?;
+    Ok(client)
 }
 
 #[async_trait]

@@ -58,6 +58,36 @@ pub fn next_blob_id() -> String {
     format!("mongo-docs-{}", BLOB_ID.fetch_add(1, Ordering::Relaxed))
 }
 
+pub fn should_retry_with_admin_auth_source(connection_string: &str, error: &str) -> bool {
+    connection_string.contains('@')
+        && !connection_string
+            .to_ascii_lowercase()
+            .contains("authsource=")
+        && (error.contains("SCRAM failure")
+            || error.contains("AuthenticationFailed")
+            || error.contains("code 18"))
+}
+
+pub fn append_admin_auth_source(connection_string: &str) -> String {
+    if connection_string.contains('?') {
+        let separator = if connection_string.ends_with(['?', '&']) {
+            ""
+        } else {
+            "&"
+        };
+        return format!("{connection_string}{separator}authSource=admin");
+    }
+    let separator = if connection_string
+        .split_once("://")
+        .is_some_and(|(_, remaining)| remaining.contains('/'))
+    {
+        "?"
+    } else {
+        "/?"
+    };
+    format!("{connection_string}{separator}authSource=admin")
+}
+
 pub fn invalid_params(error: impl std::fmt::Display) -> ProtocolError {
     ProtocolError::new(error_codes::INVALID_PARAMS, error.to_string())
 }
@@ -92,5 +122,31 @@ mod tests {
         let decoded = decode_document(wire.bson).unwrap();
 
         assert_eq!(document, decoded);
+    }
+
+    #[test]
+    fn admin_auth_source_retry_preserves_existing_uri_parts() {
+        let uri = "mongodb://user:p%40ss@mongo.internal:27017/app?replicaSet=rs0";
+
+        assert!(should_retry_with_admin_auth_source(
+            uri,
+            "AuthenticationFailed code 18"
+        ));
+        assert_eq!(
+            "mongodb://user:p%40ss@mongo.internal:27017/app?replicaSet=rs0&authSource=admin",
+            append_admin_auth_source(uri)
+        );
+    }
+
+    #[test]
+    fn admin_auth_source_retry_requires_credentials_and_missing_option() {
+        assert!(!should_retry_with_admin_auth_source(
+            "mongodb://mongo.internal:27017/app",
+            "AuthenticationFailed code 18"
+        ));
+        assert!(!should_retry_with_admin_auth_source(
+            "mongodb://user:pass@mongo.internal/app?authSource=users",
+            "AuthenticationFailed code 18"
+        ));
     }
 }

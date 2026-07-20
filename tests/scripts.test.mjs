@@ -266,6 +266,34 @@ test("native Redis and MongoDB drivers keep standalone manifests and release met
     assert.equal(manifest.entry.command, `./${binary}`);
     assert.ok(manifest.methods.length > 0, `${id} should declare wire methods`);
   }
+
+  const redis = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/redis/driver.json"), "utf8"),
+  );
+  assert.deepEqual(redis.methods, [
+    "conn/open",
+    "conn/close",
+    "redis/command",
+    "redis/pipeline",
+    "event/open",
+    "redis/pubsub_control",
+    "event/read",
+    "event/close",
+  ]);
+
+  for (const id of ["mongodb-modern", "mongodb-legacy"]) {
+    const mongo = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, `extensions/ipc/${id}/driver.json`), "utf8"),
+    );
+    assert.deepEqual(mongo.methods, [
+      "conn/open",
+      "conn/close",
+      "mongodb/command",
+      "mongodb/find",
+      "blob/read",
+      "blob/close",
+    ]);
+  }
 });
 
 test("MongoDB variants use separate SDK generations and honest compatibility ranges", () => {
@@ -282,7 +310,7 @@ test("MongoDB variants use separate SDK generations and honest compatibility ran
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/mongodb-legacy/driver.json"), "utf8"),
   );
   assert.deepEqual(modern.compatibility.server, { min: "4.2" });
-  assert.deepEqual(legacy.compatibility.server, { min: "3.6", max: "3.6" });
+  assert.deepEqual(legacy.compatibility.server, { min: "3.6", max: "4.0" });
 });
 
 test("extension descriptions are bilingual, detailed, and synchronized", () => {
