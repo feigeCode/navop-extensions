@@ -73,9 +73,9 @@ fn css_color(value: u32) -> String {
 }
 
 #[cfg(feature = "html")]
-fn base64_encode(bytes: &[u8]) -> String {
+fn append_base64(output: &mut String, bytes: &[u8]) {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    output.reserve(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let first = chunk[0] as usize;
         let second = chunk.get(1).copied().unwrap_or(0) as usize;
@@ -93,7 +93,6 @@ fn base64_encode(bytes: &[u8]) -> String {
             '='
         });
     }
-    output
 }
 
 #[cfg(feature = "html")]
@@ -113,11 +112,10 @@ fn inline_html_images(body: &str, assets: &[ExportAsset]) -> String {
             .iter()
             .find(|asset| asset.path == source || asset.path == normalized)
         {
-            output.push_str(&format!(
-                "data:{};base64,{}",
-                asset.media_type,
-                base64_encode(&asset.bytes)
-            ));
+            output.push_str("data:");
+            output.push_str(&asset.media_type);
+            output.push_str(";base64,");
+            append_base64(&mut output, &asset.bytes);
         } else {
             output.push_str(source);
         }

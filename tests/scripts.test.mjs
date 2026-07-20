@@ -383,6 +383,18 @@ test("Notes PDF exporter has enough fuel for rendered Mermaid SVG", () => {
   assert.equal(runtime?.timeout_ms, 30_000);
 });
 
+test("Notes HTML exporter has enough resources for self-contained network images", () => {
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/notes-html-exporter/extension.json"), "utf8"),
+  );
+  const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-html-exporter");
+
+  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(runtime?.fuel_per_call, 2_000_000_000);
+  assert.equal(runtime?.max_memory_mb, 256);
+  assert.equal(runtime?.timeout_ms, 30_000);
+});
+
 test("Notes Word exporter has enough fuel for bounded multi-image documents", () => {
   const sourceManifest = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/wasm/notes-word-exporter/extension.json"), "utf8"),

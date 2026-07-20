@@ -86,8 +86,8 @@
       "id": "com.navop.exporter.notes-html",
       "kind": "composite",
       "name": "Notes HTML Exporter",
-      "version": "0.1.1",
-      "release_tag": "notes-html-exporter-v0.1.1",
+      "version": "0.1.2",
+      "release_tag": "notes-html-exporter-v0.1.2",
       "description": "使用 Rust WASM 将 Notes 导出为包含标准表格、样式与内嵌图片的自包含 HTML，适合离线查看和直接分享。 Rust WASM exporter that converts Notes into self-contained HTML with standard tables, styling, and embedded images for offline viewing and sharing.",
       "file_extensions": [],
       "manifest": "notes-html-exporter/manifest.json"

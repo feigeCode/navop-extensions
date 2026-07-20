@@ -3,11 +3,11 @@
   "id": "com.navop.exporter.notes-html",
   "name": "Notes HTML Exporter",
   "description": "使用 Rust WASM 将 Notes 导出为包含标准表格、样式与内嵌图片的自包含 HTML，适合离线查看和直接分享。 Rust WASM exporter that converts Notes into self-contained HTML with standard tables, styling, and embedded images for offline viewing and sharing.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.8.11" },
   "api": { "extension": "1.0" },
-  "runtime": { "wasm": [{ "id": "notes-html-exporter", "module": "wasm/notes_html_exporter_wasm.wasm", "kind": "component", "timeout_ms": 15000, "max_memory_mb": 128 }] },
+  "runtime": { "wasm": [{ "id": "notes-html-exporter", "module": "wasm/notes_html_exporter_wasm.wasm", "kind": "component", "timeout_ms": 30000, "max_memory_mb": 256, "fuel_per_call": 2000000000 }] },
   "permissions": [],
   "contributes": { "documentExporters": [{ "id": "notes-html", "displayName": "HTML", "runtimeId": "notes-html-exporter", "function": "export-document", "formats": ["html"], "outputMediaTypes": ["text/html"], "priority": 100 }] }
 }
