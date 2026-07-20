@@ -64,7 +64,7 @@ export!(MathRenderer);
 
 #[cfg(test)]
 mod tests {
-    use super::with_background;
+    use super::*;
 
     #[test]
     fn generated_svg_uses_the_document_theme_background() {
@@ -77,5 +77,21 @@ mod tests {
         assert!(svg.starts_with(
             "<svg viewBox=\"0 0 10 10\"><rect width=\"100%\" height=\"100%\" fill=\"#f7f6f3\"/>"
         ));
+    }
+
+    #[test]
+    fn align_environment_renders_to_svg() {
+        let ast = parse(
+            r"\begin{align}
+y &= 2x + 1 \\
+z &= x^2 - 3
+\end{align}",
+        )
+        .unwrap();
+        let display_list = to_display_list(&layout(&ast, &LayoutOptions::default()));
+        let svg = render_to_svg(&display_list, &SvgOptions::default());
+
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.ends_with("</svg>"));
     }
 }
