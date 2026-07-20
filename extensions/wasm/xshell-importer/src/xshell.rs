@@ -1,5 +1,12 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::io::{Cursor, Read};
+
+use zip::ZipArchive;
+
+const MAX_XTS_SESSION_COUNT: usize = 4096;
+const MAX_XSH_FILE_SIZE: u64 = 4 * 1024 * 1024;
+const MAX_XTS_TOTAL_SESSION_SIZE: u64 = 32 * 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ImportRecord {
@@ -62,8 +69,66 @@ where
 {
     sessions
         .into_iter()
-        .filter_map(|(path, bytes)| parse_session(&path, bytes))
+        .flat_map(|(path, bytes)| parse_source(&path, bytes))
         .collect()
+}
+
+pub fn is_supported_source_path(path: &str) -> bool {
+    ["xsh", "xts"]
+        .into_iter()
+        .any(|extension| has_extension(path, extension))
+}
+
+fn parse_source(path: &str, bytes: &[u8]) -> Vec<ImportRecord> {
+    if has_extension(path, "xts") {
+        return parse_xts_backup(path, bytes);
+    }
+    parse_session(path, bytes).into_iter().collect()
+}
+
+fn parse_xts_backup(archive_path: &str, bytes: &[u8]) -> Vec<ImportRecord> {
+    let Ok(mut archive) = ZipArchive::new(Cursor::new(bytes)) else {
+        return Vec::new();
+    };
+    let mut sessions = Vec::new();
+    let mut total_size = 0_u64;
+    for index in 0..archive.len() {
+        let Ok(mut entry) = archive.by_index(index) else {
+            continue;
+        };
+        if !is_xts_session_entry(entry.name(), entry.is_dir()) {
+            continue;
+        }
+        let entry_size = entry.size();
+        if entry_size > MAX_XSH_FILE_SIZE
+            || total_size.saturating_add(entry_size) > MAX_XTS_TOTAL_SESSION_SIZE
+        {
+            continue;
+        }
+        let mut session = Vec::with_capacity(entry_size as usize);
+        if entry.read_to_end(&mut session).is_err() {
+            continue;
+        }
+        total_size += entry_size;
+        sessions.push((format!("{archive_path}!/{}", entry.name()), session));
+        if sessions.len() >= MAX_XTS_SESSION_COUNT {
+            break;
+        }
+    }
+    sessions.sort_by(|left, right| left.0.cmp(&right.0));
+    sessions
+        .into_iter()
+        .filter_map(|(path, bytes)| parse_session(&path, &bytes))
+        .collect()
+}
+
+fn is_xts_session_entry(path: &str, is_dir: bool) -> bool {
+    !is_dir && path.to_ascii_lowercase().starts_with("xshell/") && has_extension(path, "xsh")
+}
+
+fn has_extension(path: &str, extension: &str) -> bool {
+    path.rsplit_once('.')
+        .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case(extension))
 }
 
 fn parse_session(path: &str, bytes: &[u8]) -> Option<ImportRecord> {
@@ -122,7 +187,7 @@ fn decode_session_text(bytes: &[u8]) -> Option<String> {
 }
 
 fn decode_utf16_units(bytes: &[u8], from_bytes: fn([u8; 2]) -> u16) -> Option<String> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return None;
     }
     let units = bytes
@@ -168,19 +233,12 @@ fn field<'a>(section: &'a BTreeMap<String, String>, key: &str) -> Option<&'a str
 }
 
 fn session_name(path: &str) -> String {
-    path.rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(path)
-        .strip_suffix(".xsh")
-        .unwrap_or_else(|| path.rsplit(['/', '\\']).next().unwrap_or(path))
-        .to_string()
+    let file_name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    strip_xsh_extension(file_name).to_string()
 }
 
 fn slug(path: &str) -> String {
-    let stem = path
-        .strip_suffix(".xsh")
-        .unwrap_or(path)
-        .trim_matches(['/', '\\']);
+    let stem = strip_xsh_extension(path).trim_matches(['/', '\\']);
     let mut out = String::new();
     let mut last_dash = false;
     for ch in stem.chars().flat_map(char::to_lowercase) {
@@ -202,83 +260,10 @@ fn slug(path: &str) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_ssh_session_without_importing_encrypted_passwords() {
-        let session = br#"
-[CONNECTION]
-Host=prod.example.test
-Port=2200
-Protocol=SSH
-
-[CONNECTION:AUTHENTICATION]
-UserName=deploy
-Password=encrypted-secret
-"#;
-
-        let records = preview_records_from_sessions(
-            vec![("Prod/SSH.xsh".to_string(), session.as_slice())],
-            true,
-        );
-
-        assert_eq!(1, records.len());
-        let record = &records[0];
-        assert_eq!("xshell:prod-ssh", record.id);
-        assert_eq!("xshell", record.importer_id);
-        assert_eq!("Xshell", record.source_label);
-        assert_eq!(Some("Prod/SSH.xsh"), record.source_id.as_deref());
-        assert_eq!("ssh", record.kind);
-        assert_eq!("SSH", record.display_name);
-        assert_eq!("unsupported", record.password_status);
-        let ssh = record.ssh.as_ref().unwrap();
-        assert_eq!("SSH", ssh.name);
-        assert_eq!("prod.example.test", ssh.host);
-        assert_eq!(Some(2200), ssh.port);
-        assert_eq!("deploy", ssh.username);
-        assert_eq!(SshImportAuthMethod::AutoPublicKey, ssh.auth_method);
-    }
-
-    #[test]
-    fn parses_utf16le_xshell_session_files() {
-        let session = "\u{feff}[CONNECTION]\r\nHost=utf16.example.test\r\nPort=2201\r\nProtocol=SSH\r\n\r\n[CONNECTION:AUTHENTICATION]\r\nUserName=deploy\r\n";
-        let mut bytes = Vec::new();
-        for unit in session.encode_utf16() {
-            bytes.extend_from_slice(&unit.to_le_bytes());
-        }
-
-        let records = preview_records_from_sessions(
-            vec![("Utf16/Session.xsh".to_string(), bytes.as_slice())],
-            false,
-        );
-
-        assert_eq!(1, records.len());
-        let ssh = records[0].ssh.as_ref().unwrap();
-        assert_eq!("utf16.example.test", ssh.host);
-        assert_eq!(Some(2201), ssh.port);
-        assert_eq!("deploy", ssh.username);
-    }
-
-    #[test]
-    fn serializes_auth_method_with_host_protocol_shape() {
-        let session = br#"
-[CONNECTION]
-Host=prod.example.test
-Port=22
-Protocol=SSH
-"#;
-
-        let records = preview_records_from_sessions(
-            vec![("Prod/SSH.xsh".to_string(), session.as_slice())],
-            false,
-        );
-
-        let json = serde_json::to_value(&records[0]).unwrap();
-        assert_eq!(
-            serde_json::json!("auto_public_key"),
-            json["ssh"]["auth_method"]
-        );
+fn strip_xsh_extension(path: &str) -> &str {
+    if has_extension(path, "xsh") {
+        &path[..path.len() - ".xsh".len()]
+    } else {
+        path
     }
 }

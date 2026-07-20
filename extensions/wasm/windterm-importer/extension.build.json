@@ -1,0 +1,13 @@
+{
+  "id": "windterm-importer",
+  "kind": "composite",
+  "language": "rust-wasm",
+  "package": "windterm_importer_wasm",
+  "binary": "windterm_importer_wasm.wasm",
+  "path": "extensions/wasm/windterm-importer",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "windterm-importer-v",
+  "r2Prefix": "extensions/windterm-importer"
+}

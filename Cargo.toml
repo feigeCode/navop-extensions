@@ -17,6 +17,7 @@ members = [
     "extensions/wasm/openssh-config-importer",
     "extensions/wasm/redis-desktop-importer",
     "extensions/wasm/tableplus-importer",
+    "extensions/wasm/windterm-importer",
     "extensions/wasm/xshell-importer",
 ]
 resolver = "2"

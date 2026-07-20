@@ -1,0 +1,39 @@
+[
+  {
+    "session.uuid": "11111111-2222-3333-4444-555555555555",
+    "session.protocol": "SSH",
+    "session.group": "Production",
+    "session.label": "Production API",
+    "session.target": "deploy@api.example.test",
+    "session.port": 2202,
+    "session.autoLogin": "SCRUBBED-WINDTERM-AUTO-LOGIN-BLOB",
+    "ssh.authPassword": true,
+    "filer.autoSyncTerminalFolder": false
+  },
+  {
+    "session.uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "session.protocol": "ssh",
+    "session.target": "ssh://ops@[2001:db8::10]:2222",
+    "ssh.identityFilePath": "~/.ssh/windterm_ops",
+    "session.autoExecution": "cd /srv/app",
+    "session.proxy": true,
+    "session.proxyHost": "proxy.example.test",
+    "ssh.tunnels": [
+      {
+        "kind": "local"
+      }
+    ]
+  },
+  {
+    "session.uuid": "99999999-8888-7777-6666-555555555555",
+    "session.protocol": "SSH",
+    "session.target": "host-only.example.test",
+    "session.port": "22"
+  },
+  {
+    "session.uuid": "shell-session",
+    "session.protocol": "Shell",
+    "session.target": "/bin/zsh",
+    "process.arguments": "-l"
+  }
+]

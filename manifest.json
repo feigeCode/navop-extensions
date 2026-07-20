@@ -196,11 +196,21 @@
       "id": "com.onetcli.importer.xshell",
       "kind": "composite",
       "name": "Xshell Importer",
-      "version": "0.1.1",
-      "release_tag": "xshell-importer-v0.1.1",
-      "description": "从 Xshell 会话文件中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持批量迁移常用主机设置。 Discovers SSH connection settings from Xshell session files and imports them into Navop through Rust WASM for migrating frequently used hosts in batches.",
+      "version": "0.1.2",
+      "release_tag": "xshell-importer-v0.1.2",
+      "description": "从 Xshell .xsh 会话文件或 .xts 备份包中发现 SSH 连接配置，并通过 Rust WASM 导入到 Navop；支持跨平台手动迁移常用主机设置。 Discovers SSH connection settings from Xshell .xsh session files or .xts backups and imports them into Navop through Rust WASM, including cross-platform manual migration.",
       "file_extensions": [],
       "manifest": "xshell-importer/manifest.json"
+    },
+    {
+      "id": "com.onetcli.importer.windterm",
+      "kind": "composite",
+      "name": "WindTerm Importer",
+      "version": "0.1.0",
+      "release_tag": "windterm-importer-v0.1.0",
+      "description": "从 WindTerm profile 的 user.sessions 文件中发现 SSH 连接，并通过 Rust WASM 导入到 Navop；支持默认、自定义和手动选择的 profile。 Discovers SSH connections from WindTerm profile user.sessions files and imports them into Navop through Rust WASM, including default, custom, and manually selected profiles.",
+      "file_extensions": [],
+      "manifest": "windterm-importer/manifest.json"
     },
     {
       "id": "duckdb",

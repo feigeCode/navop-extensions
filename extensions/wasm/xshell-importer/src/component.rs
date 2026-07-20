@@ -11,11 +11,11 @@ impl Guest for XshellImporter {
     fn descriptor() -> String {
         serde_json::json!({
             "id": "xshell",
-            "display_name": "Xshell",
-            "description": "Import SSH sessions from Xshell",
+            "display_name": "Xshell .xsh/.xts",
+            "description": "Import SSH sessions from Xshell .xsh files and .xts backups",
             "icon": "terminal",
             "vendor": "Navop",
-            "supported_platforms": ["windows"],
+            "supported_platforms": ["macos", "windows", "linux"],
             "output_kinds": ["ssh"],
             "capabilities": {
                 "supports_scan": true,
@@ -68,7 +68,7 @@ fn read_sessions(candidates: &[CandidateFile]) -> Vec<(String, Vec<u8>)> {
     for candidate in candidates {
         if let Ok(entries) = connection_import_host::read_directory(&candidate.id) {
             for entry in entries {
-                if entry.is_dir || !entry.name.to_ascii_lowercase().ends_with(".xsh") {
+                if entry.is_dir || !crate::xshell::is_supported_source_path(&entry.name) {
                     continue;
                 }
                 if let Ok(bytes) = connection_import_host::read_candidate_child_file(
@@ -80,10 +80,10 @@ fn read_sessions(candidates: &[CandidateFile]) -> Vec<(String, Vec<u8>)> {
             }
             continue;
         }
-        if candidate.path.to_ascii_lowercase().ends_with(".xsh") {
-            if let Ok(bytes) = connection_import_host::read_file(&candidate.id) {
-                sessions.push((candidate.path.clone(), bytes));
-            }
+        if crate::xshell::is_supported_source_path(&candidate.path)
+            && let Ok(bytes) = connection_import_host::read_file(&candidate.id)
+        {
+            sessions.push((candidate.path.clone(), bytes));
         }
     }
     sessions

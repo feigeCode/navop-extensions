@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "id": "com.onetcli.importer.windterm",
+  "name": "WindTerm Importer",
+  "description": "从 WindTerm profile 的 user.sessions 文件中发现 SSH 连接，并通过 Rust WASM 导入到 Navop；支持默认、自定义和手动选择的 profile。 Discovers SSH connections from WindTerm profile user.sessions files and imports them into Navop through Rust WASM, including default, custom, and manually selected profiles.",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "engines": {
+    "onetcli": ">=0.7.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "runtime": {
+    "wasm": [
+      {
+        "id": "windterm-importer",
+        "module": "wasm/windterm_importer_wasm.wasm",
+        "kind": "component",
+        "timeout_ms": 5000,
+        "max_memory_mb": 64
+      }
+    ]
+  },
+  "permissions": [
+    "fs:read:~/.wind/profiles",
+    "fs:read:%USERPROFILE%/.wind/profiles"
+  ],
+  "contributes": {
+    "connectionImporters": [
+      {
+        "id": "windterm",
+        "runtimeId": "windterm-importer",
+        "displayName": "WindTerm",
+        "description": "从 WindTerm user.sessions 文件发现并导入 SSH 连接。 Discover and import SSH connections from WindTerm user.sessions files.",
+        "icon": "terminal",
+        "outputKinds": [
+          "ssh"
+        ],
+        "platforms": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "manualFilePick": {
+          "prompt": "选择 WindTerm user.sessions 文件"
+        },
+        "candidateFiles": [
+          {
+            "id": "windterm-macos-profiles",
+            "platform": "macos",
+            "path": "~/.wind/profiles"
+          },
+          {
+            "id": "windterm-linux-profiles",
+            "platform": "linux",
+            "path": "~/.wind/profiles"
+          },
+          {
+            "id": "windterm-windows-profiles",
+            "platform": "windows",
+            "path": "%USERPROFILE%/.wind/profiles"
+          }
+        ]
+      }
+    ]
+  }
+}

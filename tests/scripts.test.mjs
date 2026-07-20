@@ -360,6 +360,12 @@ test("Xshell importer is registered as a composite WASM importer", () => {
 
   assert.equal(importer.id, "xshell");
   assert.deepEqual(importer.outputKinds, ["ssh"]);
+  assert.deepEqual(importer.platforms, ["macos", "windows", "linux"]);
+  assert.equal(
+    importer.manualFilePick?.prompt,
+    "选择 Xshell .xsh/.xts 文件",
+    "Xshell importer should expose manual .xsh/.xts file selection",
+  );
   assert.ok(
     importer.candidateFiles.some((candidate) => candidate.path.includes("NetSarang Computer/8/Xshell/Sessions")),
     "Xshell importer should declare the current NetSarang sessions directory",
@@ -524,6 +530,34 @@ test("OpenSSH config importer is registered as a composite WASM importer", () =>
     sourceManifest.permissions.some((permission) => permission.includes(".ssh/known_hosts")),
     "OpenSSH config importer should permit known_hosts reads",
   );
+});
+
+test("WindTerm importer is registered as a composite WASM importer", () => {
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "manifest.json"), "utf8"));
+  const entry = globalManifest.extensions.find((extension) => extension.id === "com.onetcli.importer.windterm");
+
+  assert.equal(entry?.kind, "composite");
+  assert.equal(entry?.manifest, "windterm-importer/manifest.json");
+
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/wasm/windterm-importer/extension.json"), "utf8"),
+  );
+  const importer = sourceManifest.contributes.connectionImporters[0];
+
+  assert.equal(importer.id, "windterm");
+  assert.deepEqual(importer.outputKinds, ["ssh"]);
+  assert.deepEqual(importer.platforms, ["macos", "windows", "linux"]);
+  assert.equal(importer.manualFilePick?.prompt, "选择 WindTerm user.sessions 文件");
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path === "~/.wind/profiles"),
+    "WindTerm importer should discover Unix profile directories",
+  );
+  assert.ok(
+    importer.candidateFiles.some((candidate) => candidate.path === "%USERPROFILE%/.wind/profiles"),
+    "WindTerm importer should discover Windows profile directories",
+  );
+  assert.ok(sourceManifest.permissions.includes("fs:read:~/.wind/profiles"));
+  assert.ok(sourceManifest.permissions.includes("fs:read:%USERPROFILE%/.wind/profiles"));
 });
 
 test("Redis desktop importer is registered as a composite WASM importer", () => {
