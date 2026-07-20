@@ -168,7 +168,14 @@ struct DocumentLine {
 #[cfg(any(feature = "pdf", feature = "docx"))]
 #[derive(Clone, Debug)]
 struct TableData {
-    rows: Vec<Vec<String>>,
+    rows: Vec<Vec<TableCellData>>,
+}
+
+#[cfg(any(feature = "pdf", feature = "docx"))]
+#[derive(Clone, Debug)]
+struct TableCellData {
+    text: String,
+    images: Vec<ImageData>,
 }
 
 #[cfg(any(feature = "pdf", feature = "docx"))]
@@ -221,6 +228,18 @@ fn document_lines(source: &str) -> Vec<DocumentLine> {
                 text: String::new(),
             });
             index += 1;
+            continue;
+        }
+        if start.starts_with('<') {
+            let mut fragment = String::new();
+            while index < source_lines.len() && !source_lines[index].trim().is_empty() {
+                if !fragment.is_empty() {
+                    fragment.push('\n');
+                }
+                fragment.push_str(source_lines[index]);
+                index += 1;
+            }
+            lines.extend(parse_html_fragment(&fragment));
             continue;
         }
         if is_table_row(start)
@@ -311,11 +330,134 @@ fn is_table_separator(line: &str) -> bool {
 }
 
 #[cfg(any(feature = "pdf", feature = "docx"))]
-fn parse_table_row(line: &str) -> Vec<String> {
+fn parse_table_row(line: &str) -> Vec<TableCellData> {
     line.trim_matches('|')
         .split('|')
-        .map(|cell| clean_inline(cell.trim()))
+        .map(|cell| {
+            let images = parse_inline_images(cell);
+            TableCellData {
+                text: clean_inline(cell.trim()),
+                images,
+            }
+        })
         .collect()
+}
+
+#[cfg(any(feature = "pdf", feature = "docx"))]
+fn parse_inline_images(source: &str) -> Vec<ImageData> {
+    let mut images = Vec::new();
+    let mut remaining = source;
+    while let Some(start) = remaining.find("![") {
+        remaining = &remaining[start..];
+        let Some(label_end) = remaining.find("](") else {
+            break;
+        };
+        let Some(target_end) = remaining[label_end + 2..].find(')') else {
+            break;
+        };
+        let target_end = label_end + 2 + target_end;
+        let path = remaining[label_end + 2..target_end]
+            .trim()
+            .trim_matches(|character| matches!(character, '<' | '>'));
+        if !path.is_empty() {
+            images.push(ImageData {
+                alt: remaining[2..label_end].to_owned(),
+                path: path.to_owned(),
+            });
+        }
+        remaining = &remaining[target_end + 1..];
+    }
+    images
+}
+
+#[cfg(any(feature = "pdf", feature = "docx"))]
+fn parse_html_fragment(source: &str) -> Vec<DocumentLine> {
+    let mut lines = Vec::new();
+    let lower = source.to_ascii_lowercase();
+    let mut cursor = 0;
+    while let Some(relative) = lower[cursor..].find("<img") {
+        let start = cursor + relative;
+        if let Some(text) = html_visible_text(&source[cursor..start]) {
+            lines.push(DocumentLine {
+                kind: LineKind::Body,
+                text,
+            });
+        }
+        let Some(end) = source[start..].find('>').map(|offset| start + offset) else {
+            break;
+        };
+        let tag = &source[start..=end];
+        if let Some(path) = html_attribute(tag, "src") {
+            lines.push(DocumentLine {
+                kind: LineKind::Image(ImageData {
+                    alt: html_attribute(tag, "alt").unwrap_or_else(|| "Image".to_owned()),
+                    path,
+                }),
+                text: String::new(),
+            });
+        }
+        cursor = end + 1;
+    }
+    if let Some(text) = html_visible_text(&source[cursor..]) {
+        let kind = if lower.contains("<h1") {
+            LineKind::Heading(1)
+        } else if lower.contains("<h2") {
+            LineKind::Heading(2)
+        } else if lower.contains("<h3") {
+            LineKind::Heading(3)
+        } else if lower.contains("<blockquote") {
+            LineKind::Quote
+        } else if lower.contains("<li") {
+            LineKind::Bullet
+        } else {
+            LineKind::Body
+        };
+        lines.push(DocumentLine { kind, text });
+    }
+    if lines.is_empty() {
+        lines.push(DocumentLine {
+            kind: LineKind::Blank,
+            text: String::new(),
+        });
+    }
+    lines
+}
+
+#[cfg(any(feature = "pdf", feature = "docx"))]
+fn html_visible_text(source: &str) -> Option<String> {
+    let mut text = String::new();
+    let mut in_tag = false;
+    for character in source.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                text.push(' ');
+            }
+            _ if !in_tag => text.push(character),
+            _ => {}
+        }
+    }
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!text.is_empty()).then_some(text)
+}
+
+#[cfg(any(feature = "pdf", feature = "docx"))]
+fn html_attribute(tag: &str, name: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let marker = format!("{name}=");
+    let start = lower.find(&marker)? + marker.len();
+    let quote = tag.as_bytes().get(start).copied()?;
+    if quote == b'\'' || quote == b'"' {
+        let value_start = start + 1;
+        let end = tag[value_start..].find(quote as char)? + value_start;
+        return Some(tag[value_start..end].to_owned());
+    }
+    let end = tag[start..]
+        .find(|character: char| character.is_whitespace() || character == '>')
+        .map(|offset| start + offset)
+        .unwrap_or(tag.len());
+    Some(tag[start..end].to_owned())
 }
 
 #[cfg(any(feature = "pdf", feature = "docx"))]
@@ -406,7 +548,7 @@ fn layout_pdf_pages(lines: &[DocumentLine], assets: &[ExportAsset]) -> Vec<Strin
     let mut y = 788.0f32;
     for line in lines {
         if let LineKind::Table(table) = &line.kind {
-            render_pdf_table(table, &mut pages, &mut y);
+            render_pdf_table(table, assets, &mut pages, &mut y);
             continue;
         }
         if let LineKind::Image(image) = &line.kind {
@@ -476,14 +618,23 @@ fn layout_pdf_pages(lines: &[DocumentLine], assets: &[ExportAsset]) -> Vec<Strin
 }
 
 #[cfg(feature = "pdf")]
-fn render_pdf_table(table: &TableData, pages: &mut Vec<String>, y: &mut f32) {
+fn render_pdf_table(
+    table: &TableData,
+    assets: &[ExportAsset],
+    pages: &mut Vec<String>,
+    y: &mut f32,
+) {
     let columns = table.rows.iter().map(Vec::len).max().unwrap_or(0);
     if columns == 0 {
         return;
     }
     let cell_width = 487.0 / columns as f32;
-    let row_height = 25.0;
     for (row_index, row) in table.rows.iter().enumerate() {
+        let row_height = if row.iter().any(|cell| !cell.images.is_empty()) {
+            82.0
+        } else {
+            25.0
+        };
         if *y - row_height < 58.0 {
             pages.push(String::from("q 1 1 1 rg 0 0 595 842 re f Q\n"));
             *y = 788.0;
@@ -499,15 +650,26 @@ fn render_pdf_table(table: &TableData, pages: &mut Vec<String>, y: &mut f32) {
             pages.last_mut().unwrap().push_str(&format!(
                 "q 0.65 0.68 0.72 RG 0.6 w {x:.1} {bottom:.1} {cell_width:.1} {row_height:.1} re S Q\n"
             ));
-            if let Some(text) = row.get(column) {
+            if let Some(cell) = row.get(column) {
                 let max_chars = ((cell_width - 8.0) / 6.0).max(1.0) as usize;
-                let display = text.chars().take(max_chars).collect::<String>();
+                let display = cell.text.chars().take(max_chars).collect::<String>();
                 pages.last_mut().unwrap().push_str(&pdf_text_commands(
                     &display,
                     if row_index == 0 { 10.5 } else { 10.0 },
                     x + 4.0,
                     bottom + 8.0,
                 ));
+                if let Some(image) = cell.images.first()
+                    && let Some(asset) = assets.iter().find(|asset| asset.path == image.path)
+                    && let Some((command, width, height)) =
+                        pdf_inline_image(asset, cell_width - 8.0, row_height - 28.0)
+                {
+                    pages.last_mut().unwrap().push_str(&format!(
+                        "q {width:.1} 0 0 {height:.1} {:.1} {:.1} cm\n{command}\nQ\n",
+                        x + 4.0,
+                        bottom + 24.0
+                    ));
+                }
             }
         }
         *y = bottom;
@@ -813,7 +975,7 @@ fn document_xml(source: &str, assets: &[ExportAsset]) -> String {
                 continue;
             }
             LineKind::Table(table) => {
-                body.push_str(&docx_table(&table));
+                body.push_str(&docx_table(&table, assets));
                 continue;
             }
             LineKind::Image(image) => {
@@ -901,7 +1063,7 @@ fn asset_extension(asset: &ExportAsset) -> &str {
 }
 
 #[cfg(feature = "docx")]
-fn docx_table(table: &TableData) -> String {
+fn docx_table(table: &TableData, assets: &[ExportAsset]) -> String {
     let columns = table.rows.iter().map(Vec::len).max().unwrap_or(1);
     let width = 9000 / columns as u32;
     let mut xml = "<w:tbl><w:tblPr><w:tblW w:w=\"9000\" w:type=\"dxa\"/><w:tblLayout w:type=\"fixed\"/></w:tblPr><w:tblGrid>"
@@ -913,13 +1075,24 @@ fn docx_table(table: &TableData) -> String {
     for (row_index, row) in table.rows.iter().enumerate() {
         xml.push_str("<w:tr>");
         for column in 0..columns {
-            let text = row.get(column).map(String::as_str).unwrap_or("");
-            let escaped_text = escape_xml(text);
+            let cell = row.get(column);
+            let escaped_text = escape_xml(cell.map(|cell| cell.text.as_str()).unwrap_or(""));
             xml.push_str(&format!(
-                "<w:tc><w:tcPr><w:tcW w:w=\"{width}\" w:type=\"dxa\"/><w:tcMar><w:top w:w=\"100\" w:type=\"dxa\"/><w:start w:w=\"120\" w:type=\"dxa\"/><w:bottom w:w=\"100\" w:type=\"dxa\"/><w:end w:w=\"120\" w:type=\"dxa\"/></w:tcMar></w:tcPr><w:p><w:r>{}{}</w:r></w:p></w:tc>",
+                "<w:tc><w:tcPr><w:tcW w:w=\"{width}\" w:type=\"dxa\"/><w:tcMar><w:top w:w=\"100\" w:type=\"dxa\"/><w:start w:w=\"120\" w:type=\"dxa\"/><w:bottom w:w=\"100\" w:type=\"dxa\"/><w:end w:w=\"120\" w:type=\"dxa\"/></w:tcMar></w:tcPr><w:p><w:r>{}<w:t xml:space=\"preserve\">{escaped_text}</w:t></w:r></w:p>",
                 if row_index == 0 { "<w:rPr><w:b/></w:rPr>" } else { "" },
-                format_args!("<w:t xml:space=\"preserve\">{escaped_text}</w:t>")
             ));
+            if let Some(cell) = cell {
+                for image in &cell.images {
+                    if let Some((index, asset)) = assets
+                        .iter()
+                        .enumerate()
+                        .find(|(_, asset)| asset.path == image.path)
+                    {
+                        xml.push_str(&docx_image(index + 1, asset, &image.alt));
+                    }
+                }
+            }
+            xml.push_str("</w:tc>");
         }
         xml.push_str("</w:tr>");
     }
@@ -1035,6 +1208,47 @@ mod tests {
             }],
         );
         assert!(html.contains("data:image/png;base64,AQID"));
+    }
+
+    #[test]
+    fn pdf_and_word_parser_preserves_html_preview_text_and_images() {
+        let lines = document_lines(
+            "<section><h2>HTML 标题</h2><p>HTML 内容</p><img src=\"image.png\" alt=\"HTML 图片\"></section>",
+        );
+        assert!(lines.iter().any(|line| line.text.contains("HTML 标题")));
+        assert!(lines.iter().any(|line| matches!(
+            &line.kind,
+            LineKind::Image(image) if image.path == "image.png" && image.alt == "HTML 图片"
+        )));
+    }
+
+    #[test]
+    fn table_cells_keep_images_for_pdf_and_word() {
+        let mut input = request();
+        input.source =
+            "| 名称 | 预览 |\n| --- | --- |\n| 示例 | ![表格图片](image.png) |".to_owned();
+        let lines = document_lines(&input.source);
+        let table = lines
+            .iter()
+            .find_map(|line| match &line.kind {
+                LineKind::Table(table) => Some(table),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(table.rows[1][1].images[0].path, "image.png");
+
+        let pdf = render_pdf(&input).unwrap();
+        assert!(String::from_utf8_lossy(&pdf).contains("/ASCIIHexDecode"));
+        let docx = render_docx(&input).unwrap();
+        let mut archive = zip::ZipArchive::new(Cursor::new(docx)).unwrap();
+        let mut document = String::new();
+        archive
+            .by_name("word/document.xml")
+            .unwrap()
+            .read_to_string(&mut document)
+            .unwrap();
+        assert!(document.contains("<w:tbl>"));
+        assert!(document.contains("<w:drawing>"));
     }
 
     #[test]

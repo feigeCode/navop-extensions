@@ -3,7 +3,7 @@
   "id": "com.navop.exporter.notes-pdf",
   "name": "Notes PDF Exporter",
   "description": "使用 Rust WASM 将 Notes 表格、PNG/JPEG 图片和 SVG 白板预览导出为可离线分享的 PDF，并限制大图栅格尺寸以提升稳定性。 Rust WASM exporter that renders Notes tables, PNG/JPEG images, and SVG whiteboard previews into shareable PDFs with bounded raster sizes for stability.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Navop",
   "engines": { "onetcli": ">=0.8.11" },
   "api": { "extension": "1.0" },
