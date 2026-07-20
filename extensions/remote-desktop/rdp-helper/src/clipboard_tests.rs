@@ -29,6 +29,23 @@ fn local_text_advertises_unicode_clipboard_format() {
 }
 
 #[test]
+fn empty_local_clipboard_advertises_empty_format_list_during_initialization() {
+    let (input_tx, mut input_rx) = RdpInputEvent::create_channel();
+    let (output_tx, _output_rx) = output_mailbox();
+    let (_controller, factory) = text_clipboard(input_tx, output_tx);
+    let mut backend = factory.build_cliprdr_backend();
+
+    backend.on_request_format_list();
+
+    match input_rx.try_recv().expect("initial clipboard format list") {
+        RdpInputEvent::Clipboard(ClipboardMessage::SendInitiateCopy(formats)) => {
+            assert!(formats.is_empty());
+        }
+        other => panic!("expected empty clipboard advertise, got {other:?}"),
+    }
+}
+
+#[test]
 fn local_files_start_streaming_clipboard_copy() {
     let file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(file.path(), b"navop-file").unwrap();

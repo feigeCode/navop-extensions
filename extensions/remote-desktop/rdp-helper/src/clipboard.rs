@@ -156,6 +156,8 @@ impl CliprdrBackend for TextClipboardBackend {
                 .send(RdpInputEvent::ClipboardFileCopy(file_descriptors(&files)));
         } else if state.local_text.is_some() {
             self.send_clipboard(ClipboardMessage::SendInitiateCopy(text_formats()));
+        } else {
+            self.send_clipboard(ClipboardMessage::SendInitiateCopy(Vec::new()));
         }
     }
 
