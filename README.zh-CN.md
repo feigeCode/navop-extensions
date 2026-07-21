@@ -15,6 +15,7 @@ extensions/
     redis/        Rust Redis native IPC sidecar 驱动
     mongodb-modern/ Rust MongoDB 4.2+ native IPC sidecar manifest
     mongodb-legacy/ Rust MongoDB 3.6 native IPC sidecar manifest
+    mongodb-legacy-3-2/ Rust MongoDB 3.2–3.4 EOL 原生 IPC sidecar manifest
     iotdb/        Go Apache IoTDB IPC 数据库驱动
     dm/           Go 达梦 DM IPC 数据库驱动
     kingbase/     Go KingbaseES IPC 数据库驱动
@@ -80,6 +81,7 @@ docs/
 | Redis | Rust | `extensions/ipc/redis/extension.build.json` | `extensions/ipc/redis/driver.json` | native API sidecar，支持 binary-safe command/pipeline、blob 和 bounded Pub/Sub。 |
 | MongoDB Modern | Rust | `extensions/ipc/mongodb-modern/extension.build.json` | `extensions/ipc/mongodb-modern/driver.json` | 与 legacy 变体共享 IPC 实现 package，使用 MongoDB Rust Driver 3.8，服务 MongoDB 4.2+。 |
 | MongoDB Legacy | Rust | `extensions/ipc/mongodb-legacy/extension.build.json` | `extensions/ipc/mongodb-legacy/driver.json` | 与 modern 变体共享 IPC 实现 package，使用 MongoDB Rust Driver 2.8，服务 MongoDB 3.6。 |
+| MongoDB Legacy 3.2 | Rust | `extensions/ipc/mongodb-legacy-3-2/extension.build.json` | `extensions/ipc/mongodb-legacy-3-2/driver.json` | 使用 MongoDB Rust Driver 0.3 的旧 wire 实现服务 EOL MongoDB 3.2–3.4；明确不支持 SRV 与 TLS。 |
 
 国产数据库驱动在 `driver.json` 中声明 `"category": "domestic_database"`；host 侧应该使用 manifest 元数据做 UI 分组，不要硬编码具体驱动 id。
 

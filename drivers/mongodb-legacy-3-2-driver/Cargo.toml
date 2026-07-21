@@ -1,0 +1,19 @@
+[package]
+name = "mongodb-legacy-3-2-driver"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0.102"
+async-trait = "0.1"
+base64 = "0.22"
+bson-legacy = { package = "bson", version = "=0.12.2" }
+extension-driver = { git = "https://github.com/feigeCode/navop", branch = "dev" }
+extension-protocol = { git = "https://github.com/feigeCode/navop", branch = "dev" }
+mongodb-legacy32 = { package = "mongodb", version = "=0.3.10" }
+percent-encoding = "2.3"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

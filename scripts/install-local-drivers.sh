@@ -89,15 +89,20 @@ build_driver() {
   local id="$1"
   local target="$2"
   local metadata="$3"
-  local language package_name
+  local language package_name manifest_path
 
   language="$(json_value "$metadata" 'data.language || "rust"')"
   package_name="$(json_value "$metadata" 'data.package || data.binary || `${data.id}_driver`')"
+  manifest_path="$(json_value "$metadata" 'data.manifest_path || ""')"
 
   printf 'Building %s (%s, %s)\n' "$id" "$language" "$target"
   case "$language" in
     rust)
-      cargo build --release -p "$package_name" --target "$target"
+      if [ -n "$manifest_path" ]; then
+        CARGO_TARGET_DIR="${REPO_DIR}/target" cargo build --release --manifest-path "${REPO_DIR}/${manifest_path}" --target "$target"
+      else
+        cargo build --release -p "$package_name" --target "$target"
+      fi
       ;;
     go)
       bash "${SCRIPT_DIR}/build-go-driver.sh" "$id" "$target"

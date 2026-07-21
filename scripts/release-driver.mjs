@@ -183,7 +183,10 @@ function buildDriver(metadata, target) {
       ? ["build", "--release", "--manifest-path", metadata.manifest_path, "--target", target]
       : ["build", "--release", "-p", packageName, "--target", target];
     run("cargo", args, {
-      env: rustBuildEnv(target),
+      env: {
+        ...rustBuildEnv(target),
+        ...(metadata.manifest_path ? { CARGO_TARGET_DIR: path.join(repoRoot, "target") } : {}),
+      },
     });
     return;
   }

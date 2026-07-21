@@ -247,6 +247,11 @@ test("native Redis and MongoDB drivers keep standalone manifests and release met
     ["redis", "redis-driver", "extensions/ipc/redis"],
     ["mongodb-modern", "mongodb-modern-driver", "extensions/ipc/mongodb-modern"],
     ["mongodb-legacy", "mongodb-legacy-driver", "extensions/ipc/mongodb-legacy"],
+    [
+      "mongodb-legacy-3-2",
+      "mongodb-legacy-3-2-driver",
+      "extensions/ipc/mongodb-legacy-3-2",
+    ],
   ];
 
   for (const [id, binary, extensionPath] of expected) {
@@ -281,7 +286,7 @@ test("native Redis and MongoDB drivers keep standalone manifests and release met
     "event/close",
   ]);
 
-  for (const id of ["mongodb-modern", "mongodb-legacy"]) {
+  for (const id of ["mongodb-modern", "mongodb-legacy", "mongodb-legacy-3-2"]) {
     const mongo = JSON.parse(
       fs.readFileSync(path.join(repoRoot, `extensions/ipc/${id}/driver.json`), "utf8"),
     );
@@ -298,10 +303,40 @@ test("native Redis and MongoDB drivers keep standalone manifests and release met
 
 test("MongoDB variants use separate SDK generations and honest compatibility ranges", () => {
   const cargo = fs.readFileSync(path.join(repoRoot, "drivers/mongodb-driver/Cargo.toml"), "utf8");
+  const legacy32Cargo = fs.readFileSync(
+    path.join(repoRoot, "drivers/mongodb-legacy-3-2-driver/Cargo.toml"),
+    "utf8",
+  );
   assert.match(cargo, /mongodb-modern\s*=\s*\{[^\n]*package\s*=\s*"mongodb"[^\n]*version\s*=\s*"=3\.8\.0"/);
   assert.match(cargo, /mongodb-legacy\s*=\s*\{[^\n]*package\s*=\s*"mongodb"[^\n]*version\s*=\s*"=2\.8\.2"/);
+  assert.doesNotMatch(cargo, /mongodb-legacy32/);
+  assert.match(legacy32Cargo, /mongodb-legacy32\s*=\s*\{[^\n]*package\s*=\s*"mongodb"[^\n]*version\s*=\s*"=0\.3\.10"/);
   assert.ok(fs.existsSync(path.join(repoRoot, "drivers/mongodb-driver/src/modern.rs")));
   assert.ok(fs.existsSync(path.join(repoRoot, "drivers/mongodb-driver/src/legacy.rs")));
+  assert.ok(
+    fs.existsSync(path.join(repoRoot, "drivers/mongodb-legacy-3-2-driver/src/main.rs")),
+  );
+  assert.ok(
+    fs.existsSync(path.join(repoRoot, "drivers/mongodb-legacy-3-2-driver/Cargo.lock")),
+  );
+  const workspaceCargo = fs.readFileSync(path.join(repoRoot, "Cargo.toml"), "utf8");
+  assert.doesNotMatch(workspaceCargo, /drivers\/mongodb-legacy-3-2-driver/);
+  const releaseScript = fs.readFileSync(
+    path.join(repoRoot, "scripts/release-driver.mjs"),
+    "utf8",
+  );
+  assert.match(
+    releaseScript,
+    /metadata\.manifest_path \? \{ CARGO_TARGET_DIR: path\.join\(repoRoot, "target"\) \} : \{\}/,
+  );
+  const releaseWorkflow = fs.readFileSync(
+    path.join(repoRoot, ".github/workflows/release.yml"),
+    "utf8",
+  );
+  assert.match(
+    releaseWorkflow,
+    /export CARGO_TARGET_DIR="\$\{GITHUB_WORKSPACE\}\/target"/,
+  );
 
   const modern = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/mongodb-modern/driver.json"), "utf8"),
@@ -309,8 +344,15 @@ test("MongoDB variants use separate SDK generations and honest compatibility ran
   const legacy = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/mongodb-legacy/driver.json"), "utf8"),
   );
+  const legacy32 = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "extensions/ipc/mongodb-legacy-3-2/driver.json"),
+      "utf8",
+    ),
+  );
   assert.deepEqual(modern.compatibility.server, { min: "4.2" });
   assert.deepEqual(legacy.compatibility.server, { min: "3.6", max: "4.0" });
+  assert.deepEqual(legacy32.compatibility.server, { min: "3.2", max: "3.4" });
 });
 
 test("extension descriptions are bilingual, detailed, and synchronized", () => {

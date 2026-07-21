@@ -1,0 +1,24 @@
+{
+  "id": "mongodb-legacy-3-2",
+  "name": "MongoDB Legacy 3.2",
+  "description": "使用 Rust 与旧版 MongoDB wire protocol 开发的原生 IPC sidecar 驱动，面向 MongoDB 3.2 至 3.4 EOL 服务端；保留无损 BSON command/find 与大文档 blob 流，不支持 SRV 和 TLS。 Rust native IPC sidecar using the legacy MongoDB wire protocol for EOL MongoDB 3.2 through 3.4 servers, preserving lossless BSON command/find transport and large-document blob streaming without SRV or TLS support.",
+  "api": "mongodb",
+  "protocol_version": "1.0",
+  "version": "0.1.0",
+  "entry": { "command": "./mongodb-legacy-3-2-driver" },
+  "transport": { "name": "mongodb-legacy-3-2.sock" },
+  "methods": [
+    "conn/open",
+    "conn/close",
+    "mongodb/command",
+    "mongodb/find",
+    "blob/read",
+    "blob/close"
+  ],
+  "compatibility": {
+    "variant": "legacy_3_2",
+    "server": { "min": "3.2", "max": "3.4" }
+  },
+  "ui": { "show_in_new_connection": false },
+  "process": { "scope": "connection", "kill_on_drop": true }
+}

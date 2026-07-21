@@ -223,6 +223,16 @@
       "manifest": "duckdb/manifest.json"
     },
     {
+      "id": "mongodb-legacy-3-2",
+      "kind": "database_driver",
+      "name": "MongoDB Legacy 3.2",
+      "version": "0.1.0",
+      "release_tag": "mongodb-legacy-3-2-v0.1.0",
+      "description": "使用 Rust 与旧版 MongoDB wire protocol 开发的原生 IPC sidecar 驱动，面向 MongoDB 3.2 至 3.4 EOL 服务端；保留无损 BSON command/find 与大文档 blob 流，不支持 SRV 和 TLS。 Rust native IPC sidecar using the legacy MongoDB wire protocol for EOL MongoDB 3.2 through 3.4 servers, preserving lossless BSON command/find transport and large-document blob streaming without SRV or TLS support.",
+      "file_extensions": [],
+      "manifest": "mongodb-legacy-3-2/manifest.json"
+    },
+    {
       "id": "mongodb-legacy",
       "kind": "database_driver",
       "name": "MongoDB Legacy",

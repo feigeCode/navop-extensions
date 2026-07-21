@@ -145,6 +145,7 @@ jobs:
             export CMAKE_GENERATOR=Ninja
           fi
           if [ -n "${{ matrix.manifest_path }}" ]; then
+            export CARGO_TARGET_DIR="${GITHUB_WORKSPACE}/target"
             cargo build --release --manifest-path "${{ matrix.manifest_path }}" --target "${{ matrix.target }}"
           else
             cargo build --release -p "${{ matrix.package }}" --target "${{ matrix.target }}"
