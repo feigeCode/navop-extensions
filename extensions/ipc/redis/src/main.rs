@@ -24,7 +24,7 @@ use extension_protocol::redis::{
 };
 use futures::StreamExt;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
-use redis_client::aio::{ConnectionManager, ConnectionManagerConfig};
+use redis_client::aio::ConnectionManager;
 use redis_client::{Client, Cmd, Value};
 use serde_json::{Value as JsonValue, json};
 use tokio::sync::{Mutex, mpsc};
@@ -440,13 +440,8 @@ async fn open_connection_manager(
     config: &RedisConnectionConfig,
 ) -> Result<ConnectionManager, ProtocolError> {
     let client = Client::open(connection_url(config).as_str()).map_err(connection_error)?;
-    let manager_config = match connection_timeout(config) {
-        Some(duration) => ConnectionManagerConfig::new()
-            .set_connection_timeout(duration)
-            .set_response_timeout(duration),
-        None => ConnectionManagerConfig::new(),
-    };
-    ConnectionManager::new_with_config(client, manager_config)
+    client
+        .get_connection_manager()
         .await
         .map_err(connection_error)
 }
