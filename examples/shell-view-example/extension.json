@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "com.example.shell-view-example",
+  "name": "Shell View Example",
+  "version": "0.1.0",
+  "publisher": "Example",
+  "license": "Apache-2.0",
+  "description": "Navop shell view 扩展示例：演示 jsconfig 类型提示 + navop.* 模块使用。",
+  "engines": {
+    "onetcli": ">=0.15.2",
+    "gpui_shell": "0.2.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": ["shell:exec"],
+  "contributes": {
+    "shellViews": [
+      {
+        "id": "tool",
+        "title": "Tool",
+        "entry": "ui/tool.js",
+        "surface": "tab",
+        "singleton": true,
+        "backends": {},
+        "modules": ["context", "resource", "log"]
+      }
+    ]
+  }
+}

@@ -14,3 +14,4 @@ extensions/wasm/*/target/
 !extensions/language/*/parser.wasm
 .worktrees/
 .codegraph/
+packages/navop-extension-types/node_modules/

@@ -1,0 +1,18 @@
+{
+  "//": "Navop 扩展 UI 开发配置。gpui-kit.d.ts 为 gpui-shell 宿主生成（rev 65bc4ab5），navop 模块声明来自 @navop/extension-types。",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "checkJs": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "noEmit": true
+  },
+  "include": [
+    "ui/**/*.js",
+    "../../packages/navop-extension-types/src/shell/*.d.ts",
+    "../../packages/navop-extension-types/vendor/gpui-kit.d.ts"
+  ]
+}

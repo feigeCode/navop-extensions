@@ -1,0 +1,12 @@
+{
+  "//": "JS 工具扩展：类型提示来自 navop-extension-types 的 navop 模块声明与 gpui-kit.d.ts。",
+  "extends": "../shell-view-example/jsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "."
+  },
+  "include": [
+    "ui/**/*.js",
+    "../../packages/navop-extension-types/src/shell/*.d.ts",
+    "../../packages/navop-extension-types/vendor/gpui-kit.d.ts"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.tools.js-toolbox",
+  "name": "JS Toolbox",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "纯 JS 工具扩展示例：本机 hosts 编辑器与加解密/hash 工具，演示 shell 视图权限 → 运行时 capability 装配。",
+  "engines": {
+    "onetcli": ">=0.16.1",
+    "gpui_shell": "0.2.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec",
+    "fs:read:/etc/hosts",
+    "fs:write:/etc/hosts",
+    "fs:read:${pluginDir}/assets",
+    "net:tcp:api.ipify.org:443"
+  ],
+  "contributes": {
+    "shellViews": [
+      {
+        "id": "hosts-editor",
+        "title": "Hosts Editor",
+        "description": "查看并编辑本机 hosts 文件。",
+        "entry": "ui/hosts.js",
+        "surface": "tab",
+        "singleton": true,
+        "backends": {},
+        "modules": ["context", "log"]
+      },
+      {
+        "id": "crypto-tools",
+        "title": "Crypto Tools",
+        "description": "Hash / Base64 / UUID 常用加解密小工具。",
+        "entry": "ui/crypto.js",
+        "surface": "tab",
+        "singleton": true,
+        "backends": {},
+        "modules": ["log"]
+      }
+    ]
+  }
+}

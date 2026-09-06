@@ -1,0 +1,38 @@
+{
+  "name": "@navop/extension-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Navop 扩展开发 TypeScript 类型工程：manifest 类型、gpui-shell UI 模块声明、provider JSON-RPC wire 类型与 JSON Schema。",
+  "license": "Apache-2.0",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts"
+    },
+    "./manifest": {
+      "types": "./dist/manifest/index.d.ts"
+    },
+    "./shell": {
+      "types": "./dist/shell/index.d.ts"
+    },
+    "./wire": {
+      "types": "./dist/wire/index.d.ts"
+    },
+    "./schema/extension-manifest.schema.json": "./schema/extension-manifest.schema.json"
+  },
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit && node scripts/check-manifests.mjs",
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
+    "typescript": "^5.5.0"
+  }
+}
