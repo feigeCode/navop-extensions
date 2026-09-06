@@ -15,3 +15,4 @@ extensions/wasm/*/target/
 .worktrees/
 .codegraph/
 packages/navop-extension-types/node_modules/
+packages/navop-extension-types/dist/
