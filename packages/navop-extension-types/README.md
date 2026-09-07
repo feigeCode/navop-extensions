@@ -16,6 +16,13 @@ gen-gpui-typings.rs            # 重新生成 vendor/gpui-kit.d.ts 的源码（�
 
 ## 使用
 
+### 0. 工具箱（surface: "toolbox"）
+
+小工具（hosts 编辑、加解密等）与连接扩展（ES/Docker）通过 `shellViews[].surface` 区分：
+
+- `surface: "toolbox"`：工具箱页聚合卡片，`category` 分组、`keywords` 搜索；禁止 `backends` 与 `resource/job/event/blob/context/runtime` 模块（仅 `log`），权限走 `fs:read:`/`fs:write:`/`net:tcp:`/`spawn:` → 运行时 capabilities。
+- `surface: "tab"`（默认）：连接关联 UI（`contributes.connections[].shellViewId`）或扩展管理页入口。
+
 ### 1. manifest 类型（Node/TS 工具链）
 
 ```ts

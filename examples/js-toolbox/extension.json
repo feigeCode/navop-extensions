@@ -28,20 +28,24 @@
         "title": "Hosts Editor",
         "description": "查看并编辑本机 hosts 文件。",
         "entry": "ui/hosts.js",
-        "surface": "tab",
+        "surface": "toolbox",
         "singleton": true,
+        "category": "system",
+        "keywords": ["hosts", "dns"],
         "backends": {},
-        "modules": ["context", "log"]
+        "modules": ["log"]
       },
       {
         "id": "crypto-tools",
         "title": "Crypto Tools",
         "description": "Hash / Base64 / UUID 常用加解密小工具。",
         "entry": "ui/crypto.js",
-        "surface": "tab",
+        "surface": "toolbox",
         "singleton": true,
+        "category": "text",
+        "keywords": ["hash", "base64", "uuid", "md5", "sha256"],
         "backends": {},
-        "modules": ["log"]
+        "modules": []
       }
     ]
   }

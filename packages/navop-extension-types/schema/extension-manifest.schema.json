@@ -247,8 +247,10 @@
         "description": { "type": "string" },
         "icon": { "type": "string" },
         "entry": { "type": "string" },
-        "surface": { "enum": ["tab"] },
+        "surface": { "enum": ["tab", "toolbox"] },
         "singleton": { "type": "boolean" },
+        "category": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
         "backends": {
           "type": "object",
           "additionalProperties": { "type": "string" }

@@ -130,7 +130,8 @@ export interface ContributesManifest {
 
 // -- shell 视图（deny_unknown_fields：多余字段会被 parser 拒绝） --
 
-export type ShellSurface = 'tab';
+/** `tab`：普通 tab 视图；`toolbox`：工具箱页聚合的小工具卡片。 */
+export type ShellSurface = 'tab' | 'toolbox';
 export type ShellHostModule =
   | 'context'
   | 'resource'
@@ -151,10 +152,14 @@ export interface ShellViewContrib {
   surface?: ShellSurface;
   /** 独立工具页建议 true；连接关联视图必须 false。 */
   singleton?: boolean;
-  /** alias → runtimeId 映射。 */
+  /** alias → runtimeId 映射；toolbox surface 必须为空。 */
   backends?: Record<string, string>;
-  /** 声明注入的 navop.* host 模块。 */
+  /** 声明注入的 navop.* host 模块；toolbox surface 仅允许 `log`。 */
   modules?: ShellHostModule[];
+  /** toolbox 专用：卡片分类（如 `text`、`network`、`system`）。 */
+  category?: string;
+  /** toolbox 专用：搜索关键词，补充 title/description 匹配。 */
+  keywords?: string[];
 }
 
 // -- 连接（deny_unknown_fields） --
