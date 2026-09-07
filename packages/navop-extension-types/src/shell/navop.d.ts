@@ -183,3 +183,35 @@ declare module 'navop.log' {
   export function warn(message: string): void;
   export function error(message: string): void;
 }
+
+/**
+ * 开发者工具（`navop.dev`）。仅 `modules: ["dev"]` 的 shell view 可用；
+ * 操作 main 层 DevExtensionRegistry（本地工程目录加载/卸载/视图打开）。
+ */
+declare module 'navop.dev' {
+  export interface DevViewInfo {
+    id: string;
+    title: string;
+    surface: string;
+    category?: string;
+  }
+
+  export interface DevProjectInfo {
+    root: string;
+    id: string;
+    name: string;
+    version: string;
+    error?: string;
+    views: DevViewInfo[];
+  }
+
+  export function list(): DevProjectInfo[];
+
+  export function open(rootDir: string): { id: string; error?: string };
+
+  export function remove(rootDir: string): void;
+
+  export function openView(extensionId: string, viewId: string): void;
+
+  export function logs(rootDir: string, tail?: number): string[];
+}

@@ -1,0 +1,18 @@
+{
+  "//": "dev-tools 插件 jsconfig。navop.dev 模块声明来自 navop-extension-types。",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "checkJs": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "noEmit": true
+  },
+  "include": [
+    "ui/**/*.js",
+    "../../packages/navop-extension-types/src/shell/*.d.ts",
+    "../../packages/navop-extension-types/vendor/gpui-kit.d.ts"
+  ]
+}

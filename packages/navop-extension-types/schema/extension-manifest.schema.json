@@ -258,7 +258,7 @@
         "modules": {
           "type": "array",
           "items": {
-            "enum": ["context", "resource", "job", "event", "blob", "log", "runtime"]
+            "enum": ["context", "resource", "job", "event", "blob", "log", "runtime", "dev"]
           }
         }
       }

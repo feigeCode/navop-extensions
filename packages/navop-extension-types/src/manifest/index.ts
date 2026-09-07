@@ -139,7 +139,8 @@ export type ShellHostModule =
   | 'event'
   | 'blob'
   | 'log'
-  | 'runtime';
+  | 'runtime'
+  | 'dev';
 
 export interface ShellViewContrib {
   id: string;
