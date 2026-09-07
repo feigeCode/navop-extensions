@@ -1,7 +1,7 @@
 import { View, div } from 'gpui';
 import { v_flex, h_flex } from 'gpui-base';
 import { Button, Input, InputState } from 'gpui-component';
-import { list, logs, open, openView, reload, remove } from 'navop.dev';
+import { list, logs, open, openView, reload, remove, watch } from 'navop.dev';
 import { info, error as logError } from 'navop.log';
 
 export default class DevWorkbench extends View {
@@ -15,6 +15,8 @@ export default class DevWorkbench extends View {
   logRoot = null;
   /** @type {string[]} */
   logLines = [];
+  /** @type {Set<string>} */
+  watched = new Set();
 
   /**
    * @param {unknown} _props
@@ -114,6 +116,30 @@ export default class DevWorkbench extends View {
    * @param {string} root
    * @param {import('gpui').AsyncContext} cx
    */
+  toggleWatch(root, cx) {
+    try {
+      if (this.watched.has(root)) {
+        this.watched.delete(root);
+        info(`watch stopped: ${root}`);
+      } else {
+        const result = watch(root);
+        if (result && result.error) {
+          this.error = result.error;
+        } else {
+          this.watched.add(root);
+          info(`watch started: ${root}`);
+        }
+      }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    }
+    cx.notify();
+  }
+
+  /**
+   * @param {string} root
+   * @param {import('gpui').AsyncContext} cx
+   */
   removeProject(root, cx) {
     try {
       remove(root);
@@ -176,6 +202,12 @@ export default class DevWorkbench extends View {
           .child(div().font_semibold().child(project.error ? '⚠︎ ' + project.name : project.name))
           .child(div().text_color('#888888').child(`v${project.version}`))
           .child(div().text_color('#888888').child(project.root))
+          .child(
+            new Button(`dev-watch-${project.root}`)
+              .label(this.watched.has(project.root) ? '● 监听中' : '监听')
+              .ghost()
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.toggleWatch(project.root, cx))),
+          )
           .child(
             new Button(`dev-logs-${project.root}`)
               .label('日志')
