@@ -213,6 +213,12 @@ declare module 'navop.dev' {
 
   export function watch(rootDir: string): { watching: boolean; error?: string };
 
+  /** 弹出原生目录选择(结果经 pickResult 轮询)。 */
+  export function pickDirectory(): 'pending';
+
+  /** 读取 pickDirectory 的结果;未完成返回 null。 */
+  export function pickResult(): string | null;
+
   export function remove(rootDir: string): void;
 
   export function openView(extensionId: string, viewId: string): void;

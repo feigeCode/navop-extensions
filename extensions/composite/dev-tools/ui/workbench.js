@@ -1,12 +1,20 @@
 import { View, div } from 'gpui';
 import { v_flex, h_flex } from 'gpui-base';
-import { Button, Input, InputState } from 'gpui-component';
-import { list, logs, open, openView, reload, remove, watch } from 'navop.dev';
+import { Button } from 'gpui-component';
+import {
+  list,
+  logs,
+  open,
+  openView,
+  pickDirectory,
+  pickResult,
+  reload,
+  remove,
+  watch,
+} from 'navop.dev';
 import { info, error as logError } from 'navop.log';
 
 export default class DevWorkbench extends View {
-  /** @type {any} */
-  pathInput;
   /** @type {any[]} */
   projects = [];
   /** @type {string | null} */
@@ -17,14 +25,29 @@ export default class DevWorkbench extends View {
   logLines = [];
   /** @type {Set<string>} */
   watched = new Set();
+  /** @type {boolean} */
+  picking = false;
 
   /**
    * @param {unknown} _props
    * @param {import('gpui').AsyncContext} cx
    */
   init(_props, cx) {
-    this.pathInput = InputState('本地工程目录（含 extension.json）');
     this.refresh(cx);
+    this.startPickPolling(cx);
+  }
+
+  /**
+   * @param {import('gpui').AsyncContext} cx
+   */
+  startPickPolling(cx) {
+    cx.timer.every(400, () => {
+      const picked = pickResult();
+      if (picked && this.picking) {
+        this.picking = false;
+        this.loadProjectPath(String(picked), cx);
+      }
+    });
   }
 
   /**
@@ -44,13 +67,21 @@ export default class DevWorkbench extends View {
   /**
    * @param {import('gpui').AsyncContext} cx
    */
-  loadProject(cx) {
-    const root = this.pathInput.value().trim();
-    if (!root) {
-      this.error = '请输入工程目录';
-      cx.notify();
-      return;
+  chooseDirectory(cx) {
+    try {
+      pickDirectory();
+      this.picking = true;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
     }
+    cx.notify();
+  }
+
+  /**
+   * @param {string} root
+   * @param {import('gpui').AsyncContext} cx
+   */
+  loadProjectPath(root, cx) {
     try {
       const result = open(root);
       if (result && result.error) {
@@ -161,20 +192,29 @@ export default class DevWorkbench extends View {
       .child(
         h_flex()
           .gap(8)
-          .child(new Input(this.pathInput).aria_label('project root').flex_1())
           .child(
-            new Button('dev-load')
-              .label('加载')
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.loadProject(cx))),
+            new Button('dev-pick-dir')
+              .label(this.picking ? '选择目录中…' : '加上开发工程…')
+              .primary()
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.chooseDirectory(cx))),
           )
           .child(
             new Button('dev-refresh')
               .label('刷新')
+              .ghost()
               .on_click((_e, cx) => cx.spawn(async (cx) => this.refresh(cx))),
           ),
       )
       .when(this.error, (el) =>
         el.child(div().text_color('#cc0000').whitespace_nowrap().child(this.error)),
+      )
+      .when(this.projects.length === 0, (el) =>
+        el.child(
+          div()
+            .text_sm()
+            .text_color(cx.theme().muted_foreground ?? '#888888')
+            .child('点击「加上开发工程」选择本地扩展工程目录（含 extension.json）。'),
+        ),
       )
       .children(
         this.projects.map(
@@ -233,7 +273,9 @@ export default class DevWorkbench extends View {
           .child(
             new Button(`dev-reload-${project.root}`)
               .label('重试加载')
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.loadProject(cx))),
+              .on_click((_e, cx) =>
+                cx.spawn(async (cx) => this.loadProjectPath(project.root, cx)),
+              ),
           ),
       )
       .when(views.length > 0, (el) =>
