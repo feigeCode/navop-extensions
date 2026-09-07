@@ -152,9 +152,9 @@ export interface ShellViewContrib {
   surface?: ShellSurface;
   /** 独立工具页建议 true；连接关联视图必须 false。 */
   singleton?: boolean;
-  /** alias → runtimeId 映射；toolbox surface 必须为空。 */
+  /** alias → runtimeId 映射；toolbox 视图也可声明后端（工具自建资源）。 */
   backends?: Record<string, string>;
-  /** 声明注入的 navop.* host 模块；toolbox surface 仅允许 `log`。 */
+  /** 声明注入的 navop.* host 模块。 */
   modules?: ShellHostModule[];
   /** toolbox 专用：卡片分类（如 `text`、`network`、`system`）。 */
   category?: string;
