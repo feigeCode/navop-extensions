@@ -1,0 +1,10 @@
+{
+  "id": "dev-tools",
+  "kind": "composite",
+  "language": "static",
+  "package": "dev-tools",
+  "path": "extensions/composite/dev-tools",
+  "targets": ["universal"],
+  "releaseTagPrefix": "dev-tools-v",
+  "r2Prefix": "extensions/dev-tools"
+}
