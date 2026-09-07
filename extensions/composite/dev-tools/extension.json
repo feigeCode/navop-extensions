@@ -27,7 +27,7 @@
         "surface": "tab",
         "singleton": true,
         "backends": {},
-        "modules": ["dev"]
+        "modules": ["dev", "log"]
       }
     ]
   }
