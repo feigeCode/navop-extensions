@@ -1,7 +1,7 @@
 import { View, div } from 'gpui';
 import { v_flex, h_flex } from 'gpui-base';
 import { Button, Input, InputState } from 'gpui-component';
-import { list, open, remove, openView } from 'navop.dev';
+import { list, open, remove, openView, reload } from 'navop.dev';
 import { info, error as logError } from 'navop.log';
 
 export default class DevWorkbench extends View {
@@ -77,6 +77,25 @@ export default class DevWorkbench extends View {
    * @param {string} root
    * @param {import('gpui').AsyncContext} cx
    */
+  reloadProject(root, cx) {
+    try {
+      const result = reload(root);
+      if (result && result.error) {
+        this.error = result.error;
+      } else {
+        this.error = null;
+        info(`dev project reloaded: ${root}`);
+      }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    }
+    this.refresh(cx);
+  }
+
+  /**
+   * @param {string} root
+   * @param {import('gpui').AsyncContext} cx
+   */
   removeProject(root, cx) {
     try {
       remove(root);
@@ -139,6 +158,12 @@ export default class DevWorkbench extends View {
           .child(div().font_semibold().child(project.error ? '⚠︎ ' + project.name : project.name))
           .child(div().text_color('#888888').child(`v${project.version}`))
           .child(div().text_color('#888888').child(project.root))
+          .child(
+            new Button(`dev-reload-${project.root}`)
+              .label('Reload')
+              .ghost()
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.reloadProject(project.root, cx))),
+          )
           .child(
             new Button(`dev-remove-${project.root}`)
               .label('移除')

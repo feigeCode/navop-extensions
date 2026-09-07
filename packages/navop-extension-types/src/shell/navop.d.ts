@@ -209,6 +209,8 @@ declare module 'navop.dev' {
 
   export function open(rootDir: string): { id: string; error?: string };
 
+  export function reload(rootDir: string): { error?: string };
+
   export function remove(rootDir: string): void;
 
   export function openView(extensionId: string, viewId: string): void;

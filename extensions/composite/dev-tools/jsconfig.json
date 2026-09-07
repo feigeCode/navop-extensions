@@ -12,7 +12,7 @@
   },
   "include": [
     "ui/**/*.js",
-    "../../packages/navop-extension-types/src/shell/*.d.ts",
-    "../../packages/navop-extension-types/vendor/gpui-kit.d.ts"
+    "../../../packages/navop-extension-types/src/shell/*.d.ts",
+    "../../../packages/navop-extension-types/vendor/gpui-kit.d.ts"
   ]
 }
