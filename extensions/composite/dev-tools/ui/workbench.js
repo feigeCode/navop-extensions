@@ -1,7 +1,7 @@
 import { View, div } from 'gpui';
 import { v_flex, h_flex } from 'gpui-base';
 import { Button, Input, InputState } from 'gpui-component';
-import { list, open, remove, openView, reload } from 'navop.dev';
+import { list, logs, open, openView, reload, remove } from 'navop.dev';
 import { info, error as logError } from 'navop.log';
 
 export default class DevWorkbench extends View {
@@ -11,6 +11,10 @@ export default class DevWorkbench extends View {
   projects = [];
   /** @type {string | null} */
   error = null;
+  /** @type {string | null} */
+  logRoot = null;
+  /** @type {string[]} */
+  logLines = [];
 
   /**
    * @param {unknown} _props
@@ -96,6 +100,20 @@ export default class DevWorkbench extends View {
    * @param {string} root
    * @param {import('gpui').AsyncContext} cx
    */
+  showLogs(root, cx) {
+    try {
+      this.logLines = logs(root, 200);
+      this.logRoot = root;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    }
+    cx.notify();
+  }
+
+  /**
+   * @param {string} root
+   * @param {import('gpui').AsyncContext} cx
+   */
   removeProject(root, cx) {
     try {
       remove(root);
@@ -159,6 +177,12 @@ export default class DevWorkbench extends View {
           .child(div().text_color('#888888').child(`v${project.version}`))
           .child(div().text_color('#888888').child(project.root))
           .child(
+            new Button(`dev-logs-${project.root}`)
+              .label('日志')
+              .ghost()
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.showLogs(project.root, cx))),
+          )
+          .child(
             new Button(`dev-reload-${project.root}`)
               .label('Reload')
               .ghost()
@@ -193,6 +217,35 @@ export default class DevWorkbench extends View {
                       cx.spawn(async (cx) => this.launchView(project.id, view.id, cx)),
                     ),
               ),
+            ),
+        ),
+      )
+      .when(this.logRoot === project.root, (el) =>
+        el.child(
+          div()
+            .child(
+              div()
+                .text_xs()
+                .text_color(cx.theme().muted_foreground ?? '#888888')
+                .child('操作日志'),
+            )
+            .child(
+              div()
+                .border_1()
+                .border_color(cx.theme().border ?? '#888888')
+                .rounded(6)
+                .p(8)
+                .overflow_y_scroll()
+                .child(
+                  this.logLines.length
+                    ? div().children(
+                        this.logLines.map(
+                          /** @param {string} line */ (line) =>
+                            div().text_xs().whitespace_nowrap().child(line),
+                        ),
+                      )
+                    : div().text_xs().text_color('#888888').child('（无日志）'),
+                ),
             ),
         ),
       );
