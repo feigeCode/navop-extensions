@@ -202,14 +202,21 @@ declare module 'navop.dev' {
     name: string;
     version: string;
     error?: string;
+    watching: boolean;
     views: DevViewInfo[];
   }
 
   export function list(): DevProjectInfo[];
 
-  export function open(rootDir: string): { id: string; error?: string };
+  export interface DevProjectResult {
+    root: string;
+    id: string;
+    error?: string;
+  }
 
-  export function reload(rootDir: string): { error?: string };
+  export function open(rootDir: string): DevProjectResult;
+
+  export function reload(rootDir: string): DevProjectResult;
 
   export function watch(rootDir: string): { watching: boolean; error?: string };
 
@@ -219,7 +226,7 @@ declare module 'navop.dev' {
   /** 读取 pickDirectory 的结果;未完成返回 null。 */
   export function pickResult(): string | null;
 
-  export function remove(rootDir: string): void;
+  export function remove(rootDir: string): DevProjectResult;
 
   export function openView(extensionId: string, viewId: string): void;
 

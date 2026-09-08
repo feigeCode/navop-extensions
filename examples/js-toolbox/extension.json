@@ -16,8 +16,8 @@
   },
   "permissions": [
     "shell:exec",
-    "fs:read:/etc/hosts",
-    "fs:write:/etc/hosts",
+    "fs:read:/etc",
+    "fs:write:/etc",
     "fs:read:${pluginDir}/assets",
     "net:tcp:api.ipify.org:443"
   ],

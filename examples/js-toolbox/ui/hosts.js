@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'fs/promises';
 import { View, div } from 'gpui';
-import { v_flex, h_flex } from 'gpui-base';
-import { Button, Input, InputState } from 'gpui-component';
+import { v_flex, h_flex, Input, InputState } from 'gpui-base';
+import { Button } from 'gpui-component';
 import { info, error as logError } from 'navop.log';
 
 const HOSTS_PATH = '/etc/hosts';
@@ -31,7 +31,7 @@ export default class HostsEditor extends View {
    * @param {import('gpui').AsyncContext} cx
    */
   init(_props, cx) {
-    this.content = InputState('hosts content');
+    this.content = InputState.new({ placeholder: 'hosts content' });
     cx.spawn(async (cx) => this.load(cx));
   }
 
@@ -77,7 +77,7 @@ export default class HostsEditor extends View {
       .gap(12)
       .child(div().font_semibold().child(`Hosts — ${HOSTS_PATH}`))
       .when(this.error, (el) => renderError(el, this.error))
-      .when(this.loaded, (el) => el.child(new Input(this.content).flex_1().min_h_0()))
+      .when(this.loaded, (el) => el.child(Input.new(this.content).flex_1().min_h_0()))
       .child(
         h_flex()
           .gap(8)

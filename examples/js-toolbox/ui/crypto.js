@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'crypto';
 import { Buffer } from 'buffer';
 import { View, div } from 'gpui';
-import { v_flex, h_flex } from 'gpui-base';
-import { Button, Input, InputState } from 'gpui-component';
+import { v_flex, h_flex, Input, InputState } from 'gpui-base';
+import { Button } from 'gpui-component';
 
 export default class CryptoTools extends View {
   /**
@@ -11,7 +11,7 @@ export default class CryptoTools extends View {
    */
   init(_props, _cx) {
     /** @type {any} */
-    this.text = InputState('text to transform');
+    this.text = InputState.new({ placeholder: 'text to transform' });
     this.result = '';
     this.algorithm = 'sha256';
   }
@@ -19,7 +19,7 @@ export default class CryptoTools extends View {
   /**
    * @param {string} kind
    */
-  run(kind) {
+  run(kind, cx) {
     const value = this.text.value();
     if (kind === 'uuid') {
       this.result = randomUUID();
@@ -30,6 +30,7 @@ export default class CryptoTools extends View {
     } else {
       this.result = String(createHash(this.algorithm).update(value).digest('hex'));
     }
+    cx.notify();
   }
   render() {
     return v_flex()
@@ -37,7 +38,7 @@ export default class CryptoTools extends View {
       .p(16)
       .gap(12)
       .child(div().font_semibold().child('Crypto Tools'))
-      .child(new Input(this.text).aria_label('text'))
+      .child(Input.new(this.text))
       .child(
         /** @type {any} */ (
           h_flex()
@@ -47,16 +48,16 @@ export default class CryptoTools extends View {
                 (algorithm) =>
                   new Button(`hash-${algorithm}`)
                     .label(algorithm)
-                    .on_click(() => {
+                    .on_click((_event, cx) => {
                       this.algorithm = algorithm;
-                      this.run('hash');
+                      this.run('hash', cx);
                     }),
               ),
             )
             .children([
-              new Button('b64-encode').label('Base64 encode').on_click(() => this.run('base64-encode')),
-              new Button('b64-decode').label('Base64 decode').on_click(() => this.run('base64-decode')),
-              new Button('uuid').label('UUID').on_click(() => this.run('uuid')),
+              new Button('b64-encode').label('Base64 encode').on_click((_event, cx) => this.run('base64-encode', cx)),
+              new Button('b64-decode').label('Base64 decode').on_click((_event, cx) => this.run('base64-decode', cx)),
+              new Button('uuid').label('UUID').on_click((_event, cx) => this.run('uuid', cx)),
             ])
         ),
       )

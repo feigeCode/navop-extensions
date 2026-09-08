@@ -23,10 +23,14 @@ export default class DevWorkbench extends View {
   logRoot = null;
   /** @type {string[]} */
   logLines = [];
-  /** @type {Set<string>} */
-  watched = new Set();
+  /** @type {string | null} */
+  selectedRoot = null;
   /** @type {boolean} */
   picking = false;
+  /** @type {string | null} */
+  openingView = null;
+  /** @type {string | null} */
+  status = null;
 
   /**
    * @param {unknown} _props
@@ -43,9 +47,13 @@ export default class DevWorkbench extends View {
   startPickPolling(cx) {
     cx.timer.every(400, () => {
       const picked = pickResult();
-      if (picked && this.picking) {
+      if (picked !== null && this.picking) {
         this.picking = false;
-        this.loadProjectPath(String(picked), cx);
+        if (String(picked).trim()) {
+          this.loadProjectPath(String(picked), cx);
+        } else {
+          cx.notify();
+        }
       }
     });
   }
@@ -56,7 +64,9 @@ export default class DevWorkbench extends View {
   refresh(cx) {
     try {
       this.projects = list();
-      this.error = null;
+      if (!this.selectedRoot || !this.projects.some((project) => project.root === this.selectedRoot)) {
+        this.selectedRoot = this.projects[0]?.root ?? null;
+      }
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       logError(`dev list failed: ${this.error}`);
@@ -84,11 +94,12 @@ export default class DevWorkbench extends View {
   loadProjectPath(root, cx) {
     try {
       const result = open(root);
-      if (result && result.error) {
-        this.error = result.error;
-      } else {
+      if (!result?.error) {
         this.error = null;
+        this.selectedRoot = root;
         info(`dev project loaded: ${result && result.id}`);
+      } else {
+        this.selectedRoot = root;
       }
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -102,12 +113,17 @@ export default class DevWorkbench extends View {
    * @param {import('gpui').AsyncContext} cx
    */
   launchView(extensionId, viewId, cx) {
+    const viewKey = `${extensionId}/${viewId}`;
+    this.openingView = viewKey;
+    this.status = null;
     try {
       openView(extensionId, viewId);
+      this.status = `已请求打开 ${viewId}`;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      cx.notify();
     }
+    this.openingView = null;
+    cx.notify();
   }
 
   /**
@@ -117,9 +133,7 @@ export default class DevWorkbench extends View {
   reloadProject(root, cx) {
     try {
       const result = reload(root);
-      if (result && result.error) {
-        this.error = result.error;
-      } else {
+      if (!result?.error) {
         this.error = null;
         info(`dev project reloaded: ${root}`);
       }
@@ -149,22 +163,13 @@ export default class DevWorkbench extends View {
    */
   toggleWatch(root, cx) {
     try {
-      if (this.watched.has(root)) {
-        this.watched.delete(root);
-        info(`watch stopped: ${root}`);
-      } else {
-        const result = watch(root);
-        if (result && result.error) {
-          this.error = result.error;
-        } else {
-          this.watched.add(root);
-          info(`watch started: ${root}`);
-        }
-      }
+      const result = watch(root);
+      if (result && result.error) this.error = result.error;
+      else info(`watch ${result.watching ? 'started' : 'stopped'}: ${root}`);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     }
-    cx.notify();
+    this.refresh(cx);
   }
 
   /**
@@ -173,7 +178,8 @@ export default class DevWorkbench extends View {
    */
   removeProject(root, cx) {
     try {
-      remove(root);
+      const result = remove(root);
+      if (!result?.error && this.selectedRoot === root) this.selectedRoot = null;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     }
@@ -188,140 +194,84 @@ export default class DevWorkbench extends View {
       .size_full()
       .p(16)
       .gap(12)
-      .child(div().font_semibold().text_size(16).child('开发者工具 · 扩展工程调试'))
+      .child(div().font_semibold().text_size(18).child('开发者工具'))
+      .child(div().text_sm().text_color(cx.theme().muted_foreground).child('扩展工程调试'))
       .child(
         h_flex()
           .gap(8)
           .child(
             new Button('dev-pick-dir')
-              .label(this.picking ? '选择目录中…' : '加上开发工程…')
+              .label(this.picking ? '选择目录中…' : '添加工程…')
               .primary()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.chooseDirectory(cx))),
+              .on_click((_e, cx) => this.chooseDirectory(cx))
+              .disabled(this.picking),
           )
           .child(
             new Button('dev-refresh')
               .label('刷新')
               .ghost()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.refresh(cx))),
+              .on_click((_e, cx) => this.refresh(cx)),
           ),
       )
-      .when(this.error, (el) =>
-        el.child(div().text_color('#cc0000').whitespace_nowrap().child(this.error)),
-      )
-      .when(this.projects.length === 0, (el) =>
-        el.child(
-          div()
-            .text_sm()
-            .text_color(cx.theme().muted_foreground ?? '#888888')
-            .child('点击「加上开发工程」选择本地扩展工程目录（含 extension.json）。'),
-        ),
-      )
-      .children(
-        this.projects.map(
-          /** @param {any} project */ (project) => this.renderProject(project, cx),
-        ),
-      );
+      .when(this.error, (el) => el.child(div().text_color(cx.theme().destructive).child(this.error)))
+      .when(this.status, (el) => el.child(div().text_sm().text_color(cx.theme().accent).child(this.status)))
+      .child(this.renderWorkspace(cx));
+  }
+
+  /** @param {import('gpui').Context} cx */
+  renderWorkspace(cx) {
+    const selected = this.projects.find((project) => project.root === this.selectedRoot);
+    return h_flex()
+      .flex_1()
+      .min_h_0()
+      .gap(16)
+      .child(this.renderProjectList(cx))
+      .child(selected ? this.renderProjectDetails(selected, cx) : div().flex_1().child('请选择一个开发工程。'));
+  }
+
+  /** @param {import('gpui').Context} cx */
+  renderProjectList(cx) {
+    return v_flex()
+      .w(260)
+      .flex_shrink_0()
+      .gap(6)
+      .children(this.projects.map((project) =>
+        new Button(`dev-select-${project.root}`)
+          .label(`${project.name || '未命名工程'}${project.error ? ' · 加载失败' : ''}`)
+          .ghost()
+          .on_click((_event, cx) => {
+            this.selectedRoot = project.root;
+            cx.notify();
+          }),
+      ));
   }
 
   /**
    * @param {any} project
    * @param {import('gpui').Context} cx
    */
-  renderProject(project, cx) {
+  renderProjectDetails(project, cx) {
     const views = project.views || [];
     return v_flex()
-      .id(`dev-project-${project.root}`)
-      .border_1()
-      .border_color(cx.theme().border ?? '#888888')
-      .rounded(8)
-      .p(12)
-      .gap(8)
-      .child(
-        h_flex()
-          .gap(8)
-          .child(div().font_semibold().child(project.error ? '⚠︎ ' + project.name : project.name))
-          .child(div().text_color('#888888').child(`v${project.version}`))
-          .child(div().text_color('#888888').child(project.root))
-          .child(
-            new Button(`dev-watch-${project.root}`)
-              .label(this.watched.has(project.root) ? '● 监听中' : '监听')
-              .ghost()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.toggleWatch(project.root, cx))),
-          )
-          .child(
-            new Button(`dev-logs-${project.root}`)
-              .label('日志')
-              .ghost()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.showLogs(project.root, cx))),
-          )
-          .child(
-            new Button(`dev-reload-${project.root}`)
-              .label('Reload')
-              .ghost()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.reloadProject(project.root, cx))),
-          )
-          .child(
-            new Button(`dev-remove-${project.root}`)
-              .label('移除')
-              .ghost()
-              .on_click((_e, cx) => cx.spawn(async (cx) => this.removeProject(project.root, cx))),
-          ),
-      )
-      .when(project.error, (el) =>
-        el
-          .child(div().text_color('#cc0000').whitespace_nowrap().child(project.error))
-          .child(
-            new Button(`dev-reload-${project.root}`)
-              .label('重试加载')
-              .on_click((_e, cx) =>
-                cx.spawn(async (cx) => this.loadProjectPath(project.root, cx)),
-              ),
-          ),
-      )
-      .when(views.length > 0, (el) =>
-        el.child(
-          h_flex()
-            .gap(8)
-            .children(
-              views.map(
-                /** @param {any} view */ (view) =>
-                  new Button(`dev-open-${project.id}-${view.id}`)
-                    .label(`打开 ${view.title}`)
-                    .on_click((_e, cx) =>
-                      cx.spawn(async (cx) => this.launchView(project.id, view.id, cx)),
-                    ),
-              ),
-            ),
+      .flex_1()
+      .min_w_0()
+      .min_h_0()
+      .gap(10)
+      .child(h_flex().gap(8).child(div().font_semibold().child(project.name)).child(div().text_color(cx.theme().muted_foreground).child(`v${project.version}`)))
+      .child(div().text_sm().text_color(cx.theme().muted_foreground).child(project.root))
+      .child(div().text_sm().child(project.error ? `状态：加载失败 · ${project.error}` : `状态：${project.watching ? '监听中' : '就绪'}`))
+      .child(h_flex().gap(8)
+        .child(new Button(`dev-watch-${project.root}`).label(project.watching ? '停止监听' : '开启监听').ghost().on_click((_event, cx) => this.toggleWatch(project.root, cx)))
+        .child(new Button(`dev-reload-${project.root}`).label('重新加载').ghost().on_click((_event, cx) => this.reloadProject(project.root, cx)))
+        .child(new Button(`dev-remove-${project.root}`).label('移除工程').ghost().on_click((_event, cx) => this.removeProject(project.root, cx)))
+        .child(new Button(`dev-logs-${project.root}`).label('刷新日志').ghost().on_click((_event, cx) => this.showLogs(project.root, cx))))
+      .child(div().font_semibold().child('扩展视图'))
+      .child(v_flex().gap(6).children(views.map(
+        /** @param {any} view */ (view) =>
+        h_flex().gap(8).child(div().flex_1().child(`${view.title} · ${view.surface}`)).child(
+          new Button(`dev-open-${project.id}-${view.id}`).label('打开').on_click((_event, cx) => this.launchView(project.id, view.id, cx)).disabled(Boolean(project.error)),
         ),
-      )
-      .when(this.logRoot === project.root, (el) =>
-        el.child(
-          div()
-            .child(
-              div()
-                .text_xs()
-                .text_color(cx.theme().muted_foreground ?? '#888888')
-                .child('操作日志'),
-            )
-            .child(
-              div()
-                .border_1()
-                .border_color(cx.theme().border ?? '#888888')
-                .rounded(6)
-                .p(8)
-                .overflow_y_scroll()
-                .child(
-                  this.logLines.length
-                    ? div().children(
-                        this.logLines.map(
-                          /** @param {string} line */ (line) =>
-                            div().text_xs().whitespace_nowrap().child(line),
-                        ),
-                      )
-                    : div().text_xs().text_color('#888888').child('（无日志）'),
-                ),
-            ),
-        ),
-      );
+      )))
+      .when(this.logRoot === project.root, (el) => el.child(div().max_h(180).overflow_y_scroll().child(this.logLines.length ? div().children(this.logLines.map((line) => div().text_xs().child(line))) : div().text_xs().child('（无日志）'))));
   }
 }
