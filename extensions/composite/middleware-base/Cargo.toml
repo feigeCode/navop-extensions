@@ -1,0 +1,9 @@
+[package]
+name = "middleware-contract"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

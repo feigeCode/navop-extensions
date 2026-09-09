@@ -1,0 +1,23 @@
+[package]
+name = "mqtt-provider"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+extension-protocol = { workspace = true }
+interprocess = { workspace = true, features = ["tokio"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# 契约 crate(标准 §3 数据模型/方法名常量/响应包装),经 src/contract.rs 统一再导出
+middleware-contract = { path = "../middleware-base" }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+rumqttc = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+extension-host = { workspace = true }
+tempfile = "3"
