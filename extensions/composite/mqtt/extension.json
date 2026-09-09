@@ -6,7 +6,7 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "面向 MQTT 3.1.1 的中间件管理扩展,支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
+  "description": "面向 MQTT 3.1.1 的中间件管理扩展，支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
   "categories": ["middleware", "messaging", "developer-tools"],
   "keywords": ["mqtt", "middleware", "iot", "messaging", "pubsub"],
   "engines": {
@@ -45,7 +45,7 @@
       {
         "id": "mqtt",
         "label": "MQTT",
-        "description": "Connect to an MQTT 3.1.1 broker.",
+        "description": "连接 MQTT Broker，管理订阅与消息查询。",
         "runtimeId": "main",
         "resourceType": "middleware",
         "shellViewId": "console",
@@ -53,11 +53,11 @@
           "tabs": [
             {
               "id": "general",
-              "label": "General",
+              "label": "常规",
               "fields": [
                 {
                   "id": "host",
-                  "label": "Host",
+                  "label": "主机",
                   "fieldType": "Text",
                   "required": true,
                   "defaultValue": "127.0.0.1",
@@ -65,7 +65,7 @@
                 },
                 {
                   "id": "port",
-                  "label": "Port",
+                  "label": "端口",
                   "fieldType": "Number",
                   "required": true,
                   "defaultValue": "1883",
@@ -73,24 +73,24 @@
                 },
                 {
                   "id": "username",
-                  "label": "Username",
+                  "label": "用户名",
                   "fieldType": "Text"
                 },
                 {
                   "id": "password",
-                  "label": "Password",
+                  "label": "密码",
                   "fieldType": "Password",
                   "secret": true
                 },
                 {
                   "id": "client_id",
-                  "label": "Client ID",
+                  "label": "客户端 ID",
                   "fieldType": "Text",
                   "placeholder": "留空自动生成 navop-mqtt-<随机后缀>"
                 },
                 {
                   "id": "keep_alive_secs",
-                  "label": "Keep Alive (s)",
+                  "label": "心跳间隔(秒)",
                   "fieldType": "Number",
                   "defaultValue": "60"
                 }
@@ -104,7 +104,7 @@
       {
         "id": "console",
         "title": "MQTT",
-        "description": "Browse MQTT subscriptions, query buffered messages, publish messages, and inspect traffic metrics.",
+        "description": "浏览 MQTT 订阅，查询缓冲消息，发送消息并查看收发指标。",
         "entry": "ui/console.js",
         "surface": "tab",
         "singleton": false,

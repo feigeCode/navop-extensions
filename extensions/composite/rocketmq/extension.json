@@ -6,7 +6,7 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "RocketMQ 中间件管理扩展:Remoting 私有协议直连 NameServer/Broker,提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送。 RocketMQ middleware extension speaking the native Remoting protocol, with cluster overview, topic management, consumer groups and clients, message query and send.",
+  "description": "RocketMQ 中间件管理扩展：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送。 RocketMQ middleware extension speaking the native Remoting protocol, with cluster overview, topic management, consumer groups and clients, message query and send.",
   "categories": ["middleware", "message-queue", "developer-tools"],
   "keywords": ["rocketmq", "message-queue", "nameserver", "broker", "topic", "consumer-group"],
   "engines": {
@@ -46,7 +46,7 @@
       {
         "id": "rocketmq",
         "label": "RocketMQ",
-        "description": "Connect to a RocketMQ cluster through its NameServer list.",
+        "description": "连接 RocketMQ 集群，管理 Topic、订阅组与消息。",
         "runtimeId": "main",
         "resourceType": "middleware",
         "shellViewId": "console",
@@ -54,24 +54,24 @@
           "tabs": [
             {
               "id": "general",
-              "label": "General",
+              "label": "常规",
               "fields": [
                 {
                   "id": "namesrv_addrs",
-                  "label": "NameServer addresses",
+                  "label": "NameServer 地址",
                   "fieldType": "Text",
                   "required": true,
                   "placeholder": "127.0.0.1:9876;10.0.0.2:9876"
                 },
                 {
                   "id": "acl_enabled",
-                  "label": "ACL",
+                  "label": "ACL 认证",
                   "fieldType": "Select",
                   "required": true,
                   "defaultValue": "none",
                   "options": [
-                    { "value": "none", "label": "None" },
-                    { "value": "rocketmq", "label": "RocketMQ ACL (AccessKey/SecretKey)" }
+                    { "value": "none", "label": "无" },
+                    { "value": "rocketmq", "label": "RocketMQ ACL" }
                   ]
                 },
                 {
@@ -95,7 +95,7 @@
                 },
                 {
                   "id": "timeout_ms",
-                  "label": "Request timeout (ms)",
+                  "label": "超时(毫秒)",
                   "fieldType": "Number",
                   "required": true,
                   "defaultValue": "5000"
@@ -110,7 +110,7 @@
       {
         "id": "console",
         "title": "RocketMQ",
-        "description": "RocketMQ 中间件控制台:概览、Topic、订阅组与客户端、消息查询。",
+        "description": "RocketMQ 中间件控制台：概览、Topic、订阅组与客户端、消息查询。",
         "entry": "ui/console.js",
         "surface": "tab",
         "singleton": false,
