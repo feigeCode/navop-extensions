@@ -467,6 +467,79 @@ async fn wait_for_job_success(
     panic!("job did not complete within the test deadline");
 }
 
+/// Live Elasticsearch 9 smoke test. It is ignored by default and runs only
+/// when a caller explicitly supplies a local endpoint, for example:
+///
+/// NAVOP_ES_LIVE_URL=http://127.0.0.1:19200 \
+///   cargo test -p elasticsearch-provider... --test end_to_end live_elasticsearch_9_smoke -- --ignored
+#[tokio::test]
+#[ignore = "requires NAVOP_ES_LIVE_URL pointing to a live Elasticsearch 9 instance"]
+async fn live_elasticsearch_9_smoke() {
+    let raw_url = std::env::var("NAVOP_ES_LIVE_URL").expect("NAVOP_ES_LIVE_URL is required");
+    let url = raw_url
+        .parse::<elasticsearch::http::Url>()
+        .expect("valid Elasticsearch URL");
+    assert_eq!(Some("127.0.0.1"), url.host_str());
+    let port = url.port_or_known_default().expect("Elasticsearch port");
+    let harness = harness_with_port(true, port).await;
+    let opened = harness
+        .client
+        .open_resource(&ResourceOpenParams {
+            resource_type: "elasticsearch".into(),
+            config: json!({"url": raw_url}),
+            metadata: None,
+        })
+        .await
+        .expect("open live resource");
+
+    for (method, params) in [
+        ("elasticsearch/cluster/info", Value::Null),
+        ("elasticsearch/index/list", Value::Null),
+        ("elasticsearch/index/get", json!({"name":"navop-smoke"})),
+    ] {
+        harness
+            .client
+            .invoke_resource(&ResourceInvokeParams {
+                resource_id: opened.resource_id.clone(),
+                method: method.into(),
+                params,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("{method} failed: {error}"));
+    }
+
+    let job = harness
+        .client
+        .start_job(&JobStartParams {
+            resource_id: Some(opened.resource_id.clone()),
+            method: "elasticsearch/search/async".into(),
+            params: json!({"indices":["navop-smoke"], "query":"*"}),
+        })
+        .await
+        .expect("start live search");
+    wait_for_job_success(&harness.client, &job.job_id).await;
+    harness
+        .client
+        .job_result(&JobResultParams {
+            job_id: job.job_id.clone(),
+        })
+        .await
+        .expect("read live search result");
+    harness
+        .client
+        .close_job(&JobCloseParams { job_id: job.job_id })
+        .await
+        .expect("close live search job");
+    harness
+        .client
+        .close_resource(&ResourceCloseParams {
+            resource_id: opened.resource_id,
+        })
+        .await
+        .expect("close live resource");
+    harness.session.shutdown().await;
+}
+
 #[tokio::test]
 async fn provider_performs_authenticated_read_only_http_operations() {
     let harness = harness(true).await;
