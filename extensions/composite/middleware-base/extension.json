@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.middleware",
+  "name": "Middleware Base",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "中间件标准契约载体：持有 middleware-standard v1 的契约 crate 与共享控制台 JS 库，无 runtime 进程、无连接贡献。 Standard contract carrier for middleware extensions: hosts the middleware-standard v1 contract crate and the shared console JS library, with no runtime process and no connection contributions.",
+  "categories": ["developer-tools", "middleware"],
+  "keywords": ["middleware", "mqtt", "rocketmq", "console", "standard"],
+  "engines": {
+    "onetcli": ">=0.15.2"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  }
+}

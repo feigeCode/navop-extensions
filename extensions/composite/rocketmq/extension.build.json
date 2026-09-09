@@ -1,0 +1,18 @@
+{
+  "id": "rocketmq",
+  "kind": "composite",
+  "language": "rust",
+  "package": "rocketmq-provider",
+  "binary": "rocketmq-provider",
+  "path": "extensions/composite/rocketmq",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "i686-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "rocketmq-v",
+  "r2Prefix": "extensions/rocketmq"
+}
