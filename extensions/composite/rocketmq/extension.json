@@ -7,8 +7,19 @@
   "publisher": "Navop",
   "license": "Apache-2.0",
   "description": "RocketMQ 中间件管理扩展：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送。 RocketMQ middleware extension speaking the native Remoting protocol, with cluster overview, topic management, consumer groups and clients, message query and send.",
-  "categories": ["middleware", "message-queue", "developer-tools"],
-  "keywords": ["rocketmq", "message-queue", "nameserver", "broker", "topic", "consumer-group"],
+  "categories": [
+    "middleware",
+    "message-queue",
+    "developer-tools"
+  ],
+  "keywords": [
+    "rocketmq",
+    "message-queue",
+    "nameserver",
+    "broker",
+    "topic",
+    "consumer-group"
+  ],
   "engines": {
     "onetcli": ">=0.15.2",
     "gpui_shell": "0.2.0"
@@ -62,7 +73,13 @@
                   "fieldType": "Text",
                   "required": true,
                   "placeholder": "127.0.0.1:9876;10.0.0.2:9876"
-                },
+                }
+              ]
+            },
+            {
+              "id": "advanced",
+              "label": "高级",
+              "fields": [
                 {
                   "id": "acl_enabled",
                   "label": "ACL 认证",
@@ -70,8 +87,14 @@
                   "required": true,
                   "defaultValue": "none",
                   "options": [
-                    { "value": "none", "label": "无" },
-                    { "value": "rocketmq", "label": "RocketMQ ACL" }
+                    {
+                      "value": "none",
+                      "label": "无"
+                    },
+                    {
+                      "value": "rocketmq",
+                      "label": "RocketMQ ACL"
+                    }
                   ]
                 },
                 {
@@ -80,7 +103,10 @@
                   "fieldType": "Text",
                   "required": true,
                   "visibleWhen": [
-                    { "field": "acl_enabled", "equals": "rocketmq" }
+                    {
+                      "field": "acl_enabled",
+                      "equals": "rocketmq"
+                    }
                   ]
                 },
                 {
@@ -90,7 +116,10 @@
                   "required": true,
                   "secret": true,
                   "visibleWhen": [
-                    { "field": "acl_enabled", "equals": "rocketmq" }
+                    {
+                      "field": "acl_enabled",
+                      "equals": "rocketmq"
+                    }
                   ]
                 },
                 {
