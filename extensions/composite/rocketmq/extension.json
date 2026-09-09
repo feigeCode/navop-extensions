@@ -21,7 +21,7 @@
     "consumer-group"
   ],
   "engines": {
-    "onetcli": ">=0.15.2",
+    "onetcli": ">=0.17.0",
     "gpui_shell": "0.2.0"
   },
   "api": {
@@ -134,6 +134,157 @@
           ]
         },
         "icon": "icons/rocketmq-color.svg"
+      }
+    ],
+    "resourceWorkbenches": [
+      {
+        "schemaVersion": 1,
+        "id": "rocketmq",
+        "title": "RocketMQ",
+        "connectionIds": ["rocketmq"],
+        "runtimeId": "main",
+        "resourceType": "middleware",
+        "defaultPage": "overview",
+        "operations": {
+          "clusterOverview": {
+            "mode": "invoke",
+            "method": "middleware/cluster/overview",
+            "requires": ["middleware/cluster/overview"],
+            "effect": "read"
+          },
+          "listTopics": {
+            "mode": "invoke",
+            "method": "middleware/topic/list",
+            "requires": ["middleware/topic/list"],
+            "effect": "read"
+          },
+          "topicDetail": {
+            "mode": "invoke",
+            "method": "middleware/topic/detail",
+            "requires": ["middleware/topic/detail"],
+            "effect": "read",
+            "params": {
+              "topic": {"source": "route", "path": "/topic", "type": "string"}
+            }
+          },
+          "listGroups": {
+            "mode": "invoke",
+            "method": "middleware/group/list",
+            "requires": ["middleware/group/list"],
+            "effect": "read"
+          },
+          "groupDetail": {
+            "mode": "invoke",
+            "method": "middleware/group/detail",
+            "requires": ["middleware/group/detail"],
+            "effect": "read",
+            "params": {
+              "group": {"source": "route", "path": "/group", "type": "string"}
+            }
+          }
+        },
+        "navigation": [
+          {"pageId": "overview"},
+          {"pageId": "topics"},
+          {"pageId": "groups"}
+        ],
+        "tree": [
+          {
+            "id": "topics",
+            "title": "Topics",
+            "pageId": "topics",
+            "children": {
+              "operation": "listTopics",
+              "itemsPath": "/topics",
+              "keyPaths": ["/name"],
+              "labelPath": "/name"
+            }
+          },
+          {
+            "id": "groups",
+            "title": "Groups",
+            "pageId": "groups",
+            "children": {
+              "operation": "listGroups",
+              "itemsPath": "/groups",
+              "keyPaths": ["/group"],
+              "labelPath": "/group"
+            }
+          }
+        ],
+        "pages": [
+          {
+            "id": "overview",
+            "title": "Overview",
+            "template": "json",
+            "renderer": {"kind": "native"},
+            "load": {"operation": "clusterOverview"}
+          },
+          {
+            "id": "topics",
+            "title": "Topics",
+            "template": "collection",
+            "renderer": {"kind": "native"},
+            "load": {"operation": "listTopics"},
+            "collection": {
+              "itemsPath": "/topics",
+              "keyPaths": ["/name"],
+              "pagination": {"kind": "none"},
+              "columns": [
+                {"id": "name", "title": "Topic", "path": "/name", "type": "string"},
+                {"id": "type", "title": "Type", "path": "/topic_type", "type": "display"},
+                {"id": "queues", "title": "Queues", "path": "/queue_count", "type": "display"},
+                {"id": "messages", "title": "Messages", "path": "/message_count", "type": "display"}
+              ],
+              "open": {
+                "pageId": "topic-detail",
+                "route": {
+                  "topic": {"source": "selection", "path": "/name", "type": "string"}
+                }
+              }
+            }
+          },
+          {
+            "id": "topic-detail",
+            "title": "Topic",
+            "template": "json",
+            "renderer": {"kind": "native"},
+            "route": {"topic": {"type": "string", "required": true}},
+            "load": {"operation": "topicDetail"}
+          },
+          {
+            "id": "groups",
+            "title": "Groups",
+            "template": "collection",
+            "renderer": {"kind": "native"},
+            "load": {"operation": "listGroups"},
+            "collection": {
+              "itemsPath": "/groups",
+              "keyPaths": ["/group"],
+              "pagination": {"kind": "none"},
+              "columns": [
+                {"id": "group", "title": "Group", "path": "/group", "type": "string"},
+                {"id": "clients", "title": "Clients", "path": "/client_count", "type": "display"},
+                {"id": "consumeType", "title": "Consume Type", "path": "/consume_type", "type": "display"},
+                {"id": "tps", "title": "TPS", "path": "/tps", "type": "display"}
+              ],
+              "open": {
+                "pageId": "group-detail",
+                "route": {
+                  "group": {"source": "selection", "path": "/group", "type": "string"}
+                }
+              }
+            }
+          },
+          {
+            "id": "group-detail",
+            "title": "Group",
+            "template": "json",
+            "renderer": {"kind": "native"},
+            "route": {"group": {"type": "string", "required": true}},
+            "load": {"operation": "groupDetail"}
+          }
+        ]
       }
     ],
     "shellViews": [

@@ -20,7 +20,7 @@
     "pubsub"
   ],
   "engines": {
-    "onetcli": ">=0.15.2",
+    "onetcli": ">=0.17.0",
     "gpui_shell": "0.2.0"
   },
   "api": {
@@ -116,6 +116,97 @@
           ]
         },
         "icon": "icons/mqtt-color.svg"
+      }
+    ],
+    "resourceWorkbenches": [
+      {
+        "schemaVersion": 1,
+        "id": "mqtt",
+        "title": "MQTT",
+        "connectionIds": ["mqtt"],
+        "runtimeId": "main",
+        "resourceType": "middleware",
+        "defaultPage": "overview",
+        "operations": {
+          "metrics": {
+            "mode": "invoke",
+            "method": "middleware/metrics",
+            "requires": ["middleware/metrics"],
+            "effect": "read"
+          },
+          "listTopics": {
+            "mode": "invoke",
+            "method": "middleware/topic/list",
+            "requires": ["middleware/topic/list"],
+            "effect": "read"
+          },
+          "topicDetail": {
+            "mode": "invoke",
+            "method": "middleware/topic/detail",
+            "requires": ["middleware/topic/detail"],
+            "effect": "read",
+            "params": {
+              "topic": {"source": "route", "path": "/topic", "type": "string"}
+            }
+          }
+        },
+        "navigation": [
+          {"pageId": "overview"},
+          {"pageId": "topics"}
+        ],
+        "tree": [
+          {
+            "id": "topics",
+            "title": "Topics",
+            "pageId": "topics",
+            "children": {
+              "operation": "listTopics",
+              "itemsPath": "/topics",
+              "keyPaths": ["/name"],
+              "labelPath": "/name"
+            }
+          }
+        ],
+        "pages": [
+          {
+            "id": "overview",
+            "title": "Overview",
+            "template": "json",
+            "renderer": {"kind": "native"},
+            "load": {"operation": "metrics"}
+          },
+          {
+            "id": "topics",
+            "title": "Topics",
+            "template": "collection",
+            "renderer": {"kind": "native"},
+            "load": {"operation": "listTopics"},
+            "collection": {
+              "itemsPath": "/topics",
+              "keyPaths": ["/name"],
+              "pagination": {"kind": "none"},
+              "columns": [
+                {"id": "name", "title": "Topic", "path": "/name", "type": "string"},
+                {"id": "messageCount", "title": "Messages", "path": "/message_count", "type": "display"},
+                {"id": "description", "title": "Description", "path": "/description", "type": "display"}
+              ],
+              "open": {
+                "pageId": "topic-detail",
+                "route": {
+                  "topic": {"source": "selection", "path": "/name", "type": "string"}
+                }
+              }
+            }
+          },
+          {
+            "id": "topic-detail",
+            "title": "Topic",
+            "template": "json",
+            "renderer": {"kind": "native"},
+            "route": {"topic": {"type": "string", "required": true}},
+            "load": {"operation": "topicDetail"}
+          }
+        ]
       }
     ],
     "shellViews": [
