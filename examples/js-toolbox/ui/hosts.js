@@ -1,20 +1,10 @@
 import { readFile, writeFile } from 'fs/promises';
 import { View, div } from 'gpui';
 import { v_flex, h_flex, Input, InputState } from 'gpui-base';
-import { Button } from 'gpui-component';
+import { Button, ErrorAlert } from 'gpui-component';
 import { info, error as logError } from 'navop.log';
 
 const HOSTS_PATH = '/etc/hosts';
-
-/**
- * @param {any} el
- * @param {unknown} error
- */
-function renderError(el, error) {
-  return el.child(
-    div().text_color('#cc0000').child(error === null || error === undefined ? '' : String(error)),
-  );
-}
 
 export default class HostsEditor extends View {
   /** @type {any} */
@@ -44,7 +34,7 @@ export default class HostsEditor extends View {
       this.loaded = true;
       this.error = null;
     } catch (e) {
-      this.error = `read ${HOSTS_PATH} failed: ${e instanceof Error ? e.message : String(e)}`;
+      this.error = `读取 ${HOSTS_PATH} 失败：${e instanceof Error ? e.message : String(e)}`;
     }
     cx.notify();
   }
@@ -60,7 +50,7 @@ export default class HostsEditor extends View {
       this.error = null;
       info('hosts saved');
     } catch (e) {
-      this.error = `write ${HOSTS_PATH} failed: ${e instanceof Error ? e.message : String(e)}`;
+      this.error = `写入 ${HOSTS_PATH} 失败：${e instanceof Error ? e.message : String(e)}`;
       logError(`hosts save failed: ${this.error}`);
     }
     this.saving = false;
@@ -71,26 +61,55 @@ export default class HostsEditor extends View {
    * @param {import('gpui').Context} cx
    */
   render(cx) {
+    const theme = cx.theme();
     return v_flex()
       .size_full()
-      .p(16)
-      .gap(12)
-      .child(div().font_semibold().child(`Hosts — ${HOSTS_PATH}`))
-      .when(this.error, (el) => renderError(el, this.error))
-      .when(this.loaded, (el) => el.child(Input.new(this.content).flex_1().min_h_0()))
+      .p(20)
+      .gap(14)
       .child(
         h_flex()
+          .items_center()
           .gap(8)
+          .child(div().text_lg().font_semibold().child('Hosts Editor'))
           .child(
-            new Button('hosts-reload').label('Reload').on_click((_e, cx) =>
-              cx.spawn(async (cx) => this.load(cx)),
-            ),
+            div()
+              .text_xs()
+              .font_family(theme.typography.mono)
+              .text_color(theme.muted_foreground)
+              .child(HOSTS_PATH),
+          )
+          .child(div().flex_1())
+          .child(
+            new Button('hosts-reload')
+              .label('重新加载')
+              .outline()
+              .size('small')
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))),
           )
           .child(
             new Button('hosts-save')
-              .label('Save')
-              .disabled(this.saving)
+              .label(this.saving ? '保存中…' : '保存')
+              .primary()
+              .size('small')
+              .loading(this.saving)
+              .disabled(this.saving || !this.loaded)
               .on_click((_e, cx) => cx.spawn(async (cx) => this.save(cx))),
+          ),
+      )
+      .when(this.error, (el) => el.child(new ErrorAlert('hosts-error', String(this.error)).banner()))
+      .child(
+        div()
+          .flex_1()
+          .min_h_0()
+          .border_1()
+          .border_color(theme.border)
+          .rounded(8)
+          .p(8)
+          .when(this.loaded, (el) =>
+            el.child(Input.new(this.content).size_full()),
+          )
+          .when(!this.loaded && !this.error, (el) =>
+            el.child(div().text_sm().text_color(theme.muted_foreground).child('加载中…')),
           ),
       );
   }

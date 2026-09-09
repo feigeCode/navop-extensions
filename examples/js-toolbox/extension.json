@@ -46,6 +46,18 @@
         "keywords": ["hash", "base64", "uuid", "md5", "sha256"],
         "backends": {},
         "modules": []
+      },
+      {
+        "id": "json-tools",
+        "title": "JSON Tools",
+        "description": "JSON 格式化 / 压缩 / 转义 / 反转义。",
+        "entry": "ui/json.js",
+        "surface": "toolbox",
+        "singleton": true,
+        "category": "text",
+        "keywords": ["json", "format", "minify", "escape"],
+        "backends": {},
+        "modules": ["log"]
       }
     ]
   }
