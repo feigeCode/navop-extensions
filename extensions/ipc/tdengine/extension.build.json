@@ -1,0 +1,17 @@
+{
+  "id": "tdengine",
+  "kind": "database_driver",
+  "language": "rust",
+  "package": "tdengine_driver",
+  "binary": "tdengine-ipc-driver",
+  "path": "extensions/ipc/tdengine",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc"
+  ],
+  "releaseTagPrefix": "tdengine-v",
+  "r2Prefix": "extensions/tdengine"
+}

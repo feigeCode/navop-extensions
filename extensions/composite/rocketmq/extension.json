@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.middleware.rocketmq",
+  "kind": "composite",
+  "name": "RocketMQ",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "RocketMQ 中间件管理扩展:Remoting 私有协议直连 NameServer/Broker,提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送。 RocketMQ middleware extension speaking the native Remoting protocol, with cluster overview, topic management, consumer groups and clients, message query and send.",
+  "categories": ["middleware", "message-queue", "developer-tools"],
+  "keywords": ["rocketmq", "message-queue", "nameserver", "broker", "topic", "consumer-group"],
+  "engines": {
+    "onetcli": ">=0.15.2",
+    "gpui_shell": "0.2.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec",
+    "spawn:./bin/rocketmq-provider",
+    "net:tcp:*:9876",
+    "net:tcp:*:10911",
+    "secrets:read:self.*"
+  ],
+  "runtime": {
+    "ipc": [
+      {
+        "id": "main",
+        "entry": {
+          "command": "./bin/rocketmq-provider"
+        },
+        "transport": {
+          "kind": "local_socket",
+          "connect_timeout_ms": 5000
+        },
+        "auto_restart": true,
+        "max_restart_attempts": 3,
+        "shutdown_grace_ms": 2500
+      }
+    ]
+  },
+  "contributes": {
+    "connections": [
+      {
+        "id": "rocketmq",
+        "label": "RocketMQ",
+        "description": "Connect to a RocketMQ cluster through its NameServer list.",
+        "runtimeId": "main",
+        "resourceType": "middleware",
+        "shellViewId": "console",
+        "form": {
+          "tabs": [
+            {
+              "id": "general",
+              "label": "General",
+              "fields": [
+                {
+                  "id": "namesrv_addrs",
+                  "label": "NameServer addresses",
+                  "fieldType": "Text",
+                  "required": true,
+                  "placeholder": "127.0.0.1:9876;10.0.0.2:9876"
+                },
+                {
+                  "id": "acl_enabled",
+                  "label": "ACL",
+                  "fieldType": "Select",
+                  "required": true,
+                  "defaultValue": "none",
+                  "options": [
+                    { "value": "none", "label": "None" },
+                    { "value": "rocketmq", "label": "RocketMQ ACL (AccessKey/SecretKey)" }
+                  ]
+                },
+                {
+                  "id": "access_key",
+                  "label": "AccessKey",
+                  "fieldType": "Text",
+                  "required": true,
+                  "visibleWhen": [
+                    { "field": "acl_enabled", "equals": "rocketmq" }
+                  ]
+                },
+                {
+                  "id": "secret_key",
+                  "label": "SecretKey",
+                  "fieldType": "Password",
+                  "required": true,
+                  "secret": true,
+                  "visibleWhen": [
+                    { "field": "acl_enabled", "equals": "rocketmq" }
+                  ]
+                },
+                {
+                  "id": "timeout_ms",
+                  "label": "Request timeout (ms)",
+                  "fieldType": "Number",
+                  "required": true,
+                  "defaultValue": "5000"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "shellViews": [
+      {
+        "id": "console",
+        "title": "RocketMQ",
+        "description": "RocketMQ 中间件控制台:概览、Topic、订阅组与客户端、消息查询。",
+        "entry": "ui/console.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": [
+          "context",
+          "resource",
+          "job",
+          "event",
+          "blob",
+          "runtime",
+          "log"
+        ]
+      }
+    ]
+  }
+}

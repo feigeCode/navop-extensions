@@ -1,0 +1,24 @@
+[package]
+name = "rocketmq-provider"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+chrono = { workspace = true }
+extension-protocol = { workspace = true }
+interprocess = { workspace = true, features = ["tokio"] }
+# 中间件标准契约 crate(数据模型/方法名常量/错误前缀,标准 §3)
+middleware-contract = { path = "../middleware-base" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha1 = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+extension-host = { workspace = true }
+tempfile = "3"
