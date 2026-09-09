@@ -132,7 +132,8 @@
               ]
             }
           ]
-        }
+        },
+        "icon": "icons/rocketmq-color.svg"
       }
     ],
     "shellViews": [
@@ -154,7 +155,8 @@
           "blob",
           "runtime",
           "log"
-        ]
+        ],
+        "icon": "icons/rocketmq-color.svg"
       }
     ]
   }

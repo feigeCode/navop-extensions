@@ -114,7 +114,8 @@
               ]
             }
           ]
-        }
+        },
+        "icon": "icons/mqtt-color.svg"
       }
     ],
     "shellViews": [
@@ -136,7 +137,8 @@
           "blob",
           "runtime",
           "log"
-        ]
+        ],
+        "icon": "icons/mqtt-color.svg"
       }
     ]
   }
