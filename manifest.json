@@ -3,6 +3,16 @@
   "release_version": "",
   "extensions": [
     {
+      "id": "com.navop.docker",
+      "kind": "composite",
+      "name": "Docker",
+      "version": "0.1.0",
+      "release_tag": "docker-v0.1.0",
+      "description": "Read-only Docker management through the native resource workbench.",
+      "file_extensions": [],
+      "manifest": "docker/manifest.json"
+    },
+    {
       "id": "com.navop.elasticsearch",
       "kind": "composite",
       "name": "Elasticsearch 9",

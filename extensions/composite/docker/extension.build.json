@@ -1,0 +1,11 @@
+{
+  "id": "docker",
+  "kind": "composite",
+  "language": "rust",
+  "package": "docker-provider",
+  "binary": "docker-provider",
+  "path": "extensions/composite/docker",
+  "targets": ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"],
+  "releaseTagPrefix": "docker-v",
+  "r2Prefix": "extensions/docker"
+}

@@ -1,0 +1,18 @@
+[package]
+name = "docker-provider"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[dependencies]
+bollard = { workspace = true }
+extension-protocol = { workspace = true }
+interprocess = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uuid = { workspace = true }
+
+[dev-dependencies]
+extension-host = { workspace = true }
+tempfile = "3"
