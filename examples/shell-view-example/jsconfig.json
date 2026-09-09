@@ -1,5 +1,5 @@
 {
-  "//": "Navop 扩展 UI 开发配置。gpui-kit.d.ts 为 gpui-shell 宿主生成（rev 65bc4ab5），navop 模块声明来自 @navop/extension-types。",
+  "//": "Navop 扩展 UI 开发配置。gpui-kit.d.ts 为 gpui-shell 宿主生成（gpui-component rev 13c81d89），navop 模块声明来自 @navop/extension-types。",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",

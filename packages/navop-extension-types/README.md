@@ -68,9 +68,9 @@ const manifest: NavopExtensionManifest = { /* ... */ };
 }
 ```
 
-`vendor/gpui-kit.d.ts` 已预生成（gpui-component rev `65bc4ab5`，与 navop 宿主一致），扩展工程 include 它即获得 `gpui` / `gpui-base` / `gpui-component` / `gpui-fps` / `buffer` 等模块的完整提示；本包 `src/shell/*.d.ts` 只提供 `navop.*` 模块。两者一起 include。
+`vendor/gpui-kit.d.ts` 已预生成（gpui-component rev `13c81d89`，与 navop 宿主一致），扩展工程 include 它即获得 `gpui` / `gpui-base` / `gpui-component` / `gpui-fps` / `buffer` 等模块的完整提示；本包 `src/shell/*.d.ts` 只提供 `navop.*` 模块。两者一起 include。
 
-升级 gpui-shell 后重新生成：把 `gen-gpui-typings.rs` 放入对应 rev 的 gpui-component 仓库（example crate，依赖 `path` 指向 `crates/shell`），运行
+升级 gpui-shell 后重新生成：上游 gpui-component 仓库已内置 `examples/gen-navop-typings` crate（`gen-gpui-typings.rs` 为其独立副本，供不带该 crate 的旧 rev 使用），在 gpui-component 仓库运行
 
 ```bash
 cargo run -p gen-navop-typings --release -- <本包>/vendor
