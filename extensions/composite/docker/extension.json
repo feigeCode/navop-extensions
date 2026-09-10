@@ -2,138 +2,1430 @@
   "schema_version": 1,
   "id": "com.navop.docker",
   "name": "Docker",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "Read-only Docker management through the native resource workbench.",
-  "categories": ["containers", "developer-tools"],
-  "keywords": ["docker", "container", "image"],
-  "engines": {"onetcli": ">=0.17.0"},
-  "api": {"extension": "1.0"},
+  "description": "Docker container, image, volume and network management through the native resource workbench.",
+  "categories": [
+    "containers",
+    "developer-tools"
+  ],
+  "keywords": [
+    "docker",
+    "container",
+    "image",
+    "volume",
+    "network"
+  ],
+  "engines": {
+    "onetcli": ">=0.17.0",
+    "gpui_shell": "0.2.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
   "permissions": [
     "spawn:./bin/docker-provider",
+    "shell:exec",
     "net:unix:~/.docker/run/docker.sock",
     "net:unix:/var/run/docker.sock"
   ],
   "runtime": {
-    "ipc": [{
-      "id": "main",
-      "entry": {"command": "./bin/docker-provider"},
-      "transport": {"kind": "local_socket", "connect_timeout_ms": 5000},
-      "auto_restart": true,
-      "max_restart_attempts": 3,
-      "shutdown_grace_ms": 2500
-    }]
+    "ipc": [
+      {
+        "id": "main",
+        "entry": {
+          "command": "./bin/docker-provider"
+        },
+        "transport": {
+          "kind": "local_socket",
+          "connect_timeout_ms": 5000
+        },
+        "auto_restart": true,
+        "max_restart_attempts": 3,
+        "shutdown_grace_ms": 2500
+      }
+    ]
   },
   "contributes": {
-    "connections": [{
-      "id": "docker-local",
-      "label": "Docker",
-      "description": "Connect to a local Docker daemon through its Unix socket.",
-      "runtimeId": "main",
-      "resourceType": "docker",
-      "form": {
-        "tabs": [{
-          "id": "general",
-          "label": "General",
-          "fields": [{
-            "id": "socket",
-            "label": "Docker socket",
-            "fieldType": "Text",
-            "required": true,
-            "defaultValue": "unix://~/.docker/run/docker.sock",
-            "placeholder": "unix:///var/run/docker.sock"
-          }]
-        }]
+    "connections": [
+      {
+        "id": "docker-local",
+        "label": "Docker",
+        "description": "Connect to a local Docker daemon through its Unix socket.",
+        "runtimeId": "main",
+        "resourceType": "docker",
+        "form": {
+          "tabs": [
+            {
+              "id": "general",
+              "label": "General",
+              "fields": [
+                {
+                  "id": "socket",
+                  "label": "Docker socket",
+                  "fieldType": "Text",
+                  "required": true,
+                  "defaultValue": "unix://~/.docker/run/docker.sock",
+                  "placeholder": "unix:///var/run/docker.sock"
+                }
+              ]
+            }
+          ]
+        }
       }
-    }],
-    "resourceWorkbenches": [{
-      "schemaVersion": 1,
-      "id": "docker",
-      "title": "Docker",
-      "connectionIds": ["docker-local"],
-      "runtimeId": "main",
-      "resourceType": "docker",
-      "defaultPage": "overview",
-      "operations": {
-        "systemInfo": {
-          "mode": "invoke",
-          "method": "docker/system/info",
-          "requires": ["docker/system/info"],
-          "effect": "read"
+    ],
+    "shellViews": [
+      {
+        "id": "log-viewer",
+        "title": "Docker Log Viewer",
+        "description": "Container log reader with tail control, embedded in the native workbench.",
+        "entry": "ui/log-viewer.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
         },
-        "listContainers": {
-          "mode": "invoke",
-          "method": "docker/container/list",
-          "requires": ["docker/container/list"],
-          "effect": "read"
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      }
+    ],
+    "resourceWorkbenches": [
+      {
+        "schemaVersion": 1,
+        "id": "docker",
+        "title": "Docker",
+        "connectionIds": [
+          "docker-local"
+        ],
+        "runtimeId": "main",
+        "resourceType": "docker",
+        "defaultPage": "containers",
+        "statusBar": {
+          "operation": "systemUsage"
         },
-        "inspectContainer": {
-          "mode": "invoke",
-          "method": "docker/container/inspect",
-          "requires": ["docker/container/inspect"],
-          "effect": "read",
-          "params": {
-            "id": {"source": "route", "path": "/id", "type": "string"}
-          }
-        }
-      },
-      "navigation": [
-        {"pageId": "overview"},
-        {"pageId": "containers"}
-      ],
-      "tree": [{
-        "id": "containers",
-        "title": "Containers",
-        "pageId": "containers",
-        "children": {
-          "operation": "listContainers",
-          "itemsPath": "/containers",
-          "keyPaths": ["/id"],
-          "labelPath": "/name"
-        }
-      }],
-      "pages": [
-        {
-          "id": "overview",
-          "title": "Docker Overview",
-          "template": "json",
-          "renderer": {"kind": "native"},
-          "load": {"operation": "systemInfo"}
-        },
-        {
-          "id": "containers",
-          "title": "Containers",
-          "template": "collection",
-          "renderer": {"kind": "native"},
-          "load": {"operation": "listContainers"},
-          "collection": {
-            "itemsPath": "/containers",
-            "keyPaths": ["/id"],
-            "pagination": {"kind": "none"},
-            "columns": [
-              {"id": "name", "title": "Name", "path": "/name", "type": "string"},
-              {"id": "image", "title": "Image", "path": "/image", "type": "display"},
-              {"id": "state", "title": "State", "path": "/state", "type": "display"},
-              {"id": "status", "title": "Status", "path": "/status", "type": "display"}
+        "operations": {
+          "systemInfo": {
+            "mode": "invoke",
+            "method": "docker/system/info",
+            "requires": [
+              "docker/system/info"
             ],
-            "open": {
-              "pageId": "container-detail",
-              "route": {
-                "id": {"source": "selection", "path": "/id", "type": "string"}
+            "effect": "read"
+          },
+          "systemUsage": {
+            "mode": "invoke",
+            "method": "docker/system/usage",
+            "requires": [
+              "docker/system/usage"
+            ],
+            "effect": "read"
+          },
+          "listContainers": {
+            "mode": "invoke",
+            "method": "docker/container/list",
+            "requires": [
+              "docker/container/list"
+            ],
+            "effect": "read"
+          },
+          "inspectContainer": {
+            "mode": "invoke",
+            "method": "docker/container/inspect",
+            "requires": [
+              "docker/container/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerMounts": {
+            "mode": "invoke",
+            "method": "docker/container/mounts",
+            "requires": [
+              "docker/container/mounts"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerStats": {
+            "mode": "invoke",
+            "method": "docker/container/stats",
+            "requires": [
+              "docker/container/stats"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "startContainer": {
+            "mode": "invoke",
+            "method": "docker/container/start",
+            "requires": [
+              "docker/container/start"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "stopContainer": {
+            "mode": "invoke",
+            "method": "docker/container/stop",
+            "requires": [
+              "docker/container/stop"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "restartContainer": {
+            "mode": "invoke",
+            "method": "docker/container/restart",
+            "requires": [
+              "docker/container/restart"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "removeContainer": {
+            "mode": "invoke",
+            "method": "docker/container/remove",
+            "requires": [
+              "docker/container/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerLogs": {
+            "mode": "invoke",
+            "method": "docker/container/logs",
+            "requires": [
+              "docker/container/logs"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              },
+              "tail": {
+                "source": "literal",
+                "type": "string",
+                "value": "500"
+              }
+            }
+          },
+          "containerLogsWithTail": {
+            "mode": "invoke",
+            "method": "docker/container/logs",
+            "requires": [
+              "docker/container/logs"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              },
+              "tail": {
+                "source": "input",
+                "path": "/tail",
+                "type": "string"
+              }
+            }
+          },
+          "listImages": {
+            "mode": "invoke",
+            "method": "docker/image/list",
+            "requires": [
+              "docker/image/list"
+            ],
+            "effect": "read"
+          },
+          "removeImage": {
+            "mode": "invoke",
+            "method": "docker/image/remove",
+            "requires": [
+              "docker/image/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "listVolumes": {
+            "mode": "invoke",
+            "method": "docker/volume/list",
+            "requires": [
+              "docker/volume/list"
+            ],
+            "effect": "read"
+          },
+          "inspectVolume": {
+            "mode": "invoke",
+            "method": "docker/volume/inspect",
+            "requires": [
+              "docker/volume/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "removeVolume": {
+            "mode": "invoke",
+            "method": "docker/volume/remove",
+            "requires": [
+              "docker/volume/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "listNetworks": {
+            "mode": "invoke",
+            "method": "docker/network/list",
+            "requires": [
+              "docker/network/list"
+            ],
+            "effect": "read"
+          },
+          "inspectNetwork": {
+            "mode": "invoke",
+            "method": "docker/network/inspect",
+            "requires": [
+              "docker/network/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "removeNetwork": {
+            "mode": "invoke",
+            "method": "docker/network/remove",
+            "requires": [
+              "docker/network/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerFilesList": {
+            "mode": "invoke",
+            "method": "docker/container/files/list",
+            "requires": [],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              },
+              "path": {
+                "source": "route",
+                "path": "/path",
+                "type": "string"
+              }
+            }
+          },
+          "containerFilesDelete": {
+            "mode": "invoke",
+            "method": "docker/container/files/delete",
+            "requires": [],
+            "effect": "destructive",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              },
+              "path": {
+                "source": "selection",
+                "path": "/path",
+                "type": "string"
               }
             }
           }
         },
-        {
-          "id": "container-detail",
-          "title": "Container",
-          "template": "json",
-          "renderer": {"kind": "native"},
-          "route": {"id": {"type": "string", "required": true}},
-          "load": {"operation": "inspectContainer"}
-        }
-      ]
-    }]
+        "navigation": [
+          {
+            "pageId": "containers"
+          },
+          {
+            "pageId": "images"
+          },
+          {
+            "pageId": "volumes"
+          },
+          {
+            "pageId": "networks"
+          },
+          {
+            "pageId": "overview"
+          }
+        ],
+        "tree": [
+          {
+            "id": "containers",
+            "title": "Containers",
+            "pageId": "containers",
+            "children": {
+              "operation": "listContainers",
+              "itemsPath": "/containers",
+              "keyPaths": [
+                "/id"
+              ],
+              "labelPath": "/name"
+            }
+          }
+        ],
+        "pages": [
+          {
+            "id": "containers",
+            "title": "Containers",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listContainers"
+            },
+            "collection": {
+              "itemsPath": "/containers",
+              "keyPaths": [
+                "/id"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "image",
+                  "title": "Image",
+                  "path": "/image",
+                  "type": "display",
+                  "style": "mono"
+                },
+                {
+                  "id": "state",
+                  "title": "State",
+                  "path": "/state",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "status",
+                  "title": "Status",
+                  "path": "/status",
+                  "type": "display",
+                  "style": "muted"
+                }
+              ],
+              "open": {
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "selection",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              "actions": [
+                {
+                  "id": "start",
+                  "label": "Start",
+                  "operation": "startContainer"
+                },
+                {
+                  "id": "stop",
+                  "label": "Stop",
+                  "operation": "stopContainer"
+                },
+                {
+                  "id": "restart",
+                  "label": "Restart",
+                  "operation": "restartContainer"
+                },
+                {
+                  "id": "remove",
+                  "label": "Remove",
+                  "operation": "removeContainer"
+                }
+              ]
+            }
+          },
+          {
+            "id": "container-detail",
+            "title": "Inspect",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "inspectContainer"
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-logs",
+            "title": "Logs",
+            "template": "json",
+            "renderer": {
+              "kind": "shell",
+              "viewId": "log-viewer",
+              "fallback": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "containerLogs"
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-mounts",
+            "title": "Bind mounts",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "containerMounts"
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-stats",
+            "title": "Stats",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "containerStats"
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-exec",
+            "title": "Exec",
+            "template": "terminal",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "terminal": {
+              "command": "docker",
+              "args": [
+                "exec",
+                "-it",
+                "{{id}}",
+                "sh"
+              ],
+              "env": {
+                "TERM": "xterm-256color"
+              }
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-files",
+            "title": "Files",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              },
+              "path": {
+                "type": "string",
+                "required": false
+              }
+            },
+            "load": {
+              "operation": "containerFilesList"
+            },
+            "tabs": [
+              {
+                "id": "inspect",
+                "title": "Inspect",
+                "pageId": "container-detail",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "logs",
+                "title": "Logs",
+                "pageId": "container-logs",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "mounts",
+                "title": "Bind mounts",
+                "pageId": "container-mounts",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "stats",
+                "title": "Stats",
+                "pageId": "container-stats",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "exec",
+                "title": "Exec",
+                "pageId": "container-exec",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "files",
+                "title": "Files",
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "literal",
+                    "value": "/",
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "collection": {
+              "itemsPath": "/entries",
+              "keyPaths": [
+                "/path"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "type",
+                  "title": "Type",
+                  "path": "/type",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "size",
+                  "title": "Size",
+                  "path": "/size",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "modified",
+                  "title": "Modified",
+                  "path": "/modified",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "path",
+                  "title": "Path",
+                  "path": "/path",
+                  "type": "display",
+                  "style": "mono"
+                }
+              ],
+              "open": {
+                "pageId": "container-files",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  },
+                  "path": {
+                    "source": "selection",
+                    "path": "/path",
+                    "type": "string"
+                  }
+                }
+              },
+              "actions": [
+                {
+                  "id": "delete",
+                  "label": "Delete",
+                  "operation": "containerFilesDelete"
+                }
+              ]
+            }
+          },
+          {
+            "id": "images",
+            "title": "Images",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listImages"
+            },
+            "collection": {
+              "itemsPath": "/images",
+              "keyPaths": [
+                "/id"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Repository",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "id",
+                  "title": "Image ID",
+                  "path": "/id",
+                  "type": "display",
+                  "style": "mono"
+                },
+                {
+                  "id": "size",
+                  "title": "Size (MB)",
+                  "path": "/size_mb",
+                  "type": "display",
+                  "style": "muted"
+                }
+              ],
+              "actions": [
+                {
+                  "id": "remove",
+                  "label": "Remove",
+                  "operation": "removeImage"
+                }
+              ]
+            }
+          },
+          {
+            "id": "volumes",
+            "title": "Volumes",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listVolumes"
+            },
+            "collection": {
+              "itemsPath": "/volumes",
+              "keyPaths": [
+                "/name"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "driver",
+                  "title": "Driver",
+                  "path": "/driver",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "mountpoint",
+                  "title": "Mountpoint",
+                  "path": "/mountpoint",
+                  "type": "display",
+                  "style": "mono"
+                },
+                {
+                  "id": "refs",
+                  "title": "Refs",
+                  "path": "/ref_count",
+                  "type": "display",
+                  "style": "muted"
+                }
+              ],
+              "open": {
+                "pageId": "volume-detail",
+                "route": {
+                  "name": {
+                    "source": "selection",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              },
+              "actions": [
+                {
+                  "id": "remove",
+                  "label": "Remove",
+                  "operation": "removeVolume"
+                }
+              ]
+            }
+          },
+          {
+            "id": "volume-detail",
+            "title": "Volume",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "inspectVolume"
+            },
+            "links": [
+              {
+                "title": "All volumes",
+                "pageId": "volumes",
+                "route": {}
+              }
+            ]
+          },
+          {
+            "id": "networks",
+            "title": "Networks",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listNetworks"
+            },
+            "collection": {
+              "itemsPath": "/networks",
+              "keyPaths": [
+                "/id"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "driver",
+                  "title": "Driver",
+                  "path": "/driver",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "scope",
+                  "title": "Scope",
+                  "path": "/scope",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "id",
+                  "title": "Network ID",
+                  "path": "/id",
+                  "type": "display",
+                  "style": "mono"
+                }
+              ],
+              "open": {
+                "pageId": "network-detail",
+                "route": {
+                  "id": {
+                    "source": "selection",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              "actions": [
+                {
+                  "id": "remove",
+                  "label": "Remove",
+                  "operation": "removeNetwork"
+                }
+              ]
+            }
+          },
+          {
+            "id": "network-detail",
+            "title": "Network",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "inspectNetwork"
+            },
+            "links": [
+              {
+                "title": "All networks",
+                "pageId": "networks",
+                "route": {}
+              }
+            ]
+          },
+          {
+            "id": "overview",
+            "title": "Docker Overview",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "systemInfo"
+            }
+          }
+        ]
+      }
+    ]
   }
 }

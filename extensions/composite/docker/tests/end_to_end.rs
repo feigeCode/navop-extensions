@@ -55,6 +55,21 @@ async fn live_docker_provider_smoke() {
         .expect("open Docker resource");
 
     assert!(opened.capabilities.contains(&"docker/system/info".into()));
+    // 容器生命周期与镜像管理能力必须全部声明。
+    for capability in [
+        "docker/container/start",
+        "docker/container/stop",
+        "docker/container/restart",
+        "docker/container/remove",
+        "docker/container/logs",
+        "docker/image/list",
+        "docker/image/remove",
+    ] {
+        assert!(
+            opened.capabilities.contains(&capability.into()),
+            "capability {capability} must be declared"
+        );
+    }
     let info = invoke(
         &client,
         &opened.resource_id,
@@ -89,7 +104,34 @@ async fn live_docker_provider_smoke() {
             inspected.is_object(),
             "container inspect must return a JSON object: {inspected}"
         );
+        // 日志读取(只读):退出容器同样有日志可读。
+        let logs = invoke(
+            &client,
+            &opened.resource_id,
+            "docker/container/logs",
+            json!({"id": id, "tail": "50"}),
+        )
+        .await;
+        assert!(
+            logs["logs"].is_string(),
+            "container logs must return a string payload: {logs}"
+        );
     }
+
+    // 镜像列表(只读):任何 daemon 都至少有一个镜像。
+    let images = invoke(
+        &client,
+        &opened.resource_id,
+        "docker/image/list",
+        Value::Null,
+    )
+    .await;
+    let image_rows = images["images"].as_array().expect("image array");
+    assert!(!image_rows.is_empty(), "daemon must report at least one image");
+    assert!(
+        image_rows[0]["name"].is_string() && image_rows[0]["id"].is_string(),
+        "image rows must expose name/id: {image_rows:?}"
+    );
 
     client
         .close_resource(&ResourceCloseParams {
