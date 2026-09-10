@@ -555,7 +555,8 @@ async fn provider_performs_authenticated_read_only_http_operations() {
             "client_version":"9.1.0-alpha.1",
             "server_major":9,
             "network":true,
-            "operations":"read-only"
+            "operations":"read-write",
+            "standard_version":1
         })),
         opened.metadata.as_ref()
     );

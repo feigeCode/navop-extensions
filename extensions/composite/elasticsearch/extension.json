@@ -5,9 +5,18 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "面向 Elasticsearch 9.x 的原生 Rust SDK 管理扩展，支持集群信息、索引浏览和异步搜索。 Native Rust SDK extension for Elasticsearch 9.x with cluster information, index browsing, and asynchronous search.",
-  "categories": ["database", "search", "developer-tools"],
-  "keywords": ["elasticsearch", "search", "index", "observability"],
+  "description": "面向 Elasticsearch 9.x 的原生 Rust SDK 管理扩展，支持集群概览、索引浏览/管理、文档搜索、别名维护与异步任务。 Native Rust SDK extension for Elasticsearch 9.x with cluster overview, index management, document search, alias maintenance, and asynchronous jobs.",
+  "categories": [
+    "database",
+    "search",
+    "developer-tools"
+  ],
+  "keywords": [
+    "elasticsearch",
+    "search",
+    "index",
+    "observability"
+  ],
   "engines": {
     "onetcli": ">=0.15.2",
     "gpui_shell": "0.2.0"
@@ -48,7 +57,7 @@
         "description": "Connect to an Elasticsearch 9.x cluster.",
         "runtimeId": "main",
         "resourceType": "elasticsearch",
-        "shellViewId": "explorer",
+        "shellViewId": "console",
         "form": {
           "tabs": [
             {
@@ -70,10 +79,22 @@
                   "required": true,
                   "defaultValue": "none",
                   "options": [
-                    { "value": "none", "label": "None" },
-                    { "value": "api_key", "label": "API key" },
-                    { "value": "basic", "label": "Username and password" },
-                    { "value": "bearer", "label": "Bearer token" }
+                    {
+                      "value": "none",
+                      "label": "None"
+                    },
+                    {
+                      "value": "api_key",
+                      "label": "API key"
+                    },
+                    {
+                      "value": "basic",
+                      "label": "Username and password"
+                    },
+                    {
+                      "value": "bearer",
+                      "label": "Bearer token"
+                    }
                   ]
                 },
                 {
@@ -82,7 +103,10 @@
                   "fieldType": "Text",
                   "required": true,
                   "visibleWhen": [
-                    { "field": "auth_type", "equals": "basic" }
+                    {
+                      "field": "auth_type",
+                      "equals": "basic"
+                    }
                   ]
                 },
                 {
@@ -92,7 +116,10 @@
                   "required": true,
                   "secret": true,
                   "visibleWhen": [
-                    { "field": "auth_type", "equals": "api_key" }
+                    {
+                      "field": "auth_type",
+                      "equals": "api_key"
+                    }
                   ]
                 },
                 {
@@ -102,7 +129,10 @@
                   "required": true,
                   "secret": true,
                   "visibleWhen": [
-                    { "field": "auth_type", "equals": "basic" }
+                    {
+                      "field": "auth_type",
+                      "equals": "basic"
+                    }
                   ]
                 },
                 {
@@ -112,7 +142,10 @@
                   "required": true,
                   "secret": true,
                   "visibleWhen": [
-                    { "field": "auth_type", "equals": "bearer" }
+                    {
+                      "field": "auth_type",
+                      "equals": "bearer"
+                    }
                   ]
                 }
               ]
@@ -126,7 +159,9 @@
         "schemaVersion": 1,
         "id": "elasticsearch",
         "title": "Elasticsearch",
-        "connectionIds": ["elasticsearch9"],
+        "connectionIds": [
+          "elasticsearch9"
+        ],
         "runtimeId": "main",
         "resourceType": "elasticsearch",
         "defaultPage": "overview",
@@ -134,60 +169,63 @@
           "clusterInfo": {
             "mode": "invoke",
             "method": "elasticsearch/cluster/info",
-            "requires": ["elasticsearch/cluster/info"],
+            "requires": [
+              "elasticsearch/cluster/info"
+            ],
+            "effect": "read"
+          },
+          "clusterHealth": {
+            "mode": "invoke",
+            "method": "elasticsearch/cluster/health",
+            "requires": [
+              "elasticsearch/cluster/health"
+            ],
             "effect": "read"
           },
           "listIndices": {
             "mode": "invoke",
             "method": "elasticsearch/index/list",
-            "requires": ["elasticsearch/index/list"],
+            "requires": [
+              "elasticsearch/index/list"
+            ],
             "effect": "read"
           },
-          "indexInfo": {
+          "listNodes": {
             "mode": "invoke",
-            "method": "elasticsearch/index/get",
-            "requires": ["elasticsearch/index/get"],
-            "effect": "read",
-            "params": {
-              "name": {"source": "route", "path": "/name", "type": "string"}
-            }
-          },
-          "indexMapping": {
-            "mode": "invoke",
-            "method": "elasticsearch/index/mapping",
-            "requires": ["elasticsearch/index/mapping"],
-            "effect": "read",
-            "params": {
-              "name": {"source": "route", "path": "/name", "type": "string"}
-            }
+            "method": "elasticsearch/nodes/list",
+            "requires": [
+              "elasticsearch/nodes/list"
+            ],
+            "effect": "read"
           },
           "search": {
             "mode": "job",
             "method": "elasticsearch/search/async",
-            "requires": ["elasticsearch/search/async"],
+            "requires": [
+              "elasticsearch/search/async"
+            ],
             "effect": "read",
             "params": {
-              "query": {"source": "input", "path": "/query", "type": "string"}
+              "query": {
+                "source": "input",
+                "path": "/query",
+                "type": "string"
+              }
             }
           }
         },
         "navigation": [
-          {"pageId": "overview"},
-          {"pageId": "indices"},
-          {"pageId": "search"},
-          {"pageId": "tasks"}
-        ],
-        "tree": [
           {
-            "id": "indices",
-            "title": "Indices",
-            "pageId": "indices",
-            "children": {
-              "operation": "listIndices",
-              "itemsPath": "/indices",
-              "keyPaths": ["/name"],
-              "labelPath": "/name"
-            }
+            "pageId": "overview"
+          },
+          {
+            "pageId": "indices"
+          },
+          {
+            "pageId": "search"
+          },
+          {
+            "pageId": "tasks"
           }
         ],
         "pages": [
@@ -195,71 +233,86 @@
             "id": "overview",
             "title": "Overview",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "clusterInfo"}
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "clusterInfo"
+            }
           },
           {
             "id": "indices",
             "title": "Indices",
             "template": "collection",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "listIndices"},
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listIndices"
+            },
             "collection": {
               "itemsPath": "/indices",
-              "keyPaths": ["/name"],
-              "pagination": {"kind": "none"},
-              "columns": [
-                {"id": "name", "title": "Name", "path": "/name", "type": "string"},
-                {"id": "health", "title": "Health", "path": "/health", "type": "string"},
-                {"id": "docs", "title": "Documents", "path": "/docs", "type": "display"},
-                {"id": "size", "title": "Size (bytes)", "path": "/size_bytes", "type": "display"}
+              "keyPaths": [
+                "/name"
               ],
-              "open": {
-                "pageId": "index-detail",
-                "route": {
-                  "name": {"source": "selection", "path": "/name", "type": "string"}
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "health",
+                  "title": "Health",
+                  "path": "/health",
+                  "type": "string"
+                },
+                {
+                  "id": "docs",
+                  "title": "Documents",
+                  "path": "/docs",
+                  "type": "display"
+                },
+                {
+                  "id": "size",
+                  "title": "Size (bytes)",
+                  "path": "/size_bytes",
+                  "type": "display"
                 }
-              }
+              ]
             }
-          },
-          {
-            "id": "index-detail",
-            "title": "Index",
-            "template": "json",
-            "renderer": {"kind": "native"},
-            "route": {"name": {"type": "string", "required": true}},
-            "load": {"operation": "indexInfo"},
-            "links": [
-              {
-                "title": "Mapping",
-                "pageId": "mapping",
-                "route": {
-                  "name": {"source": "route", "path": "/name", "type": "string"}
-                }
-              }
-            ]
-          },
-          {
-            "id": "mapping",
-            "title": "Mapping",
-            "template": "json",
-            "renderer": {"kind": "native"},
-            "route": {"name": {"type": "string", "required": true}},
-            "load": {"operation": "indexMapping"}
           },
           {
             "id": "search",
             "title": "Search",
             "template": "query",
-            "renderer": {"kind": "shell", "viewId": "search-editor", "fallback": "native"},
-            "inputs": [{"id": "query", "type": "string", "editor": "text", "default": "*", "required": true}],
-            "execute": {"operation": "search"}
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "query",
+                "type": "string",
+                "editor": "text",
+                "default": "*",
+                "required": true
+              }
+            ],
+            "execute": {
+              "operation": "search"
+            }
           },
           {
             "id": "tasks",
             "title": "Tasks",
             "template": "tasks",
-            "renderer": {"kind": "native"},
+            "renderer": {
+              "kind": "native"
+            },
             "scope": "session"
           }
         ]
@@ -267,22 +320,70 @@
     ],
     "shellViews": [
       {
-        "id": "search-editor",
-        "title": "Elasticsearch Search Editor",
-        "description": "Embedded professional search editor for the native workbench.",
-        "entry": "ui/search-editor.js",
+        "id": "console",
+        "title": "Elasticsearch 9",
+        "description": "Browse an Elasticsearch 9 cluster, manage indices, run searches, and inspect jobs.",
+        "entry": "ui/console.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
           "search": "main"
         },
-        "modules": ["context", "workbench"]
+        "modules": [
+          "context",
+          "resource",
+          "job",
+          "event",
+          "blob",
+          "runtime",
+          "log"
+        ]
       },
       {
-        "id": "explorer",
-        "title": "Elasticsearch 9",
-        "description": "Browse an Elasticsearch 9 cluster and run searches.",
-        "entry": "ui/explorer.js",
+        "id": "overview",
+        "title": "Elasticsearch Overview",
+        "description": "Cluster overview tab rendered inside the native workbench.",
+        "entry": "ui/views/overview.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "search": "main"
+        },
+        "modules": [
+          "context",
+          "resource",
+          "job",
+          "event",
+          "blob",
+          "runtime",
+          "log"
+        ]
+      },
+      {
+        "id": "indices",
+        "title": "Elasticsearch Indices",
+        "description": "Indices management tab rendered inside the native workbench.",
+        "entry": "ui/views/indices.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "search": "main"
+        },
+        "modules": [
+          "context",
+          "resource",
+          "job",
+          "event",
+          "blob",
+          "runtime",
+          "log"
+        ]
+      },
+      {
+        "id": "search",
+        "title": "Elasticsearch Search",
+        "description": "Search tab with a JSON DSL editor and result list.",
+        "entry": "ui/views/search.js",
         "surface": "tab",
         "singleton": false,
         "backends": {

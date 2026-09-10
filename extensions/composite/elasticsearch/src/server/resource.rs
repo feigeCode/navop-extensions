@@ -28,24 +28,20 @@ where
     let resource = build_client(&url, credentials)?;
     validate_connection(&resource).await?;
     let resource_id = state.insert_resource(resource);
+    let capabilities: Vec<String> = crate::client::all_capabilities()
+        .into_iter()
+        .map(|c| c.to_owned())
+        .collect();
     serialize(ResourceOpenResult {
         resource_id,
-        capabilities: vec![
-            "elasticsearch/cluster/info".to_owned(),
-            "elasticsearch/cluster/health".to_owned(),
-            "elasticsearch/index/list".to_owned(),
-            "elasticsearch/index/get".to_owned(),
-            "elasticsearch/index/mapping".to_owned(),
-            "elasticsearch/search".to_owned(),
-            "elasticsearch/search/async".to_owned(),
-            "elasticsearch/search/events".to_owned(),
-        ],
+        capabilities,
         metadata: Some(json!({
             "client": "elasticsearch-rs",
             "client_version": "9.1.0-alpha.1",
             "server_major": 9,
             "network": true,
-            "operations": "read-only"
+            "operations": "read-write",
+            "standard_version": crate::client::STANDARD_VERSION,
         })),
     })
 }
