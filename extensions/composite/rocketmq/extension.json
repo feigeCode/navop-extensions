@@ -181,12 +181,46 @@
             "params": {
               "group": {"source": "route", "path": "/group", "type": "string"}
             }
+          },
+          "createTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/create",
+            "requires": ["middleware/topic/create"],
+            "effect": "write",
+            "params": {
+              "topic": {"source": "input", "path": "/topic", "type": "string"},
+              "queueCount": {"source": "input", "path": "/queueCount", "type": "number"}
+            }
+          },
+          "deleteTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/delete",
+            "requires": ["middleware/topic/delete"],
+            "effect": "destructive",
+            "params": {
+              "topic": {"source": "input", "path": "/topic", "type": "string"}
+            }
+          },
+          "sendMessage": {
+            "mode": "invoke",
+            "method": "middleware/message/send",
+            "requires": ["middleware/message/send"],
+            "effect": "write",
+            "params": {
+              "topic": {"source": "input", "path": "/topic", "type": "string"},
+              "tag": {"source": "input", "path": "/tag", "type": "string"},
+              "key": {"source": "input", "path": "/key", "type": "string"},
+              "body": {"source": "input", "path": "/body", "type": "json"}
+            }
           }
         },
         "navigation": [
           {"pageId": "overview"},
           {"pageId": "topics"},
-          {"pageId": "groups"}
+          {"pageId": "groups"},
+          {"pageId": "send-message"},
+          {"pageId": "create-topic"},
+          {"pageId": "delete-topic"}
         ],
         "tree": [
           {
@@ -283,11 +317,50 @@
             "renderer": {"kind": "native"},
             "route": {"group": {"type": "string", "required": true}},
             "load": {"operation": "groupDetail"}
+          },
+          {
+            "id": "create-topic",
+            "title": "Create Topic",
+            "template": "query",
+            "renderer": {"kind": "native"},
+            "inputs": [
+              {"id": "topic", "type": "string", "editor": "text", "required": true},
+              {"id": "queueCount", "type": "number", "editor": "text", "default": "4", "required": true}
+            ],
+            "execute": {"operation": "createTopic"}
+          },
+          {
+            "id": "delete-topic",
+            "title": "Delete Topic",
+            "template": "query",
+            "renderer": {"kind": "native"},
+            "inputs": [
+              {"id": "topic", "type": "string", "editor": "text", "required": true}
+            ],
+            "execute": {"operation": "deleteTopic"}
+          },
+          {
+            "id": "send-message",
+            "title": "Send Message",
+            "template": "json",
+            "renderer": {"kind": "shell", "viewId": "send-message"}
           }
         ]
       }
     ],
     "shellViews": [
+      {
+        "id": "send-message",
+        "title": "RocketMQ Message Sender",
+        "description": "Send a message to a topic through the unified workbench dispatcher.",
+        "entry": "ui/send-message.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": ["context", "workbench"]
+      },
       {
         "id": "console",
         "title": "RocketMQ",

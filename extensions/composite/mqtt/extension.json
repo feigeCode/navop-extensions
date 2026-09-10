@@ -148,11 +148,22 @@
             "params": {
               "topic": {"source": "route", "path": "/topic", "type": "string"}
             }
+          },
+          "sendMessage": {
+            "mode": "invoke",
+            "method": "middleware/message/send",
+            "requires": ["middleware/message/send"],
+            "effect": "write",
+            "params": {
+              "topic": {"source": "input", "path": "/topic", "type": "string"},
+              "body": {"source": "input", "path": "/body", "type": "json"}
+            }
           }
         },
         "navigation": [
           {"pageId": "overview"},
-          {"pageId": "topics"}
+          {"pageId": "topics"},
+          {"pageId": "send-message"}
         ],
         "tree": [
           {
@@ -205,11 +216,29 @@
             "renderer": {"kind": "native"},
             "route": {"topic": {"type": "string", "required": true}},
             "load": {"operation": "topicDetail"}
+          },
+          {
+            "id": "send-message",
+            "title": "Send Message",
+            "template": "json",
+            "renderer": {"kind": "shell", "viewId": "send-message"}
           }
         ]
       }
     ],
     "shellViews": [
+      {
+        "id": "send-message",
+        "title": "MQTT Message Publisher",
+        "description": "Publish a message to a topic through the unified workbench dispatcher.",
+        "entry": "ui/send-message.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": ["context", "workbench"]
+      },
       {
         "id": "console",
         "title": "MQTT",
