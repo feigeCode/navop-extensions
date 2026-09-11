@@ -46,7 +46,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(spawn:|net:(tcp|udp):|secrets:(read|write):|shell:exec|fs:|process:|clipboard:|storage:)"
+        "pattern": "^(spawn:|net:(tcp|udp):|net:unix:|secrets:(read|write):|shell:exec|fs:|process:|clipboard:|storage:)"
       }
     },
     "runtime": { "$ref": "#/definitions/runtimeSection" },
@@ -258,7 +258,7 @@
         "modules": {
           "type": "array",
           "items": {
-            "enum": ["context", "resource", "job", "event", "blob", "log", "runtime", "dev"]
+            "enum": ["context", "resource", "job", "event", "blob", "log", "runtime", "dev", "workbench"]
           }
         }
       }
