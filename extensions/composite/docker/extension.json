@@ -934,7 +934,8 @@
                 "sh"
               ],
               "env": {
-                "TERM": "xterm-256color"
+                "TERM": "xterm-256color",
+                "DOCKER_HOST": "{{session.docker_host}}"
               }
             },
             "tabs": [

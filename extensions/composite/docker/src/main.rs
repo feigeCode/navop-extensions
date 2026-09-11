@@ -156,6 +156,7 @@ async fn open(state: &mut State, params: Value) -> ProviderResult {
             "client": "bollard",
             "server_version": version.version,
             "api_version": version.api_version,
+            "docker_host": format!("unix://{path}"),
             "operations": "container lifecycle, logs and image management"
         })),
     })
