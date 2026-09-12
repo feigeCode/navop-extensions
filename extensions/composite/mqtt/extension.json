@@ -123,7 +123,9 @@
         "schemaVersion": 1,
         "id": "mqtt",
         "title": "MQTT",
-        "connectionIds": ["mqtt"],
+        "connectionIds": [
+          "mqtt"
+        ],
         "runtimeId": "main",
         "resourceType": "middleware",
         "defaultPage": "overview",
@@ -131,39 +133,123 @@
           "metrics": {
             "mode": "invoke",
             "method": "middleware/metrics",
-            "requires": ["middleware/metrics"],
+            "requires": [
+              "middleware/metrics"
+            ],
             "effect": "read"
           },
           "listTopics": {
             "mode": "invoke",
             "method": "middleware/topic/list",
-            "requires": ["middleware/topic/list"],
+            "requires": [
+              "middleware/topic/list"
+            ],
             "effect": "read"
           },
           "topicDetail": {
             "mode": "invoke",
             "method": "middleware/topic/detail",
-            "requires": ["middleware/topic/detail"],
+            "requires": [
+              "middleware/topic/detail"
+            ],
             "effect": "read",
             "params": {
-              "topic": {"source": "route", "path": "/topic", "type": "string"}
+              "topic": {
+                "source": "route",
+                "path": "/topic",
+                "type": "string"
+              }
             }
           },
           "sendMessage": {
             "mode": "invoke",
             "method": "middleware/message/send",
-            "requires": ["middleware/message/send"],
+            "requires": [
+              "middleware/message/send"
+            ],
             "effect": "write",
             "params": {
-              "topic": {"source": "input", "path": "/topic", "type": "string"},
-              "body": {"source": "input", "path": "/body", "type": "json"}
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "body": {
+                "source": "input",
+                "path": "/body",
+                "type": "json"
+              }
+            }
+          },
+          "createTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/create",
+            "requires": [
+              "middleware/topic/create"
+            ],
+            "effect": "write",
+            "params": {
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "queue_count": {
+                "source": "literal",
+                "path": "/queue_count",
+                "type": "number",
+                "value": 1
+              }
+            }
+          },
+          "deleteTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/delete",
+            "requires": [
+              "middleware/topic/delete"
+            ],
+            "effect": "destructive",
+            "params": {
+              "topic": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "listClients": {
+            "mode": "invoke",
+            "method": "middleware/group/clients",
+            "requires": [
+              "middleware/group/clients"
+            ],
+            "effect": "read",
+            "params": {
+              "group": {
+                "source": "literal",
+                "path": "/group",
+                "type": "string",
+                "value": "local"
+              }
             }
           }
         },
         "navigation": [
-          {"pageId": "overview"},
-          {"pageId": "topics"},
-          {"pageId": "send-message"}
+          {
+            "pageId": "overview"
+          },
+          {
+            "pageId": "topics"
+          },
+          {
+            "pageId": "send-message"
+          },
+          {
+            "pageId": "subscribe"
+          },
+          {
+            "pageId": "clients"
+          }
         ],
         "tree": [
           {
@@ -173,7 +259,9 @@
             "children": {
               "operation": "listTopics",
               "itemsPath": "/topics",
-              "keyPaths": ["/name"],
+              "keyPaths": [
+                "/name"
+              ],
               "labelPath": "/name"
             }
           }
@@ -183,45 +271,134 @@
             "id": "overview",
             "title": "Overview",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "metrics"}
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "metrics"
+            }
           },
           {
             "id": "topics",
             "title": "Topics",
             "template": "collection",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "listTopics"},
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listTopics"
+            },
             "collection": {
               "itemsPath": "/topics",
-              "keyPaths": ["/name"],
-              "pagination": {"kind": "none"},
+              "keyPaths": [
+                "/name"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
               "columns": [
-                {"id": "name", "title": "Topic", "path": "/name", "type": "string"},
-                {"id": "messageCount", "title": "Messages", "path": "/message_count", "type": "display"},
-                {"id": "description", "title": "Description", "path": "/description", "type": "display"}
+                {
+                  "id": "name",
+                  "title": "Topic Filter",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "type",
+                  "title": "Type",
+                  "path": "/topic_type",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "qos",
+                  "title": "QoS",
+                  "path": "/queue_count",
+                  "type": "display"
+                }
               ],
               "open": {
                 "pageId": "topic-detail",
                 "route": {
-                  "topic": {"source": "selection", "path": "/name", "type": "string"}
+                  "topic": {
+                    "source": "selection",
+                    "path": "/name",
+                    "type": "string"
+                  }
                 }
-              }
+              },
+              "actions": [
+                {
+                  "id": "unsubscribe",
+                  "label": "Unsubscribe",
+                  "operation": "deleteTopic"
+                }
+              ]
             }
           },
           {
             "id": "topic-detail",
             "title": "Topic",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "route": {"topic": {"type": "string", "required": true}},
-            "load": {"operation": "topicDetail"}
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "topic": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "topicDetail"
+            },
+            "links": [
+              {
+                "title": "All subscriptions",
+                "pageId": "topics",
+                "route": {}
+              }
+            ]
           },
           {
             "id": "send-message",
             "title": "Send Message",
             "template": "json",
-            "renderer": {"kind": "shell", "viewId": "send-message"}
+            "renderer": {
+              "kind": "shell",
+              "viewId": "send-message"
+            }
+          },
+          {
+            "id": "subscribe",
+            "title": "Subscribe",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "topic",
+                "type": "string",
+                "editor": "text",
+                "required": true,
+                "default": "#"
+              }
+            ],
+            "execute": {
+              "operation": "createTopic"
+            }
+          },
+          {
+            "id": "clients",
+            "title": "Client",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listClients"
+            }
           }
         ]
       }
@@ -237,7 +414,10 @@
         "backends": {
           "resource": "main"
         },
-        "modules": ["context", "workbench"]
+        "modules": [
+          "context",
+          "workbench"
+        ]
       },
       {
         "id": "console",

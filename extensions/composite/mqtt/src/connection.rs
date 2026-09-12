@@ -1,8 +1,10 @@
 //! MQTT 连接抽象。
 //!
 //! 移植自主仓 `crates/mqtt-runtime/src/connection.rs`,按 provider 侧需要裁剪:
-//! 去掉 `ping`/`is_connected`/`subscribe`/`unsubscribe`(标准 §3 未定义订阅管理方法,
-//! provider 在连接建立时自动订阅 `#`,断线重连由 rumqttc 实现内部恢复,见 [`crate::builtin`])。
+//! - 去掉 `ssh_tunnel`/凭据(标准 §4:SSH 隧道由宿主连接窗口统一提供)
+//! - 提供 `subscribe`/`unsubscribe`/`is_connected`:企业 MQTT 管理需要动态增删订阅,
+//!   而非固定自动订阅 `#`。自动订阅在连接建立时写入订阅表,断线重连后统一恢复,
+//!   见 [`crate::builtin`]。
 
 use crate::pubsub::MqttPubSubHandle;
 use crate::types::{MqttConnectionConfig, MqttError, MqttQos, MqttSubscription};
@@ -28,6 +30,12 @@ pub(crate) trait MqttConnection: Send + Sync {
         qos: MqttQos,
         retain: bool,
     ) -> Result<(), MqttError>;
+
+    /// 订阅主题过滤器;覆盖式更新本地订阅表并通知 broker。
+    async fn subscribe(&self, topic_filter: &str, qos: MqttQos) -> Result<(), MqttError>;
+
+    /// 取消订阅主题过滤器(从本地订阅表移除并通知 broker)。
+    async fn unsubscribe(&self, topic_filter: &str) -> Result<(), MqttError>;
 
     /// 当前订阅列表
     async fn list_subscriptions(&self) -> Result<Vec<MqttSubscription>, MqttError>;

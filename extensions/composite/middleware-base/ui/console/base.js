@@ -922,7 +922,7 @@ export class MiddlewareConsole extends View {
     return v_flex().gap(4).children(pairs.map(([key, value]) =>
       h_flex().gap(8)
         .child(div().w(140).flex_shrink_0().opacity(0.7).child(key))
-        .child(div().flex_1().min_w_0().whitespace_pre_wrap().child(value))));
+        .child(div().flex_1().min_w_0().child(value))));
   }
 
   // 通用表格小部件：列 key 数组 + 行数组 + 单元格渲染。

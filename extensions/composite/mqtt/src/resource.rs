@@ -93,25 +93,29 @@ impl MqttResource {
                 serialize(detail)
             }
             methods::TOPIC_CREATE => {
-                // 参数解析仅做校验;能力位 topic_write=false,兜底返回 Unsupported
-                let _: CreateTopicRequest = parse_request(&params)?;
+                // 标准 §3:创建 Topic;MQTT 语义为订阅该主题过滤器。
+                let request: CreateTopicRequest = parse_request(&params)?;
                 self.admin
-                    .create_topic()
+                    .create_topic(request)
+                    .await
                     .map(|()| Value::Null)
                     .map_err(middleware_error)
             }
             methods::TOPIC_UPDATE => {
-                // 参数解析仅做校验;能力位 topic_write=false,兜底返回 Unsupported
-                let _: CreateTopicRequest = parse_request(&params)?;
+                // 标准的 Topic 更新;MQTT 语义为以新 QoS 重新订阅(覆盖式)。
+                let request: CreateTopicRequest = parse_request(&params)?;
                 self.admin
-                    .update_topic()
+                    .update_topic(request)
+                    .await
                     .map(|()| Value::Null)
                     .map_err(middleware_error)
             }
             methods::TOPIC_DELETE => {
-                let _ = topic_param(&params)?;
+                // 标准的 Topic 删除;MQTT 语义为取消订阅该主题过滤器。
+                let topic = topic_param(&params)?;
                 self.admin
-                    .delete_topic()
+                    .delete_topic(&topic)
+                    .await
                     .map(|()| Value::Null)
                     .map_err(middleware_error)
             }

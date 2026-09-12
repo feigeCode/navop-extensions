@@ -20,9 +20,10 @@ use tokio::sync::RwLock;
 
 use crate::connection::MqttConnection;
 use crate::contract::{
-    ClusterOverview, GroupConsumeDetail, MessagePage, MessageQuery, MiddlewareCapabilities,
-    MiddlewareClientInfo, MiddlewareError, MiddlewareGroupInfo, MiddlewareMessage,
-    MiddlewareMetrics, MiddlewareTopicInfo, SendMessageRequest, SendResult, TopicDetail,
+    ClusterOverview, CreateTopicRequest, GroupConsumeDetail, MessagePage, MessageQuery,
+    MiddlewareCapabilities, MiddlewareClientInfo, MiddlewareError, MiddlewareGroupInfo,
+    MiddlewareMessage, MiddlewareMetrics, MiddlewareTopicInfo, SendMessageRequest, SendResult,
+    TopicDetail,
 };
 use crate::pubsub::MqttPubSubHandle;
 use crate::types::{MqttMessage, MqttQos, MqttSubscription};
@@ -129,11 +130,11 @@ impl MqttAdminAdapter {
         }
     }
 
-    /// 能力位(照 admin.rs 的 capabilities 实现如实声明)
+    /// 能力位(标准 §3:MQTT 以「创建/删除 Topic」承载「订阅/取消订阅」)
     pub(crate) fn capabilities(&self) -> MiddlewareCapabilities {
         MiddlewareCapabilities {
             topics: true,
-            topic_write: false,
+            topic_write: true,
             groups: false,
             clients: true,
             message_query: true,
@@ -182,19 +183,43 @@ impl MqttAdminAdapter {
         })
     }
 
-    /// 创建 Topic(MQTT 无服务端 Topic 管理,能力位 topic_write=false,兜底报错)
-    pub(crate) fn create_topic(&self) -> Result<(), MiddlewareError> {
-        Err(MiddlewareError::unsupported_capability("topic_write"))
+    /// 创建 Topic = 订阅主题过滤器(标准 §3:MQTT 语义)。
+    ///
+    /// QoS 取 `CreateTopicRequest.attributes` 里的 `qos`,其次 `queue_count`,
+    /// 缺省取默认发送 QoS(AtLeastOnce)。
+    pub(crate) async fn create_topic(
+        &self,
+        request: CreateTopicRequest,
+    ) -> Result<(), MiddlewareError> {
+        let filter = request.topic.trim().to_string();
+        if filter.is_empty() {
+            return Err(MiddlewareError::Config(
+                "创建的 Topic 名称不能为空".to_string(),
+            ));
+        }
+        let qos = topic_qos(&request);
+        let guard = self.connection.read().await;
+        guard
+            .subscribe(&filter, qos)
+            .await
+            .map_err(|error| MiddlewareError::Connection(error.to_string()))
     }
 
-    /// 更新 Topic(同上,兜底报错)
-    pub(crate) fn update_topic(&self) -> Result<(), MiddlewareError> {
-        Err(MiddlewareError::unsupported_capability("topic_write"))
+    /// 更新 Topic = 以新的 QoS 订阅(覆盖式;broker 侧改为重复订阅,幂等)。
+    pub(crate) async fn update_topic(
+        &self,
+        request: CreateTopicRequest,
+    ) -> Result<(), MiddlewareError> {
+        self.create_topic(request).await
     }
 
-    /// 删除 Topic(同上,兜底报错)
-    pub(crate) fn delete_topic(&self) -> Result<(), MiddlewareError> {
-        Err(MiddlewareError::unsupported_capability("topic_write"))
+    /// 删除 Topic = 取消订阅主题过滤器(标准 §3:MQTT 语义)。
+    pub(crate) async fn delete_topic(&self, topic: &str) -> Result<(), MiddlewareError> {
+        let guard = self.connection.read().await;
+        guard
+            .unsubscribe(topic)
+            .await
+            .map_err(|error| MiddlewareError::Connection(error.to_string()))
     }
 
     /// 发送消息 = publish(QoS 取 properties 中的 "qos",缺省 AtLeastOnce)
@@ -203,9 +228,10 @@ impl MqttAdminAdapter {
         request: SendMessageRequest,
     ) -> Result<SendResult, MiddlewareError> {
         let qos = send_qos_from_properties(&request.properties);
+        let retain = send_retain_from_properties(&request.properties);
         let guard = self.connection.read().await;
         guard
-            .publish(&request.topic, &request.body, qos, false)
+            .publish(&request.topic, &request.body, qos, retain)
             .await
             .map_err(|error| MiddlewareError::Connection(error.to_string()))?;
         drop(guard);
@@ -500,6 +526,33 @@ fn send_qos_from_properties(properties: &[(String, String)]) -> MqttQos {
         .unwrap_or(DEFAULT_SEND_QOS)
 }
 
+/// 从 properties 中解析发送是否保留("retain" 键,true/false/1/0)
+fn send_retain_from_properties(properties: &[(String, String)]) -> bool {
+    properties
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case("retain"))
+        .and_then(
+            |(_, value)| match value.trim().to_ascii_lowercase().as_str() {
+                "true" | "1" | "yes" => Some(true),
+                "false" | "0" | "no" => Some(false),
+                _ => None,
+            },
+        )
+        .unwrap_or(false)
+}
+
+/// 从 `CreateTopicRequest` 解析订阅 QoS(优先 attributes["qos"],其次 queue_count)
+fn topic_qos(request: &CreateTopicRequest) -> MqttQos {
+    request
+        .attributes
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case("qos"))
+        .and_then(|(_, value)| value.trim().parse::<u8>().ok())
+        .or_else(|| request.queue_count.map(|count| count as u8))
+        .and_then(MqttQos::from_u8)
+        .unwrap_or(DEFAULT_SEND_QOS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,6 +622,31 @@ mod tests {
                 qos,
                 retain,
             ));
+            Ok(())
+        }
+
+        async fn subscribe(
+            &self,
+            topic_filter: &str,
+            qos: MqttQos,
+        ) -> Result<(), crate::types::MqttError> {
+            let mut subs = self.shared.subscriptions.lock().unwrap();
+            match subs.iter_mut().find(|sub| sub.topic_filter == topic_filter) {
+                Some(existing) => existing.qos = qos,
+                None => subs.push(MqttSubscription {
+                    topic_filter: topic_filter.to_string(),
+                    qos,
+                }),
+            }
+            Ok(())
+        }
+
+        async fn unsubscribe(&self, topic_filter: &str) -> Result<(), crate::types::MqttError> {
+            self.shared
+                .subscriptions
+                .lock()
+                .unwrap()
+                .retain(|sub| sub.topic_filter != topic_filter);
             Ok(())
         }
 
@@ -832,9 +910,14 @@ mod tests {
         let (_, adapter) = adapter();
         let caps = adapter.capabilities();
         assert!(
-            caps.topics && caps.clients && caps.message_query && caps.send_message && caps.metrics
+            caps.topics
+                && caps.topic_write
+                && caps.clients
+                && caps.message_query
+                && caps.send_message
+                && caps.metrics
         );
-        assert!(!caps.topic_write && !caps.groups && !caps.cluster_overview);
+        assert!(!caps.groups && !caps.cluster_overview);
     }
 
     #[tokio::test]
@@ -867,6 +950,69 @@ mod tests {
         assert_eq!(published[0].1, b"ping".to_vec());
         assert_eq!(published[0].2, DEFAULT_SEND_QOS);
         assert!(!published[0].3);
+    }
+
+    #[tokio::test]
+    async fn send_message_honours_retain_property() {
+        let (shared, adapter) = adapter();
+        adapter
+            .send_message(SendMessageRequest {
+                topic: "a/b".into(),
+                body: b"kept".to_vec(),
+                properties: vec![("retain".into(), "true".into())],
+                ..SendMessageRequest::default()
+            })
+            .await
+            .expect("发送应成功");
+        let published = shared.published.lock().unwrap().clone();
+        assert_eq!(published.len(), 1);
+        assert!(published[0].3, "retain=true 应保留消息");
+
+        adapter
+            .send_message(SendMessageRequest {
+                topic: "a/b".into(),
+                body: b"drop".to_vec(),
+                properties: vec![("retain".into(), "false".into())],
+                ..SendMessageRequest::default()
+            })
+            .await
+            .expect("发送应成功");
+        let published = shared.published.lock().unwrap().clone();
+        assert!(!published[1].3);
+    }
+
+    #[tokio::test]
+    async fn create_topic_subscribes_into_subscription_table() {
+        let (shared, adapter) = adapter();
+        adapter
+            .create_topic(CreateTopicRequest {
+                topic: "sensors/+".into(),
+                attributes: vec![("qos".into(), "2".into())],
+                ..CreateTopicRequest::default()
+            })
+            .await
+            .expect("订阅应成功");
+        let subs = shared.subscriptions.lock().unwrap().clone();
+        assert!(subs.iter().any(|sub| sub.topic_filter == "sensors/+"));
+        assert!(
+            subs.iter()
+                .any(|sub| sub.topic_filter == "sensors/+" && sub.qos == MqttQos::ExactlyOnce)
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_topic_unsibscribes() {
+        let (shared, adapter) = adapter();
+        adapter
+            .create_topic(CreateTopicRequest {
+                topic: "temp".into(),
+                ..CreateTopicRequest::default()
+            })
+            .await
+            .expect("订阅应成功");
+        adapter.delete_topic("temp").await.expect("取消订阅应成功");
+        let subs = shared.subscriptions.lock().unwrap().clone();
+        assert!(!subs.iter().any(|sub| sub.topic_filter == "temp"));
     }
 
     #[tokio::test]
@@ -926,10 +1072,6 @@ mod tests {
         let (_, adapter) = adapter();
         assert!(matches!(
             adapter.cluster_overview().await.unwrap_err(),
-            MiddlewareError::Unsupported(_)
-        ));
-        assert!(matches!(
-            adapter.create_topic().unwrap_err(),
             MiddlewareError::Unsupported(_)
         ));
         assert!(matches!(

@@ -647,7 +647,7 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     assert_eq!(1, capabilities["standard_version"]);
     let caps = &capabilities["capabilities"];
     assert_eq!(true, caps["topics"]);
-    assert_eq!(false, caps["topic_write"]);
+    assert_eq!(true, caps["topic_write"]);
     assert_eq!(false, caps["groups"]);
     assert_eq!(true, caps["clients"]);
     assert_eq!(true, caps["message_query"]);
@@ -809,6 +809,62 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
         assert_eq!("mqtt-pass", connect.password.as_deref().unwrap_or_default());
     });
 
+    // 新增订阅(标准 §3 topic/create = MQTT 订阅):broker 应收到 SUBSCRIBE,
+    // 本地订阅列表与新 topic/list 都要反映 `sensors/+`
+    inline(
+        &harness.client,
+        &resource_id,
+        "middleware/topic/create",
+        json!({"topic": "sensors/+", "queue_count": 2}),
+    )
+    .await;
+    assert!(
+        wait_until(Duration::from_secs(5), Duration::from_millis(25), || {
+            broker.with_state(|state| state.subscriptions.iter().any(|f| f == "sensors/+"))
+        })
+        .await,
+        "broker 应记录新增的订阅"
+    );
+    let topics_after = inline(
+        &harness.client,
+        &resource_id,
+        "middleware/topic/list",
+        json!({}),
+    )
+    .await;
+    assert!(
+        topics_after["topics"]
+            .as_array()
+            .expect("topics array")
+            .iter()
+            .any(|topic| topic["name"] == "sensors/+"),
+        "topic/list 应包含新订阅: {topics_after}"
+    );
+
+    // 取消订阅(标准 §3 topic/delete = 取消订阅):本地订阅列表移出过滤器
+    inline(
+        &harness.client,
+        &resource_id,
+        "middleware/topic/delete",
+        json!({"topic": "sensors/+"}),
+    )
+    .await;
+    let topics_removed = inline(
+        &harness.client,
+        &resource_id,
+        "middleware/topic/list",
+        json!({}),
+    )
+    .await;
+    assert!(
+        !topics_removed["topics"]
+            .as_array()
+            .expect("topics array")
+            .iter()
+            .any(|topic| topic["name"] == "sensors/+"),
+        "topic/list 应移除已取消的订阅: {topics_removed}"
+    );
+
     // ping/close 生命周期
     harness
         .client
@@ -848,15 +904,6 @@ async fn unsupported_capabilities_return_standard_errors() {
 
     for (method, params) in [
         ("middleware/cluster/overview", json!({})),
-        (
-            "middleware/topic/create",
-            json!({"topic": "new-topic", "queue_count": 8}),
-        ),
-        (
-            "middleware/topic/update",
-            json!({"topic": "new-topic", "queue_count": 8}),
-        ),
-        ("middleware/topic/delete", json!({"topic": "new-topic"})),
         ("middleware/group/list", json!({})),
         ("middleware/group/detail", json!({"group": "g1"})),
     ] {

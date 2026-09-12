@@ -294,6 +294,64 @@ impl MqttConnection for MqttConnectionImpl {
         Ok(())
     }
 
+    async fn subscribe(&self, topic_filter: &str, qos: MqttQos) -> Result<(), MqttError> {
+        let filter = topic_filter.trim().to_string();
+        if filter.is_empty() {
+            return Err(MqttError::Protocol(
+                "subscription topic filter must not be empty".to_string(),
+            ));
+        }
+        // 覆盖式更新本地订阅表(仅当 QoS 不同时变更),断线重连时会据此恢复。
+        let mut subscriptions = self.subscriptions.lock().await;
+        match subscriptions
+            .iter_mut()
+            .find(|sub| sub.topic_filter == filter)
+        {
+            Some(existing) => {
+                if existing.qos == qos {
+                    return Ok(());
+                }
+                existing.qos = qos;
+            }
+            None => subscriptions.push(MqttSubscription {
+                topic_filter: filter.clone(),
+                qos,
+            }),
+        }
+        drop(subscriptions);
+        let client = self.require_client()?;
+        client
+            .subscribe(filter.as_str(), map_qos(qos))
+            .await
+            .map_err(|error| MqttError::Protocol(format!("subscribe failed: {error}")))?;
+        Ok(())
+    }
+
+    async fn unsubscribe(&self, topic_filter: &str) -> Result<(), MqttError> {
+        let filter = topic_filter.trim().to_string();
+        if filter.is_empty() {
+            return Err(MqttError::Protocol(
+                "subscription topic filter must not be empty".to_string(),
+            ));
+        }
+        {
+            let mut subscriptions = self.subscriptions.lock().await;
+            let before = subscriptions.len();
+            subscriptions.retain(|sub| sub.topic_filter != filter);
+            if subscriptions.len() == before {
+                return Err(MqttError::Protocol(format!(
+                    "no active subscription for `{filter}`"
+                )));
+            }
+        }
+        let client = self.require_client()?;
+        client
+            .unsubscribe(filter.as_str())
+            .await
+            .map_err(|error| MqttError::Protocol(format!("unsubscribe failed: {error}")))?;
+        Ok(())
+    }
+
     async fn list_subscriptions(&self) -> Result<Vec<MqttSubscription>, MqttError> {
         Ok(self.subscriptions.lock().await.clone())
     }
