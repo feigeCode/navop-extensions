@@ -212,6 +212,277 @@
                 "type": "string"
               }
             }
+          },
+          "clusterStats": {
+            "mode": "invoke",
+            "method": "elasticsearch/cluster/stats",
+            "requires": [
+              "elasticsearch/cluster/stats"
+            ],
+            "effect": "read"
+          },
+          "indexGet": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/get",
+            "requires": [
+              "elasticsearch/index/get"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexMapping": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/mapping",
+            "requires": [
+              "elasticsearch/index/mapping"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexSettings": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/settings",
+            "requires": [
+              "elasticsearch/index/settings"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexAliases": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/aliases",
+            "requires": [
+              "elasticsearch/index/aliases"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexStats": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/stats",
+            "requires": [
+              "elasticsearch/index/stats"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexShards": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/shards",
+            "requires": [
+              "elasticsearch/index/shards"
+            ],
+            "effect": "read"
+          },
+          "indexCreate": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/create",
+            "requires": [
+              "elasticsearch/index/create"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "mappings": {
+                "source": "input",
+                "path": "/mappings",
+                "type": "json"
+              },
+              "settings": {
+                "source": "input",
+                "path": "/settings",
+                "type": "json"
+              }
+            }
+          },
+          "indexDelete": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/delete",
+            "requires": [
+              "elasticsearch/index/delete"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexRefresh": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/refresh",
+            "requires": [
+              "elasticsearch/index/refresh"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexOpen": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/open",
+            "requires": [
+              "elasticsearch/index/open"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexClose": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/close",
+            "requires": [
+              "elasticsearch/index/close"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "indexAliasUpdate": {
+            "mode": "invoke",
+            "method": "elasticsearch/index/alias/update",
+            "requires": [
+              "elasticsearch/index/alias/update"
+            ],
+            "effect": "write",
+            "params": {
+              "actions": {
+                "source": "input",
+                "path": "/actions",
+                "type": "json"
+              }
+            }
+          },
+          "count": {
+            "mode": "invoke",
+            "method": "elasticsearch/count",
+            "requires": [
+              "elasticsearch/count"
+            ],
+            "effect": "read",
+            "params": {
+              "query": {
+                "source": "input",
+                "path": "/query",
+                "type": "string"
+              }
+            }
+          },
+          "documentGet": {
+            "mode": "invoke",
+            "method": "elasticsearch/document/get",
+            "requires": [
+              "elasticsearch/document/get"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              },
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "documentIndex": {
+            "mode": "invoke",
+            "method": "elasticsearch/document/index",
+            "requires": [
+              "elasticsearch/document/index"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "id": {
+                "source": "input",
+                "path": "/id",
+                "type": "string"
+              },
+              "body": {
+                "source": "input",
+                "path": "/body",
+                "type": "json"
+              }
+            }
+          },
+          "documentDelete": {
+            "mode": "invoke",
+            "method": "elasticsearch/document/delete",
+            "requires": [
+              "elasticsearch/document/delete"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              },
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
           }
         },
         "navigation": [
@@ -226,6 +497,15 @@
           },
           {
             "pageId": "tasks"
+          },
+          {
+            "pageId": "nodes"
+          },
+          {
+            "pageId": "index-create"
+          },
+          {
+            "pageId": "index-shards"
           }
         ],
         "pages": [
@@ -269,19 +549,79 @@
                   "id": "health",
                   "title": "Health",
                   "path": "/health",
-                  "type": "string"
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "status",
+                  "title": "Status",
+                  "path": "/status",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "pri",
+                  "title": "Shards",
+                  "path": "/pri",
+                  "type": "display"
+                },
+                {
+                  "id": "rep",
+                  "title": "Replicas",
+                  "path": "/rep",
+                  "type": "display"
                 },
                 {
                   "id": "docs",
-                  "title": "Documents",
+                  "title": "Docs",
                   "path": "/docs",
                   "type": "display"
                 },
                 {
                   "id": "size",
-                  "title": "Size (bytes)",
+                  "title": "Size",
                   "path": "/size_bytes",
-                  "type": "display"
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "created",
+                  "title": "Created",
+                  "path": "/created",
+                  "type": "display",
+                  "style": "muted"
+                }
+              ],
+              "open": {
+                "pageId": "index-detail",
+                "route": {
+                  "name": {
+                    "source": "selection",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              },
+              "actions": [
+                {
+                  "id": "open",
+                  "label": "Open",
+                  "operation": "indexOpen"
+                },
+                {
+                  "id": "close",
+                  "label": "Close",
+                  "operation": "indexClose"
+                },
+                {
+                  "id": "refresh",
+                  "label": "Refresh",
+                  "operation": "indexRefresh"
+                },
+                {
+                  "id": "delete",
+                  "label": "Delete",
+                  "operation": "indexDelete"
                 }
               ]
             }
@@ -314,6 +654,321 @@
               "kind": "native"
             },
             "scope": "session"
+          },
+          {
+            "id": "nodes",
+            "title": "Nodes",
+            "template": "collection",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listNodes"
+            },
+            "collection": {
+              "itemsPath": "/nodes",
+              "keyPaths": [
+                "/name"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
+              "columns": [
+                {
+                  "id": "name",
+                  "title": "Name",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "ip",
+                  "title": "IP",
+                  "path": "/ip",
+                  "type": "display",
+                  "style": "mono"
+                },
+                {
+                  "id": "role",
+                  "title": "Role",
+                  "path": "/node_role",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "cpu",
+                  "title": "CPU %",
+                  "path": "/cpu",
+                  "type": "display"
+                },
+                {
+                  "id": "heap",
+                  "title": "Heap %",
+                  "path": "/heap_percent",
+                  "type": "display"
+                },
+                {
+                  "id": "ram",
+                  "title": "RAM %",
+                  "path": "/ram_percent",
+                  "type": "display"
+                },
+                {
+                  "id": "disk",
+                  "title": "Disk %",
+                  "path": "/disk_used_percent",
+                  "type": "display"
+                },
+                {
+                  "id": "master",
+                  "title": "Master",
+                  "path": "/master",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "version",
+                  "title": "Version",
+                  "path": "/version",
+                  "type": "display",
+                  "style": "muted"
+                }
+              ]
+            }
+          },
+          {
+            "id": "index-detail",
+            "title": "Index",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "indexGet"
+            },
+            "links": [
+              {
+                "title": "All indices",
+                "pageId": "indices",
+                "route": {}
+              },
+              {
+                "title": "Mapping",
+                "pageId": "index-mapping",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "title": "Settings",
+                "pageId": "index-settings",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "title": "Aliases",
+                "pageId": "index-aliases",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "title": "Stats",
+                "pageId": "index-stats",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "index-mapping",
+            "title": "Mapping",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "indexMapping"
+            },
+            "links": [
+              {
+                "title": "Index",
+                "pageId": "index-detail",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "index-settings",
+            "title": "Settings",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "indexSettings"
+            },
+            "links": [
+              {
+                "title": "Index",
+                "pageId": "index-detail",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "index-aliases",
+            "title": "Aliases",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "indexAliases"
+            },
+            "links": [
+              {
+                "title": "Index",
+                "pageId": "index-detail",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "index-stats",
+            "title": "Stats",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "indexStats"
+            },
+            "links": [
+              {
+                "title": "Index",
+                "pageId": "index-detail",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "index-shards",
+            "title": "Shards",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "indexShards"
+            },
+            "links": [
+              {
+                "title": "All indices",
+                "pageId": "indices",
+                "route": {}
+              }
+            ]
+          },
+          {
+            "id": "index-create",
+            "title": "Create index",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "name",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "mappings",
+                "type": "string",
+                "editor": "text"
+              },
+              {
+                "id": "settings",
+                "type": "string",
+                "editor": "text"
+              }
+            ],
+            "execute": {
+              "operation": "indexCreate"
+            }
           }
         ]
       }

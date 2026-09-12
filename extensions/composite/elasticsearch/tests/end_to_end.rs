@@ -231,7 +231,7 @@ async fn spawn_http_fixture_with_version(
                         .then(|| value.trim().to_owned())
                 });
                 let body_start = header_end + 4;
-                let body = String::from_utf8_lossy(&buffer.get(body_start..).unwrap_or_default())
+                let body = String::from_utf8_lossy(buffer.get(body_start..).unwrap_or_default())
                     .to_string();
                 let response = match target.as_str() {
                     "/" => {

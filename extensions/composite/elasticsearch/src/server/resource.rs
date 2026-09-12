@@ -28,7 +28,7 @@ where
     let resource = build_client(&url, credentials)?;
     validate_connection(&resource).await?;
     let resource_id = state.insert_resource(resource);
-    let capabilities: Vec<String> = crate::client::all_capabilities()
+    let capabilities: Vec<String> = crate::client::method_capabilities()
         .into_iter()
         .map(|c| c.to_owned())
         .collect();
@@ -72,7 +72,7 @@ where
         .map_err(|_| invalid_params("Elasticsearch credential is not UTF-8"))?;
     Ok(Some(
         stored_credentials(&kind, username.as_deref(), &secret)
-            .unwrap_or_else(|| Credentials::EncodedApiKey(secret)),
+            .unwrap_or(Credentials::EncodedApiKey(secret)),
     ))
 }
 
