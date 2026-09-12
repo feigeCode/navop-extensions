@@ -45,6 +45,17 @@ pub mod request_code {
     pub const GET_ROUTEINFO_BY_TOPIC: i32 = 105;
     /// 从 NameServer 获取集群信息(namesrv)
     pub const GET_BROKER_CLUSTER_INFO: i32 = 106;
+    /// 重置订阅组消费位点(broker;按 topic/group/timestamp 重置全部队列)
+    pub const RESET_CONSUMER_OFFSET: i32 = 31;
+    /// 获取 broker 配置(broker)
+    pub const GET_BROKER_CONFIG: i32 = 219;
+    /// 获取/更新 ACL 主体配置(broker)
+    pub const GET_ACL_CONFIG: i32 = 332;
+    pub const UPDATE_AND_CREATE_ACL_CONFIG: i32 = 333;
+    /// 删除 ACL 主体配置(broker)
+    pub const DELETE_ACL_CONFIG: i32 = 334;
+    /// 订阅组消费 `GROUP_BROKER_STATS` 汇总(broker)
+    pub const GET_BROKER_STATS: i32 = 35;
 }
 
 /// Remoting 响应码(官方 `ResponseCode.java` + `RemotingSysResponseCode.java` 的子集)
@@ -102,6 +113,11 @@ mod tests {
         assert_eq!(RequestCode::DELETE_TOPIC_IN_BROKER, 215);
         assert_eq!(RequestCode::DELETE_TOPIC_IN_NAMESRV, 216);
         assert_eq!(RequestCode::QUERY_CONSUME_QUEUE, 321);
+        assert_eq!(RequestCode::RESET_CONSUMER_OFFSET, 31);
+        assert_eq!(RequestCode::GET_BROKER_CONFIG, 219);
+        assert_eq!(RequestCode::GET_ACL_CONFIG, 332);
+        assert_eq!(RequestCode::UPDATE_AND_CREATE_ACL_CONFIG, 333);
+        assert_eq!(RequestCode::DELETE_ACL_CONFIG, 334);
     }
 
     /// 关键响应码与官方源码数值对齐(ResponseCode.java)

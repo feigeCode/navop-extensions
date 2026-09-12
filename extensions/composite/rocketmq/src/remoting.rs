@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -217,20 +217,18 @@ impl RemotingChannel {
         let (host, port) = split_addr(addr)?;
 
         let connect_timeout = Duration::from_secs(params.connect_timeout.max(1));
-        let stream = tokio::time::timeout(
-            connect_timeout,
-            TcpStream::connect((host.as_str(), port)),
-        )
-        .await
-        .map_err(|_| {
-            RocketmqError::Timeout(format!(
-                "RocketMQ 连接 {addr} 超时({}s)",
-                params.connect_timeout
-            ))
-        })?
-        .map_err(|error| {
-            RocketmqError::Connection(format!("RocketMQ 连接 {addr} 失败: {error}"))
-        })?;
+        let stream =
+            tokio::time::timeout(connect_timeout, TcpStream::connect((host.as_str(), port)))
+                .await
+                .map_err(|_| {
+                    RocketmqError::Timeout(format!(
+                        "RocketMQ 连接 {addr} 超时({}s)",
+                        params.connect_timeout
+                    ))
+                })?
+                .map_err(|error| {
+                    RocketmqError::Connection(format!("RocketMQ 连接 {addr} 失败: {error}"))
+                })?;
         // 禁用 Nagle,降低小指令延迟
         let _ = stream.set_nodelay(true);
 

@@ -24,7 +24,9 @@ pub(crate) struct PendingOpen {
     pub(crate) secret_ref: Option<SecretRef>,
 }
 
-pub(crate) fn parse_open_params(params: Value) -> Result<PendingOpen, Box<extension_protocol::error::ProtocolError>> {
+pub(crate) fn parse_open_params(
+    params: Value,
+) -> Result<PendingOpen, Box<extension_protocol::error::ProtocolError>> {
     let params: ResourceOpenParams =
         from_value(params).map_err(|error| invalid_params(error.to_string()))?;
     if params.resource_type != RESOURCE_TYPE {
@@ -92,8 +94,8 @@ pub(crate) fn parse_open_params(params: Value) -> Result<PendingOpen, Box<extens
         }
     }
 
-    let params = RocketmqParams::try_from(&normalized)
-        .map_err(|error| invalid_params(error.to_string()))?;
+    let params =
+        RocketmqParams::try_from(&normalized).map_err(|error| invalid_params(error.to_string()))?;
     Ok(PendingOpen {
         params,
         secret_ref: None,

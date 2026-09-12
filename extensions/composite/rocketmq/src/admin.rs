@@ -627,7 +627,10 @@ impl RocketmqConnection {
     }
 
     /// 发送消息:按路由选队列,SEND_MESSAGE_V2(310) 优先,V1(10) 兜底
-    pub async fn send_message(&self, req: SendMessageRequest) -> Result<SendResult, MiddlewareError> {
+    pub async fn send_message(
+        &self,
+        req: SendMessageRequest,
+    ) -> Result<SendResult, MiddlewareError> {
         let route = self.topic_route(&req.topic).await?;
         let Some((queue, queue_id)) = self.select_send_queue(&route) else {
             return Err(MiddlewareError::Protocol(format!(
@@ -842,8 +845,73 @@ impl RocketmqConnection {
         })
     }
 
+    /// 重置订阅组消费位点(官方 `RESET_CONSUMER_OFFSET`,按时间戳重置 Topic 全部队列)。
+    ///
+    /// 该命令是 RocketMQ 运维的高频操作(重新消费/回放),broker 端按给定时间戳
+    /// 计算每一队列的目标偏移并覆写订阅组消费进度。返回成功下发到的 broker 数,
+    /// 部分 broker 失败时降级为部分成功并附带明细。
+    pub async fn reset_consumer_offset(
+        &self,
+        group: &str,
+        topic: &str,
+        timestamp_ms: i64,
+    ) -> Result<serde_json::Value, MiddlewareError> {
+        if group.trim().is_empty() {
+            return Err(MiddlewareError::Config("group 不能为空".into()));
+        }
+        if topic.trim().is_empty() {
+            return Err(MiddlewareError::Config("topic 不能为空".into()));
+        }
+        let route = self.topic_route(topic).await?;
+        // 覆盖该 Topic 路由到的全部 broker 主地址(去重)
+        let mut addrs: Vec<String> = Vec::new();
+        for broker in &route.broker_datas {
+            if let Some(addr) = broker.select_broker_addr()
+                && !addrs.iter().any(|existing| existing == addr)
+            {
+                addrs.push(addr.to_string());
+            }
+        }
+        if addrs.is_empty() {
+            return Err(MiddlewareError::Protocol(format!(
+                "Topic {topic} 没有可用的 Broker 地址"
+            )));
+        }
+
+        let mut ext = HashMap::new();
+        ext.insert("group".to_string(), group.to_string());
+        ext.insert("topic".to_string(), topic.to_string());
+        ext.insert("timestamp".to_string(), timestamp_ms.to_string());
+
+        let mut failed: Vec<(String, String)> = Vec::new();
+        for addr in &addrs {
+            let request =
+                RemotingCommand::create_request(RequestCode::RESET_CONSUMER_OFFSET, ext.clone());
+            if let Err(error) = self.client.invoke_broker(addr, request).await {
+                tracing::warn!("Broker {addr} 重置位点失败: {error}");
+                failed.push((addr.clone(), error.to_string()));
+            }
+        }
+        if failed.len() >= addrs.len() {
+            return Err(MiddlewareError::Connection(format!(
+                "重置位点失败: {failed:?}"
+            )));
+        }
+        Ok(serde_json::json!({
+            "group": group,
+            "topic": topic,
+            "timestamp_ms": timestamp_ms,
+            "brokers": addrs,
+            "resetted": addrs.len() - failed.len(),
+            "failed": failed,
+        }))
+    }
+
     /// 消息查询:ByKey 走索引;ById 解析偏移走 VIEW;时间窗口走消费队列遍历
-    pub async fn query_messages(&self, query: MessageQuery) -> Result<MessagePage, MiddlewareError> {
+    pub async fn query_messages(
+        &self,
+        query: MessageQuery,
+    ) -> Result<MessagePage, MiddlewareError> {
         match query {
             MessageQuery::ByKey { topic, key } => {
                 let route = self.topic_route(&topic).await?;
@@ -1310,6 +1378,28 @@ mod tests {
         assert!(is_system_topic("SCHEDULE_TOPIC_1931"));
         assert!(!is_system_topic("order-topic"));
         assert!(!is_system_topic("order-topic-schedule"));
+    }
+
+    /// 重置位点参数校验:空 group/topic 在任何网络请求前即被拒绝
+    #[tokio::test]
+    async fn reset_consumer_offset_rejects_blank_params() {
+        let connection =
+            RocketmqConnection::new(Arc::new(RocketmqParams::default())).expect("默认参数可构造");
+        for (group, topic) in [
+            ("", "order-topic"),
+            ("  ", "order-topic"),
+            ("g1", ""),
+            ("g1", " "),
+        ] {
+            let error = connection
+                .reset_consumer_offset(group, topic, 0)
+                .await
+                .expect_err("空参数应被拒绝");
+            assert!(
+                matches!(error, MiddlewareError::Config(_)),
+                "空参数应为配置错误: {group:?}/{topic:?} -> {error:?}"
+            );
+        }
     }
 
     #[test]

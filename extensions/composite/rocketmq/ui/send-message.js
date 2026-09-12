@@ -38,7 +38,7 @@ export default class RocketmqSendMessage extends View {
           cx.notify();
         }) : null))
       .child(`Status: ${this.status}`)
-      .child(div().flex_1().min_h_0().overflow_y_scrollbar().whitespace_pre_wrap()
+      .child(div().flex_1().min_h_0().overflow_y_scrollbar()
         .child(this.result ? JSON.stringify(this.result, null, 2) : "No result"));
   }
 

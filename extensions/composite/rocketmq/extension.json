@@ -141,7 +141,9 @@
         "schemaVersion": 1,
         "id": "rocketmq",
         "title": "RocketMQ",
-        "connectionIds": ["rocketmq"],
+        "connectionIds": [
+          "rocketmq"
+        ],
         "runtimeId": "main",
         "resourceType": "middleware",
         "defaultPage": "overview",
@@ -149,78 +151,170 @@
           "clusterOverview": {
             "mode": "invoke",
             "method": "middleware/cluster/overview",
-            "requires": ["middleware/cluster/overview"],
+            "requires": [
+              "middleware/cluster/overview"
+            ],
             "effect": "read"
           },
           "listTopics": {
             "mode": "invoke",
             "method": "middleware/topic/list",
-            "requires": ["middleware/topic/list"],
+            "requires": [
+              "middleware/topic/list"
+            ],
             "effect": "read"
           },
           "topicDetail": {
             "mode": "invoke",
             "method": "middleware/topic/detail",
-            "requires": ["middleware/topic/detail"],
+            "requires": [
+              "middleware/topic/detail"
+            ],
             "effect": "read",
             "params": {
-              "topic": {"source": "route", "path": "/topic", "type": "string"}
+              "topic": {
+                "source": "route",
+                "path": "/topic",
+                "type": "string"
+              }
             }
           },
           "listGroups": {
             "mode": "invoke",
             "method": "middleware/group/list",
-            "requires": ["middleware/group/list"],
+            "requires": [
+              "middleware/group/list"
+            ],
             "effect": "read"
           },
           "groupDetail": {
             "mode": "invoke",
             "method": "middleware/group/detail",
-            "requires": ["middleware/group/detail"],
+            "requires": [
+              "middleware/group/detail"
+            ],
             "effect": "read",
             "params": {
-              "group": {"source": "route", "path": "/group", "type": "string"}
+              "group": {
+                "source": "route",
+                "path": "/group",
+                "type": "string"
+              }
             }
           },
           "createTopic": {
             "mode": "invoke",
             "method": "middleware/topic/create",
-            "requires": ["middleware/topic/create"],
+            "requires": [
+              "middleware/topic/create"
+            ],
             "effect": "write",
             "params": {
-              "topic": {"source": "input", "path": "/topic", "type": "string"},
-              "queueCount": {"source": "input", "path": "/queueCount", "type": "number"}
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "queueCount": {
+                "source": "input",
+                "path": "/queueCount",
+                "type": "number"
+              }
             }
           },
           "deleteTopic": {
             "mode": "invoke",
             "method": "middleware/topic/delete",
-            "requires": ["middleware/topic/delete"],
+            "requires": [
+              "middleware/topic/delete"
+            ],
             "effect": "destructive",
             "params": {
-              "topic": {"source": "input", "path": "/topic", "type": "string"}
+              "topic": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
             }
           },
           "sendMessage": {
             "mode": "invoke",
             "method": "middleware/message/send",
-            "requires": ["middleware/message/send"],
+            "requires": [
+              "middleware/message/send"
+            ],
             "effect": "write",
             "params": {
-              "topic": {"source": "input", "path": "/topic", "type": "string"},
-              "tag": {"source": "input", "path": "/tag", "type": "string"},
-              "key": {"source": "input", "path": "/key", "type": "string"},
-              "body": {"source": "input", "path": "/body", "type": "json"}
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "tag": {
+                "source": "input",
+                "path": "/tag",
+                "type": "string"
+              },
+              "key": {
+                "source": "input",
+                "path": "/key",
+                "type": "string"
+              },
+              "body": {
+                "source": "input",
+                "path": "/body",
+                "type": "json"
+              }
+            }
+          },
+          "resetConsumerOffset": {
+            "mode": "invoke",
+            "method": "rocketmq/consumer/reset-offset",
+            "requires": [
+              "rocketmq/consumer/reset-offset"
+            ],
+            "effect": "destructive",
+            "params": {
+              "group": {
+                "source": "input",
+                "path": "/group",
+                "type": "string"
+              },
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "timestamp": {
+                "source": "input",
+                "path": "/timestamp",
+                "type": "string"
+              }
             }
           }
         },
         "navigation": [
-          {"pageId": "overview"},
-          {"pageId": "topics"},
-          {"pageId": "groups"},
-          {"pageId": "send-message"},
-          {"pageId": "create-topic"},
-          {"pageId": "delete-topic"}
+          {
+            "pageId": "overview"
+          },
+          {
+            "pageId": "topics"
+          },
+          {
+            "pageId": "groups"
+          },
+          {
+            "pageId": "send-message"
+          },
+          {
+            "pageId": "create-topic"
+          },
+          {
+            "pageId": "delete-topic"
+          },
+          {
+            "pageId": "reset-offset"
+          }
         ],
         "tree": [
           {
@@ -230,7 +324,9 @@
             "children": {
               "operation": "listTopics",
               "itemsPath": "/topics",
-              "keyPaths": ["/name"],
+              "keyPaths": [
+                "/name"
+              ],
               "labelPath": "/name"
             }
           },
@@ -241,7 +337,9 @@
             "children": {
               "operation": "listGroups",
               "itemsPath": "/groups",
-              "keyPaths": ["/group"],
+              "keyPaths": [
+                "/group"
+              ],
               "labelPath": "/group"
             }
           }
@@ -251,61 +349,191 @@
             "id": "overview",
             "title": "Overview",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "clusterOverview"}
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "clusterOverview"
+            }
           },
           {
             "id": "topics",
             "title": "Topics",
             "template": "collection",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "listTopics"},
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listTopics"
+            },
             "collection": {
               "itemsPath": "/topics",
-              "keyPaths": ["/name"],
-              "pagination": {"kind": "none"},
+              "keyPaths": [
+                "/name"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
               "columns": [
-                {"id": "name", "title": "Topic", "path": "/name", "type": "string"},
-                {"id": "type", "title": "Type", "path": "/topic_type", "type": "display"},
-                {"id": "queues", "title": "Queues", "path": "/queue_count", "type": "display"},
-                {"id": "messages", "title": "Messages", "path": "/message_count", "type": "display"}
+                {
+                  "id": "name",
+                  "title": "Topic",
+                  "path": "/name",
+                  "type": "string"
+                },
+                {
+                  "id": "type",
+                  "title": "Type",
+                  "path": "/topic_type",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "queues",
+                  "title": "Queues",
+                  "path": "/queue_count",
+                  "type": "display"
+                },
+                {
+                  "id": "perm",
+                  "title": "Perm",
+                  "path": "/perm",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
+                  "id": "messages",
+                  "title": "Messages",
+                  "path": "/message_count",
+                  "type": "display"
+                }
               ],
               "open": {
                 "pageId": "topic-detail",
                 "route": {
-                  "topic": {"source": "selection", "path": "/name", "type": "string"}
+                  "topic": {
+                    "source": "selection",
+                    "path": "/name",
+                    "type": "string"
+                  }
                 }
-              }
+              },
+              "actions": [
+                {
+                  "id": "delete",
+                  "label": "Delete",
+                  "operation": "deleteTopic"
+                }
+              ]
             }
           },
           {
             "id": "topic-detail",
             "title": "Topic",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "route": {"topic": {"type": "string", "required": true}},
-            "load": {"operation": "topicDetail"}
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "topic": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "topicDetail"
+            },
+            "links": [
+              {
+                "title": "All topics",
+                "pageId": "topics",
+                "route": {}
+              },
+              {
+                "title": "Reset offset",
+                "pageId": "reset-offset",
+                "route": {
+                  "topic": {
+                    "source": "route",
+                    "path": "/topic",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           },
           {
             "id": "groups",
             "title": "Groups",
             "template": "collection",
-            "renderer": {"kind": "native"},
-            "load": {"operation": "listGroups"},
+            "renderer": {
+              "kind": "native"
+            },
+            "load": {
+              "operation": "listGroups"
+            },
             "collection": {
               "itemsPath": "/groups",
-              "keyPaths": ["/group"],
-              "pagination": {"kind": "none"},
+              "keyPaths": [
+                "/group"
+              ],
+              "pagination": {
+                "kind": "none"
+              },
               "columns": [
-                {"id": "group", "title": "Group", "path": "/group", "type": "string"},
-                {"id": "clients", "title": "Clients", "path": "/client_count", "type": "display"},
-                {"id": "consumeType", "title": "Consume Type", "path": "/consume_type", "type": "display"},
-                {"id": "tps", "title": "TPS", "path": "/tps", "type": "display"}
+                {
+                  "id": "group",
+                  "title": "Group",
+                  "path": "/group",
+                  "type": "string"
+                },
+                {
+                  "id": "clients",
+                  "title": "Clients",
+                  "path": "/client_count",
+                  "type": "display"
+                },
+                {
+                  "id": "consumeType",
+                  "title": "Consume Type",
+                  "path": "/consume_type",
+                  "type": "display",
+                  "style": "badge"
+                },
+                {
+                  "id": "model",
+                  "title": "Model",
+                  "path": "/message_model",
+                  "type": "display"
+                },
+                {
+                  "id": "tps",
+                  "title": "TPS",
+                  "path": "/tps",
+                  "type": "display"
+                },
+                {
+                  "id": "diff",
+                  "title": "Backlog",
+                  "path": "/total_diff",
+                  "type": "display"
+                },
+                {
+                  "id": "version",
+                  "title": "Version",
+                  "path": "/version",
+                  "type": "display",
+                  "style": "muted"
+                }
               ],
               "open": {
                 "pageId": "group-detail",
                 "route": {
-                  "group": {"source": "selection", "path": "/group", "type": "string"}
+                  "group": {
+                    "source": "selection",
+                    "path": "/group",
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -314,36 +542,132 @@
             "id": "group-detail",
             "title": "Group",
             "template": "json",
-            "renderer": {"kind": "native"},
-            "route": {"group": {"type": "string", "required": true}},
-            "load": {"operation": "groupDetail"}
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "group": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "groupDetail"
+            },
+            "links": [
+              {
+                "title": "All groups",
+                "pageId": "groups",
+                "route": {}
+              },
+              {
+                "title": "Reset offset",
+                "pageId": "reset-offset",
+                "route": {
+                  "group": {
+                    "source": "route",
+                    "path": "/group",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           },
           {
             "id": "create-topic",
             "title": "Create Topic",
             "template": "query",
-            "renderer": {"kind": "native"},
+            "renderer": {
+              "kind": "native"
+            },
             "inputs": [
-              {"id": "topic", "type": "string", "editor": "text", "required": true},
-              {"id": "queueCount", "type": "number", "editor": "text", "default": "4", "required": true}
+              {
+                "id": "topic",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "queueCount",
+                "type": "number",
+                "editor": "text",
+                "default": "4",
+                "required": true
+              }
             ],
-            "execute": {"operation": "createTopic"}
+            "execute": {
+              "operation": "createTopic"
+            }
           },
           {
             "id": "delete-topic",
             "title": "Delete Topic",
             "template": "query",
-            "renderer": {"kind": "native"},
+            "renderer": {
+              "kind": "native"
+            },
             "inputs": [
-              {"id": "topic", "type": "string", "editor": "text", "required": true}
+              {
+                "id": "topic",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              }
             ],
-            "execute": {"operation": "deleteTopic"}
+            "execute": {
+              "operation": "deleteTopic"
+            }
           },
           {
             "id": "send-message",
             "title": "Send Message",
             "template": "json",
-            "renderer": {"kind": "shell", "viewId": "send-message"}
+            "renderer": {
+              "kind": "shell",
+              "viewId": "send-message"
+            }
+          },
+          {
+            "id": "reset-offset",
+            "title": "Reset Offset",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "group",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "topic",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "timestamp",
+                "type": "string",
+                "editor": "text",
+                "default": "",
+                "required": false
+              }
+            ],
+            "execute": {
+              "operation": "resetConsumerOffset"
+            },
+            "route": {
+              "topic": {
+                "type": "string",
+                "required": false
+              },
+              "group": {
+                "type": "string",
+                "required": false
+              }
+            }
           }
         ]
       }
@@ -359,7 +683,10 @@
         "backends": {
           "resource": "main"
         },
-        "modules": ["context", "workbench"]
+        "modules": [
+          "context",
+          "workbench"
+        ]
       },
       {
         "id": "console",

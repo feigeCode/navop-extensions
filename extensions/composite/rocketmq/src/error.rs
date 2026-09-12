@@ -17,10 +17,7 @@ pub(crate) fn invalid_params(message: impl Into<String>) -> Box<ProtocolError> {
 }
 
 pub(crate) fn resource_error() -> Box<ProtocolError> {
-    boxed_error(
-        error_codes::RESOURCE_CLOSED,
-        "RocketMQ 资源未打开或已关闭",
-    )
+    boxed_error(error_codes::RESOURCE_CLOSED, "RocketMQ 资源未打开或已关闭")
 }
 
 pub(crate) fn parse_params<T: DeserializeOwned>(value: Value) -> Result<T, Box<ProtocolError>> {

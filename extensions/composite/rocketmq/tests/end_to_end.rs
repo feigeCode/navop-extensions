@@ -109,7 +109,10 @@ struct RecordedRemotingRequest {
 }
 
 /// mock NameServer:按请求码回放 body,记录请求头
-async fn spawn_namesrv_fixture() -> (std::net::SocketAddr, Arc<std::sync::Mutex<Vec<RecordedRemotingRequest>>>) {
+async fn spawn_namesrv_fixture() -> (
+    std::net::SocketAddr,
+    Arc<std::sync::Mutex<Vec<RecordedRemotingRequest>>>,
+) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .expect("bind mock namesrv");
@@ -152,10 +155,15 @@ async fn spawn_namesrv_fixture() -> (std::net::SocketAddr, Arc<std::sync::Mutex<
                             // GET_BROKER_CLUSTER_INFO → 空集群
                             106 => br#"{"brokerAddrTable":{},"clusterAddrTable":{}}"#.to_vec(),
                             // GET_ALL_TOPIC_LIST_FROM_NAMESERVER → 样本 Topic 集
-                            206 => br#"{"topicList":["order-topic","%RETRY%order-group"]}"#.to_vec(),
+                            206 => {
+                                br#"{"topicList":["order-topic","%RETRY%order-group"]}"#.to_vec()
+                            }
                             _ => br#"{}"#.to_vec(),
                         };
-                        if write_response(&mut socket, header.opaque, body).await.is_err() {
+                        if write_response(&mut socket, header.opaque, body)
+                            .await
+                            .is_err()
+                        {
                             return;
                         }
                     }
@@ -171,7 +179,8 @@ struct RemotingHeader {
     code: i32,
     opaque: i32,
     ext_fields: HashMap<String, String>,
-}/// 大端读取 4B 无符号整数
+}
+/// 大端读取 4B 无符号整数
 fn u32_from_be(bytes: &[u8]) -> Option<u32> {
     Some(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }
@@ -208,9 +217,8 @@ async fn write_response(
     opaque: i32,
     body: Vec<u8>,
 ) -> std::io::Result<()> {
-    let header = format!(
-        r#"{{"code":0,"language":"JAVA","version":412,"opaque":{opaque},"flag":1}}"#
-    );
+    let header =
+        format!(r#"{{"code":0,"language":"JAVA","version":412,"opaque":{opaque},"flag":1}}"#);
     let header_bytes = header.as_bytes();
     let total = 4 + header_bytes.len() + body.len();
     let mut frame = Vec::with_capacity(4 + total);
@@ -385,7 +393,9 @@ async fn provider_opens_resource_and_serves_capabilities_roundtrip() {
     assert!(capabilities.contains(&"middleware/capabilities"));
     assert!(capabilities.contains(&"middleware/topic/list"));
     assert!(capabilities.contains(&"middleware/message/send"));
-    assert_eq!(13, capabilities.len());
+    // 标准 §3 的 13 个方法 + RocketMQ 运维扩展(重置消费位点)
+    assert!(capabilities.contains(&"rocketmq/consumer/reset-offset"));
+    assert_eq!(14, capabilities.len());
     assert_eq!(
         Some(&json!({
             "standard_version": 1,
@@ -421,8 +431,7 @@ async fn provider_opens_resource_and_serves_capabilities_roundtrip() {
         "cluster_overview",
     ] {
         assert_eq!(
-            true,
-            caps["capabilities"][flag],
+            true, caps["capabilities"][flag],
             "RocketMQ 能力位 {flag} 应全开"
         );
     }
@@ -588,8 +597,7 @@ async fn secret_permission_is_enforced_before_lookup() {
 async fn network_permission_is_enforced_before_provider_rpc() {
     let harness = harness(true).await;
     let mut params = open_params(harness.namesrv_port);
-    params.config["namesrv_addrs"] =
-        json!([format!("127.0.0.1:{}", harness.namesrv_port + 1)]);
+    params.config["namesrv_addrs"] = json!([format!("127.0.0.1:{}", harness.namesrv_port + 1)]);
     let error = harness
         .client
         .open_resource(&params)

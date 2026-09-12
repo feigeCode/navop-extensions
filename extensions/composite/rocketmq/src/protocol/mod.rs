@@ -14,4 +14,3 @@ pub mod dto;
 
 pub use codes::{RequestCode, ResponseCode};
 pub use command::{RemotingCommand, decode_frame, ensure_success, frame_body_length};
-

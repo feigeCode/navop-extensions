@@ -13,7 +13,7 @@ use crate::admin::RocketmqConnection;
 use crate::config::{PendingOpen, parse_open_params};
 use crate::contract::{
     self, CapabilitiesResponse, ClientListResponse, CreateTopicRequest, GroupListResponse,
-    MetricsResponse, MessageQuery, SendMessageRequest, TopicListResponse,
+    MessageQuery, MetricsResponse, SendMessageRequest, TopicListResponse,
 };
 use crate::error::{
     ProviderResult, invalid_params, middleware_error, parse_params, resource_error, serialize,
@@ -23,6 +23,9 @@ use crate::state::{ProviderState, RESOURCE_ID};
 
 /// 标准方法名分发与 open 能力声明统一取自契约 crate(标准 §3)
 use contract::methods;
+
+/// RocketMQ 专用方法(非标准 §3,标准外的运维能力)
+const RESET_OFFSET_METHOD: &str = "rocketmq/consumer/reset-offset";
 
 pub(super) async fn open<R, W>(
     ipc: &mut IpcParts<R, W>,
@@ -41,27 +44,33 @@ where
     // secret 引用经宿主反向解析后注入(acl=rocketmq 时)
     if let Some(reference) = &secret_ref {
         let secret = resolve_secret(ipc, reference, state.reverse_request_id()).await?;
-        let secret = String::from_utf8(secret).map_err(|_| {
-            invalid_params("配置错误: RocketMQ SecretKey 不是合法 UTF-8 文本")
-        })?;
+        let secret = String::from_utf8(secret)
+            .map_err(|_| invalid_params("配置错误: RocketMQ SecretKey 不是合法 UTF-8 文本"))?;
         if secret.trim().is_empty() {
             return Err(invalid_params("配置错误: SecretKey 不能为空"));
         }
         params.secret_key = Some(secret);
     }
 
-    let connection = RocketmqConnection::new(Arc::new(params))
-        .map_err(middleware_error)?;
+    let connection = RocketmqConnection::new(Arc::new(params)).map_err(middleware_error)?;
     // 建立到 NameServer 的 Remoting 连接并验证可达
-    connection.test_connection().await.map_err(middleware_error)?;
+    connection
+        .test_connection()
+        .await
+        .map_err(middleware_error)?;
     let acl_enabled = connection_acl_enabled(&connection);
-    let namesrv = connection
-        .params()
-        .server_info();
+    let namesrv = connection.params().server_info();
     let resource_id = state.insert_resource(connection).await;
     serialize(ResourceOpenResult {
         resource_id,
-        capabilities: methods::ALL.iter().map(|method| method.to_string()).collect(),
+        capabilities: {
+            let mut capabilities: Vec<String> = methods::ALL
+                .iter()
+                .map(|method| method.to_string())
+                .collect();
+            capabilities.push(RESET_OFFSET_METHOD.to_string());
+            capabilities
+        },
         metadata: Some(json!({
             "standard_version": contract::STANDARD_VERSION,
             "resource": "rocketmq",
@@ -77,7 +86,6 @@ where
 fn connection_acl_enabled(connection: &RocketmqConnection) -> bool {
     connection.acl_enabled()
 }
-
 
 pub(super) fn ping(state: &ProviderState, params: Value) -> ProviderResult {
     let params: ResourcePingParams = parse_params(params)?;
@@ -164,6 +172,26 @@ async fn dispatch_method(
         methods::MESSAGE_SEND => {
             let request: SendMessageRequest = parse_method_params(&params)?;
             to_value(connection.send_message(request).await?)
+        }
+        RESET_OFFSET_METHOD => {
+            let group = require_group(&params)?;
+            let topic = require_topic(&params)?;
+            let timestamp_ms = params
+                .get("timestamp")
+                .and_then(|value| match value {
+                    Value::Number(number) => number.as_i64(),
+                    Value::String(text) => text
+                        .trim()
+                        .parse::<i64>()
+                        .ok()
+                        // 字符串可为空(缺省重置到当前时刻)
+                        .filter(|_| !text.trim().is_empty()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
+            connection
+                .reset_consumer_offset(&group, &topic, timestamp_ms)
+                .await
         }
         _ => Err(crate::contract::MiddlewareError::Unsupported(format!(
             "未知方法: {method}"
