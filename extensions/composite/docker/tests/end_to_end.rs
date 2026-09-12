@@ -127,7 +127,10 @@ async fn live_docker_provider_smoke() {
     )
     .await;
     let image_rows = images["images"].as_array().expect("image array");
-    assert!(!image_rows.is_empty(), "daemon must report at least one image");
+    assert!(
+        !image_rows.is_empty(),
+        "daemon must report at least one image"
+    );
     assert!(
         image_rows[0]["name"].is_string() && image_rows[0]["id"].is_string(),
         "image rows must expose name/id: {image_rows:?}"

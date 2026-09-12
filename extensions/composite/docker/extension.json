@@ -90,6 +90,66 @@
           "context",
           "workbench"
         ]
+      },
+      {
+        "id": "overview",
+        "title": "Docker Engine Overview",
+        "description": "Engine usage dashboard: containers, images, disk and runtime resources.",
+        "entry": "ui/overview.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "images-table",
+        "title": "Docker Images",
+        "description": "Image list with pull form and remove actions.",
+        "entry": "ui/images.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "processes",
+        "title": "Container Processes",
+        "description": "Process table of a running container.",
+        "entry": "ui/processes.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "Container Filesystem Changes",
+        "description": "Filesystem change list (A/C/D) of a container.",
+        "entry": "ui/changes.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
       }
     ],
     "resourceWorkbenches": [
@@ -410,6 +470,342 @@
                 "type": "string"
               }
             }
+          },
+          "pullImage": {
+            "mode": "job",
+            "method": "docker/image/pull",
+            "requires": [
+              "docker/image/pull"
+            ],
+            "effect": "write",
+            "params": {
+              "image": {
+                "source": "input",
+                "path": "/image",
+                "type": "string"
+              },
+              "tag": {
+                "source": "input",
+                "path": "/tag",
+                "type": "string"
+              }
+            }
+          },
+          "imageInspect": {
+            "mode": "invoke",
+            "method": "docker/image/inspect",
+            "requires": [
+              "docker/image/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "imageHistory": {
+            "mode": "invoke",
+            "method": "docker/image/history",
+            "requires": [
+              "docker/image/history"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "imageTag": {
+            "mode": "invoke",
+            "method": "docker/image/tag",
+            "requires": [
+              "docker/image/tag"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              },
+              "repo": {
+                "source": "input",
+                "path": "/repo",
+                "type": "string"
+              },
+              "tag": {
+                "source": "input",
+                "path": "/tag",
+                "type": "string"
+              }
+            }
+          },
+          "imagePrune": {
+            "mode": "invoke",
+            "method": "docker/image/prune",
+            "requires": [
+              "docker/image/prune"
+            ],
+            "effect": "destructive",
+            "params": {
+              "all": {
+                "source": "literal",
+                "path": "/all",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          },
+          "containerCreate": {
+            "mode": "invoke",
+            "method": "docker/container/create",
+            "requires": [
+              "docker/container/create"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "config": {
+                "source": "input",
+                "path": "/config",
+                "type": "json"
+              }
+            }
+          },
+          "containerPause": {
+            "mode": "invoke",
+            "method": "docker/container/pause",
+            "requires": [
+              "docker/container/pause"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerUnpause": {
+            "mode": "invoke",
+            "method": "docker/container/unpause",
+            "requires": [
+              "docker/container/unpause"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerKill": {
+            "mode": "invoke",
+            "method": "docker/container/kill",
+            "requires": [
+              "docker/container/kill"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              },
+              "signal": {
+                "source": "literal",
+                "path": "/signal",
+                "type": "string",
+                "value": "SIGKILL"
+              }
+            }
+          },
+          "containerRename": {
+            "mode": "invoke",
+            "method": "docker/container/rename",
+            "requires": [
+              "docker/container/rename"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              },
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "containerUpdate": {
+            "mode": "invoke",
+            "method": "docker/container/update",
+            "requires": [
+              "docker/container/update"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              },
+              "config": {
+                "source": "input",
+                "path": "/config",
+                "type": "json"
+              }
+            }
+          },
+          "containerTop": {
+            "mode": "invoke",
+            "method": "docker/container/top",
+            "requires": [
+              "docker/container/top"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "containerDiff": {
+            "mode": "invoke",
+            "method": "docker/container/diff",
+            "requires": [
+              "docker/container/diff"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "route",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "networkCreate": {
+            "mode": "invoke",
+            "method": "docker/network/create",
+            "requires": [
+              "docker/network/create"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "driver": {
+                "source": "input",
+                "path": "/driver",
+                "type": "string"
+              }
+            }
+          },
+          "networkConnect": {
+            "mode": "invoke",
+            "method": "docker/network/connect",
+            "requires": [
+              "docker/network/connect"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              },
+              "container": {
+                "source": "input",
+                "path": "/container",
+                "type": "string"
+              }
+            }
+          },
+          "networkDisconnect": {
+            "mode": "invoke",
+            "method": "docker/network/disconnect",
+            "requires": [
+              "docker/network/disconnect"
+            ],
+            "effect": "write",
+            "params": {
+              "id": {
+                "source": "selection",
+                "path": "/id",
+                "type": "string"
+              },
+              "container": {
+                "source": "input",
+                "path": "/container",
+                "type": "string"
+              }
+            }
+          },
+          "networkPrune": {
+            "mode": "invoke",
+            "method": "docker/network/prune",
+            "requires": [
+              "docker/network/prune"
+            ],
+            "effect": "destructive"
+          },
+          "volumeCreate": {
+            "mode": "invoke",
+            "method": "docker/volume/create",
+            "requires": [
+              "docker/volume/create"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "driver": {
+                "source": "input",
+                "path": "/driver",
+                "type": "string"
+              }
+            }
+          },
+          "volumePrune": {
+            "mode": "invoke",
+            "method": "docker/volume/prune",
+            "requires": [
+              "docker/volume/prune"
+            ],
+            "effect": "destructive"
+          },
+          "systemPrune": {
+            "mode": "invoke",
+            "method": "docker/system/prune",
+            "requires": [
+              "docker/system/prune"
+            ],
+            "effect": "destructive"
           }
         },
         "navigation": [
@@ -427,6 +823,24 @@
           },
           {
             "pageId": "overview"
+          },
+          {
+            "pageId": "image-pull"
+          },
+          {
+            "pageId": "image-detail"
+          },
+          {
+            "pageId": "container-create"
+          },
+          {
+            "pageId": "volume-create"
+          },
+          {
+            "pageId": "network-create"
+          },
+          {
+            "pageId": "tasks"
           }
         ],
         "tree": [
@@ -522,6 +936,21 @@
                   "id": "remove",
                   "label": "Remove",
                   "operation": "removeContainer"
+                },
+                {
+                  "id": "pause",
+                  "label": "Pause",
+                  "operation": "containerPause"
+                },
+                {
+                  "id": "unpause",
+                  "label": "Resume",
+                  "operation": "containerUnpause"
+                },
+                {
+                  "id": "kill",
+                  "label": "Kill",
+                  "operation": "containerKill"
                 }
               ]
             }
@@ -615,7 +1044,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -713,7 +1167,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -809,7 +1288,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -905,7 +1409,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -1011,7 +1540,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -1111,7 +1665,32 @@
                   },
                   "path": {
                     "source": "literal",
-                    "value": "/",
+                    "path": "/",
+                    "type": "string",
+                    "value": "/"
+                  }
+                }
+              },
+              {
+                "id": "processes",
+                "title": "Processes",
+                "pageId": "container-processes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "id": "changes",
+                "title": "Changes",
+                "pageId": "container-changes",
+                "route": {
+                  "id": {
+                    "source": "route",
+                    "path": "/id",
                     "type": "string"
                   }
                 }
@@ -1190,7 +1769,9 @@
             "title": "Images",
             "template": "collection",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "images-table",
+              "fallback": "native"
             },
             "load": {
               "operation": "listImages"
@@ -1218,8 +1799,15 @@
                   "style": "mono"
                 },
                 {
+                  "id": "created",
+                  "title": "Created",
+                  "path": "/created",
+                  "type": "display",
+                  "style": "muted"
+                },
+                {
                   "id": "size",
-                  "title": "Size (MB)",
+                  "title": "Size",
                   "path": "/size_mb",
                   "type": "display",
                   "style": "muted"
@@ -1227,11 +1815,26 @@
               ],
               "actions": [
                 {
+                  "id": "pull",
+                  "label": "Pull",
+                  "operation": "pullImage"
+                },
+                {
                   "id": "remove",
                   "label": "Remove",
                   "operation": "removeImage"
                 }
-              ]
+              ],
+              "open": {
+                "pageId": "image-detail",
+                "route": {
+                  "name": {
+                    "source": "selection",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
             }
           },
           {
@@ -1267,11 +1870,11 @@
                   "style": "muted"
                 },
                 {
-                  "id": "mountpoint",
-                  "title": "Mountpoint",
-                  "path": "/mountpoint",
+                  "id": "size",
+                  "title": "Size",
+                  "path": "/size",
                   "type": "display",
-                  "style": "mono"
+                  "style": "muted"
                 },
                 {
                   "id": "refs",
@@ -1279,6 +1882,13 @@
                   "path": "/ref_count",
                   "type": "display",
                   "style": "muted"
+                },
+                {
+                  "id": "mountpoint",
+                  "title": "Mountpoint",
+                  "path": "/mountpoint",
+                  "type": "display",
+                  "style": "mono"
                 }
               ],
               "open": {
@@ -1296,6 +1906,11 @@
                   "id": "remove",
                   "label": "Remove",
                   "operation": "removeVolume"
+                },
+                {
+                  "id": "prune",
+                  "label": "Prune",
+                  "operation": "volumePrune"
                 }
               ]
             }
@@ -1386,6 +2001,11 @@
                   "id": "remove",
                   "label": "Remove",
                   "operation": "removeNetwork"
+                },
+                {
+                  "id": "prune",
+                  "label": "Prune",
+                  "operation": "networkPrune"
                 }
               ]
             }
@@ -1419,10 +2039,209 @@
             "title": "Docker Overview",
             "template": "json",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "overview",
+              "fallback": "native"
             },
             "load": {
               "operation": "systemInfo"
+            }
+          },
+          {
+            "id": "tasks",
+            "title": "Tasks",
+            "template": "tasks",
+            "renderer": {
+              "kind": "native"
+            },
+            "scope": "session"
+          },
+          {
+            "id": "image-pull",
+            "title": "Pull image",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "image",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "tag",
+                "type": "string",
+                "editor": "text"
+              }
+            ],
+            "execute": {
+              "operation": "pullImage"
+            }
+          },
+          {
+            "id": "image-detail",
+            "title": "Image",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "imageInspect"
+            },
+            "links": [
+              {
+                "title": "All images",
+                "pageId": "images",
+                "route": {}
+              }
+            ]
+          },
+          {
+            "id": "image-history",
+            "title": "Image history",
+            "template": "json",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "imageHistory"
+            },
+            "links": [
+              {
+                "title": "Image",
+                "pageId": "image-detail",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "container-create",
+            "title": "Create container",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "name",
+                "type": "string",
+                "editor": "text"
+              },
+              {
+                "id": "config",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              }
+            ],
+            "execute": {
+              "operation": "containerCreate"
+            }
+          },
+          {
+            "id": "container-processes",
+            "title": "Processes",
+            "template": "json",
+            "renderer": {
+              "kind": "shell",
+              "viewId": "processes",
+              "fallback": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "containerTop"
+            }
+          },
+          {
+            "id": "container-changes",
+            "title": "Changes",
+            "template": "json",
+            "renderer": {
+              "kind": "shell",
+              "viewId": "changes",
+              "fallback": "native"
+            },
+            "route": {
+              "id": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "containerDiff"
+            }
+          },
+          {
+            "id": "volume-create",
+            "title": "Create volume",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "name",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "driver",
+                "type": "string",
+                "editor": "text"
+              }
+            ],
+            "execute": {
+              "operation": "volumeCreate"
+            }
+          },
+          {
+            "id": "network-create",
+            "title": "Create network",
+            "template": "query",
+            "renderer": {
+              "kind": "native"
+            },
+            "inputs": [
+              {
+                "id": "name",
+                "type": "string",
+                "editor": "text",
+                "required": true
+              },
+              {
+                "id": "driver",
+                "type": "string",
+                "editor": "text"
+              }
+            ],
+            "execute": {
+              "operation": "networkCreate"
             }
           }
         ]

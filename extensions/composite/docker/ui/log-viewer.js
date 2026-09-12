@@ -49,7 +49,7 @@ export default class DockerLogViewer extends View {
           .flex_1()
           .min_h_0()
           .overflow_y_scrollbar()
-          .whitespace_pre_wrap()
+
           .child(this.logs || "No logs"),
       );
   }
