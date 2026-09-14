@@ -3,8 +3,8 @@
 // 依据 middleware-standard §5.1:共享控制台库 `./console/base.js` 中的
 // `MiddlewareConsole` 基类负责 capabilities 探测、四页渲染与刷新防护;
 // 本入口仅做 MQTT 品牌定制(标题/副标题),不得覆盖 init/render。
-// `ui/console/` 目录由 middleware-base 的同步脚本在构建期填充
-// (scripts/sync-middleware-console.mjs),源码缺失属预期。
+// `ui/console/base.js` 为本扩展自持有的共享控制台基类(middleware-standard v1,§5.1),
+// 与 rocketmq 侧副本需保持同步。
 import { MiddlewareConsole } from "./console/base.js";
 
 export default class ConsoleView extends MiddlewareConsole {

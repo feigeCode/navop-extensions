@@ -50,7 +50,7 @@
 | `middleware/message/query` | `MessageQuery`（tagged enum：`{"ByTimeWindow":{...}}`/`{"ByKey":{...}}`/`{"ById":{...}}`） | `MessagePage` |
 | `middleware/message/send` | `SendMessageRequest`（body 为字节数组） | `SendResult` |
 
-数据模型（`MiddlewareTopicInfo`/`TopicDetail`/`QueueStat`/`MiddlewareGroupInfo`/`MiddlewareClientInfo`/`GroupConsumeDetail`/`GroupQueueStat`/`MiddlewareMessage`/`MessagePage`/`BrokerInfo`/`ClusterInfo`/`ClusterOverview`/`MiddlewareMetrics`/`SendMessageRequest`/`SendResult`/`CreateTopicRequest`）的字段定义以契约 crate `middleware-contract/src/lib.rs` 为准（serde `#[serde(default)]`，向前兼容缺字段）。
+数据模型（`MiddlewareTopicInfo`/`TopicDetail`/`QueueStat`/`MiddlewareGroupInfo`/`MiddlewareClientInfo`/`GroupConsumeDetail`/`GroupQueueStat`/`MiddlewareMessage`/`MessagePage`/`BrokerInfo`/`ClusterInfo`/`ClusterOverview`/`MiddlewareMetrics`/`SendMessageRequest`/`SendResult`/`CreateTopicRequest`）的字段定义以本扩展 `src/middleware_contract.rs`（serde `#[serde(default)]`，向前兼容缺字段）。
 
 ## 4. 连接表单标准（contributes.connections）
 
@@ -63,7 +63,7 @@
 
 - 每个实现扩展声明 `shellViews: [{ id: "console", surface: "tab", entry: "ui/console.js", modules: ["context","resource","job","event","blob","runtime","log"], backends: {"resource": "main"} }]`
 - 控制台四页：**概览**（指标卡片+集群拓扑，gated by `metrics`/`cluster_overview`）、**Topic**（列表+详情+新建/删除，gated by `topics`/`topic_write`）、**订阅组·客户端**（列表+消费详情+客户端，gated by `groups`/`clients`）、**消息查询**（按时间/Key/ID 查询+发送，gated by `message_query`/`send_message`）
-- UI 源文件位于本基础扩展 `ui/console/`；构建期经 `scripts/sync-middleware-console.mjs` 同步进实现扩展 `ui/`，实现扩展的 `ui/console.js` 为入口薄壳（品牌定制：标题/副标题/扩展列）
+- 共享控制台库 `ui/console/base.js` 由本扩展自持有（历史源为已拆除的 middleware-base 共享库；mqtt 与 rocketmq 双副本，修改必须两边同步），实现扩展的 `ui/console.js` 为入口薄壳（品牌定制：标题/副标题/扩展列）
 - UI 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）；可用组件含 `DataTable`/`DataTableState`、`pagination`、`form`、`input`、`select`、`badge`、`chart`、`description_list`、`virtual_list` 等 81 个
 - 刷新防护：异步加载携带 generation 计数，过期响应丢弃（对应原 middleware_view 的 refresh_generation 语义）
 

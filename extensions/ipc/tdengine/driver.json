@@ -256,6 +256,9 @@
               },
               {
                 "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
               }
             ],
             "placement": "ContextMenu",
@@ -331,6 +334,9 @@
             "targets": [
               {
                 "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
               },
               {
                 "node_type": "TablesFolder"

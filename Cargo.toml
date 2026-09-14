@@ -3,7 +3,6 @@ members = [
     "drivers/mongodb-driver",
     "extensions/composite/elasticsearch",
     "extensions/composite/docker",
-    "extensions/composite/middleware-base",
     "extensions/composite/mqtt",
     "extensions/composite/rocketmq",
     "extensions/ipc/duckdb",

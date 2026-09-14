@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
+  <!-- Navop dev-tools workbench mark: terminal window with prompt, elastic-dark surface,
+       teal prompt chevron (#00BFB3) and yellow cursor (#FEC514) from the Elastic brand palette -->
+  <title>Dev Tools</title>
+  <rect x="1.5" y="3" width="21" height="18" rx="2.5" fill="#343741"/>
+  <circle cx="4.6" cy="5.9" r=".75" fill="#F04E98"/>
+  <circle cx="7.1" cy="5.9" r=".75" fill="#FEC514"/>
+  <circle cx="9.6" cy="5.9" r=".75" fill="#00BFB3"/>
+  <path d="M5.2 11.4l3.3 2.7-3.3 2.7" stroke="#00BFB3" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10.9 16.8h5.6" stroke="#FEC514" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

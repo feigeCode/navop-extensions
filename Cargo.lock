@@ -4466,14 +4466,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "middleware-contract"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4711,7 +4703,6 @@ dependencies = [
  "extension-host",
  "extension-protocol",
  "interprocess",
- "middleware-contract",
  "rumqttc",
  "serde",
  "serde_json",
@@ -6623,7 +6614,6 @@ dependencies = [
  "extension-host",
  "extension-protocol",
  "interprocess",
- "middleware-contract",
  "serde",
  "serde_json",
  "sha1 0.10.6",

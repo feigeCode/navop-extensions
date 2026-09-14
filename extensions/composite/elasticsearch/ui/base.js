@@ -441,9 +441,8 @@ export class ConsoleView extends View {
         h_flex()
           .gap(8)
           .items_center()
-          .child(this.statusMessage
-            ? div().text_size(12).text_color("muted").child(new Text(this.statusMessage))
-            : null)
+          .when(this.statusMessage, (el) =>
+            el.child(div().text_size(12).text_color("muted").child(new Text(this.statusMessage))))
           .child(
             new Button("es-refresh").ghost().label("刷新").on_click((_e, cx) => {
               cx.spawn(async (cx) => this.refreshOverview(cx));
@@ -703,7 +702,7 @@ export class ConsoleView extends View {
         .items_center()
         .on_click(() => { /* selection only; nav via row double handled by host */ })
         .child(div().font_semibold().child(new Text(row.name || "—")))
-        .child(row.status === "closed" ? new Badge().color("muted").child("closed") : null);
+        .when(row.status === "closed", (el) => el.child(new Badge().color("muted").child("closed")));
     }
     if (column === "health") return new Badge().color(colorForHealth(row.health)).child(row.health || "unknown");
     if (column === "status") return new Badge().color(colorForStatus(row.status)).child(row.status || "—");
@@ -734,19 +733,15 @@ export class ConsoleView extends View {
           .items_center()
           .child(new Button("es-back-indices").ghost().label("← 索引").on_click((_e, cx) => this.goToTab(TAB_INDICES, cx)))
           .child(div().text_size(18).font_semibold().child(new Text(name)))
-          .child(this.indexDetailLoading ? new Spinner().size("small") : null)
+          .when(this.indexDetailLoading, (el) => el.child(new Spinner().size("small")))
           .child(new Button("es-refresh-detail").ghost().label("刷新").on_click((_e, cx) => cx.spawn(async (cx) => this.loadIndexDetail(name, cx))))
-          .child(this.canWriteIndices() && !isClosed
-            ? new Button("es-refresh-index").ghost().label("刷新缓存").on_click((_e, cx) => cx.spawn(async (cx) => this.performRefreshIndex(name, cx)))
-            : null)
-          .child(this.canWriteIndices()
-            ? (isClosed
-                ? new Button("es-open-index").ghost().label("打开索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performOpenIndex(name, cx)))
-                : new Button("es-close-index").ghost().label("关闭索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performCloseIndex(name, cx))))
-            : null)
-          .child(this.canWriteIndices()
-            ? new Button("es-delete-index").danger().label("删除索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performDeleteIndex(name, cx)))
-            : null),
+          .when(this.canWriteIndices() && !isClosed, (el) => el.child(
+            new Button("es-refresh-index").ghost().label("刷新缓存").on_click((_e, cx) => cx.spawn(async (cx) => this.performRefreshIndex(name, cx)))))
+          .when(this.canWriteIndices(), (el) => el.child(isClosed
+            ? new Button("es-open-index").ghost().label("打开索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performOpenIndex(name, cx)))
+            : new Button("es-close-index").ghost().label("关闭索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performCloseIndex(name, cx)))))
+          .when(this.canWriteIndices(), (el) => el.child(
+            new Button("es-delete-index").danger().label("删除索引").on_click((_e, cx) => cx.spawn(async (cx) => this.performDeleteIndex(name, cx))))),
       )
       .child(this.renderDetailSubTabs())
       .child(this.renderDetailContent(name));
@@ -817,7 +812,7 @@ export class ConsoleView extends View {
       .child(
         h_flex().gap(8).items_center()
           .child(new Button("es-add-alias").primary().label("添加别名").disabled(!this.canWriteAliases()).on_click(() => this.openAddAliasDialog(name)))
-          .child(!this.canWriteAliases() ? div().text_size(12).text_color("muted").child(new Text("缺少 alias_write 能力")) : null),
+          .when(!this.canWriteAliases(), (el) => el.child(div().text_size(12).text_color("muted").child(new Text("缺少 alias_write 能力")))),
       )
       .child(
         v_flex().flex_1().min_h_0().p(12).rounded(8).border(1).border_color("border").bg("surface")
@@ -890,7 +885,11 @@ export class ConsoleView extends View {
   }
 
   renderNodeCell(row, column) {
-    if (column === "name") return h_flex().gap(6).items_center().child(div().font_semibold().child(new Text(row.name || "—"))).child(row.master === "*" ? new Badge().color("accent").child("master") : null);
+    if (column === "name") {
+      return h_flex().gap(6).items_center()
+        .child(div().font_semibold().child(new Text(row.name || "—")))
+        .when(row.master === "*", (el) => el.child(new Badge().color("accent").child("master")));
+    }
     if (column === "ip") return new Text(row.ip || "—");
     if (column === "role") return new Text(row.node_role || "—");
     if (column === "master") return new Text(row.master || "—");
@@ -938,7 +937,7 @@ export class ConsoleView extends View {
               .child(new Button("es-run-async").ghost().label("异步执行").disabled(this.searching).on_click((_e, cx) => cx.spawn(async (cx) => this.runAsyncSearch(cx))))
               .child(new Button("es-prettify").ghost().label("格式化").on_click((_e, cx) => this.prettifySearch(cx))),
           )
-          .child(this.searchError ? new InfoAlert("es-search-error", this.searchError).title("查询错误") : null),
+          .when(this.searchError, (el) => el.child(new InfoAlert("es-search-error", this.searchError).title("查询错误"))),
       )
       .child(this.renderSearchResultsPane());
   }
@@ -1015,7 +1014,7 @@ export class ConsoleView extends View {
         v_flex().flex_1().min_h_0().p(8).rounded(8).border(1).border_color("border").bg("surface")
           .child(this.renderHits(hits)),
       )
-      .child(aggs ? this.renderAggregations(aggs) : null);
+      .when(aggs, (el) => el.child(this.renderAggregations(aggs)));
   }
 
   renderHits(hits) {
@@ -1040,7 +1039,7 @@ export class ConsoleView extends View {
             h_flex().gap(6).items_center()
               .child(new Badge().color("accent").child(hit._index || "—"))
               .child(div().font_semibold().child(new Text(hit._id || "—")))
-              .child(hit._score != null ? new Badge().color("muted").child(`_score ${hit._score}`) : null),
+              .when(hit._score != null, (el) => el.child(new Badge().color("muted").child(`_score ${hit._score}`))),
           )
           .child(
             div().text_size(12).text_color("muted").child(new Text(

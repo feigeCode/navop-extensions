@@ -1,10 +1,11 @@
 //! 中间件标准契约：标准版本常量、资源方法名、能力位、Topic/订阅组/客户端/消息/集群/指标
 //! 数据模型与 invoke 响应包装类型。
 //!
-//! 本 crate 是 `middleware-standard v1`（见 `docs/middleware-standard.md`）的唯一 Rust 事实源：
-//! 实现扩展（mqtt/rocketmq 等）与宿主 UI 侧共享这里的类型定义。数据模型逐字段移植自
-//! 主仓 `middleware-runtime/src/types.rs`，字段名、类型与 serde 属性保持不变，
+//! 本模块是 `middleware-standard v1`（见 `docs/middleware-standard.md`）的 Rust 事实源，
+//! 逐字段移植自主仓 `middleware-runtime/src/types.rs`，字段名、类型与 serde 属性保持不变，
 //! JSON 缺失字段按默认值反序列化（`#[serde(default)]`，向前兼容）。
+//! 注意：契约类型在 mqtt 与 rocketmq 两个 provider 内各持有一份本地副本，
+//! 修改序列化形状时必须两个副本同步改，并与共享控制台 UI(base.js) 消费的形状保持一致。
 
 use serde::{Deserialize, Serialize};
 

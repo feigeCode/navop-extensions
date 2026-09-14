@@ -6,9 +6,9 @@
       "id": "com.navop.docker",
       "kind": "composite",
       "name": "Docker",
-      "version": "0.1.0",
-      "release_tag": "docker-v0.1.0",
-      "description": "Read-only Docker management through the native resource workbench.",
+      "version": "0.4.0",
+      "release_tag": "docker-v0.4.0",
+      "description": "基于 Rust 原生资源后端（native resource provider）的 Docker 管理扩展：通过本地 docker.sock 连接，提供引擎概览、镜像管理与异步镜像拉取，并附日志查看、容器进程与文件系统变更视图及 exec 终端。 Rust-native Docker management composite extension that talks to the local docker socket, providing engine overview, image management with asynchronous pulls, plus log viewer, container process and filesystem change views, and exec terminals.",
       "file_extensions": [],
       "manifest": "docker/manifest.json"
     },
@@ -18,9 +18,39 @@
       "name": "Elasticsearch 9",
       "version": "0.1.0",
       "release_tag": "elasticsearch-v0.1.0",
-      "description": "面向 Elasticsearch 9.x 的原生 Rust SDK 管理扩展，支持集群信息、索引浏览和异步搜索。 Native Rust SDK extension for Elasticsearch 9.x with cluster information, index browsing, and asynchronous search.",
+      "description": "面向 Elasticsearch 9.x 的原生 Rust SDK 管理扩展，支持集群概览、索引浏览/管理、文档搜索、别名维护与异步任务。 Native Rust SDK extension for Elasticsearch 9.x with cluster overview, index management, document search, alias maintenance, and asynchronous jobs.",
       "file_extensions": [],
       "manifest": "elasticsearch/manifest.json"
+    },
+    {
+      "id": "com.navop.devtools",
+      "kind": "composite",
+      "name": "开发者工具",
+      "version": "0.1.0",
+      "release_tag": "dev-tools-v0.1.0",
+      "description": "Navop 扩展开发工作台（Static 静态复合扩展，无原生二进制）：加载本地工程目录、打开或重载扩展视图、查看 manifest 校验错误。 Navop extension development workbench, a Static composite extension with no native binary: load local extension projects, open or reload extension views, and inspect manifest validation errors.",
+      "file_extensions": [],
+      "manifest": "dev-tools/manifest.json"
+    },
+    {
+      "id": "com.navop.middleware.mqtt",
+      "kind": "composite",
+      "name": "MQTT",
+      "version": "0.1.0",
+      "release_tag": "mqtt-v0.1.0",
+      "description": "面向 MQTT 3.1.1 的 Rust 原生中间件管理扩展（native provider），支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native Rust MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
+      "file_extensions": [],
+      "manifest": "mqtt/manifest.json"
+    },
+    {
+      "id": "com.navop.middleware.rocketmq",
+      "kind": "composite",
+      "name": "RocketMQ",
+      "version": "0.1.0",
+      "release_tag": "rocketmq-v0.1.0",
+      "description": "RocketMQ 中间件管理扩展（Rust 原生 provider）：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送、协议错误处理与 admin 操作。 Native Rust RocketMQ middleware extension speaking the Remoting protocol directly to NameServer/Broker, with cluster overview, topic management, consumer groups and clients, message query and send, protocol error handling, and admin operations.",
+      "file_extensions": [],
+      "manifest": "rocketmq/manifest.json"
     },
     {
       "id": "dm",
@@ -336,7 +366,7 @@
       "id": "oceanbase",
       "kind": "database_driver",
       "name": "OceanBase",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "release_tag": "oceanbase-v0.1.11",
       "description": "使用 Go 开发的 OceanBase 数据库 IPC 驱动，支持连接测试、SQL 查询、事务、数据库对象浏览及数据传输。 Go-based IPC driver for OceanBase with connection testing, SQL queries, transactions, database object browsing, and data transfer.",
       "file_extensions": [],
@@ -361,6 +391,16 @@
       "description": "使用 Rust 开发的 openGauss 数据库 IPC 驱动，支持连接管理、SQL 执行、事务、Schema 浏览及数据导入导出。 Rust-based IPC driver for openGauss with connection management, SQL execution, transactions, schema browsing, and data import/export.",
       "file_extensions": [],
       "manifest": "opengauss/manifest.json"
+    },
+    {
+      "id": "tdengine",
+      "kind": "database_driver",
+      "name": "TDengine",
+      "version": "0.1.0",
+      "release_tag": "tdengine-v0.1.0",
+      "description": "基于官方 taos 连接器(WebSocket 通道,ws-rustls 纯 Rust 实现)的 TDengine 时序数据库 IPC 驱动,支持连接管理、SQL 查询、超级表/子表/普通表元数据浏览及数据导入导出。 IPC driver for TDengine built on the official taos connector (WebSocket over taosAdapter port 6041), with connection management, SQL queries, super/child/normal table metadata browsing, and data import/export.",
+      "file_extensions": [],
+      "manifest": "tdengine/manifest.json"
     },
     {
       "id": "redis",

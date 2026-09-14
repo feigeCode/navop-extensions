@@ -75,6 +75,8 @@ pub(crate) enum MqttError {
     Timeout(String),
     /// 尚未连接到 MQTT 服务器
     NotConnected,
+    /// 连接已断开且无法自动恢复(需重开连接)
+    Connection(String),
     /// 认证错误(broker 拒绝凭据)
     Auth(String),
 }
@@ -85,6 +87,7 @@ impl std::fmt::Display for MqttError {
             Self::Protocol(detail) => write!(f, "协议错误: {detail}"),
             Self::Timeout(detail) => write!(f, "操作超时: {detail}"),
             Self::NotConnected => write!(f, "连接错误: 尚未连接到 MQTT 服务器"),
+            Self::Connection(detail) => write!(f, "连接错误: {detail}"),
             Self::Auth(detail) => write!(f, "认证错误: {detail}"),
         }
     }
@@ -98,6 +101,7 @@ impl From<MqttError> for MiddlewareError {
             MqttError::Timeout(detail) => Self::Timeout(detail),
             // NotConnected 无明细文本,转为固定的连接错误说明
             MqttError::NotConnected => Self::Connection("尚未连接到 MQTT 服务器".to_string()),
+            MqttError::Connection(detail) => Self::Connection(detail),
             MqttError::Auth(detail) => Self::Auth(detail),
             MqttError::Protocol(detail) => Self::Protocol(detail),
         }

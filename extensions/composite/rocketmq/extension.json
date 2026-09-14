@@ -6,7 +6,7 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "RocketMQ 中间件管理扩展：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送。 RocketMQ middleware extension speaking the native Remoting protocol, with cluster overview, topic management, consumer groups and clients, message query and send.",
+  "description": "RocketMQ 中间件管理扩展（Rust 原生 provider）：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送、协议错误处理与 admin 操作。 Native Rust RocketMQ middleware extension speaking the Remoting protocol directly to NameServer/Broker, with cluster overview, topic management, consumer groups and clients, message query and send, protocol error handling, and admin operations.",
   "categories": [
     "middleware",
     "message-queue",

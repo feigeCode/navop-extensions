@@ -1,6 +1,6 @@
 //! MQTT 中间件资源:持有一个连接与其管理适配器,按标准 §3 分发 `middleware/*` 方法。
 //!
-//! 方法名常量与响应包装类型统一取自契约 crate(`middleware_contract`),
+//! 方法名常量与响应包装类型统一取自契约模块(`middleware_contract`),
 //! 与 rocketmq-provider 的分发写法保持一致。
 
 use std::sync::Arc;

@@ -13,6 +13,7 @@ mod connection;
 mod contract;
 mod error;
 mod ipc;
+mod middleware_contract;
 mod pubsub;
 mod resource;
 mod server;

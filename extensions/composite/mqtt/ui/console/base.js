@@ -1,7 +1,7 @@
 // 中间件共享控制台基类（middleware-standard v1，标准 §5/§5.1）。
 //
-// 本文件由基础扩展 com.navop.middleware 持有，构建期经
-// scripts/sync-middleware-console.mjs 同步进各实现扩展的 ui/console/ 目录；
+// 本文件为本扩展自持有的副本（源为已拆除的 middleware-base 共享库；
+// mqtt 与 rocketmq 各持一份，修改时两边必须同步）；
 // 实现扩展入口 ui/console.js 只写薄壳：
 //
 //   import { MiddlewareConsole } from "./console/base.js";

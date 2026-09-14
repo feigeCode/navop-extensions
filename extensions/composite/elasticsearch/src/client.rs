@@ -68,7 +68,7 @@ pub(crate) fn capabilities_payload() -> Value {
 /// 资源方法名清单（`elasticsearch/` 前缀 URI），`open` 时作为资源 capabilities
 /// 返回给宿主——宿主按 manifest 工作台 `operations[*].requires` 逐个校验，
 /// 因此这里必须覆盖 provider 实际支持的每一个方法（与 MQTT 的
-/// `middleware_contract::methods::ALL` 同一模式）。
+/// 中间件契约 `methods::ALL` 的同一模式）。
 pub(crate) const METHOD_CAPABILITIES: &[&str] = &[
     "elasticsearch/capabilities",
     "elasticsearch/cluster/info",

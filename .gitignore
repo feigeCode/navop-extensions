@@ -16,3 +16,6 @@ extensions/wasm/*/target/
 .codegraph/
 packages/navop-extension-types/node_modules/
 packages/navop-extension-types/dist/
+
+# Zed editor local config
+.zed/

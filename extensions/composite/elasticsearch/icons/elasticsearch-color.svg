@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
+  <!-- Source: official Elasticsearch mark, geometry via simple-icons "elasticsearch";
+       three-band gradient colors from the current elastic.co brand (amber #F0BF1A, azure #07A5DE, teal #00BFB3, dark #231F20) -->
+  <title>Elasticsearch</title>
+  <defs>
+    <linearGradient id="es-top" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F0BF1A"/>
+      <stop offset="1" stop-color="#FEC514"/>
+    </linearGradient>
+    <linearGradient id="es-mid" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#231F20"/>
+      <stop offset="1" stop-color="#07A5DE"/>
+    </linearGradient>
+    <linearGradient id="es-bottom" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00BFB3"/>
+      <stop offset="1" stop-color="#3EBEB0"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#es-top)" d="M13.394 0C8.683 0 4.609 2.716 2.644 6.667h15.641a4.77 4.77 0 0 0 3.073-1.11c.446-.375.864-.785 1.247-1.243l.001-.002A11.974 11.974 0 0 0 13.394 0z"/>
+  <path fill="url(#es-mid)" d="M1.804 8.889a12.009 12.009 0 0 0 0 6.222h14.7a3.111 3.111 0 1 0 0-6.222z"/>
+  <path fill="url(#es-bottom)" d="M2.644 17.333C4.61 21.283 8.684 24 13.395 24c3.701 0 7.011-1.677 9.212-4.312l-.001-.002a9.958 9.958 0 0 0-1.247-1.243 4.77 4.77 0 0 0-3.073-1.11z"/>
+</svg>

@@ -1,8 +1,7 @@
 // RocketMQ 中间件控制台入口薄壳(标准 §5.1)。
 //
-// 共享控制台库 `./console/base.js`(`MiddlewareConsole` 基类)由
-// middleware-base 扩展经 scripts/sync-middleware-console.mjs 在构建期同步填充,
-// 当前目录暂缺 base.js 属正常现象,打包前同步脚本会补齐。
+// 共享控制台库 `./console/base.js`(`MiddlewareConsole` 基类)为本扩展自持有的
+// 副本(middleware-standard v1,§5.1),与 mqtt 侧副本需保持同步。
 // 子类不得覆盖 init/render;此处仅做品牌定制。
 
 import { MiddlewareConsole } from "./console/base.js";

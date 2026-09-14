@@ -1,15 +1,15 @@
-//! 中间件标准契约再导出:类型与常量统一来自 `middleware-contract`(middleware-base)。
+//! 中间件标准契约再导出:类型与常量统一来自本 crate 的 `middleware_contract` 模块。
 //!
-//! > 标准 `middleware-base/docs/middleware-standard.md` §3 是唯一事实源;
-//! > 本模块不再持有本地副本,保证与其他实现扩展(rocketmq-provider)与共享控制台
-//! > UI(base.js)消费的序列化形状完全一致。
+//! > 标准 `docs/middleware-standard.md` §3 是唯一事实源;契约本体见
+//! > `src/middleware_contract.rs`(mqtt 与 rocketmq 双副本,改动必须两边同步,
+//! > 并与共享控制台 UI(base.js) 消费的序列化形状完全一致)。
 //! > 仅再导出本 provider 实际消费的类型;完整契约(MQTT 用不到的集群/订阅组队列
-//! > 统计等)见 `middleware_contract` crate 本体。
+//! > 统计等)见 `middleware_contract` 模块本体。
 //!
-//! 历史:该 crate 就绪前本文件曾按标准 §3 的 JSON 形状临时定义契约类型,
-//! 就绪后已整体切换为再导出(字段与 serde 属性逐字一致,行为不变)。
+//! 历史:曾共用 middleware-base 的 `middleware-contract` crate,拆分后改为本地副本,
+//! 再导出路径随之从 crate 改为本模块(字段与 serde 属性逐字一致,行为不变)。
 
-pub(crate) use middleware_contract::{
+pub(crate) use crate::middleware_contract::{
     CapabilitiesResponse, ClientListResponse, ClusterOverview, CreateTopicRequest,
     GroupConsumeDetail, GroupListResponse, MessagePage, MessageQuery, MetricsResponse,
     MiddlewareCapabilities, MiddlewareClientInfo, MiddlewareError, MiddlewareGroupInfo,
@@ -18,7 +18,7 @@ pub(crate) use middleware_contract::{
 };
 
 /// 标准方法名常量(标准 §3),分发与 open 能力声明统一取自契约 crate
-pub(crate) use middleware_contract::methods;
+pub(crate) use crate::middleware_contract::methods;
 
 #[cfg(test)]
 mod tests {

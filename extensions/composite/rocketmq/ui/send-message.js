@@ -32,11 +32,11 @@ export default class RocketmqSendMessage extends View {
         .child(new Button("rmq-send").label(this.pending ? "Confirm send" : "Send").on_click((_e, cx) => {
           cx.spawn(async (cx) => this.onSend(cx));
         }))
-        .child(this.pending ? new Button("rmq-cancel").ghost().label("Cancel").on_click((_e, cx) => {
+        .when(this.pending, (el) => el.child(new Button("rmq-cancel").ghost().label("Cancel").on_click((_e, cx) => {
           this.pending = false;
           this.status = "Cancelled";
           cx.notify();
-        }) : null))
+        }))))
       .child(`Status: ${this.status}`)
       .child(div().flex_1().min_h_0().overflow_y_scrollbar()
         .child(this.result ? JSON.stringify(this.result, null, 2) : "No result"));

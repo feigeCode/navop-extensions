@@ -14,6 +14,7 @@ mod config;
 mod contract;
 mod error;
 mod ipc;
+mod middleware_contract;
 mod message;
 mod protocol;
 mod remoting;

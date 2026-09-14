@@ -6,7 +6,7 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "面向 MQTT 3.1.1 的中间件管理扩展，支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
+  "description": "面向 MQTT 3.1.1 的 Rust 原生中间件管理扩展（native provider），支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native Rust MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
   "categories": [
     "middleware",
     "messaging",

@@ -35,6 +35,10 @@ const CLIENT_ID_PREFIX: &str = "navop-mqtt-";
 /// poll 错误退避间隔(秒),避免断连期间忙等
 const POLL_ERROR_BACKOFF_SECS: u64 = 1;
 
+/// 事件循环致命退出后的统一错误文案(可操作:告诉用户重开连接)
+const EVENTLOOP_DEAD_DETAIL: &str =
+    "连接已断开且无法自动恢复（broker 拒绝认证或事件循环已退出），请关闭并重新打开该连接";
+
 fn normalize_direct_host(host: &str) -> String {
     if host.eq_ignore_ascii_case("localhost") {
         return "127.0.0.1".to_string();
@@ -67,6 +71,9 @@ pub(crate) struct MqttConnectionImpl {
     client: Option<AsyncClient>,
     poll_task: Option<tokio::task::JoinHandle<()>>,
     connected: Arc<AtomicBool>,
+    /// 事件循环存活标志:poll 任务因致命错误(如重连时认证被拒)退出后置 false,
+    /// 此后所有 client 请求都应返回可操作的连接错误,而非 rumqttc 的 channel 文案。
+    eventloop_alive: Arc<AtomicBool>,
     /// 连接状态 watch(poll 任务写,connect 等待初始 ConnAck)
     connected_tx: watch::Sender<bool>,
     subscriptions: Arc<Mutex<Vec<MqttSubscription>>>,
@@ -87,6 +94,7 @@ impl MqttConnectionImpl {
             client: None,
             poll_task: None,
             connected: Arc::new(AtomicBool::new(false)),
+            eventloop_alive: Arc::new(AtomicBool::new(true)),
             connected_tx,
             subscriptions,
             message_tx,
@@ -95,6 +103,29 @@ impl MqttConnectionImpl {
 
     fn require_client(&self) -> Result<&AsyncClient, MqttError> {
         self.client.as_ref().ok_or(MqttError::NotConnected)
+    }
+
+    /// 面向「需要向 eventloop 发请求」的操作(publish/subscribe/unsubscribe)的守卫:
+    /// 未连接报 NotConnected;事件循环已致命退出时报可操作的连接错误。
+    fn require_sendable_client(&self) -> Result<&AsyncClient, MqttError> {
+        self.require_client()?;
+        if !self.eventloop_alive.load(Ordering::SeqCst) {
+            return Err(MqttError::Connection(
+                EVENTLOOP_DEAD_DETAIL.to_string(),
+            ));
+        }
+        Ok(self.require_client()?)
+    }
+
+    /// 把 rumqttc 客户端错误归类:「eventloop channel 已关闭」是连接级故障,
+    /// 给出可操作文案;其余保持协议错误原样。
+    fn classify_client_error(error: rumqttc::ClientError, action: &str) -> MqttError {
+        let text = error.to_string();
+        if text.contains("Failed to send mqtt requests to eventloop") {
+            MqttError::Connection(EVENTLOOP_DEAD_DETAIL.to_string())
+        } else {
+            MqttError::Protocol(format!("{action}: {text}"))
+        }
     }
 
     /// 等待初始 ConnAck 或致命错误,先到者胜
@@ -185,10 +216,12 @@ impl MqttConnection for MqttConnectionImpl {
         let connected_tx = self.connected_tx.clone();
         let message_tx = self.message_tx.clone();
         let subscriptions = self.subscriptions.clone();
+        let eventloop_alive = self.eventloop_alive.clone();
         let (fatal_tx, fatal_rx) = mpsc::unbounded_channel();
 
         connected.store(false, Ordering::SeqCst);
         connected_tx.send_replace(false);
+        eventloop_alive.store(true, Ordering::SeqCst);
 
         let poll_client = client.clone();
         let poll_task = tokio::spawn(async move {
@@ -233,7 +266,9 @@ impl MqttConnection for MqttConnectionImpl {
                     Ok(_) => {}
                     Err(error) => {
                         if is_fatal_auth_error(&error) {
-                            // 认证被拒不应重试:通知 connect() 立即失败
+                            // 认证被拒不应重试:通知 connect() 立即失败,
+                            // 并标记事件循环已死,阻断后续所有 client 请求。
+                            eventloop_alive.store(false, Ordering::SeqCst);
                             let _ = fatal_tx.send(format!(
                                 "mqtt broker refused the connection (bad username or password): {error}"
                             ));
@@ -286,11 +321,11 @@ impl MqttConnection for MqttConnectionImpl {
         qos: MqttQos,
         retain: bool,
     ) -> Result<(), MqttError> {
-        let client = self.require_client()?;
+        let client = self.require_sendable_client()?;
         client
             .publish(topic, map_qos(qos), retain, payload.to_vec())
             .await
-            .map_err(|error| MqttError::Protocol(format!("publish failed: {error}")))?;
+            .map_err(|error| Self::classify_client_error(error, "publish failed"))?;
         Ok(())
     }
 
@@ -319,11 +354,11 @@ impl MqttConnection for MqttConnectionImpl {
             }),
         }
         drop(subscriptions);
-        let client = self.require_client()?;
+        let client = self.require_sendable_client()?;
         client
             .subscribe(filter.as_str(), map_qos(qos))
             .await
-            .map_err(|error| MqttError::Protocol(format!("subscribe failed: {error}")))?;
+            .map_err(|error| Self::classify_client_error(error, "subscribe failed"))?;
         Ok(())
     }
 
@@ -344,11 +379,11 @@ impl MqttConnection for MqttConnectionImpl {
                 )));
             }
         }
-        let client = self.require_client()?;
+        let client = self.require_sendable_client()?;
         client
             .unsubscribe(filter.as_str())
             .await
-            .map_err(|error| MqttError::Protocol(format!("unsubscribe failed: {error}")))?;
+            .map_err(|error| Self::classify_client_error(error, "unsubscribe failed"))?;
         Ok(())
     }
 

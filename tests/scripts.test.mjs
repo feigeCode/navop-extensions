@@ -1114,7 +1114,7 @@ test("Windows x86 backfill matrix resolves every supported published extension",
   );
   const matrix = JSON.parse(output);
 
-  assert.equal(matrix.include.length, 17);
+  assert.equal(matrix.include.length, 19);
   assert.deepEqual(
     matrix.include.map((entry) => entry.extension),
     [
@@ -1128,12 +1128,14 @@ test("Windows x86 backfill matrix resolves every supported published extension",
       "mongodb-legacy",
       "mongodb-legacy-3-2",
       "mongodb-modern",
+      "mqtt",
       "oceanbase",
       "opencode-acp",
       "opengauss",
       "oracle-go",
       "rdp",
       "redis",
+      "rocketmq",
       "vnc",
     ],
   );
@@ -1445,6 +1447,29 @@ test("IPC driver icon paths reference packaged files", () => {
       const icon = driverJson.ui?.[key];
       if (typeof icon !== "string" || !isRelativeAssetPath(icon)) continue;
       assert.ok(fs.existsSync(path.join(driverDir, icon)), `${id} ui.${key} missing ${icon}`);
+    }
+  }
+});
+
+test("composite extension contributes icon paths reference packaged files", () => {
+  const groups = fs
+    .readdirSync(path.join(repoRoot, "extensions/composite"))
+    .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
+    .sort();
+
+  for (const id of groups) {
+    const extDir = path.join(repoRoot, "extensions/composite", id);
+    const manifest = JSON.parse(fs.readFileSync(path.join(extDir, "extension.json"), "utf8"));
+    const contributes = manifest.contributes ?? {};
+    const entries = [
+      ...(contributes.connections ?? []),
+      ...(contributes.shellViews ?? []),
+      ...(contributes.resourceWorkbenches ?? []),
+    ];
+    for (const entry of entries) {
+      const icon = entry?.icon;
+      if (typeof icon !== "string" || !isRelativeAssetPath(icon)) continue;
+      assert.ok(fs.existsSync(path.join(extDir, icon)), `${id} ${entry.id} icon missing ${icon}`);
     }
   }
 });
@@ -1963,15 +1988,184 @@ test("package-composite-extension creates a native shell provider package", () =
 });
 
 test("Elasticsearch shell consumes the host-opened connection resource", () => {
-  const source = fs.readFileSync(
-    path.join(repoRoot, "extensions/composite/elasticsearch/ui/explorer.js"),
-    "utf8",
-  );
+  const uiRoot = path.join(repoRoot, "extensions/composite/elasticsearch/ui");
+  const collect = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return collect(full);
+      return entry.name.endsWith(".js") ? [full] : [];
+    });
+  const source = collect(uiRoot)
+    .sort()
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
 
   assert.match(source, /current\(\)/);
-  assert.match(source, /connection\.resource\.handle/);
+  assert.match(source, /connection\?\.resource\?\.handle/);
   assert.doesNotMatch(source, /await open\(/);
   assert.doesNotMatch(source, /credentialRefs/);
+});
+
+// `.child()`/`.children()` take an element, a string, or an entity. Anything
+// else — `null` included — is a TypeError raised by the shell prelude's
+// `childId`, and it takes the whole view down ("This view could not be
+// rendered"), not just the node whose argument happened to be empty. So an
+// optional child has to be attached conditionally (`.when(condition, (el) =>
+// el.child(...))`) or filtered before the call (the middleware console's
+// `compact([...])`). This is checked statically because the runtime reports
+// only the first failing frame, and the branch that breaks is the one a manual
+// pass is least likely to render: `.child(pending ? button : null)` reads as
+// "no button yet" and throws on the very first paint.
+test("extension UI never passes null or undefined to child()/children()", () => {
+  // Blanked out in place, newlines kept, so a reported line is the real one.
+  const blankOutCommentsAndStrings = (source) => {
+    const out = [];
+    let index = 0;
+    while (index < source.length) {
+      const char = source[index];
+      const next = source[index + 1];
+      if (char === "/" && next === "/") {
+        const stop = source.indexOf("\n", index);
+        const end = stop === -1 ? source.length : stop;
+        out.push(" ".repeat(end - index));
+        index = end;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        const stop = source.indexOf("*/", index + 2);
+        const end = stop === -1 ? source.length : stop + 2;
+        out.push(source.slice(index, end).replace(/[^\n]/g, " "));
+        index = end;
+        continue;
+      }
+      if (char === '"' || char === "'" || char === "`") {
+        let stop = index + 1;
+        while (stop < source.length) {
+          if (source[stop] === "\\") stop += 2;
+          else if (source[stop] === char) {
+            stop += 1;
+            break;
+          } else stop += 1;
+        }
+        out.push(source.slice(index, stop).replace(/[^\n]/g, " "));
+        index = stop;
+        continue;
+      }
+      out.push(char);
+      index += 1;
+    }
+    return out.join("");
+  };
+
+  // The argument of the call whose `(` sits at `openIndex`.
+  const balancedArgument = (source, openIndex) => {
+    let depth = 0;
+    for (let index = openIndex; index < source.length; index += 1) {
+      const char = source[index];
+      if (char === "(" || char === "[" || char === "{") depth += 1;
+      else if (char === ")" || char === "]" || char === "}") {
+        depth -= 1;
+        if (depth === 0) return source.slice(openIndex + 1, index);
+      }
+    }
+    return source.slice(openIndex + 1);
+  };
+
+  // Cut `text` at the depth-zero `operators`, remembering which operator
+  // introduced each piece. Nesting is what keeps `compact([a ? b : null])` and
+  // `JSON.stringify(value, null, 2)` — both legitimate — out of the result.
+  const topLevelPieces = (text, operators) => {
+    const pieces = [];
+    let depth = 0;
+    let start = 0;
+    let operator = "";
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      if (char === "(" || char === "[" || char === "{") depth += 1;
+      else if (char === ")" || char === "]" || char === "}") depth -= 1;
+      else if (depth === 0) {
+        const pair = text.slice(index, index + 2);
+        // `?:`/`??` are not ternaries, and `a?.b` is not one either.
+        const skip = char === "?" && (text[index + 1] === "." || text[index + 1] === "?");
+        const found = skip
+          ? ""
+          : operators.includes(pair)
+            ? pair
+            : operators.includes(char)
+              ? char
+              : "";
+        if (found) {
+          pieces.push({ operator, text: text.slice(start, index) });
+          operator = found;
+          start = index + found.length;
+          index = start - 1;
+        }
+      }
+    }
+    pieces.push({ operator, text: text.slice(start) });
+    return pieces;
+  };
+
+  const isBlank = (text) => {
+    const value = text.trim();
+    return value === "null" || value === "undefined" ? value : "";
+  };
+
+  const childViolation = (argument) => {
+    const passed = isBlank(argument);
+    if (passed) return `passes ${passed} straight to child()`;
+
+    const pieces = topLevelPieces(argument, ["&&", "||", "??", "?", ":"]);
+    if (pieces.length > 1) {
+      for (const [index, piece] of pieces.entries()) {
+        // The first piece is a lone value or the condition itself; only what
+        // the operator can hand on to `child()` counts.
+        if (index === 0) continue;
+        const value = isBlank(piece.text);
+        if (value) return `passes ${value} through a \`${piece.operator}\` branch`;
+      }
+    }
+
+    // `.children([a, b, null])` hands the array itself to `childId`, so a
+    // literal inside the array is the same mistake one level down.
+    const trimmed = argument.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      for (const piece of topLevelPieces(trimmed.slice(1, -1), [","])) {
+        const value = isBlank(piece.text);
+        if (value) return `passes ${value} inside a child array`;
+      }
+    }
+    return "";
+  };
+
+  const collectJsFiles = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.name === "target" || entry.name === "node_modules") return [];
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return collectJsFiles(full);
+      return entry.name.endsWith(".js") ? [full] : [];
+    });
+
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let callSites = 0;
+  for (const file of files) {
+    const source = blankOutCommentsAndStrings(fs.readFileSync(file, "utf8"));
+    for (const match of source.matchAll(/\.\s*(?:child|children)\s*\(/g)) {
+      callSites += 1;
+      const argument = balancedArgument(source, match.index + match[0].length - 1);
+      const violation = childViolation(argument);
+      if (!violation) continue;
+      const line = source.slice(0, match.index).split("\n").length;
+      violations.push(`${path.relative(repoRoot, file)}:${line} ${violation}`);
+    }
+  }
+
+  // A scan that stopped matching would pass vacuously, so it is pinned to a
+  // floor well below the current count.
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(callSites > 200, `expected to scan child() call sites, saw ${callSites}`);
+  assert.deepEqual(violations, []);
 });
 
 test("package-composite-extension rewrites native Windows commands and permissions", () => {
