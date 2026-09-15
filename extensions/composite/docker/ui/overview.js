@@ -54,7 +54,8 @@ export default class DockerOverview extends View {
       .child(h_flex().justify_between().items_center()
         .child(div().child(label))
         .child(div().text_color(cx.theme().colors.muted_foreground).text_size(12).child(`${human(used)} / ${human(total)}`)))
-      .child(new Progress().value(percent));
+      // Progress(id) 的 id 是构造期必填(string);漏传会直接抛错并让整页停在上一帧。
+      .child(new Progress("docker-usage-disk").value(percent));
   }
 
   render(cx) {
