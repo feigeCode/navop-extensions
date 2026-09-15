@@ -156,7 +156,7 @@
     ],
     "resourceWorkbenches": [
       {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "id": "docker",
         "title": "Docker",
         "connectionIds": [
@@ -165,9 +165,6 @@
         "runtimeId": "main",
         "resourceType": "docker",
         "defaultPage": "containers",
-        "statusBar": {
-          "operation": "systemUsage"
-        },
         "operations": {
           "systemInfo": {
             "mode": "invoke",
@@ -810,157 +807,108 @@
             "effect": "destructive"
           }
         },
-        "navigation": [
-          {
-            "pageId": "containers"
-          },
-          {
-            "pageId": "images"
-          },
-          {
-            "pageId": "volumes"
-          },
-          {
-            "pageId": "networks"
-          },
-          {
-            "pageId": "overview"
-          },
-          {
-            "pageId": "image-pull"
-          },
-          {
-            "pageId": "image-detail"
-          },
-          {
-            "pageId": "container-create"
-          },
-          {
-            "pageId": "volume-create"
-          },
-          {
-            "pageId": "network-create"
-          },
-          {
-            "pageId": "tasks"
-          }
-        ],
-        "tree": [
-          {
-            "id": "containers",
-            "title": "Containers",
-            "pageId": "containers",
-            "children": {
-              "operation": "listContainers",
-              "itemsPath": "/containers",
-              "keyPaths": [
-                "/id"
-              ],
-              "labelPath": "/name"
-            }
-          }
-        ],
         "pages": [
           {
             "id": "containers",
             "title": "Containers",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listContainers"
             },
-            "collection": {
-              "itemsPath": "/containers",
-              "keyPaths": [
-                "/id"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/containers",
+                "keyPaths": [
+                  "/id"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "image",
-                  "title": "Image",
-                  "path": "/image",
-                  "type": "display",
-                  "style": "mono"
-                },
-                {
-                  "id": "state",
-                  "title": "State",
-                  "path": "/state",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "status",
-                  "title": "Status",
-                  "path": "/status",
-                  "type": "display",
-                  "style": "muted"
-                }
-              ],
-              "open": {
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "selection",
-                    "path": "/id",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
+                    "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "image",
+                    "title": "Image",
+                    "path": "/image",
+                    "type": "display",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "state",
+                    "title": "State",
+                    "path": "/state",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "status",
+                    "title": "Status",
+                    "path": "/status",
+                    "type": "display",
+                    "style": "muted"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "start",
-                  "label": "Start",
-                  "operation": "startContainer"
+                ],
+                "open": {
+                  "pageId": "container-detail",
+                  "route": {
+                    "id": {
+                      "source": "selection",
+                      "path": "/id",
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "id": "stop",
-                  "label": "Stop",
-                  "operation": "stopContainer"
-                },
-                {
-                  "id": "restart",
-                  "label": "Restart",
-                  "operation": "restartContainer"
-                },
-                {
-                  "id": "remove",
-                  "label": "Remove",
-                  "operation": "removeContainer"
-                },
-                {
-                  "id": "pause",
-                  "label": "Pause",
-                  "operation": "containerPause"
-                },
-                {
-                  "id": "unpause",
-                  "label": "Resume",
-                  "operation": "containerUnpause"
-                },
-                {
-                  "id": "kill",
-                  "label": "Kill",
-                  "operation": "containerKill"
-                }
-              ]
-            }
+                "actions": [
+                  {
+                    "id": "start",
+                    "label": "Start",
+                    "operation": "startContainer"
+                  },
+                  {
+                    "id": "stop",
+                    "label": "Stop",
+                    "operation": "stopContainer"
+                  },
+                  {
+                    "id": "restart",
+                    "label": "Restart",
+                    "operation": "restartContainer"
+                  },
+                  {
+                    "id": "remove",
+                    "label": "Remove",
+                    "operation": "removeContainer"
+                  },
+                  {
+                    "id": "pause",
+                    "label": "Pause",
+                    "operation": "containerPause"
+                  },
+                  {
+                    "id": "unpause",
+                    "label": "Resume",
+                    "operation": "containerUnpause"
+                  },
+                  {
+                    "id": "kill",
+                    "label": "Kill",
+                    "operation": "containerKill"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "container-detail",
             "title": "Inspect",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -973,115 +921,17 @@
             "load": {
               "operation": "inspectContainer"
             },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
+                "kind": "viewer",
+                "format": "json"
               }
             ]
           },
           {
             "id": "container-logs",
             "title": "Logs",
-            "template": "json",
             "renderer": {
               "kind": "shell",
               "viewId": "log-viewer",
@@ -1096,115 +946,17 @@
             "load": {
               "operation": "containerLogs"
             },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
+                "kind": "viewer",
+                "format": "json"
               }
             ]
           },
           {
             "id": "container-mounts",
             "title": "Bind mounts",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -1217,115 +969,17 @@
             "load": {
               "operation": "containerMounts"
             },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
+                "kind": "viewer",
+                "format": "json"
               }
             ]
           },
           {
             "id": "container-stats",
             "title": "Stats",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -1338,115 +992,17 @@
             "load": {
               "operation": "containerStats"
             },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
+                "kind": "viewer",
+                "format": "json"
               }
             ]
           },
           {
             "id": "container-exec",
             "title": "Exec",
-            "template": "terminal",
             "renderer": {
               "kind": "native"
             },
@@ -1456,120 +1012,20 @@
                 "required": true
               }
             },
-            "terminal": {
-              "command": "docker",
-              "args": [
-                "exec",
-                "-it",
-                "{{id}}",
-                "sh"
-              ],
-              "env": {
-                "TERM": "xterm-256color",
-                "DOCKER_HOST": "{{session.docker_host}}"
-              }
-            },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
+                "kind": "terminal",
+                "command": "docker",
+                "args": [
+                  "exec",
+                  "-it",
+                  "{{id}}",
+                  "sh"
+                ],
+                "env": {
+                  "TERM": "xterm-256color",
+                  "DOCKER_HOST": "{{session.docker_host}}"
                 }
               }
             ]
@@ -1577,7 +1033,6 @@
           {
             "id": "container-files",
             "title": "Files",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
@@ -1594,182 +1049,81 @@
             "load": {
               "operation": "containerFilesList"
             },
-            "tabs": [
+            "tabGroupId": "container",
+            "stack": [
               {
-                "id": "inspect",
-                "title": "Inspect",
-                "pageId": "container-detail",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "logs",
-                "title": "Logs",
-                "pageId": "container-logs",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "mounts",
-                "title": "Bind mounts",
-                "pageId": "container-mounts",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "stats",
-                "title": "Stats",
-                "pageId": "container-stats",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "exec",
-                "title": "Exec",
-                "pageId": "container-exec",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "files",
-                "title": "Files",
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
+                "kind": "table",
+                "itemsPath": "/entries",
+                "keyPaths": [
+                  "/path"
+                ],
+                "pagination": {
+                  "kind": "none"
+                },
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
+                    "path": "/name",
                     "type": "string"
                   },
-                  "path": {
-                    "source": "literal",
-                    "path": "/",
-                    "type": "string",
-                    "value": "/"
-                  }
-                }
-              },
-              {
-                "id": "processes",
-                "title": "Processes",
-                "pageId": "container-processes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "id": "changes",
-                "title": "Changes",
-                "pageId": "container-changes",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
-            "collection": {
-              "itemsPath": "/entries",
-              "keyPaths": [
-                "/path"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
-                },
-                {
-                  "id": "type",
-                  "title": "Type",
-                  "path": "/type",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "size",
-                  "title": "Size",
-                  "path": "/size",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "modified",
-                  "title": "Modified",
-                  "path": "/modified",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "path",
-                  "title": "Path",
-                  "path": "/path",
-                  "type": "display",
-                  "style": "mono"
-                }
-              ],
-              "open": {
-                "pageId": "container-files",
-                "route": {
-                  "id": {
-                    "source": "route",
-                    "path": "/id",
-                    "type": "string"
+                  {
+                    "id": "type",
+                    "title": "Type",
+                    "path": "/type",
+                    "type": "display",
+                    "style": "badge"
                   },
-                  "path": {
-                    "source": "selection",
+                  {
+                    "id": "size",
+                    "title": "Size",
+                    "path": "/size",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "modified",
+                    "title": "Modified",
+                    "path": "/modified",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "path",
+                    "title": "Path",
                     "path": "/path",
-                    "type": "string"
+                    "type": "display",
+                    "style": "mono"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "delete",
-                  "label": "Delete",
-                  "operation": "containerFilesDelete"
-                }
-              ]
-            }
+                ],
+                "open": {
+                  "pageId": "container-files",
+                  "route": {
+                    "id": {
+                      "source": "route",
+                      "path": "/id",
+                      "type": "string"
+                    },
+                    "path": {
+                      "source": "selection",
+                      "path": "/path",
+                      "type": "string"
+                    }
+                  }
+                },
+                "actions": [
+                  {
+                    "id": "delete",
+                    "label": "Delete",
+                    "operation": "containerFilesDelete"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "images",
             "title": "Images",
-            "template": "collection",
             "renderer": {
               "kind": "shell",
               "viewId": "images-table",
@@ -1778,149 +1132,153 @@
             "load": {
               "operation": "listImages"
             },
-            "collection": {
-              "itemsPath": "/images",
-              "keyPaths": [
-                "/id"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Repository",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/images",
+                "keyPaths": [
+                  "/id"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "id",
-                  "title": "Image ID",
-                  "path": "/id",
-                  "type": "display",
-                  "style": "mono"
-                },
-                {
-                  "id": "created",
-                  "title": "Created",
-                  "path": "/created",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "size",
-                  "title": "Size",
-                  "path": "/size_mb",
-                  "type": "display",
-                  "style": "muted"
-                }
-              ],
-              "actions": [
-                {
-                  "id": "pull",
-                  "label": "Pull",
-                  "operation": "pullImage"
-                },
-                {
-                  "id": "remove",
-                  "label": "Remove",
-                  "operation": "removeImage"
-                }
-              ],
-              "open": {
-                "pageId": "image-detail",
-                "route": {
-                  "name": {
-                    "source": "selection",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Repository",
                     "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "id",
+                    "title": "Image ID",
+                    "path": "/id",
+                    "type": "display",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "created",
+                    "title": "Created",
+                    "path": "/created",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "size",
+                    "title": "Size",
+                    "path": "/size_mb",
+                    "type": "display",
+                    "style": "muted"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "pull",
+                    "label": "Pull",
+                    "operation": "pullImage"
+                  },
+                  {
+                    "id": "remove",
+                    "label": "Remove",
+                    "operation": "removeImage"
+                  }
+                ],
+                "open": {
+                  "pageId": "image-detail",
+                  "route": {
+                    "name": {
+                      "source": "selection",
+                      "path": "/name",
+                      "type": "string"
+                    }
                   }
                 }
               }
-            }
+            ]
           },
           {
             "id": "volumes",
             "title": "Volumes",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listVolumes"
             },
-            "collection": {
-              "itemsPath": "/volumes",
-              "keyPaths": [
-                "/name"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/volumes",
+                "keyPaths": [
+                  "/name"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "driver",
-                  "title": "Driver",
-                  "path": "/driver",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "size",
-                  "title": "Size",
-                  "path": "/size",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "refs",
-                  "title": "Refs",
-                  "path": "/ref_count",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "mountpoint",
-                  "title": "Mountpoint",
-                  "path": "/mountpoint",
-                  "type": "display",
-                  "style": "mono"
-                }
-              ],
-              "open": {
-                "pageId": "volume-detail",
-                "route": {
-                  "name": {
-                    "source": "selection",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
                     "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "driver",
+                    "title": "Driver",
+                    "path": "/driver",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "size",
+                    "title": "Size",
+                    "path": "/size",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "refs",
+                    "title": "Refs",
+                    "path": "/ref_count",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "mountpoint",
+                    "title": "Mountpoint",
+                    "path": "/mountpoint",
+                    "type": "display",
+                    "style": "mono"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "remove",
-                  "label": "Remove",
-                  "operation": "removeVolume"
+                ],
+                "open": {
+                  "pageId": "volume-detail",
+                  "route": {
+                    "name": {
+                      "source": "selection",
+                      "path": "/name",
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "id": "prune",
-                  "label": "Prune",
-                  "operation": "volumePrune"
-                }
-              ]
-            }
+                "actions": [
+                  {
+                    "id": "remove",
+                    "label": "Remove",
+                    "operation": "removeVolume"
+                  },
+                  {
+                    "id": "prune",
+                    "label": "Prune",
+                    "operation": "volumePrune"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "volume-detail",
             "title": "Volume",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -1939,83 +1297,90 @@
                 "pageId": "volumes",
                 "route": {}
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "networks",
             "title": "Networks",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listNetworks"
             },
-            "collection": {
-              "itemsPath": "/networks",
-              "keyPaths": [
-                "/id"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/networks",
+                "keyPaths": [
+                  "/id"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "driver",
-                  "title": "Driver",
-                  "path": "/driver",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "scope",
-                  "title": "Scope",
-                  "path": "/scope",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "id",
-                  "title": "Network ID",
-                  "path": "/id",
-                  "type": "display",
-                  "style": "mono"
-                }
-              ],
-              "open": {
-                "pageId": "network-detail",
-                "route": {
-                  "id": {
-                    "source": "selection",
-                    "path": "/id",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
+                    "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "driver",
+                    "title": "Driver",
+                    "path": "/driver",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "scope",
+                    "title": "Scope",
+                    "path": "/scope",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "id",
+                    "title": "Network ID",
+                    "path": "/id",
+                    "type": "display",
+                    "style": "mono"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "remove",
-                  "label": "Remove",
-                  "operation": "removeNetwork"
+                ],
+                "open": {
+                  "pageId": "network-detail",
+                  "route": {
+                    "id": {
+                      "source": "selection",
+                      "path": "/id",
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "id": "prune",
-                  "label": "Prune",
-                  "operation": "networkPrune"
-                }
-              ]
-            }
+                "actions": [
+                  {
+                    "id": "remove",
+                    "label": "Remove",
+                    "operation": "removeNetwork"
+                  },
+                  {
+                    "id": "prune",
+                    "label": "Prune",
+                    "operation": "networkPrune"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "network-detail",
             "title": "Network",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -2034,12 +1399,17 @@
                 "pageId": "networks",
                 "route": {}
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "overview",
             "title": "Docker Overview",
-            "template": "json",
             "renderer": {
               "kind": "shell",
               "viewId": "overview",
@@ -2047,45 +1417,57 @@
             },
             "load": {
               "operation": "systemInfo"
-            }
+            },
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "tasks",
             "title": "Tasks",
-            "template": "tasks",
             "renderer": {
               "kind": "native"
             },
-            "scope": "session"
+            "stack": [
+              {
+                "kind": "tasks"
+              }
+            ]
           },
           {
             "id": "image-pull",
             "title": "Pull image",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "image",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "tag",
-                "type": "string",
-                "editor": "text"
+                "kind": "form",
+                "submit": {
+                  "operation": "pullImage"
+                },
+                "inputs": [
+                  {
+                    "id": "image",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "tag",
+                    "type": "string",
+                    "editor": "text"
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "pullImage"
-            }
+            ]
           },
           {
             "id": "image-detail",
             "title": "Image",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -2104,12 +1486,17 @@
                 "pageId": "images",
                 "route": {}
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "image-history",
             "title": "Image history",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -2134,36 +1521,45 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "container-create",
             "title": "Create container",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "name",
-                "type": "string",
-                "editor": "text"
-              },
-              {
-                "id": "config",
-                "type": "string",
-                "editor": "text",
-                "required": true
+                "kind": "form",
+                "submit": {
+                  "operation": "containerCreate"
+                },
+                "inputs": [
+                  {
+                    "id": "name",
+                    "type": "string",
+                    "editor": "text"
+                  },
+                  {
+                    "id": "config",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "containerCreate"
-            }
+            ]
           },
           {
             "id": "container-processes",
             "title": "Processes",
-            "template": "json",
             "renderer": {
               "kind": "shell",
               "viewId": "processes",
@@ -2177,12 +1573,18 @@
             },
             "load": {
               "operation": "containerTop"
-            }
+            },
+            "tabGroupId": "container",
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "container-changes",
             "title": "Changes",
-            "template": "json",
             "renderer": {
               "kind": "shell",
               "viewId": "changes",
@@ -2196,57 +1598,323 @@
             },
             "load": {
               "operation": "containerDiff"
-            }
+            },
+            "tabGroupId": "container",
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "volume-create",
             "title": "Create volume",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "name",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "driver",
-                "type": "string",
-                "editor": "text"
+                "kind": "form",
+                "submit": {
+                  "operation": "volumeCreate"
+                },
+                "inputs": [
+                  {
+                    "id": "name",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "driver",
+                    "type": "string",
+                    "editor": "text"
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "volumeCreate"
-            }
+            ]
           },
           {
             "id": "network-create",
             "title": "Create network",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "name",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "driver",
-                "type": "string",
-                "editor": "text"
+                "kind": "form",
+                "submit": {
+                  "operation": "networkCreate"
+                },
+                "inputs": [
+                  {
+                    "id": "name",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "driver",
+                    "type": "string",
+                    "editor": "text"
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "networkCreate"
+            ]
+          }
+        ],
+        "layout": {
+          "left": {
+            "width": 240,
+            "source": {
+              "kind": "tree",
+              "roots": [
+                {
+                  "id": "containers",
+                  "title": "Containers",
+                  "pageId": "containers",
+                  "children": {
+                    "operation": "listContainers",
+                    "itemsPath": "/containers",
+                    "keyPaths": [
+                      "/id"
+                    ],
+                    "labelPath": "/name",
+                    "open": {
+                      "pageId": "container-detail",
+                      "route": {
+                        "id": {
+                          "source": "selection",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "images",
+                  "title": "Images",
+                  "pageId": "images"
+                },
+                {
+                  "id": "volumes",
+                  "title": "Volumes",
+                  "pageId": "volumes"
+                },
+                {
+                  "id": "networks",
+                  "title": "Networks",
+                  "pageId": "networks"
+                },
+                {
+                  "id": "overview",
+                  "title": "Docker Overview",
+                  "pageId": "overview"
+                },
+                {
+                  "id": "image-pull",
+                  "title": "Pull image",
+                  "pageId": "image-pull"
+                },
+                {
+                  "id": "image-detail",
+                  "title": "Image",
+                  "pageId": "image-detail"
+                },
+                {
+                  "id": "container-create",
+                  "title": "Create container",
+                  "pageId": "container-create"
+                },
+                {
+                  "id": "volume-create",
+                  "title": "Create volume",
+                  "pageId": "volume-create"
+                },
+                {
+                  "id": "network-create",
+                  "title": "Create network",
+                  "pageId": "network-create"
+                },
+                {
+                  "id": "tasks",
+                  "title": "Tasks",
+                  "pageId": "tasks"
+                }
+              ]
+            }
+          },
+          "center": {
+            "source": {
+              "kind": "pages",
+              "tabGroups": [
+                {
+                  "id": "container",
+                  "tabs": [
+                    {
+                      "id": "inspect",
+                      "title": "Inspect",
+                      "pageId": "container-detail",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "logs",
+                      "title": "Logs",
+                      "pageId": "container-logs",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "mounts",
+                      "title": "Bind mounts",
+                      "pageId": "container-mounts",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "stats",
+                      "title": "Stats",
+                      "pageId": "container-stats",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "exec",
+                      "title": "Exec",
+                      "pageId": "container-exec",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "files",
+                      "title": "Files",
+                      "pageId": "container-files",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        },
+                        "path": {
+                          "source": "literal",
+                          "path": "/",
+                          "type": "string",
+                          "value": "/"
+                        }
+                      }
+                    },
+                    {
+                      "id": "processes",
+                      "title": "Processes",
+                      "pageId": "container-processes",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "changes",
+                      "title": "Changes",
+                      "pageId": "container-changes",
+                      "route": {
+                        "id": {
+                          "source": "route",
+                          "path": "/id",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "bottom": {
+            "source": {
+              "kind": "status",
+              "operation": "systemUsage",
+              "items": [
+                {
+                  "path": "/engine",
+                  "label": "Engine",
+                  "format": "boolean-up"
+                },
+                {
+                  "path": "/server_version",
+                  "label": "Version",
+                  "format": "version"
+                },
+                {
+                  "path": "/containers_running",
+                  "label": "Containers",
+                  "format": "pair",
+                  "otherPath": "/containers_total"
+                },
+                {
+                  "path": "/images",
+                  "label": "Images",
+                  "format": "number"
+                },
+                {
+                  "path": "/volumes",
+                  "label": "Volumes",
+                  "format": "number"
+                },
+                {
+                  "path": "/networks",
+                  "label": "Networks",
+                  "format": "number"
+                },
+                {
+                  "path": "/disk_used_bytes",
+                  "label": "Disk",
+                  "format": "bytes"
+                },
+                {
+                  "path": "/containers_memory_bytes",
+                  "label": "RAM",
+                  "format": "bytes"
+                },
+                {
+                  "path": "/containers_cpu_percent",
+                  "label": "CPU",
+                  "format": "percent"
+                }
+              ]
             }
           }
-        ]
+        }
       }
     ]
   }

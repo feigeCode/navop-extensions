@@ -33,15 +33,15 @@ export default class DockerProcesses extends View {
     cx.notify();
   }
 
-  render() {
+  render(cx) {
     if (this.loading && this.rows.length === 0) {
       return v_flex().size_full().items_center().justify_center().gap(8)
         .child(new Spinner().size("medium"))
-        .child(div().text_color("muted").child("Loading processes…"));
+        .child(div().text_color(cx.theme().colors.muted_foreground).child("Loading processes…"));
     }
     if (this.error) {
       return v_flex().size_full().p(16).gap(8)            
-        .child(div().text_color("destructive").child(`Failed: ${this.error}`))
+        .child(div().text_color(cx.theme().colors.destructive).child(`Failed: ${this.error}`))
         .child(new Button("docker-ps-retry").label("Retry").on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))));
     }
     const tableState = DataTableState(this.titles);

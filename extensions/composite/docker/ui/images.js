@@ -1,12 +1,12 @@
 // Docker 镜像页(workbench 嵌入 shell 视图)。
 //
-// listImages 表格 + 行内 Remove;顶部提供拉取表单:提交 dispatch("pullImageJob")
-// 返回 job 快照,脚本轮询 jobCompleted 直至结果可读取后展示摘要。
+// listImages 表格 + 行内 Remove;顶部提供拉取表单:`pullImage` 是 job 模式操作,
+// 宿主在 dispatch 内 start_job 并轮询到结束后才返回结果。嵌入式 shell 页拿不到
+// `navop.job`(宿主只授予 context + workbench),因此不得自建 job 轮询。
 
 import { View, div } from "gpui";
 import { h_flex, v_flex, Input, InputState } from "gpui-base";
 import { Badge, Button, DataTable, DataTableState, Spinner } from "gpui-component";
-import { close as closeJob, status as jobStatus } from "navop.job";
 import { current, dispatch } from "navop.workbench";
 
 export default class DockerImages extends View {
@@ -48,31 +48,14 @@ export default class DockerImages extends View {
     this.pulling = true;
     this.pullStatus = `正在拉取 ${image}…`;
     cx.notify();
-    let handle = null;
     try {
-      const started = await dispatch("pullImageJob", { image, tag: this.tag.value().trim() }, { confirmed: true });
-      handle = started.handle ?? started.job_id ?? null;
-      if (handle) {
-        // 轮询直至 job 结束
-        while (true) {
-          await cx.sleep(400);
-          const snap = await jobStatus(handle);
-          if (snap.state === "succeeded") break;
-          if (snap.state !== "running" && snap.state !== "queued") {
-            throw new Error(snap.message || `job ${snap.state}`);
-          }
-        }
-      }
+      // job 模式操作:dispatch 内部完成 start_job + 轮询,返回时任务已结束。
+      await dispatch("pullImage", { image, tag: this.tag.value().trim() }, { confirmed: true });
       this.pullStatus = `${image} 拉取完成`;
       await this.load(cx);
     } catch (error) {
       this.pullStatus = `拉取失败: ${error.message}`;
-      this.pulling = false;
-      if (handle) { try { await closeJob(handle); } catch (_) {} }
-      cx.notify();
-      return;
     }
-    if (handle) { try { await closeJob(handle); } catch (_) {} }
     this.pulling = false;
     cx.notify();
   }
@@ -92,7 +75,7 @@ export default class DockerImages extends View {
     return new Badge().child(state || "-");
   }
 
-  render() {
+  render(cx) {
     const columns = ["name", "id", "created", "size"];
     const tableState = DataTableState(columns);
     return v_flex().size_full().min_w_0().min_h_0().p(12).gap(10)
@@ -107,14 +90,14 @@ export default class DockerImages extends View {
           .child(Input.new(this.tag))
           .child(new Button("docker-pull").label(this.pulling ? "拉取中…" : "拉取")
             .on_click((_e, cx) => cx.spawn(async (cx) => this.pull(cx)))))
-        .children(this.pullStatus ? [div().text_size(12).text_color("muted").child(this.pullStatus)] : []))
+        .children(this.pullStatus ? [div().text_size(12).text_color(cx.theme().colors.muted_foreground).child(this.pullStatus)] : []))
       .child(this.loading && this.images.length === 0
         ? v_flex().flex_1().items_center().justify_center().gap(8)
           .child(new Spinner().size("medium"))
-          .child(div().text_color("muted").child("正在读取镜像列表…"))
+          .child(div().text_color(cx.theme().colors.muted_foreground).child("正在读取镜像列表…"))
         : this.error
         ? v_flex().p(16).gap(8)
-          .child(div().text_color("destructive").child(`加载失败: ${this.error}`))
+          .child(div().text_color(cx.theme().colors.destructive).child(`加载失败: ${this.error}`))
           .child(new Button("docker-images-retry").label("重试").on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))))
         : div().flex_1().min_h_0().child(
             new DataTable(tableState, () => this.images, (row, column) => {

@@ -2,6 +2,9 @@
 //
 // 数据源:命名操作 containerDiff(docker/container/diff),依托当前路由 id。
 // 变更类型:A=新增 C=修改 D=删除(官方 Docker API 语义),用徽章着色区分。
+//
+// `Badge.color` 走的是组件色彩解析(Tailwind 名或 #rrggbb 字面量),不是元素样式色:
+// `"accent"`/`"muted"` 这类主题 token 名会被拒,渲染直接失败。
 
 import { View, div } from "gpui";
 import { h_flex, v_flex } from "gpui-base";
@@ -10,12 +13,12 @@ import { current, dispatch } from "navop.workbench";
 
 const KIND_LABELS = {
   A: { label: "Added", color: "green" },
-  C: { label: "Changed", color: "accent" },
-  D: { label: "Deleted", color: "danger" },
+  C: { label: "Changed", color: "amber" },
+  D: { label: "Deleted", color: "red" },
 };
 
 function kindBadge(kind) {
-  const meta = KIND_LABELS[kind] || { label: kind || "-", color: "muted" };
+  const meta = KIND_LABELS[kind] || { label: kind || "-", color: "gray" };
   return new Badge().color(meta.color).child(meta.label);
 }
 
@@ -42,15 +45,15 @@ export default class DockerChanges extends View {
     cx.notify();
   }
 
-  render() {
+  render(cx) {
     if (this.loading && this.changes.length === 0) {
       return v_flex().size_full().items_center().justify_center().gap(8)
         .child(new Spinner().size("medium"))
-        .child(div().text_color("muted").child("Loading filesystem changes…"));
+        .child(div().text_color(cx.theme().colors.muted_foreground).child("Loading filesystem changes…"));
     }
     if (this.error) {
       return v_flex().size_full().p(16).gap(8)
-        .child(div().text_color("destructive").child(`Failed: ${this.error}`))
+        .child(div().text_color(cx.theme().colors.destructive).child(`Failed: ${this.error}`))
         .child(new Button("docker-diff-retry").label("Retry").on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))));
     }
     const changes = this.changes;
