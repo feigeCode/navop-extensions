@@ -1987,23 +1987,126 @@ test("package-composite-extension creates a native shell provider package", () =
   );
 });
 
-test("Elasticsearch shell consumes the host-opened connection resource", () => {
-  const uiRoot = path.join(repoRoot, "extensions/composite/elasticsearch/ui");
-  const collect = (dir) =>
-    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) return collect(full);
-      return entry.name.endsWith(".js") ? [full] : [];
-    });
-  const source = collect(uiRoot)
-    .sort()
-    .map((file) => fs.readFileSync(file, "utf8"))
-    .join("\n");
+// 嵌入式工作台 shell 页（`renderer.kind = "shell"`）的宿主契约由
+// `universal-plugins::shell_page_host::ensure_embeddable` 在运行时强制：视图必须
+// 声明 `context` + `workbench` 模块，且不得声明 raw resource/job/event/blob/
+// runtime/dev（嵌入式页面拿不到这些模块，只能经工作台命名操作派发）。这里做静态
+// 复核，并额外守住「页面引用的视图必须存在」——入口被删/改名这类错误原本只在
+// 打开该页时才暴露（历史事故：连接级 JS 控制台被拆除后仍留在清单里）。
+test("workbench shell pages reference embeddable, existing shell views", () => {
+  const forbiddenModules = new Set(["resource", "job", "event", "blob", "runtime", "dev"]);
+  const forbiddenImports = ["navop.resource", "navop.job", "navop.event", "navop.blob"];
+  const ids = fs
+    .readdirSync(path.join(repoRoot, "extensions/composite"))
+    .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
+    .sort();
 
-  assert.match(source, /current\(\)/);
-  assert.match(source, /connection\?\.resource\?\.handle/);
-  assert.doesNotMatch(source, /await open\(/);
-  assert.doesNotMatch(source, /credentialRefs/);
+  let checked = 0;
+  for (const id of ids) {
+    const extDir = path.join(repoRoot, "extensions/composite", id);
+    const manifest = JSON.parse(fs.readFileSync(path.join(extDir, "extension.json"), "utf8"));
+    const contributes = manifest.contributes ?? {};
+    const views = new Map((contributes.shellViews ?? []).map((view) => [view.id, view]));
+
+    for (const workbench of contributes.resourceWorkbenches ?? []) {
+      for (const page of workbench.pages ?? []) {
+        const renderer = page.renderer ?? {};
+        if (renderer.kind !== "shell") continue;
+        const label = `${id}:${workbench.id}/${page.id}`;
+        const view = views.get(renderer.viewId);
+        assert.ok(view, `${label} references undeclared shellViewId ${renderer.viewId}`);
+
+        const modules = view.modules ?? [];
+        assert.ok(modules.includes("context"), `${label} view must declare the context module`);
+        assert.ok(modules.includes("workbench"), `${label} view must declare the workbench module`);
+        for (const module of modules) {
+          assert.ok(
+            !forbiddenModules.has(module),
+            `${label} view must not declare the ${module} module (forbidden for embedded pages)`,
+          );
+        }
+
+        const entry = path.join(extDir, view.entry);
+        assert.ok(fs.existsSync(entry), `${label} view entry missing: ${view.entry}`);
+        const source = fs.readFileSync(entry, "utf8");
+        assert.match(source, /from "navop\.workbench"/, `${label} must dispatch via navop.workbench`);
+        for (const module of forbiddenImports) {
+          assert.doesNotMatch(
+            source,
+            new RegExp(`from "${module.replace(".", "\\.")}"`),
+            `${label} must not import ${module} (embedded pages only get context + workbench)`,
+          );
+        }
+        assert.doesNotMatch(source, /await open\(/, `${label} must not open the resource itself`);
+        assert.doesNotMatch(source, /credentialRefs/, `${label} must not read credential refs`);
+        checked += 1;
+      }
+    }
+  }
+  assert.ok(checked > 0, "expected at least one workbench shell page to check");
+});
+
+// A stream page is only realtime when all three of these hold: the host renders it
+// through `render_events_page` (native renderer — a shell renderer takes over and the
+// stream is never subscribed), its load returns an event stream, and the load runs with
+// `confirmed=false`, so a non-read effect would fail with ConfirmationRequired instead
+// of ever showing an event.
+test("workbench stream pages load a read-only operation that returns an event stream", () => {
+  const ids = fs
+    .readdirSync(path.join(repoRoot, "extensions/composite"))
+    .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
+    .sort();
+
+  let checked = 0;
+  for (const id of ids) {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, "extensions/composite", id, "extension.json"), "utf8"),
+    );
+    for (const workbench of manifest.contributes?.resourceWorkbenches ?? []) {
+      const operations = workbench.operations ?? {};
+      for (const page of workbench.pages ?? []) {
+        const primitives = page.stack ?? [];
+        if (!primitives.some((primitive) => primitive.kind === "stream")) continue;
+        const label = `${id}:${workbench.id}/${page.id}`;
+        checked += 1;
+
+        assert.equal(
+          page.renderer?.kind,
+          "native",
+          `${label} declares the stream primitive, so its renderer must be native`,
+        );
+        assert.ok(page.load?.operation, `${label} stream page must declare load.operation`);
+
+        const operation = operations[page.load.operation];
+        assert.ok(
+          operation,
+          `${label} load.operation ${page.load.operation} is not declared in workbench.operations`,
+        );
+        assert.equal(
+          operation.effect,
+          "read",
+          `${label} load runs with confirmed=false, so operation ${page.load.operation} must use the read effect`,
+        );
+        assert.ok(
+          (operation.requires ?? []).includes(operation.method),
+          `${label} operation ${page.load.operation} must gate on its own method (${operation.method}) so providers without the stream capability are rejected`,
+        );
+      }
+    }
+  }
+
+  assert.ok(checked > 0, "expected at least one workbench stream page to check");
+  const mqtt = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/composite", "mqtt", "extension.json"), "utf8"),
+  );
+  const workbench = mqtt.contributes.resourceWorkbenches[0];
+  const live = workbench.pages.find((page) => page.id === "live");
+  assert.ok(live, "mqtt must keep its live message stream page");
+  assert.equal(
+    workbench.operations[live.load.operation].method,
+    "middleware/message/stream",
+    "the mqtt live page must load the standard realtime stream method",
+  );
 });
 
 // `.child()`/`.children()` take an element, a string, or an entity. Anything
@@ -2165,6 +2268,333 @@ test("extension UI never passes null or undefined to child()/children()", () => 
   // floor well below the current count.
   assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
   assert.ok(callSites > 200, `expected to scan child() call sites, saw ${callSites}`);
+  assert.deepEqual(violations, []);
+});
+
+// Colors cross two different bridges, and neither takes a semantic token name
+// as a bare string.
+//
+// Element styles (`text_color`, `bg`, `border_color`, `text_bg`) go through
+// `Bridged::as_color`, which strips a leading `#` and rejects everything else:
+// the runtime answer is "`muted` is not a color value; pass a color from
+// `cx.theme().colors` or a #rgb, #rrggbb, or #rrggbbaa literal". Component
+// color props (`Badge.color`, `Icon.color`, `Spinner.color`, ...) go through
+// `try_parse_color`, which knows the Tailwind palette and hex literals but not
+// the theme's semantic names either.
+//
+// Both failures are total — the shell reports "This view could not be
+// rendered" and the page stays blank — and both surface only in the branch
+// that happens to run, so a page can ship with the error sitting in the empty
+// state or the error state nobody renders by hand. Checked statically for the
+// same reason the `child(null)` rule is: the one place the name was written is
+// the only clue the runtime gives.
+test("extension UI colors are literals or theme colors, never bare token names", () => {
+  // Comments blanked out, strings kept: a reported line is the real one, a
+  // `//` inside a string is not a comment, and `"muted"` still has to be
+  // readable when the scan reaches it.
+  const blankOutComments = (source) => {
+    const out = [];
+    let index = 0;
+    while (index < source.length) {
+      const char = source[index];
+      const next = source[index + 1];
+      if (char === "/" && next === "/") {
+        const stop = source.indexOf("\n", index);
+        const end = stop === -1 ? source.length : stop;
+        out.push(" ".repeat(end - index));
+        index = end;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        const stop = source.indexOf("*/", index + 2);
+        const end = stop === -1 ? source.length : stop + 2;
+        out.push(source.slice(index, end).replace(/[^\n]/g, " "));
+        index = end;
+        continue;
+      }
+      if (char === '"' || char === "'" || char === "`") {
+        const start = index;
+        index += 1;
+        while (index < source.length) {
+          if (source[index] === "\\") {
+            index += 2;
+            continue;
+          }
+          if (source[index] === char) {
+            index += 1;
+            break;
+          }
+          index += 1;
+        }
+        out.push(source.slice(start, index));
+        continue;
+      }
+      out.push(char);
+      index += 1;
+    }
+    return out.join("");
+  };
+
+  // `try_parse_color`: hex, `black`/`white`, or a Tailwind `name`, `name-scale`,
+  // `name/opacity`, `name-scale/opacity`. Semantic names such as `accent`,
+  // `muted` and `danger` are in neither list.
+  const TAILWIND_NAMES = [
+    "black", "white", "neutral", "gray", "red", "orange", "amber", "yellow",
+    "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo",
+    "violet", "purple", "fuchsia", "pink", "rose",
+  ];
+  const isComponentColor = (value) => {
+    if (value.startsWith("#")) return true;
+    const match = /^([a-z]+)(?:-(\d+))?(?:\/(\d+))?$/i.exec(value);
+    return Boolean(match) && TAILWIND_NAMES.includes(match[1].toLowerCase());
+  };
+  const isElementColor = (value) => value.startsWith("#");
+
+  const STYLE_SETTERS = ["text_color", "text_bg", "bg", "border_color"];
+  const collectJsFiles = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.name === "target" || entry.name === "node_modules") return [];
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return collectJsFiles(full);
+      return entry.name.endsWith(".js") ? [full] : [];
+    });
+
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let literalSites = 0;
+  const scan = (source, pattern, accepts, describe) => {
+    for (const match of source.matchAll(pattern)) {
+      literalSites += 1;
+      const value = match[2];
+      if (accepts(value)) continue;
+      const line = source.slice(0, match.index).split("\n").length;
+      violations.push(describe(value, line));
+    }
+  };
+
+  for (const file of files) {
+    const source = blankOutComments(fs.readFileSync(file, "utf8"));
+    const relative = path.relative(repoRoot, file);
+    scan(
+      source,
+      new RegExp(`\\.(?:${STYLE_SETTERS.join("|")})\\(\\s*(["'\`])([^"'\`]*)\\1`, "g"),
+      isElementColor,
+      (value, line) => `${relative}:${line} \`${value}\` is not a color value; pass a color from \`cx.theme().colors\` or a #rgb, #rrggbb, or #rrggbbaa literal`,
+    );
+    scan(
+      source,
+      /\.color\(\s*(["'`])([^"'`]*)\1/g,
+      isComponentColor,
+      (value, line) => `${relative}:${line} \`${value}\` is not a component color; pass a Tailwind color name or a #rgb, #rrggbb, or #rrggbbaa literal`,
+    );
+  }
+
+  // Pinned so a scan that stopped matching cannot pass vacuously.
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(literalSites > 0, "expected to find literal color arguments");
+  assert.deepEqual(violations, []);
+});
+
+// Shared by the two layout guards below. Both read `.child(...)` arguments out
+// of an extension UI source, which means knowing where the source's strings and
+// comments end and where a call's argument ends.
+//
+// `blankOutCommentsAndStrings` blanks comments and string bodies while keeping
+// the line count, so an offset into the result still points at the real line of
+// the file. `balancedArgument` reads from an opening paren to its match, and
+// `chainFrom` walks a builder chain collecting only *its own* `.child(...)`
+// arguments: a nested call lives inside an argument that is itself one of the
+// collected strings, so nesting never mixes a row's children with the children
+// of a child.
+const blankOutCommentsAndStrings = (source) => {
+  const out = [];
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (char === "/" && next === "/") {
+      const stop = source.indexOf("\n", index);
+      const end = stop === -1 ? source.length : stop;
+      out.push(" ".repeat(end - index));
+      index = end;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      const stop = source.indexOf("*/", index + 2);
+      const end = stop === -1 ? source.length : stop + 2;
+      out.push(source.slice(index, end).replace(/[^\n]/g, " "));
+      index = end;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      const start = index;
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") {
+          index += 2;
+          continue;
+        }
+        if (source[index] === char) {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      // Keep the line count; the quotes themselves carry no structure.
+      out.push(source.slice(start, index).replace(/[^\n]/g, " "));
+      continue;
+    }
+    out.push(char);
+    index += 1;
+  }
+  return out.join("");
+};
+
+const balancedArgument = (source, openIndex) => {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    else if (char === ")" || char === "]" || char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(openIndex + 1, index);
+    }
+  }
+  return source.slice(openIndex + 1);
+};
+
+// The chain that starts at `h_flex()`: walked with a paren depth so nesting
+// does not mix the row's own `.child(...)` calls with the ones inside them.
+// The walk stops at the enclosing call's `)` or at the statement's `;`.
+const chainFrom = (source, start) => {
+  const children = [];
+  let index = start;
+  let depth = 0;
+  while (index < source.length) {
+    const char = source[index];
+    if (char === "(" || char === "[" || char === "{") {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+    if (char === ")" || char === "]" || char === "}") {
+      depth -= 1;
+      if (depth < 0) break;
+      index += 1;
+      continue;
+    }
+    if (depth === 0) {
+      if (char === ";") break;
+      if (source.startsWith(".child(", index)) {
+        const open = index + ".child".length;
+        const argument = balancedArgument(source, open);
+        children.push(argument.trim());
+        index = open + argument.length + 2;
+        continue;
+      }
+    }
+    index += 1;
+  }
+  return { text: source.slice(start, index), children };
+};
+
+const collectJsFiles = (dir) =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === "target" || entry.name === "node_modules") return [];
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return collectJsFiles(full);
+    return entry.name.endsWith(".js") ? [full] : [];
+  });
+
+// `h_flex` centres its children on the cross axis, and a column does not take
+// the row's height on its own: it is sized by its content and centred inside
+// the row. A page laid out as "sidebar + main" therefore collapses to one line
+// of text floating in the middle of the pane, and every `flex_1()` inside those
+// columns — the message list, the textarea, the scroll region — resolves
+// against a height that is the content's, not the pane's.
+//
+// The gpui-base docs on `h_flex` state the rule and its two remedies (`h_full`
+// on the column, or `items_stretch`/`items_start` on the row); this pins the
+// full-size rows to one of them so the next two-column page cannot ship
+// centred. Only `v_flex` children are checked: a leaf `div()` is not a column
+// and has no height to fill.
+test("extension UI columns inside a full-size h_flex row declare h_full", () => {
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let rows = 0;
+  let columns = 0;
+  for (const file of files) {
+    const raw = fs.readFileSync(file, "utf8");
+    const source = blankOutCommentsAndStrings(raw);
+    for (const match of source.matchAll(/\bh_flex\(\)/g)) {
+      const chain = chainFrom(source, match.index);
+      if (!chain.text.includes("size_full()")) continue;
+      rows += 1;
+      const stretched =
+        chain.text.includes("items_stretch()") || chain.text.includes("items_start()");
+      for (const argument of chain.children) {
+        if (!argument.startsWith("v_flex(")) continue;
+        columns += 1;
+        if (stretched) continue;
+        if (argument.includes("h_full()") || argument.includes("size_full()")) continue;
+        const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
+        violations.push(
+          `${path.relative(repoRoot, file)}:${line} a v_flex column inside a size_full h_flex row needs h_full() (otherwise the row centres it at its content height)`,
+        );
+      }
+    }
+  }
+
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(rows > 0, "expected to find full-size h_flex rows");
+  assert.ok(columns > 0, "expected to find columns inside full-size h_flex rows");
+  assert.deepEqual(violations, []);
+});
+
+// A `Select` (and its `Combobox` twin) does not size itself from the row it
+// sits in. The shell materialises both as a `RenderOnce` over a plain `div`
+// that only refines the style it was given, and the `gpui-component` wrapper
+// draws a full-width trigger inside it — so a `Select` written as a bare
+// `.child(new Select(...))` claims the whole line. Its neighbours are then laid
+// out against a row that is already full, and which failure you get depends on
+// whether they can shrink:
+//
+//   - `div().flex_1()`, the wrapper every input in these pages uses, has a zero
+//     flex base and no free space left to grow into. It resolves to 0 width:
+//     the input is gone — no border, no placeholder, nothing to click — and the
+//     selector's own placeholder is the only field left on the line.
+//   - A sibling that cannot shrink (a title, a button) keeps its width instead
+//     and the row overflows, sliding the far column off the edge of the pane.
+//
+// Both are silent. The page renders, nothing is logged, and the only clue is a
+// person looking at a form that has lost a field. The pages that work wrap the
+// selector in a container that sizes it (`div().w(200).flex_shrink_0()`), and
+// this pins that so the next page cannot ship without it.
+test("extension UI rows size every Select instead of letting it claim the line", () => {
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let rows = 0;
+  let selectors = 0;
+  for (const file of files) {
+    const raw = fs.readFileSync(file, "utf8");
+    const source = blankOutCommentsAndStrings(raw);
+    selectors += [...source.matchAll(/\bnew (?:Select|Combobox)\(/g)].length;
+    for (const match of source.matchAll(/\b(?:h_flex|v_flex)\(\)/g)) {
+      const chain = chainFrom(source, match.index);
+      rows += 1;
+      for (const argument of chain.children) {
+        if (!/^new (?:Select|Combobox)\(/.test(argument)) continue;
+        const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
+        violations.push(
+          `${path.relative(repoRoot, file)}:${line} passes a Select straight to .child(...); it claims the whole row and zeroes out the flex_1 sibling beside it — wrap it in a container that sizes it (div().w(200).flex_shrink_0())`,
+        );
+      }
+    }
+  }
+
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(rows > 0, "expected to find h_flex/v_flex rows");
+  assert.ok(selectors > 0, "expected to find Select constructors to check");
   assert.deepEqual(violations, []);
 });
 
