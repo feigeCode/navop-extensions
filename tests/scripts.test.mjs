@@ -2351,6 +2351,11 @@ test("extension UI colors are literals or theme colors, never bare token names",
   const isElementColor = (value) => value.startsWith("#");
 
   const STYLE_SETTERS = ["text_color", "text_bg", "bg", "border_color"];
+  const ELEMENT_COLOR_SITE = new RegExp(
+    `\\.(?:${STYLE_SETTERS.join("|")})\\(\\s*(["'\`])([^"'\`]*)\\1`,
+    "g",
+  );
+  const COMPONENT_COLOR_SITE = /\.color\(\s*(["'`])([^"'`]*)\1/g;
   const collectJsFiles = (dir) =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       if (entry.name === "target" || entry.name === "node_modules") return [];
@@ -2361,10 +2366,8 @@ test("extension UI colors are literals or theme colors, never bare token names",
 
   const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
   const violations = [];
-  let literalSites = 0;
   const scan = (source, pattern, accepts, describe) => {
     for (const match of source.matchAll(pattern)) {
-      literalSites += 1;
       const value = match[2];
       if (accepts(value)) continue;
       const line = source.slice(0, match.index).split("\n").length;
@@ -2377,21 +2380,123 @@ test("extension UI colors are literals or theme colors, never bare token names",
     const relative = path.relative(repoRoot, file);
     scan(
       source,
-      new RegExp(`\\.(?:${STYLE_SETTERS.join("|")})\\(\\s*(["'\`])([^"'\`]*)\\1`, "g"),
+      ELEMENT_COLOR_SITE,
       isElementColor,
       (value, line) => `${relative}:${line} \`${value}\` is not a color value; pass a color from \`cx.theme().colors\` or a #rgb, #rrggbb, or #rrggbbaa literal`,
     );
     scan(
       source,
-      /\.color\(\s*(["'`])([^"'`]*)\1/g,
+      COMPONENT_COLOR_SITE,
       isComponentColor,
       (value, line) => `${relative}:${line} \`${value}\` is not a component color; pass a Tailwind color name or a #rgb, #rrggbb, or #rrggbbaa literal`,
     );
   }
 
-  // Pinned so a scan that stopped matching cannot pass vacuously.
+  // Pinned so a scan that stopped matching cannot pass vacuously — and pinned
+  // on a synthetic sample rather than on the repository's own sources. The
+  // rule below is "pass a color from `cx.theme().colors`", so the extensions
+  // are meant to reach *zero* literal sites; a pin that read them would fail
+  // the very change that got there (as it did when the last hardcoded row
+  // highlight in `mqtt/ui/messages.js` became a theme token).
+  const selfCheck = [
+    '.text_color("#abc")',
+    ".bg(cx.theme().colors.muted)",
+    '.color("blue-500")',
+    '.color("accent")',
+  ].join("\n");
+  const elementSites = [...selfCheck.matchAll(ELEMENT_COLOR_SITE)];
+  const componentSites = [...selfCheck.matchAll(COMPONENT_COLOR_SITE)];
+  assert.equal(
+    elementSites.length,
+    1,
+    "the element color scan must still match a literal setter",
+  );
+  assert.equal(
+    componentSites.length,
+    2,
+    "the component color scan must still match literal `.color(...)` calls",
+  );
+  assert.ok(isElementColor(elementSites[0][2]), "a hex literal is an element color");
+  assert.ok(isComponentColor(componentSites[0][2]), "a Tailwind name is a component color");
+  assert.ok(
+    !isComponentColor(componentSites[1][2]),
+    "a semantic token name must not be accepted as a component color",
+  );
+
   assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(literalSites > 0, "expected to find literal color arguments");
+  assert.deepEqual(violations, []);
+});
+
+// `cx.theme()` in a shell view is `gpui-base`'s semantic palette, not the
+// component library's theme: `crates/shell/src/theme_tokens.rs` resolves the
+// names below and nothing else, and `Bridged::as_color` then fails the whole
+// page with "This view could not be rendered". A name from the component
+// library's own theme — `list_active`, `table_hover` — reads as plausible,
+// resolves to `undefined`, and blanks the page, so it is worth catching here
+// rather than by hand. The two name lists are duplicated from
+// `gpui-component` on purpose: they are a contract, not an import.
+test("extension UI theme tokens are names the shell palette resolves", () => {
+  const COLORS = [
+    "background", "foreground", "surface", "surface_foreground",
+    "primary", "primary_foreground", "secondary", "secondary_foreground",
+    "muted", "muted_foreground", "accent", "accent_foreground",
+    "destructive", "destructive_foreground", "border", "input", "ring",
+    "selection",
+  ];
+  const SPACING = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"];
+  const RADIUS = ["none", "sm", "md", "lg", "xl", "full"];
+  const TYPOGRAPHY = ["sans", "mono", "xs", "sm", "md", "lg", "xl", "mono_md"];
+  const GROUPS = new Set(["colors", "spacing", "radius", "typography", "appearance"]);
+
+  const collectJsFiles = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.name === "target" || entry.name === "node_modules") return [];
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return collectJsFiles(full);
+      return entry.name.endsWith(".js") ? [full] : [];
+    });
+
+  const scans = [
+    { pattern: /\.colors\.([A-Za-z_]\w*)/g, allows: new Set(COLORS), where: "colors" },
+    { pattern: /\.spacing\.([A-Za-z_]\w*)/g, allows: new Set(SPACING), where: "spacing" },
+    { pattern: /\.radius\.([A-Za-z_]\w*)/g, allows: new Set(RADIUS), where: "radius" },
+    { pattern: /\.typography\.([A-Za-z_]\w*)/g, allows: new Set(TYPOGRAPHY), where: "typography" },
+  ];
+  const colors = new Set(COLORS);
+
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let sites = 0;
+  for (const file of files) {
+    const source = blankOutCommentsAndStrings(fs.readFileSync(file, "utf8"));
+    const relative = path.relative(repoRoot, file);
+    const at = (index) => source.slice(0, index).split("\n").length;
+    for (const { pattern, allows, where } of scans) {
+      for (const match of source.matchAll(pattern)) {
+        sites += 1;
+        if (!allows.has(match[1])) {
+          violations.push(
+            `${relative}:${at(match.index)} \`.${where}.${match[1]}\` is not a shell theme token`,
+          );
+        }
+      }
+    }
+    // The flat form (`const theme = cx.theme(); theme.muted`) is only scanned
+    // in files that actually took `theme` from `cx.theme()`.
+    if (!/(?:const|let|var)\s+theme\s*=\s*cx\.theme\(\)/.test(source)) continue;
+    for (const match of source.matchAll(/(?:cx\.theme\(\)|\btheme)\.([A-Za-z_]\w*)/g)) {
+      if (GROUPS.has(match[1])) continue;
+      sites += 1;
+      if (!colors.has(match[1])) {
+        violations.push(
+          `${relative}:${at(match.index)} \`theme.${match[1]}\` is not a shell theme token`,
+        );
+      }
+    }
+  }
+
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(sites > 0, "expected to find theme token reads");
   assert.deepEqual(violations, []);
 });
 
