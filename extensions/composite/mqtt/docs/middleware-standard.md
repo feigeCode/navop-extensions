@@ -205,6 +205,11 @@
 
 - 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Select`、`Switch`、`Badge`、`Button`、`chart`、`description_list`、`virtual_list` 等。
 - 运行时 API 要点：`InputState.new({value, placeholder})` + `Input.new(state)`（placeholder 只能在 `InputState.new` 设置，`Input` 元素无该方法）；`Select(id, rowsFn, renderRowFn, onSelect)` 与 `DataTable(state, rowsFn, cellFn)`、`DataTableState(columns)`、`Badge()` 均为位置参数或 nullary 构造；`navop.context.current()`、`navop.resource.invoke`、`navop.blob.read/close`。
+- 布局硬规则（都踩过，且都是**静默**故障——页面照常渲染、不报错）：
+  1. **`Select` 必须包在定宽容器里**：`div().w(200).flex_shrink_0().child(new Select(...))`。`Select` 的根是 shell 对 `div` 的 `RenderOnce` 包装，自带整行宽度；裸着当行子元素会让同行的 `div().flex_1()` 拿到 0 基准宽、没有剩余空间可 grow ⇒ **输入框整块消失**（订阅页的过滤器输入框就这么没的），或者把不可收缩的兄弟（标题、按钮）挤出可视区（消息详情页的格式选择器）。守卫测试：`extension UI rows size every Select instead of letting it claim the line`。
+  2. **`h_flex()` 默认 `items_center`**：整页的行要么在行上声明 `items_stretch()`，要么每个列自己声明 `h_full()`，否则两列都会按内容高度居中塌成一行。守卫测试：`extension UI columns inside a full-size h_flex row declare h_full`。
+  3. **颜色只能是主题色或 `#hex`**：元素样式取 `cx.theme().colors.*`，组件 prop 只认 Tailwind 名/`#hex`；`"muted"` 这类 token 名会让整个 view 渲染失败。守卫测试：`extension UI colors are literals or theme colors, never bare token names`。
+  4. **空输入的提示不要复用「非法」文案**：`subscribe` 里空过滤器与非法过滤器分开提示（空 ⇒ 「请先填写主题过滤器」），并把错误提示用 `destructive` 上色、成功提示用 `muted_foreground`，否则用户看到的是一句和实际原因对不上的规则说明。
 - 数据解包：`navop.resource.invoke` 返回 `ResultRef`，inline 取 `.value`、blob 走 `navop.blob.read/close`（协议见开发指南 §9.3）。发送消息时 body 必须是**字节数组**：`Array.from(Buffer.from(text))`（`Buffer` 来自内置 `buffer` 模块，见 `mqtt/ui/shared.js` 的 `encodePayload`）。
 
 ## 6. 打包与发布

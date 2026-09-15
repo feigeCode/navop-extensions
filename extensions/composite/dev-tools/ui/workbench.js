@@ -284,6 +284,9 @@ export default class DevWorkbench extends View {
         )
       : this.projects;
     const selected = this.projects.find((project) => project.root === this.selectedRoot);
+    // 行内的两列都必须自己声明 h_full():`h_flex` 默认 items_center,不声明
+    // 的列会按内容高度居中 —— 详情面板会浮在面板中间、上下各留一大片空白
+    // (工程列表已声明 h_full,所以只有右侧看起来是错的)。
     return h_flex()
       .flex_1()
       .min_h_0()
@@ -293,6 +296,7 @@ export default class DevWorkbench extends View {
           ? this.renderProjectDetails(selected, cx)
           : v_flex()
               .flex_1()
+              .h_full()
               .items_center()
               .justify_center()
               .gap(6)
@@ -325,6 +329,9 @@ export default class DevWorkbench extends View {
         v_flex()
           .flex_1()
           .min_h_0()
+          // 工程多了要能滚:没有 overflow 时列表会照画到详情栏上(min_h_0 只是
+          // 让这个区域可以被压缩,并不会自己裁剪或滚动)。
+          .overflow_y_scroll()
           .gap(2)
           .children(visible.map((project) => this.renderProjectItem(project, cx))),
       );
@@ -356,11 +363,22 @@ export default class DevWorkbench extends View {
         div()
           .text_sm()
           .font_medium()
-          .whitespace_nowrap()
+          .truncate()
           .text_color(nameColor)
           .child(project.name || '未命名工程'),
       )
-      .child(div().text_xs().whitespace_nowrap().text_color(rootColor).child(project.root))
+      // 定宽侧栏里的长文本必须自己收口:gpui 盒子默认 overflow: visible,
+      // 不换行的路径会直接画过分隔线、压在右侧详情栏的按钮上。
+      // 用「掐头」省略号(保尾部目录名),这是 gpui 对文件路径的推荐做法。
+      .child(
+        div()
+          .text_xs()
+          .whitespace_nowrap()
+          .overflow_hidden()
+          .text_ellipsis_start()
+          .text_color(rootColor)
+          .child(project.root),
+      )
       .on_click((_event, cx) => {
         if (this.selectedRoot !== project.root) {
           this.closeLogs(cx);
@@ -384,6 +402,7 @@ export default class DevWorkbench extends View {
         : new Tag().variant('secondary').size('small').child('就绪');
     return v_flex()
       .flex_1()
+      .h_full()
       .min_w_0()
       .min_h_0()
       .overflow_y_scroll()

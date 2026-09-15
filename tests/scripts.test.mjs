@@ -2506,6 +2506,135 @@ const collectJsFiles = (dir) =>
     return entry.name.endsWith(".js") ? [full] : [];
   });
 
+// Only the chain up to a container's first `.child(...)` is that container's
+// own style; what a child declares (`div().min_h_0()`) belongs to the child.
+const styleHead = (text) => {
+  const firstChild = text.indexOf(".child(");
+  return firstChild === -1 ? text : text.slice(0, firstChild);
+};
+
+// Every `name(params) { ... }` body in the file, addressed by its range in the
+// source so a body can be walked and searched like the source itself. A helper
+// is often where the real layout lives (`this.renderProjectItem(cx)`), so the
+// guards below need to see inside them.
+const methodBodies = (source) => {
+  const bodies = new Map();
+  for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*\{/g)) {
+    const open = source.indexOf("{", match.index);
+    let depth = 0;
+    for (let index = open; index < source.length; index += 1) {
+      if (source[index] === "{") depth += 1;
+      else if (source[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          bodies.set(match[1], {
+            start: open + 1,
+            end: index,
+            text: source.slice(open + 1, index),
+          });
+          break;
+        }
+      }
+    }
+  }
+  return bodies;
+};
+
+// A column is often handed to the row by a helper (`this.renderProjectDetails(cx)`)
+// rather than written inline, and then the `.child(...)` argument says nothing
+// about it. Keep the chain each method returns; a method that does not return a
+// `v_flex()` chain is absent.
+const columnMethodChains = (source) => {
+  const chains = new Map();
+  for (const [name, body] of methodBodies(source)) {
+    for (const returned of body.text.matchAll(/\breturn\s+v_flex\(\)/g)) {
+      chains.set(name, chainFrom(body.text, body.text.indexOf("v_flex(", returned.index)).text);
+      break;
+    }
+  }
+  return chains;
+};
+
+// Every chain the file writes, in source order: a factory call (`div()`,
+// `v_flex()`, `h_flex()`) plus the `.method(...)` tail after it, with the range
+// it occupies so "what is written inside this element" is a range question.
+// Nested chains appear on their own too — an outer pane and its contents.
+const styleChains = (source) => {
+  const chains = [];
+  for (const match of source.matchAll(/\b(?:div|v_flex|h_flex)\(\)/g)) {
+    const chain = chainFrom(source, match.index);
+    chains.push({ index: match.index, end: match.index + chain.text.length, text: chain.text });
+  }
+  return chains;
+};
+
+const methodsCalledIn = (text) =>
+  [...text.matchAll(/this\.([A-Za-z_$][\w$]*)\s*\(/g)].map((match) => match[1]);
+
+// Everything written between `from` and `to`: the chains in that range plus the
+// chains inside every helper they call (`this.renderProjectItem(...)`), followed
+// transitively — bounded by the visited set and the depth so a helper that calls
+// itself cannot spin the guard.
+const chainsInside = (chains, methods, from, to, visited = new Set(), depth = 0) => {
+  if (depth > 4) return [];
+  const found = [];
+  for (const chain of chains) {
+    if (chain.index <= from || chain.index >= to) continue;
+    found.push(chain);
+    for (const name of methodsCalledIn(chain.text)) {
+      const body = methods.get(name);
+      if (body === undefined || visited.has(name)) continue;
+      visited.add(name);
+      found.push(...chainsInside(chains, methods, body.start, body.end, visited, depth + 1));
+    }
+  }
+  return found;
+};
+
+// `.child(cond ? this.renderA(cx) : v_flex()...)` hands the row one column per
+// branch, and reading the argument as a whole lets the `h_full()` of one branch
+// cover the missing one of the other. Split on the top-level ternary operators
+// (`?.` and `??` are not branches) so each side is judged on its own.
+const ternaryBranches = (argument) => {
+  const branches = [];
+  let start = 0;
+  let depth = 0;
+  for (let index = 0; index < argument.length; index += 1) {
+    const char = argument[index];
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    else if (char === ")" || char === "]" || char === "}") depth -= 1;
+    else if (depth === 0 && (char === "?" || char === ":")) {
+      if (char === "?" && (argument[index + 1] === "?" || argument[index + 1] === ".")) {
+        index += 1;
+        continue;
+      }
+      branches.push(argument.slice(start, index));
+      start = index + 1;
+    }
+  }
+  branches.push(argument.slice(start));
+  return branches;
+};
+
+// The columns a `.child(...)` argument contributes — usually one, two for a
+// ternary, none for anything that is not a column at all: a leaf `div()`, a
+// toolbar fragment, or a method that returns a row. Inline columns are
+// recognised by the head of their own chain, so a `div()` wrapping a
+// `v_flex()` is not mistaken for one.
+const columnTexts = (argument, methods) => {
+  const candidates = [];
+  for (const branch of ternaryBranches(argument)) {
+    const called = branch.trim().match(/^this\.([A-Za-z_$][\w$]*)\s*\(/);
+    if (called) {
+      const chain = methods.get(called[1]);
+      if (chain !== undefined) candidates.push(chain);
+      continue;
+    }
+    if (/(?:^|[\s?:])v_flex\(\)/.test(styleHead(branch))) candidates.push(branch);
+  }
+  return candidates;
+};
+
 // `h_flex` centres its children on the cross axis, and a column does not take
 // the row's height on its own: it is sized by its content and centred inside
 // the row. A page laid out as "sidebar + main" therefore collapses to one line
@@ -2518,6 +2647,12 @@ const collectJsFiles = (dir) =>
 // full-size rows to one of them so the next two-column page cannot ship
 // centred. Only `v_flex` children are checked: a leaf `div()` is not a column
 // and has no height to fill.
+//
+// Two shapes walked past the first version of this test and left the dev-tools
+// workbench centred: the row filled its pane with `flex_1()` + `min_h_0()`
+// instead of `size_full()` (so the row was never looked at), and the detail
+// column arrives as `this.renderProjectDetails(cx)` rather than as an inline
+// `v_flex()` (so the argument was skipped). Both are covered now.
 test("extension UI columns inside a full-size h_flex row declare h_full", () => {
   const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
   const violations = [];
@@ -2526,21 +2661,26 @@ test("extension UI columns inside a full-size h_flex row declare h_full", () => 
   for (const file of files) {
     const raw = fs.readFileSync(file, "utf8");
     const source = blankOutCommentsAndStrings(raw);
+    const methods = columnMethodChains(source);
     for (const match of source.matchAll(/\bh_flex\(\)/g)) {
       const chain = chainFrom(source, match.index);
-      if (!chain.text.includes("size_full()")) continue;
+      const head = styleHead(chain.text);
+      // A row fills its pane either explicitly (`size_full()`) or by growing
+      // into the page column (`flex_1()` + `min_h_0()`); a row that merely
+      // wraps its content has no height to hand to a column.
+      if (!head.includes("size_full()") && !head.includes("min_h_0()")) continue;
       rows += 1;
-      const stretched =
-        chain.text.includes("items_stretch()") || chain.text.includes("items_start()");
+      const stretched = head.includes("items_stretch()") || head.includes("items_start()");
       for (const argument of chain.children) {
-        if (!argument.startsWith("v_flex(")) continue;
-        columns += 1;
-        if (stretched) continue;
-        if (argument.includes("h_full()") || argument.includes("size_full()")) continue;
-        const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
-        violations.push(
-          `${path.relative(repoRoot, file)}:${line} a v_flex column inside a size_full h_flex row needs h_full() (otherwise the row centres it at its content height)`,
-        );
+        for (const text of columnTexts(argument, methods)) {
+          columns += 1;
+          if (stretched) continue;
+          if (text.includes("h_full()") || text.includes("size_full()")) continue;
+          const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
+          violations.push(
+            `${path.relative(repoRoot, file)}:${line} a v_flex column inside a pane-filling h_flex row needs h_full() (otherwise the row centres it at its content height)`,
+          );
+        }
       }
     }
   }
@@ -2548,6 +2688,56 @@ test("extension UI columns inside a full-size h_flex row declare h_full", () => 
   assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
   assert.ok(rows > 0, "expected to find full-size h_flex rows");
   assert.ok(columns > 0, "expected to find columns inside full-size h_flex rows");
+  assert.deepEqual(violations, []);
+});
+
+// A pane the page pins to a width (`.w(272)`) cannot grow, and the pane beside
+// it will never hide the spill: a gpui box defaults to `overflow: visible`, so
+// text written with `whitespace_nowrap()` is painted past its own bounds and
+// straight over the neighbouring pane — a project path in the dev-tools sidebar
+// ran across the divider and on top of the details column's buttons.
+//
+// A flexible pane (`.flex_1()`) does not need this: its text gets the pane's
+// width, and a pane that is too narrow for its content is a different problem.
+// Text that must not wrap inside a fixed-width pane therefore has to end in an
+// ellipsis (`text_ellipsis*`, or `truncate()` which also pins the nowrap) or be
+// clipped (`overflow_hidden()`); anything else is a silent spill.
+test("nowrap text inside a fixed-width pane ellipsizes instead of spilling", () => {
+  const escapes = [
+    "text_ellipsis()",
+    "text_ellipsis_start()",
+    "text_ellipsis_middle()",
+    "truncate()",
+    "overflow_hidden()",
+  ];
+  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
+  const violations = [];
+  let panes = 0;
+  let nowrap = 0;
+  for (const file of files) {
+    const raw = fs.readFileSync(file, "utf8");
+    const source = blankOutCommentsAndStrings(raw);
+    const chains = styleChains(source);
+    const methods = methodBodies(source);
+    for (const pane of chains) {
+      // `.w(272)` and friends: a width the author chose, not `w_full()`/`flex_1()`.
+      if (!/\.w\(\s*\d/.test(styleHead(pane.text))) continue;
+      panes += 1;
+      for (const chain of chainsInside(chains, methods, pane.index, pane.end)) {
+        if (!chain.text.includes("whitespace_nowrap()")) continue;
+        nowrap += 1;
+        if (escapes.some((escape) => chain.text.includes(escape))) continue;
+        const line = raw.slice(0, chain.index).split("\n").length;
+        violations.push(
+          `${path.relative(repoRoot, file)}:${line} nowrap text inside a fixed-width pane needs text_ellipsis()/truncate()/overflow_hidden(); as written it is painted over the pane next to it`,
+        );
+      }
+    }
+  }
+
+  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
+  assert.ok(panes > 0, "expected to find fixed-width panes");
+  assert.ok(nowrap > 0, "expected to find nowrap text inside a fixed-width pane");
   assert.deepEqual(violations, []);
 });
 
