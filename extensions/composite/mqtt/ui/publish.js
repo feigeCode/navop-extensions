@@ -1,7 +1,7 @@
 // MQTT 消息发布:主题、QoS、Retain、多格式 payload、历史重发。
 import { View, div } from "gpui";
-import { h_flex, v_flex, Input, InputState, Textarea, TextareaState } from "gpui-base";
-import { Button, Select, Switch, Tag } from "gpui-component";
+import { h_flex, v_flex, InputState, TextareaState } from "gpui-base";
+import { Button, Input, Select, Switch, Tag, Textarea } from "gpui-component";
 import { dispatch } from "navop.workbench";
 import { FORMAT_OPTIONS, QOS_OPTIONS, encodePayload, errorMessage, humanBytes, qosLabel } from "./shared.js";
 
@@ -94,7 +94,7 @@ export default class MqttPublish extends View {
       // 不声明的列会按内容高度居中,发布框和正文框会一起塌掉。
       .child(v_flex().flex_1().min_w_0().min_h_0().h_full().p(12).gap(10)
         .child(div().text_size(16).font_semibold().child("发布消息"))
-        .child(Input.new(this.topic))
+        .child(new Input(this.topic))
         // 选择器包在定宽容器里:它们自带宽度,直接当行子元素会让整行
         // 的最小宽度撑到 ~720px,把右侧「发送历史」挤出可视区。
         .child(h_flex().items_center().gap(8).min_w_0()
@@ -111,7 +111,7 @@ export default class MqttPublish extends View {
           .child(div().flex_1().min_w_0())
           .child(new Switch("mqtt-pub-retain").label("Retain").checked(this.retain)
             .on_change((checked, cx) => { this.retain = Boolean(checked); cx.notify(); })))
-        .child(div().flex_1().min_h_0().child(Textarea.new(this.body)))
+        .child(div().flex_1().min_h_0().child(new Textarea(this.body)))
         .child(h_flex().gap(8).items_center()
           .child(new Button("mqtt-pub-send").primary().label(this.busy ? "发布中…" : "发布")
             .disabled(this.busy)

@@ -1,6 +1,6 @@
 import { View, div } from 'gpui';
-import { v_flex, h_flex, Input, InputState } from 'gpui-base';
-import { Button, ErrorAlert, InfoAlert, Separator, Switch, Tag } from 'gpui-component';
+import { v_flex, h_flex, InputState } from 'gpui-base';
+import { Button, ErrorAlert, InfoAlert, Input, Separator, Switch, Tag } from 'gpui-component';
 import {
   list,
   logs,
@@ -318,7 +318,7 @@ export default class DevWorkbench extends View {
       .border_color(theme.border)
       .p(12)
       .gap(8)
-      .child(this.search ? Input.new(this.search) : div())
+      .child(this.search ? new Input(this.search) : div())
       .child(
         div()
           .text_xs()

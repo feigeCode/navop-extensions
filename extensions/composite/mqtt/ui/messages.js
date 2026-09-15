@@ -4,8 +4,8 @@
 // 因此以 queryByWindow 增量轮询代替事件流:按 received_at_ms 取窗口,
 // 用合成 ID `mqtt-<seq>` 的单调序号去重。
 import { View, div } from "gpui";
-import { h_flex, v_flex, Input, InputState } from "gpui-base";
-import { Button, Select, Tag } from "gpui-component";
+import { h_flex, v_flex, InputState } from "gpui-base";
+import { Button, Input, Select, Tag } from "gpui-component";
 import { dispatch } from "navop.workbench";
 import {
   FORMAT_OPTIONS, decodePayload, errorMessage, formatTime, humanBytes, kv, payloadSize, props, topicMatches,
@@ -91,7 +91,12 @@ export default class MqttMessages extends View {
     const active = this.selected && this.selected.message_id === m.message_id;
     const preview = (m.body_text ?? `<binary ${payloadSize(m)} B>`).replace(/\s+/g, " ").slice(0, 160);
     return v_flex().px(10).py(5).gap(2).border_b_1().cursor_pointer()
-      .when(active, (el) => el.bg("#3b82f622"))
+      // 选中行高亮走主题的 accent(与 dev-tools 选中行同一 token),不要硬编码
+      // 颜色 —— 否则切主题后与其余组件不一致。
+      // 注意:`cx.theme().colors` 只认 ColorTokens 的 18 个名字,`list_active`
+      // 之类 gpui-component 的扩展 token 在 shell 侧不存在,写了会解析成
+      // undefined 并让整页渲染失败。
+      .when(active, (el) => el.bg(cx.theme().colors.accent))
       .on_click((_e, cx) => { this.selected = m; cx.notify(); })
       .child(h_flex().items_center().gap(6)
         .child(new Tag().size("xsmall").variant(out ? "info" : "success").child(out ? "OUT" : "IN"))
@@ -143,8 +148,8 @@ export default class MqttMessages extends View {
         // 过滤器用 flex_1 + min_w_0 而不是固定宽度:固定宽度会让工具行的
         // 最小宽度超过主列,把右侧详情挤出屏幕。
         .child(h_flex().items_center().gap(6).p(8).border_b_1().min_w_0()
-          .child(div().flex_1().min_w_0().child(Input.new(this.topicFilter)))
-          .child(div().flex_1().min_w_0().child(Input.new(this.keyword)))
+          .child(div().flex_1().min_w_0().child(new Input(this.topicFilter)))
+          .child(div().flex_1().min_w_0().child(new Input(this.keyword)))
           .child(div().w(110).flex_shrink_0().child(
             new Select("mqtt-msg-dir", () => directions, (row) => div().child(row.label), (value, cx) => {
               this.direction = String(value);

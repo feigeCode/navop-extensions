@@ -1,6 +1,6 @@
 import { View, div } from "gpui";
-import { v_flex, h_flex, Input, InputState } from "gpui-base";
-import { Button } from "gpui-component";
+import { v_flex, h_flex, InputState } from "gpui-base";
+import { Button, Input } from "gpui-component";
 import { current, dispatch } from "navop.workbench";
 
 export default class DockerLogViewer extends View {
@@ -34,7 +34,7 @@ export default class DockerLogViewer extends View {
       .child(
         h_flex()
           .gap(8)
-          .child(Input.new(this.tail))
+          .child(new Input(this.tail))
           .child(
             new Button("docker-logs-load")
               .label(this.pending ? "Loading..." : "Load")

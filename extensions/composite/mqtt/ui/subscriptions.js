@@ -1,7 +1,7 @@
 // MQTT 订阅管理:列表 + 新增订阅(过滤器/QoS)+ 取消订阅。
 import { View, div } from "gpui";
-import { h_flex, v_flex, Input, InputState } from "gpui-base";
-import { Button, Select, Tag } from "gpui-component";
+import { h_flex, v_flex, InputState } from "gpui-base";
+import { Button, Input, Select, Tag } from "gpui-component";
 import { dispatch } from "navop.workbench";
 import { QOS_OPTIONS, errorMessage, errorView, isValidFilter, loadingView, qosLabel } from "./shared.js";
 
@@ -100,7 +100,7 @@ export default class MqttSubscriptions extends View {
       .child(v_flex().gap(6).p(10).border_1().rounded(6).min_w_0()
         .child(div().font_semibold().child("新增订阅"))
         .child(h_flex().gap(6).items_center().min_w_0()
-          .child(div().flex_1().min_w_0().child(Input.new(this.filter)))
+          .child(div().flex_1().min_w_0().child(new Input(this.filter)))
           // QoS 选择器必须包在定宽容器里:`Select` 自带整行宽度,直接当行子元素
           // 会把同行的 `flex_1` 过滤器输入压成 0 宽 —— 表现是整个输入框消失,
           // 只剩 QoS 下拉和按钮(见 docs/middleware-standard.md §5.4)。

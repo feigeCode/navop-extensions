@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 import { View, div } from "gpui";
-import { h_flex, v_flex, Input, InputState } from "gpui-base";
-import { Button } from "gpui-component";
+import { h_flex, v_flex, InputState } from "gpui-base";
+import { Button, Input } from "gpui-component";
 import { current, dispatch } from "navop.workbench";
 
 export default class RocketmqSendMessage extends View {
@@ -24,10 +24,10 @@ export default class RocketmqSendMessage extends View {
       .p(16)
       .gap(12)
       .child(div().text_size(18).font_semibold().child("Send RocketMQ Message"))
-      .child(Input.new(this.topic))
-      .child(Input.new(this.tag))
-      .child(Input.new(this.key))
-      .child(Input.new(this.body))
+      .child(new Input(this.topic))
+      .child(new Input(this.tag))
+      .child(new Input(this.key))
+      .child(new Input(this.body))
       .child(h_flex().gap(8)
         .child(new Button("rmq-send").label(this.pending ? "Confirm send" : "Send").on_click((_e, cx) => {
           cx.spawn(async (cx) => this.onSend(cx));
