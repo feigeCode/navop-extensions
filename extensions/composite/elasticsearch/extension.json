@@ -58,7 +58,6 @@
         "icon": "icons/elasticsearch-color.svg",
         "runtimeId": "main",
         "resourceType": "elasticsearch",
-        "shellViewId": "console",
         "form": {
           "tabs": [
             {
@@ -157,7 +156,7 @@
     ],
     "resourceWorkbenches": [
       {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "id": "elasticsearch",
         "title": "Elasticsearch",
         "connectionIds": [
@@ -486,260 +485,252 @@
             }
           }
         },
-        "navigation": [
-          {
-            "pageId": "overview"
-          },
-          {
-            "pageId": "indices"
-          },
-          {
-            "pageId": "search"
-          },
-          {
-            "pageId": "tasks"
-          },
-          {
-            "pageId": "nodes"
-          },
-          {
-            "pageId": "index-create"
-          },
-          {
-            "pageId": "index-shards"
-          }
-        ],
         "pages": [
           {
             "id": "overview",
             "title": "Overview",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "clusterInfo"
-            }
+            },
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "indices",
             "title": "Indices",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listIndices"
             },
-            "collection": {
-              "itemsPath": "/indices",
-              "keyPaths": [
-                "/name"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/indices",
+                "keyPaths": [
+                  "/name"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "health",
-                  "title": "Health",
-                  "path": "/health",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "status",
-                  "title": "Status",
-                  "path": "/status",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "pri",
-                  "title": "Shards",
-                  "path": "/pri",
-                  "type": "display"
-                },
-                {
-                  "id": "rep",
-                  "title": "Replicas",
-                  "path": "/rep",
-                  "type": "display"
-                },
-                {
-                  "id": "docs",
-                  "title": "Docs",
-                  "path": "/docs",
-                  "type": "display"
-                },
-                {
-                  "id": "size",
-                  "title": "Size",
-                  "path": "/size_bytes",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "created",
-                  "title": "Created",
-                  "path": "/created",
-                  "type": "display",
-                  "style": "muted"
-                }
-              ],
-              "open": {
-                "pageId": "index-detail",
-                "route": {
-                  "name": {
-                    "source": "selection",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
                     "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "health",
+                    "title": "Health",
+                    "path": "/health",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "status",
+                    "title": "Status",
+                    "path": "/status",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "pri",
+                    "title": "Shards",
+                    "path": "/pri",
+                    "type": "display"
+                  },
+                  {
+                    "id": "rep",
+                    "title": "Replicas",
+                    "path": "/rep",
+                    "type": "display"
+                  },
+                  {
+                    "id": "docs",
+                    "title": "Docs",
+                    "path": "/docs",
+                    "type": "display"
+                  },
+                  {
+                    "id": "size",
+                    "title": "Size",
+                    "path": "/size_bytes",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "created",
+                    "title": "Created",
+                    "path": "/created",
+                    "type": "display",
+                    "style": "muted"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "open",
-                  "label": "Open",
-                  "operation": "indexOpen"
+                ],
+                "open": {
+                  "pageId": "index-detail",
+                  "route": {
+                    "name": {
+                      "source": "selection",
+                      "path": "/name",
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "id": "close",
-                  "label": "Close",
-                  "operation": "indexClose"
-                },
-                {
-                  "id": "refresh",
-                  "label": "Refresh",
-                  "operation": "indexRefresh"
-                },
-                {
-                  "id": "delete",
-                  "label": "Delete",
-                  "operation": "indexDelete"
-                }
-              ]
-            }
+                "actions": [
+                  {
+                    "id": "open",
+                    "label": "Open",
+                    "operation": "indexOpen"
+                  },
+                  {
+                    "id": "close",
+                    "label": "Close",
+                    "operation": "indexClose"
+                  },
+                  {
+                    "id": "refresh",
+                    "label": "Refresh",
+                    "operation": "indexRefresh"
+                  },
+                  {
+                    "id": "delete",
+                    "label": "Delete",
+                    "operation": "indexDelete"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "search",
             "title": "Search",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "query",
-                "type": "string",
-                "editor": "text",
-                "default": "*",
-                "required": true
+                "kind": "form",
+                "submit": {
+                  "operation": "search"
+                },
+                "inputs": [
+                  {
+                    "id": "query",
+                    "type": "string",
+                    "editor": "text",
+                    "default": "*",
+                    "required": true
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "search"
-            }
+            ]
           },
           {
             "id": "tasks",
             "title": "Tasks",
-            "template": "tasks",
             "renderer": {
               "kind": "native"
             },
-            "scope": "session"
+            "stack": [
+              {
+                "kind": "tasks"
+              }
+            ]
           },
           {
             "id": "nodes",
             "title": "Nodes",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listNodes"
             },
-            "collection": {
-              "itemsPath": "/nodes",
-              "keyPaths": [
-                "/name"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Name",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/nodes",
+                "keyPaths": [
+                  "/name"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "ip",
-                  "title": "IP",
-                  "path": "/ip",
-                  "type": "display",
-                  "style": "mono"
-                },
-                {
-                  "id": "role",
-                  "title": "Role",
-                  "path": "/node_role",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "cpu",
-                  "title": "CPU %",
-                  "path": "/cpu",
-                  "type": "display"
-                },
-                {
-                  "id": "heap",
-                  "title": "Heap %",
-                  "path": "/heap_percent",
-                  "type": "display"
-                },
-                {
-                  "id": "ram",
-                  "title": "RAM %",
-                  "path": "/ram_percent",
-                  "type": "display"
-                },
-                {
-                  "id": "disk",
-                  "title": "Disk %",
-                  "path": "/disk_used_percent",
-                  "type": "display"
-                },
-                {
-                  "id": "master",
-                  "title": "Master",
-                  "path": "/master",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "version",
-                  "title": "Version",
-                  "path": "/version",
-                  "type": "display",
-                  "style": "muted"
-                }
-              ]
-            }
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Name",
+                    "path": "/name",
+                    "type": "string"
+                  },
+                  {
+                    "id": "ip",
+                    "title": "IP",
+                    "path": "/ip",
+                    "type": "display",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "role",
+                    "title": "Role",
+                    "path": "/node_role",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "cpu",
+                    "title": "CPU %",
+                    "path": "/cpu",
+                    "type": "display"
+                  },
+                  {
+                    "id": "heap",
+                    "title": "Heap %",
+                    "path": "/heap_percent",
+                    "type": "display"
+                  },
+                  {
+                    "id": "ram",
+                    "title": "RAM %",
+                    "path": "/ram_percent",
+                    "type": "display"
+                  },
+                  {
+                    "id": "disk",
+                    "title": "Disk %",
+                    "path": "/disk_used_percent",
+                    "type": "display"
+                  },
+                  {
+                    "id": "master",
+                    "title": "Master",
+                    "path": "/master",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "version",
+                    "title": "Version",
+                    "path": "/version",
+                    "type": "display",
+                    "style": "muted"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "index-detail",
             "title": "Index",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -802,12 +793,17 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-mapping",
             "title": "Mapping",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -832,12 +828,17 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-settings",
             "title": "Settings",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -862,12 +863,17 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-aliases",
             "title": "Aliases",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -892,12 +898,17 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-stats",
             "title": "Stats",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -922,12 +933,17 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-shards",
             "title": "Shards",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -940,121 +956,84 @@
                 "pageId": "indices",
                 "route": {}
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "index-create",
             "title": "Create index",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "name",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "mappings",
-                "type": "string",
-                "editor": "text"
-              },
-              {
-                "id": "settings",
-                "type": "string",
-                "editor": "text"
+                "kind": "form",
+                "submit": {
+                  "operation": "indexCreate"
+                },
+                "inputs": [
+                  {
+                    "id": "name",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "mappings",
+                    "type": "string",
+                    "editor": "text"
+                  },
+                  {
+                    "id": "settings",
+                    "type": "string",
+                    "editor": "text"
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "indexCreate"
+            ]
+          }
+        ],
+        "layout": {
+          "left": {
+            "source": {
+              "kind": "list",
+              "items": [
+                {
+                  "pageId": "overview"
+                },
+                {
+                  "pageId": "indices"
+                },
+                {
+                  "pageId": "search"
+                },
+                {
+                  "pageId": "tasks"
+                },
+                {
+                  "pageId": "nodes"
+                },
+                {
+                  "pageId": "index-create"
+                },
+                {
+                  "pageId": "index-shards"
+                }
+              ]
+            }
+          },
+          "center": {
+            "source": {
+              "kind": "pages",
+              "tabGroups": []
             }
           }
-        ]
-      }
-    ],
-    "shellViews": [
-      {
-        "id": "console",
-        "title": "Elasticsearch 9",
-        "description": "Browse an Elasticsearch 9 cluster, manage indices, run searches, and inspect jobs.",
-        "icon": "icons/elasticsearch-color.svg",
-        "entry": "ui/console.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "search": "main"
-        },
-        "modules": [
-          "context",
-          "resource",
-          "job",
-          "event",
-          "blob",
-          "runtime",
-          "log"
-        ]
-      },
-      {
-        "id": "overview",
-        "title": "Elasticsearch Overview",
-        "description": "Cluster overview tab rendered inside the native workbench.",
-        "entry": "ui/views/overview.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "search": "main"
-        },
-        "modules": [
-          "context",
-          "resource",
-          "job",
-          "event",
-          "blob",
-          "runtime",
-          "log"
-        ]
-      },
-      {
-        "id": "indices",
-        "title": "Elasticsearch Indices",
-        "description": "Indices management tab rendered inside the native workbench.",
-        "entry": "ui/views/indices.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "search": "main"
-        },
-        "modules": [
-          "context",
-          "resource",
-          "job",
-          "event",
-          "blob",
-          "runtime",
-          "log"
-        ]
-      },
-      {
-        "id": "search",
-        "title": "Elasticsearch Search",
-        "description": "Search tab with a JSON DSL editor and result list.",
-        "entry": "ui/views/search.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "search": "main"
-        },
-        "modules": [
-          "context",
-          "resource",
-          "job",
-          "event",
-          "blob",
-          "runtime",
-          "log"
-        ]
+        }
       }
     ]
   }
