@@ -60,7 +60,6 @@
         "description": "连接 RocketMQ 集群，管理 Topic、订阅组与消息。",
         "runtimeId": "main",
         "resourceType": "middleware",
-        "shellViewId": "console",
         "form": {
           "tabs": [
             {
@@ -138,7 +137,7 @@
     ],
     "resourceWorkbenches": [
       {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "id": "rocketmq",
         "title": "RocketMQ",
         "connectionIds": [
@@ -293,144 +292,99 @@
             }
           }
         },
-        "navigation": [
-          {
-            "pageId": "overview"
-          },
-          {
-            "pageId": "topics"
-          },
-          {
-            "pageId": "groups"
-          },
-          {
-            "pageId": "send-message"
-          },
-          {
-            "pageId": "create-topic"
-          },
-          {
-            "pageId": "delete-topic"
-          },
-          {
-            "pageId": "reset-offset"
-          }
-        ],
-        "tree": [
-          {
-            "id": "topics",
-            "title": "Topics",
-            "pageId": "topics",
-            "children": {
-              "operation": "listTopics",
-              "itemsPath": "/topics",
-              "keyPaths": [
-                "/name"
-              ],
-              "labelPath": "/name"
-            }
-          },
-          {
-            "id": "groups",
-            "title": "Groups",
-            "pageId": "groups",
-            "children": {
-              "operation": "listGroups",
-              "itemsPath": "/groups",
-              "keyPaths": [
-                "/group"
-              ],
-              "labelPath": "/group"
-            }
-          }
-        ],
         "pages": [
           {
             "id": "overview",
             "title": "Overview",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "clusterOverview"
-            }
+            },
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "topics",
             "title": "Topics",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listTopics"
             },
-            "collection": {
-              "itemsPath": "/topics",
-              "keyPaths": [
-                "/name"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "name",
-                  "title": "Topic",
-                  "path": "/name",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/topics",
+                "keyPaths": [
+                  "/name"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "type",
-                  "title": "Type",
-                  "path": "/topic_type",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "queues",
-                  "title": "Queues",
-                  "path": "/queue_count",
-                  "type": "display"
-                },
-                {
-                  "id": "perm",
-                  "title": "Perm",
-                  "path": "/perm",
-                  "type": "display",
-                  "style": "muted"
-                },
-                {
-                  "id": "messages",
-                  "title": "Messages",
-                  "path": "/message_count",
-                  "type": "display"
-                }
-              ],
-              "open": {
-                "pageId": "topic-detail",
-                "route": {
-                  "topic": {
-                    "source": "selection",
+                "columns": [
+                  {
+                    "id": "name",
+                    "title": "Topic",
                     "path": "/name",
                     "type": "string"
+                  },
+                  {
+                    "id": "type",
+                    "title": "Type",
+                    "path": "/topic_type",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "queues",
+                    "title": "Queues",
+                    "path": "/queue_count",
+                    "type": "display"
+                  },
+                  {
+                    "id": "perm",
+                    "title": "Perm",
+                    "path": "/perm",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "messages",
+                    "title": "Messages",
+                    "path": "/message_count",
+                    "type": "display"
                   }
-                }
-              },
-              "actions": [
-                {
-                  "id": "delete",
-                  "label": "Delete",
-                  "operation": "deleteTopic"
-                }
-              ]
-            }
+                ],
+                "open": {
+                  "pageId": "topic-detail",
+                  "route": {
+                    "topic": {
+                      "source": "selection",
+                      "path": "/name",
+                      "type": "string"
+                    }
+                  }
+                },
+                "actions": [
+                  {
+                    "id": "delete",
+                    "label": "Delete",
+                    "operation": "deleteTopic"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "topic-detail",
             "title": "Topic",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -460,88 +414,95 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "groups",
             "title": "Groups",
-            "template": "collection",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listGroups"
             },
-            "collection": {
-              "itemsPath": "/groups",
-              "keyPaths": [
-                "/group"
-              ],
-              "pagination": {
-                "kind": "none"
-              },
-              "columns": [
-                {
-                  "id": "group",
-                  "title": "Group",
-                  "path": "/group",
-                  "type": "string"
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/groups",
+                "keyPaths": [
+                  "/group"
+                ],
+                "pagination": {
+                  "kind": "none"
                 },
-                {
-                  "id": "clients",
-                  "title": "Clients",
-                  "path": "/client_count",
-                  "type": "display"
-                },
-                {
-                  "id": "consumeType",
-                  "title": "Consume Type",
-                  "path": "/consume_type",
-                  "type": "display",
-                  "style": "badge"
-                },
-                {
-                  "id": "model",
-                  "title": "Model",
-                  "path": "/message_model",
-                  "type": "display"
-                },
-                {
-                  "id": "tps",
-                  "title": "TPS",
-                  "path": "/tps",
-                  "type": "display"
-                },
-                {
-                  "id": "diff",
-                  "title": "Backlog",
-                  "path": "/total_diff",
-                  "type": "display"
-                },
-                {
-                  "id": "version",
-                  "title": "Version",
-                  "path": "/version",
-                  "type": "display",
-                  "style": "muted"
-                }
-              ],
-              "open": {
-                "pageId": "group-detail",
-                "route": {
-                  "group": {
-                    "source": "selection",
+                "columns": [
+                  {
+                    "id": "group",
+                    "title": "Group",
                     "path": "/group",
                     "type": "string"
+                  },
+                  {
+                    "id": "clients",
+                    "title": "Clients",
+                    "path": "/client_count",
+                    "type": "display"
+                  },
+                  {
+                    "id": "consumeType",
+                    "title": "Consume Type",
+                    "path": "/consume_type",
+                    "type": "display",
+                    "style": "badge"
+                  },
+                  {
+                    "id": "model",
+                    "title": "Model",
+                    "path": "/message_model",
+                    "type": "display"
+                  },
+                  {
+                    "id": "tps",
+                    "title": "TPS",
+                    "path": "/tps",
+                    "type": "display"
+                  },
+                  {
+                    "id": "diff",
+                    "title": "Backlog",
+                    "path": "/total_diff",
+                    "type": "display"
+                  },
+                  {
+                    "id": "version",
+                    "title": "Version",
+                    "path": "/version",
+                    "type": "display",
+                    "style": "muted"
+                  }
+                ],
+                "open": {
+                  "pageId": "group-detail",
+                  "route": {
+                    "group": {
+                      "source": "selection",
+                      "path": "/group",
+                      "type": "string"
+                    }
                   }
                 }
               }
-            }
+            ]
           },
           {
             "id": "group-detail",
             "title": "Group",
-            "template": "json",
             "renderer": {
               "kind": "native"
             },
@@ -571,92 +532,86 @@
                   }
                 }
               }
+            ],
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
             ]
           },
           {
             "id": "create-topic",
             "title": "Create Topic",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "topic",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "queueCount",
-                "type": "number",
-                "editor": "text",
-                "default": "4",
-                "required": true
+                "kind": "form",
+                "submit": {
+                  "operation": "createTopic"
+                },
+                "inputs": [
+                  {
+                    "id": "topic",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "queueCount",
+                    "type": "number",
+                    "editor": "text",
+                    "default": "4",
+                    "required": true
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "createTopic"
-            }
+            ]
           },
           {
             "id": "delete-topic",
             "title": "Delete Topic",
-            "template": "query",
             "renderer": {
               "kind": "native"
             },
-            "inputs": [
+            "stack": [
               {
-                "id": "topic",
-                "type": "string",
-                "editor": "text",
-                "required": true
+                "kind": "form",
+                "submit": {
+                  "operation": "deleteTopic"
+                },
+                "inputs": [
+                  {
+                    "id": "topic",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  }
+                ]
               }
-            ],
-            "execute": {
-              "operation": "deleteTopic"
-            }
+            ]
           },
           {
             "id": "send-message",
             "title": "Send Message",
-            "template": "json",
             "renderer": {
               "kind": "shell",
               "viewId": "send-message"
-            }
+            },
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
           },
           {
             "id": "reset-offset",
             "title": "Reset Offset",
-            "template": "query",
             "renderer": {
               "kind": "native"
-            },
-            "inputs": [
-              {
-                "id": "group",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "topic",
-                "type": "string",
-                "editor": "text",
-                "required": true
-              },
-              {
-                "id": "timestamp",
-                "type": "string",
-                "editor": "text",
-                "default": "",
-                "required": false
-              }
-            ],
-            "execute": {
-              "operation": "resetConsumerOffset"
             },
             "route": {
               "topic": {
@@ -667,9 +622,124 @@
                 "type": "string",
                 "required": false
               }
+            },
+            "stack": [
+              {
+                "kind": "form",
+                "submit": {
+                  "operation": "resetConsumerOffset"
+                },
+                "inputs": [
+                  {
+                    "id": "group",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "topic",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true
+                  },
+                  {
+                    "id": "timestamp",
+                    "type": "string",
+                    "editor": "text",
+                    "default": "",
+                    "required": false
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "layout": {
+          "left": {
+            "source": {
+              "kind": "tree",
+              "roots": [
+                {
+                  "id": "topics",
+                  "title": "Topics",
+                  "pageId": "topics",
+                  "children": {
+                    "operation": "listTopics",
+                    "itemsPath": "/topics",
+                    "keyPaths": [
+                      "/name"
+                    ],
+                    "labelPath": "/name",
+                    "open": {
+                      "pageId": "topic-detail",
+                      "route": {
+                        "topic": {
+                          "source": "selection",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "groups",
+                  "title": "Groups",
+                  "pageId": "groups",
+                  "children": {
+                    "operation": "listGroups",
+                    "itemsPath": "/groups",
+                    "keyPaths": [
+                      "/group"
+                    ],
+                    "labelPath": "/group",
+                    "open": {
+                      "pageId": "group-detail",
+                      "route": {
+                        "group": {
+                          "source": "selection",
+                          "path": "/group",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "overview",
+                  "title": "Overview",
+                  "pageId": "overview"
+                },
+                {
+                  "id": "send-message",
+                  "title": "Send Message",
+                  "pageId": "send-message"
+                },
+                {
+                  "id": "create-topic",
+                  "title": "Create Topic",
+                  "pageId": "create-topic"
+                },
+                {
+                  "id": "delete-topic",
+                  "title": "Delete Topic",
+                  "pageId": "delete-topic"
+                },
+                {
+                  "id": "reset-offset",
+                  "title": "Reset Offset",
+                  "pageId": "reset-offset"
+                }
+              ]
+            }
+          },
+          "center": {
+            "source": {
+              "kind": "pages",
+              "tabGroups": []
             }
           }
-        ]
+        }
       }
     ],
     "shellViews": [
@@ -687,27 +757,6 @@
           "context",
           "workbench"
         ]
-      },
-      {
-        "id": "console",
-        "title": "RocketMQ",
-        "description": "RocketMQ 中间件控制台：概览、Topic、订阅组与客户端、消息查询。",
-        "entry": "ui/console.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "resource": "main"
-        },
-        "modules": [
-          "context",
-          "resource",
-          "job",
-          "event",
-          "blob",
-          "runtime",
-          "log"
-        ],
-        "icon": "icons/rocketmq-color.svg"
       }
     ]
   }

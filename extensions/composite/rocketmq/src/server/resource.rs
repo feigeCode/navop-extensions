@@ -64,8 +64,11 @@ where
     serialize(ResourceOpenResult {
         resource_id,
         capabilities: {
+            // 标准方法表中 MESSAGE_STREAM 本 provider 未实现(见 dispatch_method),
+            // 不能在 open 能力里声明:宿主工作台的 `requires` 校验据此拒绝订阅该页。
             let mut capabilities: Vec<String> = methods::ALL
                 .iter()
+                .filter(|method| **method != methods::MESSAGE_STREAM)
                 .map(|method| method.to_string())
                 .collect();
             capabilities.push(RESET_OFFSET_METHOD.to_string());
@@ -173,6 +176,11 @@ async fn dispatch_method(
             let request: SendMessageRequest = parse_method_params(&params)?;
             to_value(connection.send_message(request).await?)
         }
+        // 标准 §5.2 定义了实时消息事件流,但 RocketMQ 的 Remoting 接口没有
+        // 可用的推流端点(消费是拉取语义),因此显式返回不支持而不是"未知方法"。
+        methods::MESSAGE_STREAM => Err(crate::contract::MiddlewareError::Unsupported(
+            "RocketMQ provider 未实现实时消息事件流".into(),
+        )),
         RESET_OFFSET_METHOD => {
             let group = require_group(&params)?;
             let topic = require_topic(&params)?;

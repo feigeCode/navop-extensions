@@ -382,7 +382,8 @@ fn topic_type_attributes(topic_type: Option<&str>) -> Option<String> {
 
 /// 中间件标准 §3 管理接口(与主仓 `middleware_runtime::MiddlewareAdmin` 契约逐一对齐)
 impl RocketmqConnection {
-    /// RocketMQ 管理面板能力全开
+    /// RocketMQ 管理面板能力全开（实时消息流除外：该 provider 尚未实现
+    /// `event/open`，能力位保持 false，UI 不展示「订阅·实时」页）
     pub fn capabilities(&self) -> MiddlewareCapabilities {
         MiddlewareCapabilities {
             topics: true,
@@ -393,6 +394,7 @@ impl RocketmqConnection {
             send_message: true,
             metrics: true,
             cluster_overview: true,
+            message_stream: false,
         }
     }
 

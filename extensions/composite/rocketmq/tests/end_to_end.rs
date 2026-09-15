@@ -393,7 +393,10 @@ async fn provider_opens_resource_and_serves_capabilities_roundtrip() {
     assert!(capabilities.contains(&"middleware/capabilities"));
     assert!(capabilities.contains(&"middleware/topic/list"));
     assert!(capabilities.contains(&"middleware/message/send"));
-    // 标准 §3 的 13 个方法 + RocketMQ 运维扩展(重置消费位点)
+    // 标准 §3 的 14 个方法里 RocketMQ 只声明 13 个:实时消息事件流
+    // (middleware/message/stream)无 Remoting 推流端点,不能声明能力
+    assert!(!capabilities.contains(&"middleware/message/stream"));
+    // 13 个标准方法 + RocketMQ 运维扩展(重置消费位点)
     assert!(capabilities.contains(&"rocketmq/consumer/reset-offset"));
     assert_eq!(14, capabilities.len());
     assert_eq!(
