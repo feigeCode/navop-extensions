@@ -44,6 +44,8 @@ pub(crate) struct BufferedMessage {
     pub id: String,
     /// 原始 MQTT 消息
     pub message: MqttMessage,
+    /// 本地发出的消息(与接收消息同缓冲,便于消息页按时间线查看)
+    pub outgoing: bool,
 }
 
 /// 管理适配器内部状态(纯数据,便于单测)
@@ -113,10 +115,8 @@ impl MqttAdminAdapter {
         let Some(handle) = receiver_guard.as_mut() else {
             return;
         };
-        let mut incoming = Vec::new();
-        while let Some(message) = handle.try_recv() {
-            incoming.push(message);
-        }
+        // 滞后(lagged)只意味着部分旧消息没进环形缓冲,计数只统计实收消息
+        let (incoming, _dropped) = handle.drain_available(usize::MAX);
         if incoming.is_empty() {
             return;
         }
@@ -141,7 +141,21 @@ impl MqttAdminAdapter {
             send_message: true,
             metrics: true,
             cluster_overview: false,
+            // 实时消息流由 provider 的 event/open(kind 见 MqttResource::metadata 的
+            // message_stream_kind)承载,消息源即连接内的 pubsub 广播。
+            message_stream: true,
         }
+    }
+
+    /// 为事件流打开一个独立的广播接收端。
+    ///
+    /// 与 [`Self::drain_stream`] 的内部接收端互不影响(broadcast 多接收端语义):
+    /// 管理适配器的环形缓冲与事件流各自独立消费,互不推进对方的游标。
+    pub(crate) async fn open_pubsub_handle(&self) -> Result<MqttPubSubHandle, MiddlewareError> {
+        let guard = self.connection.read().await;
+        guard
+            .open_pubsub()
+            .map_err(|error| MiddlewareError::Connection(error.to_string()))
     }
 
     /// 集群概览(MQTT 无集群概念,能力位 false,兜底报错)
@@ -229,21 +243,31 @@ impl MqttAdminAdapter {
     ) -> Result<SendResult, MiddlewareError> {
         let qos = send_qos_from_properties(&request.properties);
         let retain = send_retain_from_properties(&request.properties);
+        let topic = request.topic.trim().to_string();
+        if topic.is_empty() || topic.contains(['+', '#']) {
+            return Err(MiddlewareError::Config(
+                "发布主题不能为空且不能包含通配符 `+`/`#`".to_string(),
+            ));
+        }
         let guard = self.connection.read().await;
         guard
-            .publish(&request.topic, &request.body, qos, retain)
+            .publish(&topic, &request.body, qos, retain)
             .await
             .map_err(|error| MiddlewareError::Connection(error.to_string()))?;
         drop(guard);
         let now = Utc::now();
-        let mut inner = match self.inner.lock() {
-            Ok(inner) => inner,
-            Err(poisoned) => poisoned.into_inner(),
+        let mut inner = lock_inner(&self.inner);
+        let message = MqttMessage {
+            topic,
+            payload: request.body,
+            qos,
+            retain,
+            received_at: now,
         };
-        record_sent(&mut inner, now);
+        let id = record_sent(&mut inner, message, now);
         Ok(SendResult {
             // MQTT 协议无 broker 回执消息 ID,使用本地合成 ID
-            message_id: format!("mqtt-sent-{}", inner.sent_total),
+            message_id: id,
             status: "OK".to_string(),
         })
     }
@@ -318,15 +342,7 @@ pub(crate) fn record_received(
         inner.today = Some(today);
         inner.received_today = 0;
     }
-    let seq = inner.next_seq;
-    inner.next_seq = inner.next_seq.saturating_add(1);
-    inner.buffer.push_back(BufferedMessage {
-        id: format!("mqtt-{seq}"),
-        message,
-    });
-    while inner.buffer.len() > MQTT_ADMIN_BUFFER_CAPACITY {
-        inner.buffer.pop_front();
-    }
+    push_buffered(inner, message, false);
     inner.received_total = inner.received_total.saturating_add(1);
     inner.received_today = inner.received_today.saturating_add(1);
     inner.recent_received.push_back(now);
@@ -335,13 +351,35 @@ pub(crate) fn record_received(
     }
 }
 
-/// 记录一条发送消息(更新计数/TPS 窗口)
-pub(crate) fn record_sent(inner: &mut AdminInnerState, now: DateTime<Utc>) {
+/// 记录一条发送消息(入缓冲、更新计数/TPS 窗口),返回合成 ID
+pub(crate) fn record_sent(
+    inner: &mut AdminInnerState,
+    message: MqttMessage,
+    now: DateTime<Utc>,
+) -> String {
+    let id = push_buffered(inner, message, true);
     inner.sent_total = inner.sent_total.saturating_add(1);
     inner.recent_sent.push_back(now);
     while inner.recent_sent.len() > MQTT_ADMIN_BUFFER_CAPACITY {
         inner.recent_sent.pop_front();
     }
+    id
+}
+
+/// 入环形缓冲(超容量丢最旧),返回合成 ID
+fn push_buffered(inner: &mut AdminInnerState, message: MqttMessage, outgoing: bool) -> String {
+    let seq = inner.next_seq;
+    inner.next_seq = inner.next_seq.saturating_add(1);
+    let id = format!("mqtt-{seq}");
+    inner.buffer.push_back(BufferedMessage {
+        id: id.clone(),
+        message,
+        outgoing,
+    });
+    while inner.buffer.len() > MQTT_ADMIN_BUFFER_CAPACITY {
+        inner.buffer.pop_front();
+    }
+    id
 }
 
 /// MQTT 主题过滤器匹配(支持 `+` 单层与 `#` 多层通配符)
@@ -410,6 +448,51 @@ pub(crate) fn buffered_to_model(buffered: &BufferedMessage) -> MiddlewareMessage
         properties: vec![
             ("qos".to_string(), message.qos.label().to_string()),
             ("retain".to_string(), message.retain.to_string()),
+            (
+                "direction".to_string(),
+                if buffered.outgoing { "out" } else { "in" }.to_string(),
+            ),
+            (
+                "received_at_ms".to_string(),
+                message.received_at.timestamp_millis().to_string(),
+            ),
+        ],
+    }
+}
+
+/// 实时事件消息 -> 标准消息模型。
+///
+/// 与 [`buffered_to_model`] 的差异只在 `message_id` 前缀(`mqtt-live-<seq>`,
+/// 流内单调递增)与 `body`(实时事件不带原始字节,避免大消息体把事件批撑爆;
+/// 需要字节时用 `middleware/message/query` 查历史)。模型本身沿用标准
+/// [`MiddlewareMessage`],UI 可对查询结果与实时事件复用同一套单元格/详情渲染。
+pub(crate) fn live_to_model(seq: u64, message: &MqttMessage) -> MiddlewareMessage {
+    MiddlewareMessage {
+        message_id: format!("mqtt-live-{seq}"),
+        topic: message.topic.clone(),
+        tag: None,
+        key: None,
+        body: None,
+        body_text: message.payload_text(),
+        store_time: Some(
+            message
+                .received_at
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+        ),
+        born_time: None,
+        store_host: None,
+        born_host: None,
+        retry_times: None,
+        properties: vec![
+            ("qos".to_string(), message.qos.label().to_string()),
+            ("retain".to_string(), message.retain.to_string()),
+            ("direction".to_string(), "in".to_string()),
+            (
+                "received_at_ms".to_string(),
+                message.received_at.timestamp_millis().to_string(),
+            ),
         ],
     }
 }
@@ -501,6 +584,10 @@ pub(crate) fn metrics_from_state(
             (
                 "buffered_messages".to_string(),
                 inner.buffer.len().to_string(),
+            ),
+            (
+                "buffer_capacity".to_string(),
+                MQTT_ADMIN_BUFFER_CAPACITY.to_string(),
             ),
         ],
     }
@@ -676,6 +763,7 @@ mod tests {
             .map(|seq| BufferedMessage {
                 id: format!("mqtt-{seq}"),
                 message: message_at("a/b", format!("msg-{seq}").as_bytes(), 1_700_000_000),
+                outgoing: false,
             })
             .collect()
     }
@@ -753,6 +841,7 @@ mod tests {
         let other_topic = vec![BufferedMessage {
             id: "mqtt-x".into(),
             message: message_at("other", b"x", 1_700_000_000),
+            outgoing: false,
         }];
         assert_eq!(filter_and_paginate(&other_topic, &query).total, 0);
     }
@@ -763,14 +852,17 @@ mod tests {
             BufferedMessage {
                 id: "mqtt-0".into(),
                 message: message_at("a/b", b"hello ORDER-1", 1_700_000_000),
+                outgoing: false,
             },
             BufferedMessage {
                 id: "mqtt-1".into(),
                 message: message_at("ORDER-2/c", b"other", 1_700_000_000),
+                outgoing: false,
             },
             BufferedMessage {
                 id: "mqtt-2".into(),
                 message: message_at("a/c", b"unrelated", 1_700_000_000),
+                outgoing: false,
             },
         ];
         let query = MessageQuery::ByKey {
@@ -840,6 +932,7 @@ mod tests {
         let buffered = BufferedMessage {
             id: "mqtt-7".into(),
             message: message_at("a/b", "订单".as_bytes(), 1_700_000_000),
+            outgoing: false,
         };
         let model = buffered_to_model(&buffered);
         assert_eq!(model.message_id, "mqtt-7");
@@ -862,11 +955,13 @@ mod tests {
                 now - chrono::Duration::milliseconds(offset * 400),
             );
         }
-        record_sent(&mut inner, now);
+        record_sent(&mut inner, message_at("t", b"out", 0), now);
         let metrics = metrics_from_state(&inner, 3, now);
         assert_eq!(metrics.topic_count, 3);
         assert_eq!(metrics.connection_count, 1);
         assert_eq!(metrics.message_count_today, 10);
+        assert_eq!(inner.buffer.len(), 11, "发出的消息也进缓冲");
+        assert!(inner.buffer.back().unwrap().outgoing);
         assert!((metrics.tps_in - 2.0).abs() < 1e-9);
         assert!((metrics.tps_out - 0.2).abs() < 1e-9);
         assert_eq!(
@@ -917,6 +1012,8 @@ mod tests {
                 && caps.send_message
                 && caps.metrics
         );
+        // 实时消息事件流(标准 §5.2)由 provider 的 event/* 承载
+        assert!(caps.message_stream);
         assert!(!caps.groups && !caps.cluster_overview);
     }
 
@@ -942,7 +1039,32 @@ mod tests {
             .await
             .expect("发送应成功");
         assert_eq!(result.status, "OK");
-        assert!(result.message_id.starts_with("mqtt-sent-"));
+        assert!(result.message_id.starts_with("mqtt-"));
+        // 发出的消息可从历史查询中看到,direction=out
+        let page = adapter
+            .query_messages(MessageQuery::ById {
+                topic: "a/b".into(),
+                message_id: result.message_id.clone(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.total, 1);
+        assert!(
+            page.messages[0]
+                .properties
+                .contains(&("direction".to_string(), "out".to_string()))
+        );
+        assert!(matches!(
+            adapter
+                .send_message(SendMessageRequest {
+                    topic: "a/#".into(),
+                    body: b"x".to_vec(),
+                    ..SendMessageRequest::default()
+                })
+                .await
+                .unwrap_err(),
+            MiddlewareError::Config(_)
+        ));
 
         let published = shared.published.lock().unwrap().clone();
         assert_eq!(published.len(), 1);

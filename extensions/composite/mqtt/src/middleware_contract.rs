@@ -43,6 +43,12 @@ pub mod methods {
     pub const MESSAGE_QUERY: &str = "middleware/message/query";
     /// 发送消息：`SendMessageRequest`（body 为字节数组） → `SendResult`
     pub const MESSAGE_SEND: &str = "middleware/message/send";
+    /// 实时消息事件流：`{}` → 事件流引用（`ResultRef::EventStream`，标准 §5.2）。
+    ///
+    /// 与宿主 `navop.event.open(kind)` 等价，区别只在通道：本方法走 `resource/invoke`，
+    /// 供原生工作台的 `events` 模板页声明式订阅（页面 `load` 操作必须返回事件流引用）。
+    /// 事件流的 kind 由资源 metadata 的 `message_stream_kind` 给出。
+    pub const MESSAGE_STREAM: &str = "middleware/message/stream";
 
     /// 标准定义的全部方法名（用于完整性校验）。
     pub const ALL: &[&str] = &[
@@ -59,6 +65,7 @@ pub mod methods {
         GROUP_CLIENTS,
         MESSAGE_QUERY,
         MESSAGE_SEND,
+        MESSAGE_STREAM,
     ];
 }
 
@@ -66,7 +73,11 @@ pub mod methods {
 ///
 /// 能力位为 false 的方法由调用方（UI）保证不调用；
 /// 适配器在无法满足能力时应返回 [`MiddlewareError::Unsupported`] 兜底。
+///
+/// `#[serde(default)]`：新增能力位不得影响旧 provider 的响应解析
+/// （缺字段按 false 处理，UI 侧表现为「不展示该入口」）。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct MiddlewareCapabilities {
     /// 是否支持 Topic 列表与详情查询
     pub topics: bool,
@@ -84,6 +95,12 @@ pub struct MiddlewareCapabilities {
     pub metrics: bool,
     /// 是否支持集群概览
     pub cluster_overview: bool,
+    /// 是否支持实时消息事件流。
+    ///
+    /// 为 true 时 UI 展示「订阅·实时」页，用宿主的 `navop.event`（`event/open`
+    /// `event/read`/`event/close`）订阅实时消息；事件流的 kind 由资源 metadata 的
+    /// `message_stream_kind` 给出（协议层不定义 kind 常量，见标准 §5.2）。
+    pub message_stream: bool,
 }
 
 /// `middleware/capabilities` 的响应包装。
@@ -481,6 +498,18 @@ mod tests {
         assert!(!caps.send_message);
         assert!(!caps.metrics);
         assert!(!caps.cluster_overview);
+        assert!(!caps.message_stream);
+    }
+
+    #[test]
+    fn capabilities_tolerate_missing_fields() {
+        // 契约向前兼容：旧 provider 的响应缺少新能力位时必须能解析（按 false）
+        let caps: MiddlewareCapabilities =
+            serde_json::from_str(r#"{"topics":true,"send_message":true}"#)
+                .expect("缺字段应可反序列化");
+        assert!(caps.topics);
+        assert!(caps.send_message);
+        assert!(!caps.message_stream);
     }
 
     #[test]
@@ -701,10 +730,14 @@ mod tests {
     }
 
     #[test]
-    fn methods_cover_all_thirteen_standard_operations() {
-        // 标准 §3 定义 13 个资源方法,方法名常量必须完整且带统一前缀
-        assert_eq!(methods::ALL.len(), 13);
-        assert!(methods::ALL.iter().all(|method| method.starts_with("middleware/")));
+    fn methods_cover_all_standard_operations() {
+        // 标准 §3 定义 14 个资源方法(13 个管理方法 + 实时消息事件流),方法名常量必须完整且带统一前缀
+        assert_eq!(methods::ALL.len(), 14);
+        assert!(
+            methods::ALL
+                .iter()
+                .all(|method| method.starts_with("middleware/"))
+        );
         assert_eq!(methods::CAPABILITIES, "middleware/capabilities");
         assert_eq!(methods::METRICS, "middleware/metrics");
         assert_eq!(methods::CLUSTER_OVERVIEW, "middleware/cluster/overview");
@@ -766,15 +799,16 @@ mod tests {
         assert_roundtrip(&metrics);
 
         // 响应包装类型同样向前兼容缺失字段
-        let empty: CapabilitiesResponse =
-            serde_json::from_str("{}").expect("空对象应可反序列化");
+        let empty: CapabilitiesResponse = serde_json::from_str("{}").expect("空对象应可反序列化");
         assert_eq!(empty.standard_version, 0);
         assert_eq!(empty.capabilities, MiddlewareCapabilities::default());
 
-        let empty_topics: TopicListResponse = serde_json::from_str("{}").expect("空对象应可反序列化");
+        let empty_topics: TopicListResponse =
+            serde_json::from_str("{}").expect("空对象应可反序列化");
         assert!(empty_topics.topics.is_empty());
 
-        let empty_groups: GroupListResponse = serde_json::from_str("{}").expect("空对象应可反序列化");
+        let empty_groups: GroupListResponse =
+            serde_json::from_str("{}").expect("空对象应可反序列化");
         assert!(empty_groups.groups.is_empty());
 
         let empty_clients: ClientListResponse =
@@ -789,14 +823,26 @@ mod tests {
     #[test]
     fn error_display_prefixes_match_standard() {
         // 标准 §3:错误文本前缀固定为配置错误:/协议错误:/不支持的操作:/操作超时:/连接错误:/认证错误:
-        assert_eq!(MiddlewareError::Config("x".into()).to_string(), "配置错误: x");
-        assert_eq!(MiddlewareError::Protocol("x".into()).to_string(), "协议错误: x");
+        assert_eq!(
+            MiddlewareError::Config("x".into()).to_string(),
+            "配置错误: x"
+        );
+        assert_eq!(
+            MiddlewareError::Protocol("x".into()).to_string(),
+            "协议错误: x"
+        );
         assert_eq!(
             MiddlewareError::Unsupported("x".into()).to_string(),
             "不支持的操作: x"
         );
-        assert_eq!(MiddlewareError::Timeout("x".into()).to_string(), "操作超时: x");
-        assert_eq!(MiddlewareError::Connection("x".into()).to_string(), "连接错误: x");
+        assert_eq!(
+            MiddlewareError::Timeout("x".into()).to_string(),
+            "操作超时: x"
+        );
+        assert_eq!(
+            MiddlewareError::Connection("x".into()).to_string(),
+            "连接错误: x"
+        );
         assert_eq!(MiddlewareError::Auth("x".into()).to_string(), "认证错误: x");
 
         fn assert_std_error<E: std::error::Error>(error: E) {

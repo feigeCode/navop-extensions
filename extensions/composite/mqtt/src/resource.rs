@@ -13,9 +13,10 @@ use crate::builtin::MqttConnectionImpl;
 use crate::connection::MqttConnection;
 use crate::contract::{
     self, CapabilitiesResponse, ClientListResponse, CreateTopicRequest, GroupListResponse,
-    MessageQuery, MetricsResponse, SendMessageRequest, TopicListResponse,
+    MessageQuery, MetricsResponse, MiddlewareError, SendMessageRequest, TopicListResponse,
 };
 use crate::error::{ProviderResult, boxed_error, invalid_params, middleware_error, serialize};
+use crate::pubsub::MqttPubSubHandle;
 use crate::types::MqttConnectionConfig;
 use extension_protocol::error::error_codes;
 
@@ -53,8 +54,20 @@ impl MqttResource {
             "client": "rumqttc",
             "mqtt_version": crate::types::MQTT_PROTOCOL_VERSION,
             "broker": config.server_info(),
-            "auto_subscribe": "#",
+            "client_id": config.client_id,
+            "tls": config.use_tls,
+            "clean_session": config.clean_session,
+            "auto_subscribe": config.auto_subscribe,
+            // 实时消息事件流的 kind:UI 用它调用 navop.event.open (见标准 §5.2)
+            "message_stream_kind": crate::state::MQTT_MESSAGE_EVENT_KIND,
         })
+    }
+
+    /// 为该连接的实时消息流打开一个独立的广播接收端。
+    ///
+    /// 与管理适配器的内部接收端互不影响(broadcast 多接收端语义)。
+    pub(crate) async fn open_pubsub(&self) -> Result<MqttPubSubHandle, MiddlewareError> {
+        self.admin.open_pubsub_handle().await
     }
 
     /// 断开连接(资源关闭时调用)
@@ -157,6 +170,14 @@ impl MqttResource {
                     .map_err(middleware_error)?;
                 serialize(result)
             }
+            // 实时消息事件流返回的是事件流引用而不是 JSON,且需要 `&mut ProviderState`
+            // 登记流表,因此在 `server/resource.rs::invoke` 进入本分发**之前**特判。
+            // 这里保留显式分支:一旦那条特判被摘掉,报错要说清是被绕过的路由,
+            // 而不是含糊的 "unknown method"。
+            methods::MESSAGE_STREAM => Err(boxed_error(
+                error_codes::METHOD_NOT_FOUND,
+                "middleware/message/stream 由 server/resource.rs::invoke 特判,不应到达资源分发",
+            )),
             _ => Err(boxed_error(
                 error_codes::METHOD_NOT_FOUND,
                 format!("unknown MQTT middleware method `{method}`"),
@@ -225,11 +246,13 @@ mod tests {
             "middleware/group/clients",
             "middleware/message/query",
             "middleware/message/send",
+            // 实时消息事件流(宿主 event/* 的 invoke 等价入口,见 server/resource.rs)
+            "middleware/message/stream",
         ];
         for method in expected {
             assert!(methods::ALL.contains(&method), "缺少方法 {method}");
         }
-        assert_eq!(methods::ALL.len(), 13);
+        assert_eq!(methods::ALL.len(), 14);
     }
 
     #[test]

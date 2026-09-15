@@ -2,7 +2,11 @@
 
 use extension_protocol::{
     error::ProtocolError,
-    resource::{ResourceCloseParams, ResourceInvokeParams, ResourceOpenResult, ResourcePingParams},
+    resource::{
+        ResourceCloseParams, ResourceInvokeParams, ResourceInvokeResult, ResourceOpenResult,
+        ResourcePingParams,
+    },
+    result_ref::ResultRef,
 };
 use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -74,6 +78,19 @@ pub(super) fn ping(state: &ProviderState, params: Value) -> ProviderResult {
 
 pub(super) async fn invoke(state: &mut ProviderState, params: Value) -> ProviderResult {
     let params: ResourceInvokeParams = parse_params(params)?;
+    if state.resource(&params.resource_id).is_none() {
+        return Err(resource_error());
+    }
+    // `middleware/message/stream` 不返回 JSON,而返回事件流引用:
+    // 原生工作台的 `events` 模板页按此订阅实时消息(标准 §5.2)。
+    if params.method == methods::MESSAGE_STREAM {
+        let stream_id = state
+            .open_message_event_stream(crate::state::MQTT_MESSAGE_EVENT_KIND)
+            .await?;
+        return serialize(ResourceInvokeResult {
+            result: ResultRef::EventStream { id: stream_id },
+        });
+    }
     let resource = state
         .resource(&params.resource_id)
         .ok_or_else(resource_error)?;

@@ -20,12 +20,6 @@ use crate::connection::MqttConnection;
 use crate::pubsub::{MQTT_MESSAGE_CHANNEL_CAPACITY, MqttPubSubHandle};
 use crate::types::{MqttConnectionConfig, MqttError, MqttMessage, MqttQos, MqttSubscription};
 
-/// provider 打开资源时自动订阅的主题过滤器。
-///
-/// 标准 §3 未定义订阅管理方法,而消息查询/指标依赖输入消息流,
-/// 因此 provider 代表用户订阅全量主题 `#`,订阅列表经 `middleware/topic/list` 呈现。
-const AUTO_SUBSCRIBE_FILTER: &str = "#";
-
 /// 自动订阅使用的 QoS(与主仓发送默认 QoS 一致,取 AtLeastOnce)
 const AUTO_SUBSCRIBE_QOS: MqttQos = MqttQos::AtLeastOnce;
 
@@ -84,11 +78,17 @@ impl MqttConnectionImpl {
     pub(crate) fn new(config: MqttConnectionConfig) -> Self {
         let (message_tx, _) = broadcast::channel(MQTT_MESSAGE_CHANNEL_CAPACITY);
         let (connected_tx, _) = watch::channel(false);
-        // 预置自动订阅:poll 任务收到 ConnAck 后统一恢复(含断线重连)
-        let subscriptions = Arc::new(Mutex::new(vec![MqttSubscription {
-            topic_filter: AUTO_SUBSCRIBE_FILTER.to_string(),
-            qos: AUTO_SUBSCRIBE_QOS,
-        }]));
+        // 预置自动订阅(表单 auto_subscribe,空串表示不自动订阅):
+        // poll 任务收到 ConnAck 后统一恢复(含断线重连)
+        let filter = config.auto_subscribe.trim();
+        let seed = (!filter.is_empty())
+            .then(|| MqttSubscription {
+                topic_filter: filter.to_string(),
+                qos: AUTO_SUBSCRIBE_QOS,
+            })
+            .into_iter()
+            .collect();
+        let subscriptions = Arc::new(Mutex::new(seed));
         Self {
             config,
             client: None,
@@ -108,13 +108,11 @@ impl MqttConnectionImpl {
     /// 面向「需要向 eventloop 发请求」的操作(publish/subscribe/unsubscribe)的守卫:
     /// 未连接报 NotConnected;事件循环已致命退出时报可操作的连接错误。
     fn require_sendable_client(&self) -> Result<&AsyncClient, MqttError> {
-        self.require_client()?;
+        let client = self.require_client()?;
         if !self.eventloop_alive.load(Ordering::SeqCst) {
-            return Err(MqttError::Connection(
-                EVENTLOOP_DEAD_DETAIL.to_string(),
-            ));
+            return Err(MqttError::Connection(EVENTLOOP_DEAD_DETAIL.to_string()));
         }
-        Ok(self.require_client()?)
+        Ok(client)
     }
 
     /// 把 rumqttc 客户端错误归类:「eventloop channel 已关闭」是连接级故障,
@@ -208,6 +206,14 @@ impl MqttConnection for MqttConnectionImpl {
         }
         if self.config.use_tls {
             options.set_transport(Transport::tls_with_default_config());
+        }
+        if let Some(will) = &self.config.last_will {
+            options.set_last_will(rumqttc::LastWill::new(
+                will.topic.clone(),
+                will.payload.clone(),
+                map_qos(will.qos),
+                will.retain,
+            ));
         }
 
         let (client, event_loop) = AsyncClient::new(options, MQTT_MESSAGE_CHANNEL_CAPACITY);
@@ -441,5 +447,14 @@ mod tests {
         assert_eq!(subscriptions.len(), 1);
         assert_eq!(subscriptions[0].topic_filter, "#");
         assert_eq!(subscriptions[0].qos, MqttQos::AtLeastOnce);
+    }
+
+    #[test]
+    fn empty_auto_subscribe_seeds_nothing() {
+        let impl_ = MqttConnectionImpl::new(MqttConnectionConfig {
+            auto_subscribe: "  ".into(),
+            ..MqttConnectionConfig::default()
+        });
+        assert!(impl_.subscriptions.try_lock().unwrap().is_empty());
     }
 }

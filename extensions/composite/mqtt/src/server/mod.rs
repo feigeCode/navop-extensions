@@ -1,7 +1,11 @@
 //! IPC provider 服务循环:连接宿主 local_socket 并分发协议方法。
 //!
-//! 仿照 elasticsearch provider 的 server 模块;MQTT 不提供 job 与 event stream
-//! 方法(标准 §3 未定义),相关方法返回 METHOD_NOT_FOUND。
+//! 仿照 elasticsearch provider 的 server 模块;MQTT 不提供 job 方法(标准 §3 未定义),
+//! 相关方法返回 METHOD_NOT_FOUND;事件流方法承载实时消息(标准 §5.2,见 `state::event`)。
+//!
+//! **并发语义**:本循环是串行的(`recv → 处理 → 响应`),所以任何 handler 内的
+//! 长阻塞都会让同进程的其他请求排队。事件流的读侧因此把阻塞等待压到
+//! `MQTT_EVENT_READ_MAX_WAIT_MS`(250ms)以内,而不是照搬宿主给的 60s 上限。
 
 mod lifecycle;
 mod resource;
@@ -131,10 +135,10 @@ where
             error_codes::METHOD_NOT_FOUND,
             format!("MQTT provider does not implement job method `{method_name}`"),
         )),
-        method::EVENT_OPEN | method::EVENT_READ | method::EVENT_CLOSE => Err(boxed_error(
-            error_codes::METHOD_NOT_FOUND,
-            format!("MQTT provider does not implement event method `{method_name}`"),
-        )),
+        // 实时消息事件流(标准 §5.2):kind 见 resource metadata 的 message_stream_kind
+        method::EVENT_OPEN => stream::open_event(state, params).await,
+        method::EVENT_READ => stream::read_event(state, params).await,
+        method::EVENT_CLOSE => stream::close_event(state, params),
         method::SHUTDOWN => lifecycle::shutdown(state),
         _ => Err(boxed_error(
             error_codes::METHOD_NOT_FOUND,

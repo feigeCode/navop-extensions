@@ -1,10 +1,10 @@
 //! 端到端测试:extension-host 拉起 mqtt-provider,经 extension-protocol 完成
-//! resource open/invoke/close 与标准 §3 方法往返。
+//! resource open/invoke/close、标准 §3 方法往返与标准 §5.2 实时消息事件流。
 //!
 //! 真实 MQTT broker 不在单测范围:这里实现一个**最小 MQTT 3.1.1 假 broker**
 //! (仅覆盖 CONNECT/CONNACK、SUBSCRIBE/SUBACK、PUBLISH/PUBACK、PINGREQ/PINGRESP、
 //! DISCONNECT),足以验证 rumqttc 建连、自动订阅 `#`、消息流入环形缓冲、
-//! 发送消息、secret 反向解析与错误映射。
+//! 实时事件流、发送消息、secret 反向解析与错误映射。
 
 use std::{
     fs,
@@ -20,6 +20,7 @@ use extension_host::{
 };
 use extension_protocol::{
     error::{ProtocolError, error_codes},
+    event_stream::{EventCloseParams, EventOpenParams, EventReadParams},
     host,
     resource::{ResourceCloseParams, ResourceInvokeParams, ResourceOpenParams, ResourcePingParams},
     result_ref::ResultRef,
@@ -617,6 +618,7 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
         "middleware/group/clients",
         "middleware/message/query",
         "middleware/message/send",
+        "middleware/message/stream",
     ];
     assert_eq!(
         expected_methods.to_vec(),
@@ -654,6 +656,7 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     assert_eq!(true, caps["send_message"]);
     assert_eq!(true, caps["metrics"]);
     assert_eq!(false, caps["cluster_overview"]);
+    assert_eq!(true, caps["message_stream"]);
 
     // topic/list = 订阅列表(SUBSCRIPTION,queue_count=QoS)
     let topics = inline(
@@ -750,12 +753,7 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     )
     .await;
     assert_eq!("OK", send["status"]);
-    assert!(
-        send["message_id"]
-            .as_str()
-            .unwrap()
-            .starts_with("mqtt-sent-")
-    );
+    assert!(send["message_id"].as_str().unwrap().starts_with("mqtt-"));
     assert!(
         wait_until(Duration::from_secs(5), Duration::from_millis(25), || {
             broker.with_state(|state| {
@@ -1063,5 +1061,282 @@ async fn multiple_resources_remain_isolated_when_one_closes() {
         })
         .await
         .expect("close second");
+    harness.session.shutdown().await;
+}
+
+/// 标准 §5.2 实时消息事件流:open → 长轮询 read 拿到推送消息 → close 后读到 closed,
+/// 并核对未实现的 kind 报错与「多连接无法定位消息源」的可操作错误。
+#[tokio::test]
+async fn realtime_message_stream_delivers_pushed_messages() {
+    let (broker, port) = FakeBroker::start(false).await;
+    let harness = harness(true).await;
+    let opened = harness
+        .client
+        .open_resource(&open_params(port))
+        .await
+        .expect("open resource");
+    let resource_id = opened.resource_id.clone();
+
+    // open 元数据把事件 kind 告知 UI(标准 §5.2:UI 用它调用 navop.event.open)
+    assert_eq!(
+        "mqtt/message/events",
+        opened
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata["message_stream_kind"].as_str())
+            .expect("metadata.message_stream_kind")
+    );
+
+    // 能力位声明实时消息流
+    let capabilities = inline(
+        &harness.client,
+        &resource_id,
+        "middleware/capabilities",
+        json!({}),
+    )
+    .await;
+    assert_eq!(true, capabilities["capabilities"]["message_stream"]);
+
+    assert!(broker.wait_subscriptions(1).await, "连接应订阅 `#`");
+
+    // 未实现的 kind 报 METHOD_NOT_FOUND(不是静默打开一个空流)
+    let unknown = harness
+        .client
+        .open_event_stream(&EventOpenParams {
+            conn_id: None,
+            kind: "mqtt/unknown".into(),
+            capacity: None,
+        })
+        .await
+        .expect_err("unknown kind");
+    assert!(
+        matches!(unknown, HostError::Protocol(ref protocol) if protocol.code == error_codes::METHOD_NOT_FOUND),
+        "实际: {unknown:?}"
+    );
+
+    let stream = harness
+        .client
+        .open_event_stream(&EventOpenParams {
+            conn_id: None,
+            kind: "mqtt/message/events".into(),
+            capacity: None,
+        })
+        .await
+        .expect("open event stream");
+    assert!(stream.stream_id.starts_with("mqtt-stream-"));
+
+    // 尚无消息时:read 立即返回空批且未关闭(长轮询由 UI 反复调用)
+    let empty = harness
+        .client
+        .read_event_stream(&EventReadParams {
+            stream_id: stream.stream_id.clone(),
+            max_events: None,
+            wait_ms: Some(0),
+        })
+        .await
+        .expect("read empty");
+    assert!(empty.events.is_empty());
+    assert!(!empty.closed);
+    assert_eq!(0, empty.dropped_count);
+
+    // broker 推送两条 -> 事件流应收到(带 wait_ms 的长轮询)
+    broker.push("sensors/room-1", b"first");
+    broker.push("sensors/room-2", b"second");
+    let mut events = Vec::new();
+    for _ in 0..40 {
+        let batch = harness
+            .client
+            .read_event_stream(&EventReadParams {
+                stream_id: stream.stream_id.clone(),
+                max_events: Some(8),
+                wait_ms: Some(250),
+            })
+            .await
+            .expect("read events");
+        assert!(!batch.closed, "流不应被关闭");
+        events.extend(batch.events);
+        if events.len() >= 2 {
+            break;
+        }
+    }
+    assert_eq!(2, events.len(), "应收到两条推送消息: {events:?}");
+
+    let first = &events[0];
+    assert_eq!("mqtt-live-0", first["message_id"]);
+    assert_eq!("sensors/room-1", first["topic"]);
+    assert_eq!("first", first["body_text"]);
+    let properties = first["properties"].as_array().expect("properties");
+    assert!(properties.contains(&json!(["qos", "QoS 0"])));
+    assert!(properties.contains(&json!(["retain", "false"])));
+    let second = &events[1];
+    assert_eq!("mqtt-live-1", second["message_id"]);
+    assert_eq!("sensors/room-2", second["topic"]);
+
+    // 关闭后 read 以 closed 表达(UI 据此停止轮询);close 幂等
+    harness
+        .client
+        .close_event_stream(&EventCloseParams {
+            stream_id: stream.stream_id.clone(),
+        })
+        .await
+        .expect("close event stream");
+    let after_close = harness
+        .client
+        .read_event_stream(&EventReadParams {
+            stream_id: stream.stream_id.clone(),
+            max_events: None,
+            wait_ms: Some(0),
+        })
+        .await
+        .expect("read after close");
+    assert!(after_close.closed);
+    assert!(after_close.events.is_empty());
+    harness
+        .client
+        .close_event_stream(&EventCloseParams {
+            stream_id: stream.stream_id,
+        })
+        .await
+        .expect("close is idempotent");
+
+    // 多连接时无法定位消息源:报 RESOURCE_BUSY(可操作),而不是随机绑一个连接
+    let second_resource = harness
+        .client
+        .open_resource(&open_params(port))
+        .await
+        .expect("open second resource");
+    let ambiguous = harness
+        .client
+        .open_event_stream(&EventOpenParams {
+            conn_id: None,
+            kind: "mqtt/message/events".into(),
+            capacity: None,
+        })
+        .await
+        .expect_err("ambiguous resource");
+    assert!(
+        matches!(ambiguous, HostError::Protocol(ref protocol) if protocol.code == error_codes::RESOURCE_BUSY),
+        "实际: {ambiguous:?}"
+    );
+
+    // 关掉多余连接后又能打开(错误是可恢复的)
+    harness
+        .client
+        .close_resource(&ResourceCloseParams {
+            resource_id: second_resource.resource_id,
+        })
+        .await
+        .expect("close second resource");
+    let reopened = harness
+        .client
+        .open_event_stream(&EventOpenParams {
+            conn_id: None,
+            kind: "mqtt/message/events".into(),
+            capacity: None,
+        })
+        .await
+        .expect("reopen after ambiguity resolved");
+    harness
+        .client
+        .close_event_stream(&EventCloseParams {
+            stream_id: reopened.stream_id,
+        })
+        .await
+        .expect("close reopened stream");
+
+    harness
+        .client
+        .close_resource(&ResourceCloseParams { resource_id })
+        .await
+        .expect("close resource");
+    harness.session.shutdown().await;
+}
+
+/// 标准 §5.2:`middleware/message/stream` 经 `resource/invoke` 返回**事件流引用**,
+/// 供原生工作台的 `events` 模板页声明式订阅(页面 load 操作必须返回事件流)。
+/// 这里核对:引用类型是 EventStream(而不是内联 JSON/blob)、stream_id 前缀稳定、
+/// 读到推送消息、并且与 `event/open` 打开的是同一套流表(close 后不可再读)。
+#[tokio::test]
+async fn message_stream_invoke_returns_event_stream_ref() {
+    let (broker, port) = FakeBroker::start(false).await;
+    let harness = harness(true).await;
+    let opened = harness
+        .client
+        .open_resource(&open_params(port))
+        .await
+        .expect("open resource");
+    let resource_id = opened.resource_id.clone();
+    assert!(broker.wait_subscriptions(1).await, "连接应订阅 `#`");
+
+    // 能力表里必须声明该方法:工作台的 `requires` 校验按它放行 events 页
+    assert!(
+        opened
+            .capabilities
+            .contains(&"middleware/message/stream".to_string()),
+        "open 能力应包含 middleware/message/stream: {:?}",
+        opened.capabilities
+    );
+
+    let result = harness
+        .client
+        .invoke_resource(&ResourceInvokeParams {
+            resource_id: resource_id.clone(),
+            method: "middleware/message/stream".to_owned(),
+            params: json!({}),
+        })
+        .await
+        .expect("invoke message stream");
+    let stream_id = match result.result {
+        ResultRef::EventStream { id } => id,
+        other => panic!("期望事件流引用,实际 {other:?}"),
+    };
+    assert!(stream_id.starts_with("mqtt-stream-"), "实际: {stream_id}");
+
+    // 通过 invoke 拿到的流与 event/* 打开的是同一套流:同样能读推送
+    broker.push("sensors/invoke", b"payload");
+    let mut events = Vec::new();
+    for _ in 0..40 {
+        let batch = harness
+            .client
+            .read_event_stream(&EventReadParams {
+                stream_id: stream_id.clone(),
+                max_events: Some(8),
+                wait_ms: Some(250),
+            })
+            .await
+            .expect("read events");
+        events.extend(batch.events);
+        if !events.is_empty() {
+            break;
+        }
+    }
+    assert_eq!(1, events.len(), "应收到一条推送: {events:?}");
+    assert_eq!("sensors/invoke", events[0]["topic"]);
+    assert_eq!("payload", events[0]["body_text"]);
+
+    // 关闭后读为 closed(页面切走后宿主 close,provider 侧流被回收)
+    harness
+        .client
+        .close_event_stream(&EventCloseParams {
+            stream_id: stream_id.clone(),
+        })
+        .await
+        .expect("close event stream");
+    let after_close = harness
+        .client
+        .read_event_stream(&EventReadParams {
+            stream_id,
+            max_events: None,
+            wait_ms: Some(0),
+        })
+        .await
+        .expect("read after close");
+    assert!(after_close.closed);
+
+    harness
+        .client
+        .close_resource(&ResourceCloseParams { resource_id })
+        .await
+        .expect("close resource");
     harness.session.shutdown().await;
 }

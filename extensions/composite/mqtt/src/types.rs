@@ -32,6 +32,19 @@ pub(crate) struct MqttConnectionConfig {
     pub keep_alive_secs: u64,
     /// 清除会话
     pub clean_session: bool,
+    /// 连接建立后自动订阅的主题过滤器(空串表示不自动订阅)
+    pub auto_subscribe: String,
+    /// 遗嘱消息
+    pub last_will: Option<LastWill>,
+}
+
+/// MQTT 遗嘱消息
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LastWill {
+    pub topic: String,
+    pub payload: Vec<u8>,
+    pub qos: MqttQos,
+    pub retain: bool,
 }
 
 fn default_timeout() -> u64 {
@@ -55,6 +68,8 @@ impl Default for MqttConnectionConfig {
             timeout: default_timeout(),
             keep_alive_secs: default_keep_alive(),
             clean_session: true,
+            auto_subscribe: "#".to_string(),
+            last_will: None,
         }
     }
 }
@@ -149,7 +164,7 @@ impl MqttQos {
 }
 
 /// MQTT 消息
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MqttMessage {
     pub topic: String,
     pub payload: Vec<u8>,

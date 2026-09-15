@@ -36,9 +36,9 @@
       "id": "com.navop.middleware.mqtt",
       "kind": "composite",
       "name": "MQTT",
-      "version": "0.1.0",
-      "release_tag": "mqtt-v0.1.0",
-      "description": "面向 MQTT 3.1.1 的 Rust 原生中间件管理扩展（native provider），支持订阅浏览、本地消息缓冲查询、消息发送与收发指标。 Native Rust MQTT 3.1.1 middleware extension with subscription browsing, buffered message query, message publishing, and traffic metrics.",
+      "version": "0.2.0",
+      "release_tag": "mqtt-v0.2.0",
+      "description": "MQTT 3.1.1 客户端工作台（Rust 原生 provider）：连接概览、订阅管理、实时/历史消息浏览、消息发布、TLS 与遗嘱配置。 Native Rust MQTT 3.1.1 client workbench: connection overview, subscription management, live/history message browser, publisher, TLS and last-will support.",
       "file_extensions": [],
       "manifest": "mqtt/manifest.json"
     },

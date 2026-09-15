@@ -13,7 +13,7 @@ use serde_json::{Value, from_value};
 
 use crate::contract::MiddlewareError;
 use crate::error::middleware_error;
-use crate::types::MqttConnectionConfig;
+use crate::types::{LastWill, MqttConnectionConfig, MqttQos};
 
 /// 解析结果类型(别名:OpenPlan 与协议错误)
 pub(crate) type OpenPlanResult = Result<OpenPlan, Box<ProtocolError>>;
@@ -41,11 +41,33 @@ struct OpenConfig {
     client_id: Option<String>,
     #[serde(default)]
     keep_alive_secs: Option<u64>,
-    /// TLS 开关(表单未暴露,预留 8883 端口场景)
     #[serde(default)]
     use_tls: Option<bool>,
     #[serde(default)]
+    clean_session: Option<bool>,
+    /// 自动订阅过滤器;缺省 `#`,显式空串表示不自动订阅
+    #[serde(default)]
+    auto_subscribe: Option<String>,
+    #[serde(default)]
+    will_topic: Option<String>,
+    #[serde(default)]
+    will_payload: Option<String>,
+    #[serde(default)]
+    will_qos: Option<Value>,
+    #[serde(default)]
+    will_retain: Option<bool>,
+    #[serde(default)]
     credential_refs: BTreeMap<String, String>,
+}
+
+/// 表单 Select 提交字符串、直传 JSON 可能是数字:两者都接受
+fn qos_from_value(value: Option<&Value>) -> Option<MqttQos> {
+    let raw = match value? {
+        Value::Number(number) => number.as_u64()? as u8,
+        Value::String(text) => text.trim().parse::<u8>().ok()?,
+        _ => return None,
+    };
+    MqttQos::from_u8(raw)
 }
 
 /// 待解析的密码:secret 引用(经宿主 reverse Host API)或明文
@@ -120,7 +142,24 @@ pub(crate) fn parse_open_params(params: Value) -> OpenPlanResult {
             .keep_alive_secs
             .unwrap_or(DEFAULT_KEEP_ALIVE_SECS)
             .max(1),
-        clean_session: true,
+        clean_session: config.clean_session.unwrap_or(true),
+        auto_subscribe: config
+            .auto_subscribe
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("#")
+            .to_string(),
+        last_will: config
+            .will_topic
+            .as_deref()
+            .map(str::trim)
+            .filter(|topic| !topic.is_empty())
+            .map(|topic| LastWill {
+                topic: topic.to_string(),
+                payload: config.will_payload.clone().unwrap_or_default().into_bytes(),
+                qos: qos_from_value(config.will_qos.as_ref()).unwrap_or_default(),
+                retain: config.will_retain.unwrap_or(false),
+            }),
     };
 
     Ok(OpenPlan { config, password })
@@ -148,7 +187,37 @@ mod tests {
         assert!(plan.config.username.is_none());
         assert!(!plan.config.use_tls);
         assert!(plan.config.clean_session);
+        assert_eq!(plan.config.auto_subscribe, "#");
+        assert!(plan.config.last_will.is_none());
         assert!(matches!(plan.password, PendingPassword::None));
+    }
+
+    #[test]
+    fn parses_session_and_last_will_fields() {
+        let plan = open_params(json!({
+            "host": "broker.local",
+            "clean_session": false,
+            "auto_subscribe": "",
+            "will_topic": " status/navop ",
+            "will_payload": "offline",
+            "will_qos": "2",
+            "will_retain": true,
+        }))
+        .expect("配置应成功");
+        assert!(!plan.config.clean_session);
+        assert_eq!(plan.config.auto_subscribe, "");
+        let will = plan.config.last_will.expect("应解析遗嘱");
+        assert_eq!(will.topic, "status/navop");
+        assert_eq!(will.payload, b"offline");
+        assert_eq!(will.qos, MqttQos::ExactlyOnce);
+        assert!(will.retain);
+
+        // 数字形式 QoS 同样接受;空 will_topic 视为无遗嘱
+        let plan = open_params(json!({"host": "h", "will_topic": "t", "will_qos": 1})).unwrap();
+        assert_eq!(plan.config.last_will.unwrap().qos, MqttQos::AtLeastOnce);
+        let plan =
+            open_params(json!({"host": "h", "will_topic": "  ", "will_payload": "x"})).unwrap();
+        assert!(plan.config.last_will.is_none());
     }
 
     #[test]
