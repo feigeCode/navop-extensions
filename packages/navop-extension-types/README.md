@@ -16,12 +16,19 @@ gen-gpui-typings.rs            # 重新生成 vendor/gpui-kit.d.ts 的源码（�
 
 ## 使用
 
-### 0. 工具箱（surface: "toolbox"）
+### 0. Shell 视图的三种入口
 
-小工具（hosts 编辑、加解密等）与连接扩展（ES/Docker）通过 `shellViews[].surface` 区分：
+`shellViews[]` 是 JS 视图的统一声明；**入口由「谁引用它」决定**，`surface` 只是语义标注（运行时不分它做分支，只影响校验与工具箱卡片的 `category`/`keywords`）：
 
-- `surface: "toolbox"`：工具箱页聚合卡片，`category` 分组、`keywords` 搜索；可声明 `backends` + `resource/job/event/blob` 模块（工具通过 `navop.resource.open` 自建 provider 会话，`context.connection` 为 null），权限走 `fs:read:`/`fs:write:`/`net:tcp:`/`spawn:` → 运行时 capabilities。
-- `surface: "tab"`（默认）：连接关联 UI（`contributes.connections[].shellViewId`）或扩展管理页入口。
+| 视图被谁引用 | 打开方式 | 可用模块 |
+|---|---|---|
+| `contributes.connections[].shellViewId` | 打开该连接时加载（**连接级 JS 控制台**） | `context` + `resource`/`job`/`event`/`blob`/`runtime`/`log`；`backends` 至少一个 alias 指向该连接的 `runtimeId`（开发指南 §6.4） |
+| 工作台页面 `pages[*].renderer = { kind: "shell", viewId }` | 作为该工作台页的**页体**嵌入 | **只能** `context` + `workbench` —— `ensure_embeddable` 明确禁 `resource`/`job`/`event`/`blob`/`runtime`/`dev`（job 类操作由宿主在 `dispatch` 内轮询到结束，页面不得自建轮询） |
+| 没有任何引用 | **工具箱**聚合为独立工具卡片（`extension-runtime::catalog::toolbox_views`） | 自由；可与 `backends` + `resource`/`job`/`event`/`blob` 模块一起用 `navop.resource.open` 自建 provider 会话（`context.connection` 为 null），权限走 `fs:read:`/`fs:write:`/`net:tcp:`/`spawn:` → 运行时 capabilities |
+
+- 工具箱只收「没被上面两种入口占用」的视图：被连接 `shellViewId` 或工作台页 `renderer.viewId` 引用、或声明了 `workbench` 模块的视图**一律不进**（`workbench` 模块只在挂载会话里可用，独立打开必然报 *"navop.workbench requires a borrowed resource-workbench session"*）。`surface: "tab"` 的独立工具（如 dev-tools 的 `workbench`）同样进工具箱。
+- 任何声明了 `resource`/`job`/`event`/`blob`/`workbench` 模块的视图必须声明至少一个 `backends` alias（宿主校验）。
+- 三种入口都需要构建开启 `shell-plugins`（当前发布产物已开启）；未开启时 JS 视图不可用，工作台页可写 `fallback: "native"` 退回原生模板渲染。
 
 ### 1. manifest 类型（Node/TS 工具链）
 
