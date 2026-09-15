@@ -109,21 +109,6 @@
         ]
       },
       {
-        "id": "images-table",
-        "title": "Docker Images",
-        "description": "Image list with pull form and remove actions.",
-        "entry": "ui/images.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "workbench"
-        ]
-      },
-      {
         "id": "processes",
         "title": "Container Processes",
         "description": "Process table of a running container.",
@@ -437,7 +422,9 @@
           "containerFilesList": {
             "mode": "invoke",
             "method": "docker/container/files/list",
-            "requires": [],
+            "requires": [
+              "docker/container/files/list"
+            ],
             "effect": "read",
             "params": {
               "id": {
@@ -455,7 +442,9 @@
           "containerFilesDelete": {
             "mode": "invoke",
             "method": "docker/container/files/delete",
-            "requires": [],
+            "requires": [
+              "docker/container/files/delete"
+            ],
             "effect": "destructive",
             "params": {
               "id": {
@@ -817,6 +806,13 @@
             "load": {
               "operation": "listContainers"
             },
+            "links": [
+              {
+                "title": "Create container",
+                "pageId": "container-create",
+                "route": {}
+              }
+            ],
             "stack": [
               {
                 "kind": "table",
@@ -1125,13 +1121,18 @@
             "id": "images",
             "title": "Images",
             "renderer": {
-              "kind": "shell",
-              "viewId": "images-table",
-              "fallback": "native"
+              "kind": "native"
             },
             "load": {
               "operation": "listImages"
             },
+            "links": [
+              {
+                "title": "Pull image",
+                "pageId": "image-pull",
+                "route": {}
+              }
+            ],
             "stack": [
               {
                 "kind": "table",
@@ -1173,11 +1174,6 @@
                 ],
                 "actions": [
                   {
-                    "id": "pull",
-                    "label": "Pull",
-                    "operation": "pullImage"
-                  },
-                  {
                     "id": "remove",
                     "label": "Remove",
                     "operation": "removeImage"
@@ -1205,6 +1201,13 @@
             "load": {
               "operation": "listVolumes"
             },
+            "links": [
+              {
+                "title": "Create volume",
+                "pageId": "volume-create",
+                "route": {}
+              }
+            ],
             "stack": [
               {
                 "kind": "table",
@@ -1314,6 +1317,13 @@
             "load": {
               "operation": "listNetworks"
             },
+            "links": [
+              {
+                "title": "Create network",
+                "pageId": "network-create",
+                "route": {}
+              }
+            ],
             "stack": [
               {
                 "kind": "table",
@@ -1485,6 +1495,17 @@
                 "title": "All images",
                 "pageId": "images",
                 "route": {}
+              },
+              {
+                "title": "History",
+                "pageId": "image-history",
+                "route": {
+                  "name": {
+                    "source": "route",
+                    "path": "/name",
+                    "type": "string"
+                  }
+                }
               }
             ],
             "stack": [
@@ -1666,81 +1687,26 @@
         ],
         "layout": {
           "left": {
-            "width": 240,
+            "width": 200,
             "source": {
-              "kind": "tree",
-              "roots": [
+              "kind": "list",
+              "items": [
                 {
-                  "id": "containers",
-                  "title": "Containers",
-                  "pageId": "containers",
-                  "children": {
-                    "operation": "listContainers",
-                    "itemsPath": "/containers",
-                    "keyPaths": [
-                      "/id"
-                    ],
-                    "labelPath": "/name",
-                    "open": {
-                      "pageId": "container-detail",
-                      "route": {
-                        "id": {
-                          "source": "selection",
-                          "path": "/id",
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "id": "images",
-                  "title": "Images",
-                  "pageId": "images"
-                },
-                {
-                  "id": "volumes",
-                  "title": "Volumes",
-                  "pageId": "volumes"
-                },
-                {
-                  "id": "networks",
-                  "title": "Networks",
-                  "pageId": "networks"
-                },
-                {
-                  "id": "overview",
-                  "title": "Docker Overview",
                   "pageId": "overview"
                 },
                 {
-                  "id": "image-pull",
-                  "title": "Pull image",
-                  "pageId": "image-pull"
+                  "pageId": "containers"
                 },
                 {
-                  "id": "image-detail",
-                  "title": "Image",
-                  "pageId": "image-detail"
+                  "pageId": "images"
                 },
                 {
-                  "id": "container-create",
-                  "title": "Create container",
-                  "pageId": "container-create"
+                  "pageId": "volumes"
                 },
                 {
-                  "id": "volume-create",
-                  "title": "Create volume",
-                  "pageId": "volume-create"
+                  "pageId": "networks"
                 },
                 {
-                  "id": "network-create",
-                  "title": "Create network",
-                  "pageId": "network-create"
-                },
-                {
-                  "id": "tasks",
-                  "title": "Tasks",
                   "pageId": "tasks"
                 }
               ]
