@@ -22,5 +22,8 @@ mod types;
 
 #[tokio::main]
 async fn main() {
+    // rumqttc 以 use-rustls-no-provider 编译,需在进程级安装默认加密后端;
+    // 用 ring 以兼容 i686-pc-windows-msvc(aws-lc-sys 不支持 32 位 MSVC)。
+    let _ = rustls::crypto::ring::default_provider().install_default();
     server::run().await;
 }

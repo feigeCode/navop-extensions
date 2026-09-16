@@ -15,6 +15,7 @@ serde_json = { workspace = true }
 # 契约 crate(标准 §3 数据模型/方法名常量/响应包装),经 src/contract.rs 统一再导出
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 rumqttc = { workspace = true }
+rustls = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

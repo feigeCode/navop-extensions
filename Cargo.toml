@@ -56,7 +56,9 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 semver = "1"
 # 中间件/TDengine 扩展新增依赖:版本与主仓保持一致
-rumqttc = "0.25.1"
+# rumqttc 关闭默认 TLS provider,改用 ring(aws-lc-sys 无法在 i686-pc-windows-msvc 构建)
+rumqttc = { version = "0.25.1", default-features = false, features = ["use-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 sha1 = "0.10"
 taos = { version = "0.12.3", default-features = false, features = ["ws-rustls"] }
 tempfile = "3"
