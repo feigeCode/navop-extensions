@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use bollard::{
     Docker,
@@ -41,6 +41,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use tokio::io::AsyncWriteExt;
 
+mod exec_bridge;
 mod jobs;
 
 use jobs::JobRegistry;
@@ -105,6 +106,26 @@ struct State {
 
 #[tokio::main]
 async fn main() {
+    // `exec-bridge <container> [cmd...]`:由工作台 Exec 终端直接启动,把本地
+    // PTY 桥接到 Docker 的交互式 exec 流,从而不依赖本机 `docker` CLI。
+    // `exec [-i] [-t] <container> <cmd...>`:docker CLI 兼容入口,侧边栏容器
+    // 文件树后端用它跑 `ls`/`stat`/`cat` 等非交互命令。
+    let argv: Vec<String> = std::env::args().collect();
+    let subcommand = argv.get(1).map(String::as_str);
+    if matches!(subcommand, Some("exec-bridge" | "exec")) {
+        let result = if subcommand == Some("exec-bridge") {
+            exec_bridge::run(&argv[2..]).await
+        } else {
+            exec_bridge::run_exec(&argv[2..]).await
+        };
+        match result {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                eprintln!("docker exec: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
     let socket = std::env::var("ONETCLI_EXT_SOCKET").unwrap_or_else(|error| {
         eprintln!("missing ONETCLI_EXT_SOCKET: {error}");
         std::process::exit(2);
@@ -195,14 +216,9 @@ async fn open(state: &mut State, params: Value) -> ProviderResult {
     if params.resource_type != "docker" {
         return Err(invalid("resourceType must be docker"));
     }
-    let socket = params
-        .config
-        .get("socket")
-        .and_then(Value::as_str)
-        .ok_or_else(|| invalid("socket is required"))?;
-    let path = expand_socket(socket)?;
-    let docker = Docker::connect_with_unix(&path, 120, bollard::API_DEFAULT_VERSION)
-        .map_err(|error| unavailable(error.to_string()))?
+    let target = DockerTarget::resolve(&params.config)?;
+    let docker = target
+        .connect()?
         .negotiate_version()
         .await
         .map_err(|error| unavailable(error.to_string()))?;
@@ -221,10 +237,165 @@ async fn open(state: &mut State, params: Value) -> ProviderResult {
             "client": "bollard",
             "server_version": version.version,
             "api_version": version.api_version,
-            "docker_host": format!("unix://{path}"),
+            // 供工作台 exec 终端复用的 docker CLI 环境:
+            // docker_host 兼容 unix:// 与 tcp://,TLS 由 DOCKER_TLS_VERIFY / DOCKER_CERT_PATH 开启。
+            "docker_host": target.cli_host,
+            "docker_tls_verify": if target.tls { "1" } else { "" },
+            "docker_cert_path": target.tls_cert_dir,
+            // Exec 终端以本 provider 的 `exec-bridge` 子命令启动(不依赖本机 docker CLI)。
+            "exec_bridge": std::env::current_exe()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default(),
             "operations": "container, image, network and volume management"
         })),
     })
+}
+
+/// 连接表单解析出的 Docker 目标(本地 socket 或远程 TCP/TLS)。
+struct DockerTarget {
+    endpoint: Endpoint,
+    /// 供 `docker` CLI 使用的主机串(`unix://path` 或 `tcp://host:port`)。
+    cli_host: String,
+    tls: bool,
+    /// TLS 客户端证书目录(非 TLS 时为空串,便于模板始终有值)。
+    tls_cert_dir: String,
+}
+
+enum Endpoint {
+    Unix(String),
+    Http(String),
+    Https {
+        addr: String,
+        ca: PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
+    },
+}
+
+impl DockerTarget {
+    /// 把连接配置解析为目标。缺省 `mode` 时按本地 socket 处理,兼容旧连接。
+    fn resolve(config: &Value) -> Result<Self, Box<ProtocolError>> {
+        match text(config, "mode").unwrap_or("local") {
+            "local" => {
+                let socket = text(config, "socket").unwrap_or("unix://~/.docker/run/docker.sock");
+                let path = expand_socket(socket)?;
+                Ok(Self {
+                    cli_host: format!("unix://{path}"),
+                    endpoint: Endpoint::Unix(path),
+                    tls: false,
+                    tls_cert_dir: String::new(),
+                })
+            }
+            "remote" => {
+                // 字段名刻意用 tcp_ 前缀:宿主的 provider 端点鉴权只识别 host/port/
+                // url/socket 等固定键,而 net:tcp 权限的端口不能写通配符(跨度≤100),
+                // 无法覆盖用户自定义端口。这里不做端点声明,远程端口由用户自由填写。
+                let host = text(config, "tcp_host").ok_or_else(|| invalid("host is required"))?;
+                let tls = text(config, "secure") == Some("tls");
+                let port = match text(config, "tcp_port") {
+                    Some(value) => value
+                        .parse::<u16>()
+                        .map_err(|_| invalid("port must be a number"))?,
+                    None => {
+                        if tls {
+                            2376
+                        } else {
+                            2375
+                        }
+                    }
+                };
+                let addr = format!("tcp://{host}:{port}");
+                if tls {
+                    let dir = expand_dir(text(config, "cert_dir").unwrap_or("~/.docker"))?;
+                    Ok(Self {
+                        endpoint: Endpoint::Https {
+                            addr: addr.clone(),
+                            ca: dir.join("ca.pem"),
+                            cert: dir.join("cert.pem"),
+                            key: dir.join("key.pem"),
+                        },
+                        cli_host: addr,
+                        tls: true,
+                        tls_cert_dir: dir.display().to_string(),
+                    })
+                } else {
+                    Ok(Self {
+                        endpoint: Endpoint::Http(addr.clone()),
+                        cli_host: addr,
+                        tls: false,
+                        tls_cert_dir: String::new(),
+                    })
+                }
+            }
+            other => Err(invalid(format!("unsupported connection mode: {other}"))),
+        }
+    }
+
+    /// 从 docker CLI 风格的 `DOCKER_HOST` / `DOCKER_TLS_VERIFY` /
+    /// `DOCKER_CERT_PATH` 环境变量解析目标,供 `exec-bridge` 子命令复用。
+    fn from_env() -> Result<Self, Box<ProtocolError>> {
+        Self::from_env_vars(|key| std::env::var(key).ok())
+    }
+
+    fn from_env_vars(get: impl Fn(&str) -> Option<String>) -> Result<Self, Box<ProtocolError>> {
+        let value = |key: &str| -> Option<String> {
+            get(key)
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        };
+        let host = value("DOCKER_HOST").ok_or_else(|| invalid("DOCKER_HOST is required"))?;
+        let tls = value("DOCKER_TLS_VERIFY").is_some();
+        if host.starts_with("unix://") {
+            let path = expand_socket(&host)?;
+            return Ok(Self {
+                cli_host: host,
+                endpoint: Endpoint::Unix(path),
+                tls: false,
+                tls_cert_dir: String::new(),
+            });
+        }
+        let addr = host
+            .replacen("https://", "tcp://", 1)
+            .replacen("http://", "tcp://", 1);
+        if tls || host.starts_with("https://") {
+            let dir = value("DOCKER_CERT_PATH")
+                .ok_or_else(|| invalid("DOCKER_CERT_PATH is required for TLS"))?;
+            let dir = expand_dir(&dir)?;
+            Ok(Self {
+                endpoint: Endpoint::Https {
+                    addr,
+                    ca: dir.join("ca.pem"),
+                    cert: dir.join("cert.pem"),
+                    key: dir.join("key.pem"),
+                },
+                cli_host: host,
+                tls: true,
+                tls_cert_dir: dir.display().to_string(),
+            })
+        } else {
+            Ok(Self {
+                endpoint: Endpoint::Http(addr),
+                cli_host: host,
+                tls: false,
+                tls_cert_dir: String::new(),
+            })
+        }
+    }
+
+    fn connect(&self) -> Result<Docker, Box<ProtocolError>> {
+        let version = bollard::API_DEFAULT_VERSION;
+        let result = match &self.endpoint {
+            Endpoint::Unix(path) => Docker::connect_with_unix(path, 120, version),
+            Endpoint::Http(addr) => Docker::connect_with_http(addr, 120, version),
+            Endpoint::Https {
+                addr,
+                ca,
+                cert,
+                key,
+            } => Docker::connect_with_ssl(addr, key, cert, ca, 120, version),
+        };
+        result.map_err(|error| unavailable(error.to_string()))
+    }
 }
 
 async fn ping(state: &State, params: Value) -> ProviderResult {
@@ -1530,6 +1701,29 @@ fn is_leap(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
+/// 读取连接配置里的非空字符串字段。
+fn text<'a>(config: &'a Value, key: &str) -> Option<&'a str> {
+    config
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+/// 把 `~/.docker` 之类的证书目录展开为绝对路径。
+fn expand_dir(value: &str) -> Result<PathBuf, Box<ProtocolError>> {
+    let path = if let Some(relative) = value.strip_prefix("~/") {
+        let home = std::env::var("HOME").map_err(|_| invalid("HOME is unavailable"))?;
+        format!("{home}/{relative}")
+    } else {
+        value.to_owned()
+    };
+    if !path.starts_with('/') || path.contains("..") {
+        return Err(invalid("certificate directory must be an absolute path"));
+    }
+    Ok(PathBuf::from(path))
+}
+
 fn expand_socket(value: &str) -> Result<String, Box<ProtocolError>> {
     let path = value
         .strip_prefix("unix://")
@@ -1729,5 +1923,134 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, error_codes::RESOURCE_CLOSED);
+    }
+
+    #[test]
+    fn target_defaults_to_local_socket() {
+        // 旧连接只带 socket,缺 mode 时必须仍按本地 socket 处理。
+        let target =
+            DockerTarget::resolve(&json!({"socket": "unix:///var/run/docker.sock"})).unwrap();
+        assert_eq!(target.cli_host, "unix:///var/run/docker.sock");
+        assert!(!target.tls);
+        assert!(matches!(target.endpoint, Endpoint::Unix(_)));
+    }
+
+    #[test]
+    fn target_remote_plain_defaults_to_2375() {
+        let target =
+            DockerTarget::resolve(&json!({"mode": "remote", "tcp_host": "10.0.0.2"})).unwrap();
+        assert_eq!(target.cli_host, "tcp://10.0.0.2:2375");
+        assert!(!target.tls);
+        assert!(matches!(target.endpoint, Endpoint::Http(_)));
+        assert!(DockerTarget::resolve(&json!({"mode": "remote"})).is_err());
+    }
+
+    #[test]
+    fn target_remote_accepts_any_port() {
+        // 自定义端口必须可用:宿主端点鉴权不覆盖 tcp_host/tcp_port。
+        let target = DockerTarget::resolve(&json!({
+            "mode": "remote",
+            "tcp_host": "10.0.0.9",
+            "tcp_port": "43210"
+        }))
+        .unwrap();
+        assert_eq!(target.cli_host, "tcp://10.0.0.9:43210");
+    }
+
+    #[test]
+    fn target_remote_tls_defaults_to_2376_with_cert_paths() {
+        let target = DockerTarget::resolve(&json!({
+            "mode": "remote",
+            "tcp_host": "docker.example.com",
+            "secure": "tls",
+            "cert_dir": "/etc/docker/certs"
+        }))
+        .unwrap();
+        assert_eq!(target.cli_host, "tcp://docker.example.com:2376");
+        assert!(target.tls);
+        assert_eq!(target.tls_cert_dir, "/etc/docker/certs");
+        let Endpoint::Https { ca, cert, key, .. } = target.endpoint else {
+            panic!("TLS target must use https endpoint");
+        };
+        assert_eq!(ca, PathBuf::from("/etc/docker/certs/ca.pem"));
+        assert_eq!(cert, PathBuf::from("/etc/docker/certs/cert.pem"));
+        assert_eq!(key, PathBuf::from("/etc/docker/certs/key.pem"));
+    }
+
+    #[test]
+    fn target_rejects_relative_cert_dir_and_bad_port() {
+        assert!(
+            DockerTarget::resolve(&json!({
+                "mode": "remote",
+                "tcp_host": "h",
+                "secure": "tls",
+                "cert_dir": "certs"
+            }))
+            .is_err()
+        );
+        assert!(
+            DockerTarget::resolve(&json!({
+                "mode": "remote",
+                "tcp_host": "h",
+                "tcp_port": "not-a-port"
+            }))
+            .is_err()
+        );
+    }
+
+    fn env_from<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |key| {
+            pairs
+                .iter()
+                .find(|(name, _)| *name == key)
+                .map(|(_, value)| (*value).to_string())
+        }
+    }
+
+    #[test]
+    fn exec_bridge_target_parses_socket_and_tls_env() {
+        let unix = DockerTarget::from_env_vars(env_from(&[(
+            "DOCKER_HOST",
+            "unix:///var/run/docker.sock",
+        )]))
+        .unwrap();
+        assert!(matches!(unix.endpoint, Endpoint::Unix(_)));
+        assert!(!unix.tls);
+
+        let plain =
+            DockerTarget::from_env_vars(env_from(&[("DOCKER_HOST", "tcp://10.0.0.3:2375")]))
+                .unwrap();
+        assert_eq!(plain.cli_host, "tcp://10.0.0.3:2375");
+        assert!(matches!(plain.endpoint, Endpoint::Http(_)));
+
+        let tls = DockerTarget::from_env_vars(env_from(&[
+            ("DOCKER_HOST", "tcp://10.0.0.3:2376"),
+            ("DOCKER_TLS_VERIFY", "1"),
+            ("DOCKER_CERT_PATH", "/certs"),
+        ]))
+        .unwrap();
+        assert!(tls.tls);
+        assert_eq!(tls.tls_cert_dir, "/certs");
+        let Endpoint::Https { ca, .. } = tls.endpoint else {
+            panic!("TLS env must use https endpoint");
+        };
+        assert_eq!(ca, PathBuf::from("/certs/ca.pem"));
+
+        // 缺 DOCKER_HOST、以及 TLS 缺证书目录,都要报错。
+        assert!(DockerTarget::from_env_vars(env_from(&[])).is_err());
+        assert!(
+            DockerTarget::from_env_vars(env_from(&[
+                ("DOCKER_HOST", "tcp://h:2376"),
+                ("DOCKER_TLS_VERIFY", "1"),
+            ]))
+            .is_err()
+        );
+        // 空的 DOCKER_TLS_VERIFY 视为非 TLS。
+        let empty_tls = DockerTarget::from_env_vars(env_from(&[
+            ("DOCKER_HOST", "tcp://h:2375"),
+            ("DOCKER_TLS_VERIFY", ""),
+        ]))
+        .unwrap();
+        assert!(!empty_tls.tls);
     }
 }

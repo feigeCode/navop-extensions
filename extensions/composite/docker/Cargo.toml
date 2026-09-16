@@ -9,9 +9,10 @@ bollard = { workspace = true }
 extension-protocol = { workspace = true }
 futures-util = { workspace = true }
 interprocess = { workspace = true }
+libc = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 uuid = { workspace = true }
 
 [dev-dependencies]

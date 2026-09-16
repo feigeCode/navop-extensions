@@ -2,10 +2,10 @@
   "schema_version": 1,
   "id": "com.navop.docker",
   "name": "Docker",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "基于 Rust 原生资源后端（native resource provider）的 Docker 管理扩展：通过本地 docker.sock 连接，提供引擎概览、镜像管理与异步镜像拉取，并附日志查看、容器进程与文件系统变更视图及 exec 终端。 Rust-native Docker management composite extension that talks to the local docker socket, providing engine overview, image management with asynchronous pulls, plus log viewer, container process and filesystem change views, and exec terminals.",
+  "description": "基于 Rust 原生资源后端（native resource provider）的 Docker 管理扩展：支持本地 docker.sock 与远程 TCP/TLS 守护进程，提供引擎概览、镜像管理与异步镜像拉取，并附日志查看、容器进程与文件系统变更视图及 exec 终端。 Rust-native Docker management composite extension that talks to a local docker socket or a remote TCP/TLS daemon, providing engine overview, image management with asynchronous pulls, plus log viewer, container process and filesystem change views, and exec terminals.",
   "categories": [
     "containers",
     "developer-tools"
@@ -52,7 +52,7 @@
       {
         "id": "docker-local",
         "label": "Docker",
-        "description": "Connect to a local Docker daemon through its Unix socket.",
+        "description": "Connect to a local or remote Docker daemon over a Unix socket, plain TCP, or TLS.",
         "icon": "icons/docker-color.svg",
         "runtimeId": "main",
         "resourceType": "docker",
@@ -63,12 +63,96 @@
               "label": "General",
               "fields": [
                 {
+                  "id": "mode",
+                  "label": "Connection",
+                  "fieldType": "Select",
+                  "required": true,
+                  "defaultValue": "local",
+                  "options": [
+                    {
+                      "value": "local",
+                      "label": "Local (Unix socket)"
+                    },
+                    {
+                      "value": "remote",
+                      "label": "Remote (TCP / TLS)"
+                    }
+                  ]
+                },
+                {
                   "id": "socket",
                   "label": "Docker socket",
                   "fieldType": "Text",
                   "required": true,
                   "defaultValue": "unix://~/.docker/run/docker.sock",
-                  "placeholder": "unix:///var/run/docker.sock"
+                  "placeholder": "unix:///var/run/docker.sock",
+                  "visibleWhen": [
+                    {
+                      "field": "mode",
+                      "equals": "local"
+                    }
+                  ]
+                },
+                {
+                  "id": "tcp_host",
+                  "label": "Host",
+                  "fieldType": "Text",
+                  "required": true,
+                  "placeholder": "192.168.1.10 or docker.example.com",
+                  "visibleWhen": [
+                    {
+                      "field": "mode",
+                      "equals": "remote"
+                    }
+                  ]
+                },
+                {
+                  "id": "tcp_port",
+                  "label": "Port",
+                  "fieldType": "Text",
+                  "placeholder": "2375 plain / 2376 TLS",
+                  "visibleWhen": [
+                    {
+                      "field": "mode",
+                      "equals": "remote"
+                    }
+                  ]
+                },
+                {
+                  "id": "secure",
+                  "label": "Security",
+                  "fieldType": "Select",
+                  "required": true,
+                  "defaultValue": "plain",
+                  "options": [
+                    {
+                      "value": "plain",
+                      "label": "Plain TCP (no TLS)"
+                    },
+                    {
+                      "value": "tls",
+                      "label": "TLS (client certificates)"
+                    }
+                  ],
+                  "visibleWhen": [
+                    {
+                      "field": "mode",
+                      "equals": "remote"
+                    }
+                  ]
+                },
+                {
+                  "id": "cert_dir",
+                  "label": "Certificate directory",
+                  "fieldType": "FilePath",
+                  "defaultValue": "~/.docker",
+                  "placeholder": "~/.docker (ca.pem / cert.pem / key.pem)",
+                  "visibleWhen": [
+                    {
+                      "field": "secure",
+                      "equals": "tls"
+                    }
+                  ]
                 }
               ]
             }
@@ -1012,16 +1096,17 @@
             "stack": [
               {
                 "kind": "terminal",
-                "command": "docker",
+                "command": "{{session.exec_bridge}}",
                 "args": [
-                  "exec",
-                  "-it",
+                  "exec-bridge",
                   "{{id}}",
                   "sh"
                 ],
                 "env": {
                   "TERM": "xterm-256color",
-                  "DOCKER_HOST": "{{session.docker_host}}"
+                  "DOCKER_HOST": "{{session.docker_host}}",
+                  "DOCKER_TLS_VERIFY": "{{session.docker_tls_verify}}",
+                  "DOCKER_CERT_PATH": "{{session.docker_cert_path}}"
                 }
               }
             ]
