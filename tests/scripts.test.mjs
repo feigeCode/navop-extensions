@@ -2046,6 +2046,64 @@ test("workbench shell pages reference embeddable, existing shell views", () => {
   assert.ok(checked > 0, "expected at least one workbench shell page to check");
 });
 
+// 扩展自己的 node 测试(<ext>/tests/**/*.test.mjs)在这里被**真正执行**,而不是
+// 只检查文件存在:CI 的 rust job 只跑 `cargo test`,没人会去执行扩展目录下的
+// `node --test`。若只断言"文件在",测试搬到别处或整段删掉都不会有人知道 ——
+// 那正是最容易发生的静默退化。
+test("extension node tests are discovered and actually executed", () => {
+  const collected = [];
+  const extensionsRoot = path.join(repoRoot, "extensions");
+  for (const group of fs.readdirSync(extensionsRoot, { withFileTypes: true })) {
+    if (!group.isDirectory()) continue;
+    const groupDir = path.join(extensionsRoot, group.name);
+    for (const extension of fs.readdirSync(groupDir, { withFileTypes: true })) {
+      if (!extension.isDirectory()) continue;
+      const testsDir = path.join(groupDir, extension.name, "tests");
+      if (!fs.existsSync(testsDir)) continue;
+      const stack = [testsDir];
+      while (stack.length > 0) {
+        const dir = stack.pop();
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const target = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            stack.push(target);
+          } else if (entry.name.endsWith(".test.mjs")) {
+            collected.push(target);
+          }
+        }
+      }
+    }
+  }
+  const labels = collected.map((file) => path.relative(repoRoot, file)).sort();
+  assert.ok(labels.length > 0, "expected at least one extension node test to run");
+  // 具体点名 ES 的纯模型测试:它是 Mapping 页面的全部语义所在,被改名或移走
+  // 必须在这里响,而不是等到"Mapping 页看起来是对的"。
+  assert.ok(
+    labels.includes("extensions/composite/elasticsearch/tests/ui/mapping-model.test.mjs"),
+    `elasticsearch mapping model test is not discovered: ${labels.join(", ")}`,
+  );
+
+  for (const file of collected.sort()) {
+    const label = path.relative(repoRoot, file);
+    // 必须剥掉 NODE_TEST_CONTEXT:外层 `node --test` 会把它注入子进程,内层
+    // runner 于是认为自己是"受管子进程",把结果交给父进程裁决并以 0 退出 ——
+    // 失败的用例因此永远不会让 execFileSync 抛错,这条守卫会静默变成空跑。
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    try {
+      // 用 process.execPath 而不是裸 `node`:本机 PATH 是半隔离的,CI 之外
+      // 直接跑仓级测试时 `node` 未必解析得到同一个解释器。
+      execFileSync(process.execPath, ["--test", file], {
+        cwd: repoRoot,
+        stdio: "pipe",
+        env,
+      });
+    } catch (error) {
+      assert.fail(`${label} failed:\n${error.stdout ?? ""}${error.stderr ?? ""}`);
+    }
+  }
+});
+
 // A stream page is only realtime when all three of these hold: the host renders it
 // through `render_events_page` (native renderer — a shell renderer takes over and the
 // stream is never subscribed), its load returns an event stream, and the load runs with
