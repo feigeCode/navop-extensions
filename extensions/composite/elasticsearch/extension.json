@@ -302,7 +302,14 @@
             "requires": [
               "elasticsearch/index/shards"
             ],
-            "effect": "read"
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              }
+            }
           },
           "indexCreate": {
             "mode": "invoke",
@@ -483,6 +490,26 @@
                 "type": "string"
               }
             }
+          },
+          "indexSearch": {
+            "mode": "job",
+            "method": "elasticsearch/search/async",
+            "requires": [
+              "elasticsearch/search/async"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              },
+              "query": {
+                "source": "input",
+                "path": "/query",
+                "type": "string"
+              }
+            }
           }
         },
         "pages": [
@@ -607,6 +634,13 @@
                     "operation": "indexDelete"
                   }
                 ]
+              }
+            ],
+            "links": [
+              {
+                "title": "Create index",
+                "pageId": "index-create",
+                "route": {}
               }
             ]
           },
@@ -743,61 +777,42 @@
             "load": {
               "operation": "indexGet"
             },
-            "links": [
-              {
-                "title": "All indices",
-                "pageId": "indices",
-                "route": {}
-              },
-              {
-                "title": "Mapping",
-                "pageId": "index-mapping",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "title": "Settings",
-                "pageId": "index-settings",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "title": "Aliases",
-                "pageId": "index-aliases",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              },
-              {
-                "title": "Stats",
-                "pageId": "index-stats",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
+              }
+            ],
+            "tabGroupId": "index-tabs"
+          },
+          {
+            "id": "index-documents",
+            "title": "Documents",
+            "tabGroupId": "index-tabs",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "stack": [
+              {
+                "kind": "form",
+                "submit": {
+                  "operation": "indexSearch"
+                },
+                "inputs": [
+                  {
+                    "id": "query",
+                    "type": "string",
+                    "editor": "text",
+                    "placeholder": "simple query string,如 status:200 或 *",
+                    "required": true
+                  }
+                ]
               }
             ]
           },
@@ -805,7 +820,9 @@
             "id": "index-mapping",
             "title": "Mapping",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "mapping",
+              "fallback": "native"
             },
             "route": {
               "name": {
@@ -816,25 +833,13 @@
             "load": {
               "operation": "indexMapping"
             },
-            "links": [
-              {
-                "title": "Index",
-                "pageId": "index-detail",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
               }
-            ]
+            ],
+            "tabGroupId": "index-tabs"
           },
           {
             "id": "index-settings",
@@ -851,25 +856,13 @@
             "load": {
               "operation": "indexSettings"
             },
-            "links": [
-              {
-                "title": "Index",
-                "pageId": "index-detail",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
               }
-            ]
+            ],
+            "tabGroupId": "index-tabs"
           },
           {
             "id": "index-aliases",
@@ -886,25 +879,13 @@
             "load": {
               "operation": "indexAliases"
             },
-            "links": [
-              {
-                "title": "Index",
-                "pageId": "index-detail",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
               }
-            ]
+            ],
+            "tabGroupId": "index-tabs"
           },
           {
             "id": "index-stats",
@@ -921,25 +902,13 @@
             "load": {
               "operation": "indexStats"
             },
-            "links": [
-              {
-                "title": "Index",
-                "pageId": "index-detail",
-                "route": {
-                  "name": {
-                    "source": "route",
-                    "path": "/name",
-                    "type": "string"
-                  }
-                }
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
               }
-            ]
+            ],
+            "tabGroupId": "index-tabs"
           },
           {
             "id": "index-shards",
@@ -950,19 +919,19 @@
             "load": {
               "operation": "indexShards"
             },
-            "links": [
-              {
-                "title": "All indices",
-                "pageId": "indices",
-                "route": {}
-              }
-            ],
             "stack": [
               {
                 "kind": "viewer",
                 "format": "json"
               }
-            ]
+            ],
+            "tabGroupId": "index-tabs",
+            "route": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            }
           },
           {
             "id": "index-create",
@@ -1001,28 +970,139 @@
         "layout": {
           "left": {
             "source": {
-              "kind": "list",
-              "items": [
+              "kind": "tree",
+              "roots": [
                 {
+                  "id": "overview",
+                  "title": "Overview",
                   "pageId": "overview"
                 },
                 {
-                  "pageId": "indices"
+                  "id": "indices",
+                  "title": "Indices",
+                  "pageId": "indices",
+                  "children": {
+                    "operation": "listIndices",
+                    "itemsPath": "/indices",
+                    "keyPaths": [
+                      "/name"
+                    ],
+                    "labelPath": "/name",
+                    "open": {
+                      "pageId": "index-detail",
+                      "route": {
+                        "name": {
+                          "source": "selection",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "children": {
+                      "kind": "static",
+                      "items": [
+                        {
+                          "id": "documents",
+                          "title": "Documents",
+                          "open": {
+                            "pageId": "index-documents",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "id": "mapping",
+                          "title": "Mapping",
+                          "open": {
+                            "pageId": "index-mapping",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "id": "settings",
+                          "title": "Settings",
+                          "open": {
+                            "pageId": "index-settings",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "id": "aliases",
+                          "title": "Aliases",
+                          "open": {
+                            "pageId": "index-aliases",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "id": "stats",
+                          "title": "Stats",
+                          "open": {
+                            "pageId": "index-stats",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "id": "shards",
+                          "title": "Shards",
+                          "open": {
+                            "pageId": "index-shards",
+                            "route": {
+                              "name": {
+                                "source": "parent",
+                                "path": "/name",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
                 },
                 {
+                  "id": "search",
+                  "title": "Search",
                   "pageId": "search"
                 },
                 {
-                  "pageId": "tasks"
-                },
-                {
+                  "id": "nodes",
+                  "title": "Nodes",
                   "pageId": "nodes"
                 },
                 {
-                  "pageId": "index-create"
-                },
-                {
-                  "pageId": "index-shards"
+                  "id": "tasks",
+                  "title": "Tasks",
+                  "pageId": "tasks"
                 }
               ]
             }
@@ -1030,10 +1110,117 @@
           "center": {
             "source": {
               "kind": "pages",
-              "tabGroups": []
+              "tabGroups": [
+                {
+                  "id": "index-tabs",
+                  "tabs": [
+                    {
+                      "id": "index-tab-overview",
+                      "title": "Overview",
+                      "pageId": "index-detail",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-documents",
+                      "title": "Documents",
+                      "pageId": "index-documents",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-mapping",
+                      "title": "Mapping",
+                      "pageId": "index-mapping",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-settings",
+                      "title": "Settings",
+                      "pageId": "index-settings",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-aliases",
+                      "title": "Aliases",
+                      "pageId": "index-aliases",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-stats",
+                      "title": "Stats",
+                      "pageId": "index-stats",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "index-tab-shards",
+                      "title": "Shards",
+                      "pageId": "index-shards",
+                      "route": {
+                        "name": {
+                          "source": "route",
+                          "path": "/name",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           }
         }
+      }
+    ],
+    "shellViews": [
+      {
+        "id": "mapping",
+        "title": "Elasticsearch Mapping",
+        "description": "字段树、筛选、字段定义与只读原始 JSON。",
+        "entry": "ui/mapping.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
       }
     ]
   }
