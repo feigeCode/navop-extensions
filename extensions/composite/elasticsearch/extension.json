@@ -492,10 +492,10 @@
             }
           },
           "indexSearch": {
-            "mode": "job",
-            "method": "elasticsearch/search/async",
+            "mode": "invoke",
+            "method": "elasticsearch/search",
             "requires": [
-              "elasticsearch/search/async"
+              "elasticsearch/search"
             ],
             "effect": "read",
             "params": {
@@ -508,6 +508,36 @@
                 "source": "input",
                 "path": "/query",
                 "type": "string"
+              },
+              "size": {
+                "source": "literal",
+                "value": 50,
+                "type": "number"
+              }
+            }
+          },
+          "indexDocuments": {
+            "mode": "invoke",
+            "method": "elasticsearch/search",
+            "requires": [
+              "elasticsearch/search"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "route",
+                "path": "/name",
+                "type": "string"
+              },
+              "query": {
+                "source": "literal",
+                "value": "*",
+                "type": "string"
+              },
+              "size": {
+                "source": "literal",
+                "value": 50,
+                "type": "number"
               }
             }
           }
@@ -797,6 +827,9 @@
                 "type": "string",
                 "required": true
               }
+            },
+            "load": {
+              "operation": "indexDocuments"
             },
             "stack": [
               {
