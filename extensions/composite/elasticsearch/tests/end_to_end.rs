@@ -243,7 +243,25 @@ async fn spawn_http_fixture_with_version(
                     ])
                     .to_string(),
                     "/orders" => json!({"orders":{"aliases":{},"settings":{}}}).to_string(),
-                    "/_search" => {
+                    // `GET /orders/_mapping` 的真实信封:顶层是具体索引名,`mappings`
+                    // 在其下 —— Mapping 页面的解析就是从这里开始的。
+                    target if target.ends_with("/_mapping") => json!({
+                        "orders": {
+                            "mappings": {
+                                "properties": {
+                                    "name": {"type": "keyword"},
+                                    "city": {
+                                        "type": "text",
+                                        "fields": {"raw": {"type": "keyword", "ignore_above": 256}}
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .to_string(),
+                    // 索引内查询打到 `/orders/_search`,全集群查询打到 `/_search`,
+                    // 两者共用同一份响应体:这里断言的是**目标路径**有没有带上索引。
+                    target if target.ends_with("/_search") => {
                         let body =
                             String::from_utf8_lossy(buffer.get(body_start..).unwrap_or_default())
                                 .to_string();
@@ -654,6 +672,99 @@ async fn provider_performs_authenticated_read_only_http_operations() {
         records
             .iter()
             .all(|record| !record.body.contains("token-value"))
+    );
+    drop(records);
+    drop(harness.root);
+}
+
+/// 索引工作台的读取路径:读 Mapping,以及「站在某个索引里查询」。
+///
+/// 两件事分开测的原因不同:
+/// - `elasticsearch/index/mapping` 是新增能力,要确认它真的落到 `GET <index>/_mapping`;
+/// - 带索引的查询走的是既有 `elasticsearch/search`,但它过去只认 `indices` 数组,而
+///   路由参数是字符串、构不出数组 —— 于是「在某个索引页里查询」会静默退化成查全集群。
+///
+/// 所以断言落在**请求目标**上:`/orders/_mapping`、`/orders/_search`,而不是
+/// `/_mapping`、`/_search`。前者错了只是读不到数据,后者错了会读到别的索引的数据。
+#[tokio::test]
+async fn index_scoped_reads_carry_the_index_into_the_request_target() {
+    let harness = harness(true).await;
+    let opened = harness
+        .client
+        .open_resource(&open_params(harness.port))
+        .await
+        .expect("open resource");
+
+    let mapping = harness
+        .client
+        .invoke_resource(&ResourceInvokeParams {
+            resource_id: opened.resource_id.clone(),
+            method: "elasticsearch/index/mapping".into(),
+            params: json!({"name":"orders"}),
+        })
+        .await
+        .expect("read index mapping");
+    let ResultRef::Inline { value } = mapping.result else {
+        panic!("inline mapping")
+    };
+    assert_eq!(
+        "keyword",
+        value["orders"]["mappings"]["properties"]["name"]["type"]
+            .as_str()
+            .expect("mapping envelope shape")
+    );
+    // multi-field 也要原样带回来:Mapping 页面的 multi-field 标识依赖它。
+    assert_eq!(
+        "keyword",
+        value["orders"]["mappings"]["properties"]["city"]["fields"]["raw"]["type"]
+            .as_str()
+            .expect("multi-field survives the round trip")
+    );
+
+    let searched = harness
+        .client
+        .invoke_resource(&ResourceInvokeParams {
+            resource_id: opened.resource_id.clone(),
+            method: "elasticsearch/search".into(),
+            params: json!({"name":"orders","query":"alice"}),
+        })
+        .await
+        .expect("search within one index");
+    let ResultRef::Inline { value } = searched.result else {
+        panic!("inline search")
+    };
+    assert_eq!(
+        2,
+        value["raw"]["hits"]["total"]["value"]
+            .as_i64()
+            .expect("hits")
+    );
+
+    harness
+        .client
+        .close_resource(&ResourceCloseParams {
+            resource_id: opened.resource_id,
+        })
+        .await
+        .expect("close");
+    harness.session.shutdown().await;
+
+    let records = harness.records.lock().expect("records lock");
+    let targets: Vec<(&str, &str)> = records
+        .iter()
+        .map(|record| (record.method.as_str(), record.target.as_str()))
+        .collect();
+    assert!(
+        targets.contains(&("GET", "/orders/_mapping")),
+        "mapping must be read from the concrete index: {targets:?}"
+    );
+    assert!(
+        targets.contains(&("POST", "/orders/_search")),
+        "a scoped search must not fall back to the cluster-wide endpoint: {targets:?}"
+    );
+    assert!(
+        !targets.iter().any(|(_, target)| *target == "/_search"),
+        "no unscoped search belongs in this flow: {targets:?}"
     );
     drop(records);
     drop(harness.root);

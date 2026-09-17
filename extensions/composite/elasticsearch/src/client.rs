@@ -248,7 +248,7 @@ pub(crate) async fn execute(
                 .map_err(map_client_error)?
         }
         "elasticsearch/index/shards" => {
-            let indices_owned = collect_index_strings(params);
+            let indices_owned = collect_index_strings(params)?;
             let indices_refs: Vec<&str> = indices_owned.iter().map(String::as_str).collect();
             let parts: CatShardsParts<'_> = if indices_refs.is_empty() {
                 CatShardsParts::None
@@ -442,7 +442,7 @@ async fn execute_alias_update(resource: &ElasticsearchResource, params: &Value) 
 }
 
 async fn execute_count(resource: &ElasticsearchResource, params: &Value) -> ExecResult {
-    let indices_owned = collect_index_strings(params);
+    let indices_owned = collect_index_strings(params)?;
     let indices_refs: Vec<&str> = indices_owned.iter().map(String::as_str).collect();
     let parts: CountParts<'_> = if indices_refs.is_empty() {
         CountParts::None
@@ -484,7 +484,7 @@ async fn execute_document_index(resource: &ElasticsearchResource, params: &Value
 }
 
 async fn execute_search(resource: &ElasticsearchResource, params: &Value) -> ExecResult {
-    let indices_owned = collect_index_strings(params);
+    let indices_owned = collect_index_strings(params)?;
     let indices_refs: Vec<&str> = indices_owned.iter().map(String::as_str).collect();
     let body = search_body(params)?;
 
@@ -620,8 +620,44 @@ fn doc_id(params: &Value) -> Result<String, Box<ProtocolError>> {
     Ok(id.to_owned())
 }
 
-fn collect_index_strings(params: &Value) -> Vec<String> {
-    collect_string_array(params, "indices")
+/// 目标索引集合:显式 `indices` 数组优先,单索引形态 `name` 作为回退。
+///
+/// 索引工作台的页面把路由参数绑到 provider 参数上,而路由参数是**字符串**,
+/// 构不出数组。若 provider 只认 `indices`,索引内的查询/分片就只剩
+/// 「空集合 = 全集群」这一条路 —— 也就是「明明站在某个索引里查询,却悄悄查了
+/// `_all`」。`name` 是单索引的显式范围,传了就必须合法(与其它索引方法共用
+/// `index_name` 的校验)。
+///
+/// `indices` 的元素**不**套 `index_name` 的字符校验:那是单索引标识的规则,
+/// 而数组位置允许通配表达式(`logs-2026.0?`、`logs-*`),收紧会打断既有用法。
+/// 只要求元素是非空字符串,避免把 `indices: ["a", 1]` 这类畸形输入静默吞掉。
+///
+/// 两者都缺省时返回空集合,保持既有全局调用的语义不变。
+fn collect_index_strings(params: &Value) -> Result<Vec<String>, Box<ProtocolError>> {
+    match params.get("indices") {
+        None | Some(Value::Null) => {}
+        Some(Value::Array(items)) => {
+            let mut names = Vec::with_capacity(items.len());
+            for item in items {
+                let Some(name) = item.as_str().map(str::trim).filter(|name| !name.is_empty())
+                else {
+                    return Err(invalid_params(
+                        "indices must be an array of non-empty index names",
+                    ));
+                };
+                names.push(name.to_owned());
+            }
+            if !names.is_empty() {
+                return Ok(names);
+            }
+        }
+        Some(_) => return Err(invalid_params("indices must be an array of index names")),
+    }
+    match params.get("name") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::String(_)) => Ok(vec![index_name(params)?]),
+        Some(_) => Err(invalid_params("index name must be a string")),
+    }
 }
 
 fn collect_string_array(params: &Value, key: &str) -> Vec<String> {
@@ -869,6 +905,41 @@ mod tests {
         assert!(index_name(&json!({"name": "a/b"})).is_err());
         assert!(index_name(&json!({"name": "a?b"})).is_err());
         assert!(index_name(&json!({"name": "x".repeat(257)})).is_err());
+    }
+
+    /// 索引内的查询/分片必须能把范围钉死在单个索引上。
+    ///
+    /// 回归:provider 曾经只认 `indices` 数组。索引工作台的页面把**路由参数**
+    /// (字符串)绑到 provider 参数上,构不出数组,于是点「文档」得到的是全集群
+    /// 搜索、「分片」得到的是全集群分片 —— 声明里写着索引,行为上是 `_all`。
+    #[test]
+    fn collect_index_strings_takes_single_name_and_rejects_malformed_scope() {
+        // 单索引形态(路由绑定)⇒ 一元数组。
+        assert_eq!(
+            collect_index_strings(&json!({"name": "orders-v1"})).unwrap(),
+            vec!["orders-v1".to_owned()]
+        );
+        // `indices` 优先,`name` 被忽略。
+        assert_eq!(
+            collect_index_strings(&json!({"indices": ["a", "b"], "name": "c"})).unwrap(),
+            vec!["a".to_owned(), "b".to_owned()]
+        );
+        // 数组位置允许通配表达式,不做单索引标识的字符校验。
+        assert_eq!(
+            collect_index_strings(&json!({"indices": ["logs-*", "logs-2026.0?"]})).unwrap(),
+            vec!["logs-*".to_owned(), "logs-2026.0?".to_owned()]
+        );
+        // 显式空范围仍走原有全局语义,不报错。
+        assert!(collect_index_strings(&json!({})).unwrap().is_empty());
+        assert!(collect_index_strings(&json!({"indices": []})).unwrap().is_empty());
+        assert!(collect_index_strings(&json!({"name": null})).unwrap().is_empty());
+        // 畸形输入不静默降级成空集合(= 全集群)。
+        assert!(collect_index_strings(&json!({"indices": "orders"})).is_err());
+        assert!(collect_index_strings(&json!({"indices": ["a", 1]})).is_err());
+        assert!(collect_index_strings(&json!({"indices": ["a", "  "]})).is_err());
+        assert!(collect_index_strings(&json!({"name": ""})).is_err());
+        assert!(collect_index_strings(&json!({"name": "a/b"})).is_err());
+        assert!(collect_index_strings(&json!({"name": 7})).is_err());
     }
 
     #[test]
