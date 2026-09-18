@@ -161,11 +161,7 @@ async fn stream(container: &str, cmd: Vec<String>, tty: bool) -> Result<i32, Str
         }
     });
 
-    let mut resize = if tty {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::window_change()).ok()
-    } else {
-        None
-    };
+    let mut resize = resize_watcher(tty);
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
     // 本地 stdin 一旦 EOF,就关掉远端 exec 的 stdin(半关闭),让容器内的
@@ -221,13 +217,66 @@ async fn stream(container: &str, cmd: Vec<String>, tty: bool) -> Result<i32, Str
     Ok(exit_code(&docker, &created.id).await)
 }
 
-/// 等待终端尺寸变化信号;未注册成功时永久挂起(不参与 select)。
-async fn next_resize(resize: &mut Option<tokio::signal::unix::Signal>) {
+/// 终端尺寸变化的通知源。两端形状一致,调用方(`select!` 里那一路)不分平台。
+///
+/// - Unix:内核把窗口变化转成 `SIGWINCH`,直接订阅信号最省事。
+/// - Windows:**没有**等价信号 —— ConPTY 的缩放由宿主重设伪控制台,不产生任何
+///   事件(也没有 `SIGWINCH` 可订阅),只能定时轮询控制台尺寸、变了才唤醒。
+#[cfg(unix)]
+type ResizeWatcher = tokio::signal::unix::Signal;
+
+/// Unix 侧申请尺寸变化监听;`tty` 为假或注册失败时返回 `None`。
+#[cfg(unix)]
+fn resize_watcher(tty: bool) -> Option<ResizeWatcher> {
+    if !tty {
+        return None;
+    }
+    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::window_change()).ok()
+}
+
+#[cfg(windows)]
+struct ResizeWatcher {
+    /// 上次上报的尺寸;轮询到不等时才唤醒,避免每 200ms 都白跑一次 resize。
+    last: Option<(u16, u16)>,
+}
+
+/// Windows 侧申请尺寸变化监听(轮询式),以当前尺寸为基线。
+#[cfg(windows)]
+fn resize_watcher(tty: bool) -> Option<ResizeWatcher> {
+    tty.then(|| ResizeWatcher { last: tty_size() })
+}
+
+/// Windows 侧尺寸轮询周期。200ms:人眼察觉不到延迟,开销可忽略。
+#[cfg(windows)]
+const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+/// 等待一次终端尺寸变化;未启用时永久挂起(不参与 `select!`)。
+#[cfg(unix)]
+async fn next_resize(resize: &mut Option<ResizeWatcher>) {
     match resize {
         Some(signal) => {
             signal.recv().await;
         }
         None => std::future::pending::<()>().await,
+    }
+}
+
+/// 等待一次终端尺寸变化;未启用时永久挂起(不参与 `select!`)。
+///
+/// Windows 侧退化实现:每 `RESIZE_POLL_INTERVAL` 读一次控制台尺寸,
+/// 与上次不同才返回。**不是** busy loop —— 每次都在 `sleep` 上让出。
+#[cfg(windows)]
+async fn next_resize(resize: &mut Option<ResizeWatcher>) {
+    let Some(watcher) = resize.as_mut() else {
+        return std::future::pending::<()>().await;
+    };
+    loop {
+        sleep(RESIZE_POLL_INTERVAL).await;
+        let current = tty_size();
+        if current != watcher.last {
+            watcher.last = current;
+            return;
+        }
     }
 }
 
@@ -329,20 +378,28 @@ impl Tty {
     }
 
     fn size(&self) -> Option<(u16, u16)> {
-        let mut info: CONSOLE_SCREEN_BUFFER_INFO = unsafe { std::mem::zeroed() };
-        let ok: BOOL =
-            unsafe { GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &mut info) };
-        if ok == 0 {
-            return None;
-        }
-        // `srWindow` 是**闭区间**(含两端),所以宽度要 +1。
-        let width = i32::from(info.srWindow.Right) - i32::from(info.srWindow.Left) + 1;
-        let height = i32::from(info.srWindow.Bottom) - i32::from(info.srWindow.Top) + 1;
-        if width > 0 && height > 0 {
-            Some((width as u16, height as u16))
-        } else {
-            None
-        }
+        tty_size()
+    }
+}
+
+/// 读取当前控制台窗口尺寸。
+///
+/// `srWindow` 是**闭区间**(含两端),所以宽高都要 +1。非控制台(管道/重定向)时
+/// `GetConsoleScreenBufferInfo` 失败 ⇒ `None`,与 Unix 侧 `ioctl` 失败同样处理。
+#[cfg(windows)]
+fn tty_size() -> Option<(u16, u16)> {
+    let mut info: CONSOLE_SCREEN_BUFFER_INFO = unsafe { std::mem::zeroed() };
+    let ok: BOOL =
+        unsafe { GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &mut info) };
+    if ok == 0 {
+        return None;
+    }
+    let width = i32::from(info.srWindow.Right) - i32::from(info.srWindow.Left) + 1;
+    let height = i32::from(info.srWindow.Bottom) - i32::from(info.srWindow.Top) + 1;
+    if width > 0 && height > 0 {
+        Some((width as u16, height as u16))
+    } else {
+        None
     }
 }
 
