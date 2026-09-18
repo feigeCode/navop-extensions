@@ -556,12 +556,26 @@ test("extension descriptions are bilingual, detailed, and synchronized", () => {
     assert.match(description, /[\u3400-\u9fff]/, `${metadata.id} description should include Chinese`);
     assert.match(description, /[A-Za-z]{4}/, `${metadata.id} description should include English`);
     assert.ok(description.length >= 100, `${metadata.id} description should be sufficiently detailed`);
+
+    // marketplace 条目是**发版之后**才该出现的：`extension.build.json` 里
+    // `"published": false` 表示还没有推过 tag，此时清单里若出现它，宿主就会去拉
+    // 一个 R2 上不存在的 `extensions/<slug>/manifest.json`（404）。反过来，没声明
+    // 未发布的扩展必须真的在清单里，且描述与源 manifest 逐字一致。
+    const entry = globalEntries.get(sourceManifest.id);
+    if (metadata.published === false) {
+      assert.equal(
+        entry,
+        undefined,
+        `${metadata.id} declares "published": false but still appears in the marketplace manifest`,
+      );
+      continue;
+    }
     assert.ok(
-      globalEntries.get(sourceManifest.id)?.description?.includes(language),
+      entry?.description?.includes(language),
       `${metadata.id} global manifest description should mention ${language}`,
     );
     assert.equal(
-      globalEntries.get(sourceManifest.id)?.description,
+      entry?.description,
       description,
       `${metadata.id} global manifest description should match its source manifest`,
     );
@@ -1114,7 +1128,7 @@ test("Windows x86 backfill matrix resolves every supported published extension",
   );
   const matrix = JSON.parse(output);
 
-  assert.equal(matrix.include.length, 19);
+  assert.equal(matrix.include.length, 17);
   assert.deepEqual(
     matrix.include.map((entry) => entry.extension),
     [
@@ -1122,7 +1136,6 @@ test("Windows x86 backfill matrix resolves every supported published extension",
       "codex-acp",
       "dm",
       "duckdb",
-      "elasticsearch",
       "iotdb",
       "kingbase",
       "mongodb-legacy",
@@ -1135,7 +1148,6 @@ test("Windows x86 backfill matrix resolves every supported published extension",
       "oracle-go",
       "rdp",
       "redis",
-      "rocketmq",
       "vnc",
     ],
   );
@@ -4319,9 +4331,12 @@ test("repository manifest is maintained as a lightweight marketplace index", () 
     ),
   );
   const bundledLanguageIds = new Set(bundleManifest.languages || []);
+  // `"published": false` 的扩展还没发版，R2 上还没有它的 plugin manifest，因此
+  // 不该出现在市场索引里（上面的 description 同步测试负责反向断言）。
   const entriesById = new Map(
     extensionBuildEntries()
       .filter((entry) => !bundledLanguageIds.has(entry.id))
+      .filter((entry) => entry.published !== false)
       .map((entry) => [entry.id, entry]),
   );
 
@@ -4343,6 +4358,10 @@ test("repository manifest is maintained as a lightweight marketplace index", () 
   for (const entry of manifest.extensions) {
     const artifactSlug = entry.manifest.split("/")[0];
     const buildEntry = entriesById.get(artifactSlug);
+    assert.ok(
+      buildEntry,
+      `${artifactSlug} is listed in the marketplace manifest but never declared as published`,
+    );
     const sourceManifest = JSON.parse(
       fs.readFileSync(path.join(repoRoot, buildEntry.path, manifestFileForKind(entry.kind)), "utf8"),
     );

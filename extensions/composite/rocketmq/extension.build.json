@@ -14,5 +14,6 @@
     "i686-pc-windows-msvc"
   ],
   "releaseTagPrefix": "rocketmq-v",
-  "r2Prefix": "extensions/rocketmq"
+  "r2Prefix": "extensions/rocketmq",
+  "published": false
 }

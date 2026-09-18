@@ -342,6 +342,26 @@ upload workflow serializes marketplace publication, uploads that plugin manifest
 to R2 at `extensions/<id>/manifest.json`, and uploads the committed root
 `manifest.json` to R2 at `extensions/manifest.json` with `no-cache`.
 
+An entry belongs in the root `manifest.json` only once the extension has actually
+been released: the host resolves every entry to `extensions/<slug>/manifest.json`
+on R2, and that object does not exist until a release has uploaded it. An entry
+for an unreleased extension therefore shows up in the marketplace as an install
+that cannot resolve. `extension.build.json` records the release state:
+
+```json
+{
+  "id": "elasticsearch",
+  "releaseTagPrefix": "elasticsearch-v",
+  "r2Prefix": "extensions/elasticsearch",
+  "published": false
+}
+```
+
+`"published": false` means the extension has not been released yet and must not be
+listed in the root `manifest.json`. An extension without the flag is expected to be
+listed, with a description identical to its `extension.json`. `tests/scripts.test.mjs`
+enforces both directions.
+
 The global marketplace entry is schema v2 and contains metadata plus a manifest
 path, not artifact files or download URLs:
 

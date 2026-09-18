@@ -6,5 +6,6 @@
   "path": "extensions/composite/dev-tools",
   "targets": ["universal"],
   "releaseTagPrefix": "dev-tools-v",
-  "r2Prefix": "extensions/dev-tools"
+  "r2Prefix": "extensions/dev-tools",
+  "published": false
 }

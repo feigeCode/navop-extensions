@@ -14,5 +14,6 @@
     "i686-pc-windows-msvc"
   ],
   "releaseTagPrefix": "elasticsearch-v",
-  "r2Prefix": "extensions/elasticsearch"
+  "r2Prefix": "extensions/elasticsearch",
+  "published": false
 }

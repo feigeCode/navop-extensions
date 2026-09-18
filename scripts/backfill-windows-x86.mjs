@@ -47,9 +47,16 @@ function writeMatrix(selector) {
     ]),
   );
   const include = [];
+  const unpublished = new Set();
 
   for (const metadata of loadAllExtensionMetadata()) {
     if (!metadata.targets.includes(windowsX86Target)) continue;
+    // Unpublished extensions are not listed in the marketplace manifest yet, so
+    // there is no release whose missing x86 artifact could be backfilled.
+    if (metadata.published === false) {
+      unpublished.add(metadata.id);
+      continue;
+    }
     if (selector !== "all" && metadata.id !== selector) continue;
 
     const release = releasesById.get(metadata.id);
@@ -71,6 +78,9 @@ function writeMatrix(selector) {
 
   include.sort((left, right) => left.extension.localeCompare(right.extension));
   if (include.length === 0) {
+    if (selector !== "all" && unpublished.has(selector)) {
+      throw new Error(`${selector} is not published yet, nothing to backfill`);
+    }
     throw new Error(
       selector === "all"
         ? `no extensions declare ${windowsX86Target}`

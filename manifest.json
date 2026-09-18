@@ -13,26 +13,6 @@
       "manifest": "docker/manifest.json"
     },
     {
-      "id": "com.navop.elasticsearch",
-      "kind": "composite",
-      "name": "Elasticsearch 9",
-      "version": "0.1.0",
-      "release_tag": "elasticsearch-v0.1.0",
-      "description": "面向 Elasticsearch 9.x 的原生 Rust SDK 管理扩展，支持集群概览、索引浏览/管理、文档搜索、别名维护与异步任务。 Native Rust SDK extension for Elasticsearch 9.x with cluster overview, index management, document search, alias maintenance, and asynchronous jobs.",
-      "file_extensions": [],
-      "manifest": "elasticsearch/manifest.json"
-    },
-    {
-      "id": "com.navop.devtools",
-      "kind": "composite",
-      "name": "开发者工具",
-      "version": "0.1.0",
-      "release_tag": "dev-tools-v0.1.0",
-      "description": "Navop 扩展开发工作台（Static 静态复合扩展，无原生二进制）：加载本地工程目录、打开或重载扩展视图、查看 manifest 校验错误。 Navop extension development workbench, a Static composite extension with no native binary: load local extension projects, open or reload extension views, and inspect manifest validation errors.",
-      "file_extensions": [],
-      "manifest": "dev-tools/manifest.json"
-    },
-    {
       "id": "com.navop.middleware.mqtt",
       "kind": "composite",
       "name": "MQTT",
@@ -41,16 +21,6 @@
       "description": "MQTT 3.1.1 客户端工作台（Rust 原生 provider）：连接概览、订阅管理、实时/历史消息浏览、消息发布、TLS 与遗嘱配置。 Native Rust MQTT 3.1.1 client workbench: connection overview, subscription management, live/history message browser, publisher, TLS and last-will support.",
       "file_extensions": [],
       "manifest": "mqtt/manifest.json"
-    },
-    {
-      "id": "com.navop.middleware.rocketmq",
-      "kind": "composite",
-      "name": "RocketMQ",
-      "version": "0.1.0",
-      "release_tag": "rocketmq-v0.1.0",
-      "description": "RocketMQ 中间件管理扩展（Rust 原生 provider）：Remoting 私有协议直连 NameServer/Broker，提供集群概览、Topic 管理、订阅组与客户端、消息查询与发送、协议错误处理与 admin 操作。 Native Rust RocketMQ middleware extension speaking the Remoting protocol directly to NameServer/Broker, with cluster overview, topic management, consumer groups and clients, message query and send, protocol error handling, and admin operations.",
-      "file_extensions": [],
-      "manifest": "rocketmq/manifest.json"
     },
     {
       "id": "dm",

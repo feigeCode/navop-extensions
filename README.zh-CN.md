@@ -304,6 +304,23 @@ Release workflow 成功后，上传 workflow 会串行执行市场发布，把�
 R2 的 `extensions/<id>/manifest.json`，再把已提交的根目录 `manifest.json` 用
 `no-cache` 上传到 R2 的 `extensions/manifest.json`。
 
+条目要在扩展**真正发版之后**才写进根目录 `manifest.json`：宿主会把每个条目解析成 R2 上的
+`extensions/<slug>/manifest.json`，而这个对象只有在某次发布上传过它之后才存在。所以未发版
+扩展的条目在客户端看来就是一个装不上的市场项。发版状态记在 `extension.build.json` 里：
+
+```json
+{
+  "id": "elasticsearch",
+  "releaseTagPrefix": "elasticsearch-v",
+  "r2Prefix": "extensions/elasticsearch",
+  "published": false
+}
+```
+
+`"published": false` 表示该扩展尚未发版，根目录 `manifest.json` 里不能出现它；不带这个字段的
+扩展则必须出现在清单里，且描述与它的 `extension.json` 逐字一致。两个方向都由
+`tests/scripts.test.mjs` 守卫。
+
 全局市场条目使用 schema v2，只记录扩展元数据和插件 manifest 路径，不记录 artifact
 文件和下载 URL。DuckDB 条目示例：
 
