@@ -132,7 +132,10 @@
   4. 实时消息 `live`（**原生流页**：`renderer.kind: "native"` + `load.operation: messageStream` + `stack: [{"kind": "stream"}]`，无 `shellViews` 条目、无 `ui/*.js`）。宿主 `subscribe_events` 长轮询 provider 的 `middleware/message/stream`，事件按标准消息模型逐条追加，页头带 `N events` / `N dropped` / `Closed` 徽章与 Clear/Stop。**这是四个扩展里唯一声明 stream 原语的页**；它与 `ui/messages.js` 的分工：前者是 provider 推送的实时流（丢事件有 dropped 计数），后者是本地环形缓冲的窗口查询（可回看、可按关键字过滤）。
   5. 发布 `ui/publish.js`（`publish` 操作，QoS/Retain/格式编码，发送历史回填与重发）。
   连接表单新增：`use_tls`、`clean_session`、`auto_subscribe`（空串不自动订阅）、遗嘱 `will_topic/will_payload/will_qos/will_retain`。
-- **已知实现缺口**：RocketMQ 的「消息查询」页仍缺（provider 侧 `middleware/message/query` 已就绪）；RocketMQ 发布页未声明 `fallback: "native"`；RocketMQ 「订阅组」页只到列表 + 详情，客户端表（`clients`）按其能力位为 false 属预期缺失。
+- **已知实现缺口**：MQTT 侧目前没有 —— 四个 shell 页 + 原生流页都声明了 `fallback: "native"`。
+  （RocketMQ 那一侧另有自己的缺口清单，见 `rocketmq/docs/middleware-standard.md`；
+  2026-09-18 之前本节写的「RocketMQ 消息查询页仍缺 / 发布页未声明 fallback / 客户端表能力位为 false」
+  三条**全部已不成立**，不要再从这里抄 RocketMQ 的状态。）
 
 ### 5.2 「实时消息」页约定（页面原语 `{"kind": "stream"}`）
 
