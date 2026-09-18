@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::{Component, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use bollard::{
     Docker,
@@ -1731,18 +1736,41 @@ fn text<'a>(config: &'a Value, key: &str) -> Option<&'a str> {
         .filter(|value| !value.is_empty())
 }
 
-/// 把 `~/.docker` 之类的证书目录展开为绝对路径。
-fn expand_dir(value: &str) -> Result<PathBuf, Box<ProtocolError>> {
-    let path = if let Some(relative) = value.strip_prefix("~/") {
-        let home = std::env::var("HOME").map_err(|_| invalid("HOME is unavailable"))?;
-        format!("{home}/{relative}")
-    } else {
-        value.to_owned()
+/// 用户主目录。Unix 看 `HOME`;Windows 看 `USERPROFILE`(退回 `HOMEDRIVE`+`HOMEPATH`)。
+///
+/// 两边都得能取到:证书目录的默认值就是 `~/.docker`,Windows 上只认 `HOME` 的话
+/// 每次都会直接报错。
+fn home_dir() -> Result<String, Box<ProtocolError>> {
+    let lookup = |key: &str| {
+        std::env::var(key)
+            .ok()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
     };
-    if !path.starts_with('/') || path.contains("..") {
+    lookup("HOME")
+        .or_else(|| lookup("USERPROFILE"))
+        .or_else(|| Some(format!("{}{}", lookup("HOMEDRIVE")?, lookup("HOMEPATH")?)))
+        .ok_or_else(|| invalid("home directory is unavailable (HOME / USERPROFILE)"))
+}
+
+/// 把 `~/.docker` 之类的证书目录展开为绝对路径。
+///
+/// 绝对性用 `Path::is_absolute()`,**不**手写 `starts_with('/')` —— 后者会把 Windows
+/// 的 `C:\certs` 与 UNC 路径全判死,而 TLS 正是 Windows 侧唯一可用的连接方式。
+/// `is_absolute()` 的语义按**编译目标**决定(Unix 认 `/…`,Windows 认盘符与 UNC),
+/// 正是这里要的。
+fn expand_dir(value: &str) -> Result<PathBuf, Box<ProtocolError>> {
+    let path = match value
+        .strip_prefix("~/")
+        .or_else(|| value.strip_prefix("~\\"))
+    {
+        Some(relative) => PathBuf::from(home_dir()?).join(relative),
+        None => PathBuf::from(value),
+    };
+    if !path.is_absolute() || path.components().any(|part| part == Component::ParentDir) {
         return Err(invalid("certificate directory must be an absolute path"));
     }
-    Ok(PathBuf::from(path))
+    Ok(path)
 }
 
 /// 把 `unix://` socket 串展开为绝对路径(只给 unix 用,见 `DockerTarget::local_socket`)。
@@ -1752,8 +1780,7 @@ fn expand_socket(value: &str) -> Result<String, Box<ProtocolError>> {
         .strip_prefix("unix://")
         .ok_or_else(|| invalid("only unix:// sockets are supported"))?;
     if let Some(relative) = path.strip_prefix("~/") {
-        let home = std::env::var("HOME").map_err(|_| invalid("HOME is unavailable"))?;
-        return Ok(format!("{home}/{relative}"));
+        return Ok(format!("{}/{}", home_dir()?, relative));
     }
     if !path.starts_with('/') || path.contains("..") {
         return Err(invalid("socket must be an absolute path"));
@@ -1795,6 +1822,18 @@ fn closed() -> Box<ProtocolError> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// 证书目录的绝对性由**编译目标**决定:Unix 认 `/…`,Windows 认盘符/UNC。
+    /// 测试里别写死 unix 风格路径,否则换到 Windows 目标跑测试必挂。
+    #[cfg(unix)]
+    const ABS_CERT_DIR: &str = "/etc/docker/certs";
+    #[cfg(windows)]
+    const ABS_CERT_DIR: &str = r"C:\docker\certs";
+
+    #[cfg(unix)]
+    const ABS_CERT_DIR_SHORT: &str = "/certs";
+    #[cfg(windows)]
+    const ABS_CERT_DIR_SHORT: &str = r"C:\certs";
 
     fn bucket(params: Value) -> ResourceInvokeParams {
         ResourceInvokeParams {
@@ -2007,18 +2046,37 @@ mod tests {
             "mode": "remote",
             "tcp_host": "docker.example.com",
             "secure": "tls",
-            "cert_dir": "/etc/docker/certs"
+            "cert_dir": ABS_CERT_DIR
         }))
         .unwrap();
         assert_eq!(target.cli_host, "tcp://docker.example.com:2376");
         assert!(target.tls);
-        assert_eq!(target.tls_cert_dir, "/etc/docker/certs");
+        assert_eq!(target.tls_cert_dir, ABS_CERT_DIR);
         let Endpoint::Https { ca, cert, key, .. } = target.endpoint else {
             panic!("TLS target must use https endpoint");
         };
-        assert_eq!(ca, PathBuf::from("/etc/docker/certs/ca.pem"));
-        assert_eq!(cert, PathBuf::from("/etc/docker/certs/cert.pem"));
-        assert_eq!(key, PathBuf::from("/etc/docker/certs/key.pem"));
+        assert_eq!(ca, PathBuf::from(ABS_CERT_DIR).join("ca.pem"));
+        assert_eq!(cert, PathBuf::from(ABS_CERT_DIR).join("cert.pem"));
+        assert_eq!(key, PathBuf::from(ABS_CERT_DIR).join("key.pem"));
+    }
+
+    #[test]
+    fn expand_dir_accepts_platform_absolute_and_rejects_traversal() {
+        assert_eq!(
+            expand_dir(ABS_CERT_DIR).unwrap(),
+            PathBuf::from(ABS_CERT_DIR)
+        );
+
+        // `~/` 要展开成本平台的主目录(sys 的 `home_dir` 不适用,这里自己查 HOME /
+        // USERPROFILE)—— 证书目录默认值就是 `~/.docker`,Windows 上这一步过去必错。
+        let expanded = expand_dir("~/.docker").unwrap();
+        assert!(expanded.is_absolute(), "{expanded:?}");
+        assert!(expanded.ends_with(".docker"), "{expanded:?}");
+
+        // 相对路径、显式 `./`、以及 `..` 穿越都要拒。
+        assert!(expand_dir("certs").is_err());
+        assert!(expand_dir("./certs").is_err());
+        assert!(expand_dir("/certs/../etc").is_err());
     }
 
     #[test]
@@ -2084,15 +2142,15 @@ mod tests {
         let tls = DockerTarget::from_env_vars(env_from(&[
             ("DOCKER_HOST", "tcp://10.0.0.3:2376"),
             ("DOCKER_TLS_VERIFY", "1"),
-            ("DOCKER_CERT_PATH", "/certs"),
+            ("DOCKER_CERT_PATH", ABS_CERT_DIR_SHORT),
         ]))
         .unwrap();
         assert!(tls.tls);
-        assert_eq!(tls.tls_cert_dir, "/certs");
+        assert_eq!(tls.tls_cert_dir, ABS_CERT_DIR_SHORT);
         let Endpoint::Https { ca, .. } = tls.endpoint else {
             panic!("TLS env must use https endpoint");
         };
-        assert_eq!(ca, PathBuf::from("/certs/ca.pem"));
+        assert_eq!(ca, PathBuf::from(ABS_CERT_DIR_SHORT).join("ca.pem"));
 
         // 缺 DOCKER_HOST、以及 TLS 缺证书目录,都要报错。
         assert!(DockerTarget::from_env_vars(env_from(&[])).is_err());
