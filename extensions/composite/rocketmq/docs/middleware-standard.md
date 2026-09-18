@@ -115,7 +115,7 @@
 | 适用 | 中间件四类（mqtt/rocketmq/elasticsearch/docker）等有 provider 的重型连接 | 纯 JS 小工具、无需 provider 的自定义连接 UI |
 
 - 原 `MiddlewareConsole`（`ui/console/base.js` + 实现扩展的 `ui/console.js` 薄壳）承载的四页能力已**提升为标准契约**，见 §5.3；MQTT/RocketMQ 已声明工作台，故不再保留这两个文件（它们的 `shellViewId` 与 `shellViews.console` 已移除）。新增**纯 JS** 实现若要照抄该四页，按 §5.3 的字段契约实现即可，不必复活共享库。
-- **硬约束**：`renderer.kind = "shell"` 的**工作台页**若未声明 `fallback: "native"`，在未开 `shell-plugins` 的构建里会渲染错误块 *"Shell renderer is unavailable in this build"*（`resource_view::mount_shell_page` 取不到 host）；写了 `fallback` 才会退回该页的原生 `template` 渲染。MQTT/RocketMQ 的发布页是嵌入式 shell 页（`viewId: "send-message"`）且未写 `fallback`，只在开启 `shell-plugins` 的产物里可见。
+- **硬约束**：`renderer.kind = "shell"` 的**工作台页**若未声明 `fallback: "native"`，在未开 `shell-plugins` 的构建里会渲染错误块 *"Shell renderer is unavailable in this build"*（`resource_view::mount_shell_page` 取不到 host）；写了 `fallback` 才会退回该页 `stack` 里的原生原语。**实现扩展的嵌入式 shell 页现已全部声明 `fallback: "native"`**（MQTT 的概览/订阅退化为 metrics/collection 表；RocketMQ 的三个 shell 页退化为 `clusterOverview`/`listTopics` 的 JSON 视图）⇒ 未开 `shell-plugins` 的构建里页面仍可打开，只是外观退化。
 - **不要用 `surface` 之外的规则判断「独立工具」**：工具箱（`catalog::toolbox_views`）列出的是**没有被任何入口占用**的 shell 视图 —— 排除「连接 `shellViewId` 引用」「工作台页面 `renderer.viewId` 引用」「声明了 `workbench` 模块」三类。工作台页体只声明 `context` + `workbench`，独立打开时宿主必然报 *"navop.workbench requires a borrowed resource-workbench session"*，**不得把它当成独立工具暴露**。
 
 ### 5.1 工作台声明约定
@@ -125,11 +125,18 @@
 - `params` 的取值来源：`input`（页面输入，走 `inputs[*].id`，支持覆盖路径如 `/properties`）、`route`、`selection`（表格行）、`literal`；`type` 支持 `string`/`number`/`json`。
 - 页面模板（`pages[*].template`）：`json`（键值/JSON 视图）、`collection`（表格 + 行操作 + 分页）、`detail`、`query`（输入表单 + 执行）、`stream`（原语 `{"kind": "stream"}`，实时事件流，见 §5.2）、`tasks`、`terminal`。`renderer.kind = "native"` 用宿主渲染，`"shell"` 挂 QuickJS 视图（`viewId` 对应 `shellViews[*].id`），可配 `fallback: "native"`。
 - 页面 tab 组：同一组的每个页面都声明**完整** `tabs` 列表（`{id, title, pageId, route}`），宿主按 `pageId == 当前页` 判定高亮。MQTT 的发布/订阅四页共用一组：Topics / Subscribe / Live Messages / Send Message。
-- 参考实现（MQTT）：概览（`metrics` + 集群拓扑，对应 §5.3 概览页）、订阅列表（`collection`，列 = Topic Filter/Type/QoS，行操作 Unsubscribe；MQTT 里「Topic」即订阅，见 §3.2）、订阅详情、订阅表单（`query`，输入 topic + QoS 下拉）、**实时消息**（`events`，§5.2）、发布（`shell` 页，`viewId: "send-message"`）、客户端（`group/clients` with `group = "local"`）。
-- **已知实现缺口**（按 §5.3 契约补齐）：
-  1. MQTT 与 RocketMQ 都还没有「消息查询」页（provider 侧 `middleware/message/query` 已就绪，缺 `query` 模板页声明）。
-  2. 两边的「发布」页都是 `renderer.kind = "shell"` 且**未声明 `fallback: "native"`**：开启 `shell-plugins` 的产物里正常渲染；但 `--no-default-features` 自建构建里会显示 *"Shell renderer is unavailable in this build"*。补一行 `fallback: "native"` 即可让该页在所有构建下都可打开（退化为原生 `query`/`json` 渲染，见 §5 硬约束）。
-  3. RocketMQ 的「订阅组」页只到列表 + 详情，客户端表（`clients`）按其能力位为 false 属预期缺失。
+- 参考实现（RocketMQ，v0.2 起为客户端式工作台：三个 `shell` 页 + 八个原生页 + `list` 导航）：
+  1. 概览 `ui/overview.js`（`metrics` + `clusterOverview` 并发拉取，5s 自动刷新；指标卡片 + 集群/Broker 拓扑表；带 `fallback: "native"`，退化为 `clusterOverview` 的 JSON 视图）。
+  2. 主题 `topics`（原生 `table`：Topic/类型/队列数/权限/消息量，行点击进详情、行内 Delete）+ `topic-detail`（原生 `table`：broker/queue_id/min_offset/max_offset/last_update，links = 全部主题 / 重置消费位点）+ `create-topic` / `update-topic`（原生表单：topic / queue_count / perm 三字段）。provider 侧 CREATE 与 UPDATE 是同一个 Remoting 请求码（`UPDATE_AND_CREATE_TOPIC`），即 upsert 语义，所以两个页只是入口语义不同。
+  3. 订阅组 `groups`（原生 `table`：订阅组/在线客户端/消费类型/消息模型/TPS/堆积量/版本，行点击进详情）+ `group-detail`（原生 `table`：topic/broker/queue_id/broker_offset/consumer_offset/diff）+ `group-clients`（原生 `table`：客户端 ID/地址/语言/版本/订阅 Topic，走 `middleware/group/clients`；该能力位 RocketMQ 一直是 `true`）。
+  4. 消息查询 `ui/messages.js`：模式选择（时间窗口 / Message Key / Message ID）+ 条件表单 + 结果列表 + 行内详情。三种模式各自绑定到一个工作台操作（`queryByTimeWindow` / `queryByKey` / `queryById`）—— 操作的 `params` 是静态映射，没法在运行期按输入切换 `MessageQuery` 的 tagged 变体。时间窗口支持预设跨度与自定义区间（`YYYY-MM-DD HH:mm` 或 Unix 毫秒，非法输入**就地拦截、不派发请求**），页大小 10/20/50，翻页按 `MessagePage.has_more` 控制。**进入页面不自动查询**（§5.3）。
+  5. 发送 `ui/send-message.js`：Topic 输入 + 已有 Topic 下拉（`listTopics`，拉不到时静默降级为纯输入）+ Tag/Key + 消息体 + 发送历史回填。`effect: "write"` 的确认交给宿主的 `dispatch(..., { confirmed: true })`，页面不再自己做二次点击确认（旧版要求点两次才发出）。
+  6. 重置消费位点 `reset-offset`（原生表单：group/topic/timestamp，`rocketmq/consumer/reset-offset`）。
+  能力位九项全开，标准 §3 除实时流（§3.1）之外的 13 个方法全部在工作台里有对应入口。**宿主 `table` 原语的行 `open`/`actions` 与页头 `links` 已足够表达市面客户端的导航**，所以左栏是扁平 `list`（概览/主题/订阅组/消息查询/发送消息），创建/更新/重置这类"表单页"挂在上游列表页或详情页的 `links` 上，不再堆进左栏。
+- **已知实现缺口**：
+  1. 消息轨迹（Trace）、向指定消费组重投消息、消费组增删改、Broker 运行状态（CPU/内存/磁盘）需要 provider 侧新增 Remoting 命令，本轮未做。
+  2. `MessagePage.total` 在时间窗口模式下是**本页返回条数**，不是全量总数（RocketMQ 的时间范围查询不返回总数）；`has_more` 也偏宽松（本页非空即为真）⇒ 界面用"本页 N 条"，并在空页时禁用「下一页」。
+  3. 重置消费位点的 `timestamp` 非法字符串在 provider 侧会被当作"缺省 ⇒ 当前时刻"（`server/resource.rs` 的解析分支）。工作台表单已就地拦截非法输入，但直接调用 `rocketmq/consumer/reset-offset` 仍可能静默重置到最新位点 —— 建议后续把解析失败改成 `配置错误:` 返回。
 
 ### 5.2 「实时消息」页约定（页面原语 `{"kind": "stream"}`）
 
@@ -200,15 +207,20 @@
 
 `renderer.kind = "shell"` 的页面是**正常可用**的页面承载方式（不是废弃对象），在开启 `shell-plugins` 的产物里正常加载。唯一的构建约束来自 §5 硬约束：未开该 feature 的自建构建（如 `--no-default-features`）里取不到 host，此时**只有**声明了 `fallback: "native"` 才会退回该页的原生 `template` 渲染，否则显示错误块。参考实现见同仓 docker 扩展（5 个 shell 页全部带 `fallback: "native"`）。
 
-- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Select`、`Switch`、`Badge`、`Button`、`chart`、`description_list`、`virtual_list` 等。
-- 运行时 API 要点：`InputState.new({value, placeholder})` + `Input.new(state)`（placeholder 只能在 `InputState.new` 设置，`Input` 元素无该方法）；`Select(id, rowsFn, renderRowFn, onSelect)` 与 `DataTable(state, rowsFn, cellFn)`、`DataTableState(columns)`、`Badge()` 均为位置参数或 nullary 构造；`navop.context.current()`、`navop.resource.invoke`、`navop.blob.read/close`。
+- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Textarea`/`TextareaState`、`Select`、`Switch`、`Badge`、`Tag`、`Button`、`chart`、`description_list`、`virtual_list` 等。
+- 运行时 API 要点（照抄现有实现，别按记忆写）：
+  - 布局原语与输入状态来自 `gpui-base`（`h_flex` / `v_flex` / `InputState` / `TextareaState`），**元素与组件来自 `gpui-component`**：`InputState.new({value, placeholder})` + `new Input(state)`、`TextareaState.new({value, placeholder, rows})` + `new Textarea(state)`。placeholder 只能在 `*State.new` 里设置。
+  - 组件构造：`Select(id, rowsFn, renderRowFn, onSelect)`（行对象约定 `{id, label}`，`onSelect` 收到 `id`）、`Tag()` / `Badge()` / `Spinner()` 为 nullary 构造；`Button(id)` 的 id 是**构造期必填**。
+  - 数据通道：嵌入式页只拿到 `navop.context` 与 `navop.workbench`（清单声明面），**没有** `navop.event` / `navop.resource` / `navop.job` / `navop.blob` ⇒ 数据一律 `dispatch(operationId, input, opts)`。`mode: "job"` 的操作由宿主在 `dispatch` 内部轮询到结束才返回，页面不要自己写轮询；`effect` 非 `read` 的操作传 `{confirmed: true}` 让宿主弹确认。
 - 布局硬规则（都是**静默**故障——页面照常渲染、不报错，只是少了东西）：
   1. **`Select` 必须包在定宽容器里**：`div().w(200).flex_shrink_0().child(new Select(...))`。`Select` 的根是 shell 对 `div` 的 `RenderOnce` 包装，自带整行宽度；裸着当行子元素会让同行的 `div().flex_1()` 拿到 0 基准宽、没有剩余空间可 grow ⇒ 输入框整块消失，或者把不可收缩的兄弟（标题、按钮）挤出可视区。
   2. **`h_flex()` 默认 `items_center`**：整页的行要么在行上声明 `items_stretch()`，要么每个列自己声明 `h_full()`，否则两列都会按内容高度居中塌成一行。
-  3. **颜色只能是主题色或 `#hex`**：元素样式取 `cx.theme().colors.*`，组件 prop 只认 Tailwind 名/`#hex`；`"muted"` 这类 token 名会让整个 view 渲染失败。
-
-  三条各有对应守卫测试（`tests/scripts.test.mjs` 的 `extension UI rows size every Select...` / `...declare h_full` / `...never bare token names`），新增页面时按测试名字自查即可。
-- 数据解包：`navop.resource.invoke` 返回 `ResultRef`，inline 取 `.value`、blob 走 `navop.blob.read/close`（协议见开发指南 §9.3）。发送消息时 body 必须是**字节数组**：`Array.from(Buffer.from(text))`（`Buffer` 来自内置 `buffer` 模块，见 `mqtt/ui/send-message.js`）。
+  3. **颜色只能是主题色或 `#hex`**：元素样式取 `cx.theme().colors.*`，组件 prop 只认 Tailwind 名/`#hex`；`"muted"` 这类 token 名会让整个 view 渲染失败。`cx.theme().colors` 本身是 gpui-base 的 18 个 ColorTokens 闭集（`background/foreground/surface/…/selection`），组件库自己的主题名（`list_active`、`table_hover`）在这里是 nil。
+  4. **定宽窗格里的长文本要省略**：盒子默认 `overflow: visible` 且 `whitespace_nowrap()` 不设 `text_overflow` ⇒ 定宽列里的长 ID/地址会画到隔壁列上。用 `.truncate()`（或 `text_ellipsis_start/middle`）；列表区要滚动就写 `overflow_y_scroll()`，`min_h_0()` 只让区域可压缩、既不裁剪也不滚动。
+  5. **输入校验的文案要对上原因**：RocketMQ 消息查询页把"缺 Topic / 缺 Key"与"时间格式非法"分开提示，非法输入**就地拦截、不派发请求**；错误文案用 `destructive` 上色、普通状态用 `muted_foreground`。
+  这五条各有对应守卫测试（`tests/scripts.test.mjs` 的 `extension UI rows size every Select...` / `...declare h_full` / `...never bare token names` / `nowrap text inside a fixed-width pane...`），新增页面时按测试名字自查即可。
+- 纯逻辑单独成模块：`ui/message-model.js`（时间解析、查询载荷构造、消息整形）**不 import 任何 shell 模块**，因此能被 `tests/ui/message-model.test.mjs` 在 node 下直接跑；仓级守卫 *"extension node tests are discovered and actually executed"* 会真正执行它（在测试里 `execFileSync(node --test …)` 必须剥掉 `NODE_TEST_CONTEXT`，否则子进程以 0 退出、失败用例永远不报）。写页面逻辑时把可测的部分抽到这一层，别塞进 `render()`。
+- 数据解包：`dispatch` 的返回值按操作语法直接就是结果对象（如 `MessagePage` 的 `messages`），不需要再解 `ResultRef`。发送消息时 body 必须是**字节数组**：`Array.from(Buffer.from(text, "utf8"))`（`Buffer` 来自内置 `buffer` 模块，见 `rocketmq/ui/send-message.js`）。
 
 ## 6. 打包与发布
 

@@ -147,6 +147,14 @@
         "resourceType": "middleware",
         "defaultPage": "overview",
         "operations": {
+          "metrics": {
+            "mode": "invoke",
+            "method": "middleware/metrics",
+            "requires": [
+              "middleware/metrics"
+            ],
+            "effect": "read"
+          },
           "clusterOverview": {
             "mode": "invoke",
             "method": "middleware/cluster/overview",
@@ -178,6 +186,71 @@
               }
             }
           },
+          "createTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/create",
+            "requires": [
+              "middleware/topic/create"
+            ],
+            "effect": "write",
+            "params": {
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "queue_count": {
+                "source": "input",
+                "path": "/queue_count",
+                "type": "number"
+              },
+              "perm": {
+                "source": "input",
+                "path": "/perm",
+                "type": "string"
+              }
+            }
+          },
+          "updateTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/update",
+            "requires": [
+              "middleware/topic/update"
+            ],
+            "effect": "write",
+            "params": {
+              "topic": {
+                "source": "input",
+                "path": "/topic",
+                "type": "string"
+              },
+              "queue_count": {
+                "source": "input",
+                "path": "/queue_count",
+                "type": "number"
+              },
+              "perm": {
+                "source": "input",
+                "path": "/perm",
+                "type": "string"
+              }
+            }
+          },
+          "deleteTopic": {
+            "mode": "invoke",
+            "method": "middleware/topic/delete",
+            "requires": [
+              "middleware/topic/delete"
+            ],
+            "effect": "destructive",
+            "params": {
+              "topic": {
+                "source": "selection",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
           "listGroups": {
             "mode": "invoke",
             "method": "middleware/group/list",
@@ -201,38 +274,63 @@
               }
             }
           },
-          "createTopic": {
+          "groupClients": {
             "mode": "invoke",
-            "method": "middleware/topic/create",
+            "method": "middleware/group/clients",
             "requires": [
-              "middleware/topic/create"
+              "middleware/group/clients"
             ],
-            "effect": "write",
+            "effect": "read",
             "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
+              "group": {
+                "source": "route",
+                "path": "/group",
                 "type": "string"
-              },
-              "queueCount": {
-                "source": "input",
-                "path": "/queueCount",
-                "type": "number"
               }
             }
           },
-          "deleteTopic": {
+          "queryByTimeWindow": {
             "mode": "invoke",
-            "method": "middleware/topic/delete",
+            "method": "middleware/message/query",
             "requires": [
-              "middleware/topic/delete"
+              "middleware/message/query"
             ],
-            "effect": "destructive",
+            "effect": "read",
             "params": {
-              "topic": {
-                "source": "selection",
-                "path": "/name",
-                "type": "string"
+              "ByTimeWindow": {
+                "source": "input",
+                "path": "/ByTimeWindow",
+                "type": "json"
+              }
+            }
+          },
+          "queryByKey": {
+            "mode": "invoke",
+            "method": "middleware/message/query",
+            "requires": [
+              "middleware/message/query"
+            ],
+            "effect": "read",
+            "params": {
+              "ByKey": {
+                "source": "input",
+                "path": "/ByKey",
+                "type": "json"
+              }
+            }
+          },
+          "queryById": {
+            "mode": "invoke",
+            "method": "middleware/message/query",
+            "requires": [
+              "middleware/message/query"
+            ],
+            "effect": "read",
+            "params": {
+              "ById": {
+                "source": "input",
+                "path": "/ById",
+                "type": "json"
               }
             }
           },
@@ -295,9 +393,11 @@
         "pages": [
           {
             "id": "overview",
-            "title": "Overview",
+            "title": "概览",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "overview",
+              "fallback": "native"
             },
             "load": {
               "operation": "clusterOverview"
@@ -311,13 +411,25 @@
           },
           {
             "id": "topics",
-            "title": "Topics",
+            "title": "主题",
             "renderer": {
               "kind": "native"
             },
             "load": {
               "operation": "listTopics"
             },
+            "links": [
+              {
+                "title": "新建主题",
+                "pageId": "create-topic",
+                "route": {}
+              },
+              {
+                "title": "更新主题",
+                "pageId": "update-topic",
+                "route": {}
+              }
+            ],
             "stack": [
               {
                 "kind": "table",
@@ -337,27 +449,27 @@
                   },
                   {
                     "id": "type",
-                    "title": "Type",
+                    "title": "类型",
                     "path": "/topic_type",
                     "type": "display",
                     "style": "badge"
                   },
                   {
                     "id": "queues",
-                    "title": "Queues",
+                    "title": "队列数",
                     "path": "/queue_count",
                     "type": "display"
                   },
                   {
                     "id": "perm",
-                    "title": "Perm",
+                    "title": "权限",
                     "path": "/perm",
                     "type": "display",
                     "style": "muted"
                   },
                   {
                     "id": "messages",
-                    "title": "Messages",
+                    "title": "消息量",
                     "path": "/message_count",
                     "type": "display"
                   }
@@ -375,7 +487,7 @@
                 "actions": [
                   {
                     "id": "delete",
-                    "label": "Delete",
+                    "label": "删除",
                     "operation": "deleteTopic"
                   }
                 ]
@@ -384,7 +496,7 @@
           },
           {
             "id": "topic-detail",
-            "title": "Topic",
+            "title": "主题详情",
             "renderer": {
               "kind": "native"
             },
@@ -399,32 +511,180 @@
             },
             "links": [
               {
-                "title": "All topics",
+                "title": "全部主题",
                 "pageId": "topics",
                 "route": {}
               },
               {
-                "title": "Reset offset",
+                "title": "重置消费位点",
                 "pageId": "reset-offset",
-                "route": {
-                  "topic": {
-                    "source": "route",
-                    "path": "/topic",
-                    "type": "string"
-                  }
-                }
+                "route": {}
               }
             ],
             "stack": [
               {
-                "kind": "viewer",
-                "format": "json"
+                "kind": "table",
+                "itemsPath": "/stats",
+                "keyPaths": [
+                  "/broker",
+                  "/queue_id"
+                ],
+                "pagination": {
+                  "kind": "none"
+                },
+                "columns": [
+                  {
+                    "id": "broker",
+                    "title": "Broker",
+                    "path": "/broker",
+                    "type": "string"
+                  },
+                  {
+                    "id": "queueId",
+                    "title": "队列",
+                    "path": "/queue_id",
+                    "type": "display"
+                  },
+                  {
+                    "id": "minOffset",
+                    "title": "最小偏移",
+                    "path": "/min_offset",
+                    "type": "display"
+                  },
+                  {
+                    "id": "maxOffset",
+                    "title": "最大偏移",
+                    "path": "/max_offset",
+                    "type": "display"
+                  },
+                  {
+                    "id": "lastUpdate",
+                    "title": "最后更新",
+                    "path": "/last_update",
+                    "type": "display",
+                    "style": "muted"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "create-topic",
+            "title": "新建主题",
+            "renderer": {
+              "kind": "native"
+            },
+            "stack": [
+              {
+                "kind": "form",
+                "submit": {
+                  "operation": "createTopic"
+                },
+                "inputs": [
+                  {
+                    "id": "topic",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true,
+                    "label": "Topic",
+                    "placeholder": "order-topic",
+                    "description": "已存在的 Topic 会被覆盖为这里的配置"
+                  },
+                  {
+                    "id": "queue_count",
+                    "type": "number",
+                    "editor": "number",
+                    "default": "4",
+                    "required": true,
+                    "label": "队列数",
+                    "description": "单 Broker 的写队列数量，扩容时填目标值"
+                  },
+                  {
+                    "id": "perm",
+                    "type": "string",
+                    "editor": "select",
+                    "default": "6",
+                    "required": true,
+                    "label": "读写权限",
+                    "options": [
+                      {
+                        "value": "6",
+                        "label": "6 - 读+写"
+                      },
+                      {
+                        "value": "4",
+                        "label": "4 - 只读"
+                      },
+                      {
+                        "value": "2",
+                        "label": "2 - 只写"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "update-topic",
+            "title": "更新主题",
+            "renderer": {
+              "kind": "native"
+            },
+            "stack": [
+              {
+                "kind": "form",
+                "submit": {
+                  "operation": "updateTopic"
+                },
+                "inputs": [
+                  {
+                    "id": "topic",
+                    "type": "string",
+                    "editor": "text",
+                    "required": true,
+                    "label": "Topic",
+                    "placeholder": "order-topic",
+                    "description": "已存在的 Topic 会被覆盖为这里的配置"
+                  },
+                  {
+                    "id": "queue_count",
+                    "type": "number",
+                    "editor": "number",
+                    "default": "4",
+                    "required": true,
+                    "label": "队列数",
+                    "description": "单 Broker 的写队列数量，扩容时填目标值"
+                  },
+                  {
+                    "id": "perm",
+                    "type": "string",
+                    "editor": "select",
+                    "default": "6",
+                    "required": true,
+                    "label": "读写权限",
+                    "options": [
+                      {
+                        "value": "6",
+                        "label": "6 - 读+写"
+                      },
+                      {
+                        "value": "4",
+                        "label": "4 - 只读"
+                      },
+                      {
+                        "value": "2",
+                        "label": "2 - 只写"
+                      }
+                    ]
+                  }
+                ]
               }
             ]
           },
           {
             "id": "groups",
-            "title": "Groups",
+            "title": "订阅组",
             "renderer": {
               "kind": "native"
             },
@@ -444,26 +704,26 @@
                 "columns": [
                   {
                     "id": "group",
-                    "title": "Group",
+                    "title": "订阅组",
                     "path": "/group",
                     "type": "string"
                   },
                   {
                     "id": "clients",
-                    "title": "Clients",
+                    "title": "在线客户端",
                     "path": "/client_count",
                     "type": "display"
                   },
                   {
                     "id": "consumeType",
-                    "title": "Consume Type",
+                    "title": "消费类型",
                     "path": "/consume_type",
                     "type": "display",
                     "style": "badge"
                   },
                   {
                     "id": "model",
-                    "title": "Model",
+                    "title": "消息模型",
                     "path": "/message_model",
                     "type": "display"
                   },
@@ -475,13 +735,13 @@
                   },
                   {
                     "id": "diff",
-                    "title": "Backlog",
+                    "title": "堆积量",
                     "path": "/total_diff",
                     "type": "display"
                   },
                   {
                     "id": "version",
-                    "title": "Version",
+                    "title": "版本",
                     "path": "/version",
                     "type": "display",
                     "style": "muted"
@@ -502,7 +762,7 @@
           },
           {
             "id": "group-detail",
-            "title": "Group",
+            "title": "订阅组详情",
             "renderer": {
               "kind": "native"
             },
@@ -517,12 +777,23 @@
             },
             "links": [
               {
-                "title": "All groups",
+                "title": "全部订阅组",
                 "pageId": "groups",
                 "route": {}
               },
               {
-                "title": "Reset offset",
+                "title": "在线客户端",
+                "pageId": "group-clients",
+                "route": {
+                  "group": {
+                    "source": "route",
+                    "path": "/group",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "title": "重置消费位点",
                 "pageId": "reset-offset",
                 "route": {
                   "group": {
@@ -535,70 +806,166 @@
             ],
             "stack": [
               {
+                "kind": "table",
+                "itemsPath": "/queues",
+                "keyPaths": [
+                  "/topic",
+                  "/broker",
+                  "/queue_id"
+                ],
+                "pagination": {
+                  "kind": "none"
+                },
+                "columns": [
+                  {
+                    "id": "topic",
+                    "title": "Topic",
+                    "path": "/topic",
+                    "type": "string"
+                  },
+                  {
+                    "id": "broker",
+                    "title": "Broker",
+                    "path": "/broker",
+                    "type": "string"
+                  },
+                  {
+                    "id": "queueId",
+                    "title": "队列",
+                    "path": "/queue_id",
+                    "type": "display"
+                  },
+                  {
+                    "id": "brokerOffset",
+                    "title": "Broker 偏移",
+                    "path": "/broker_offset",
+                    "type": "display"
+                  },
+                  {
+                    "id": "consumerOffset",
+                    "title": "消费偏移",
+                    "path": "/consumer_offset",
+                    "type": "display"
+                  },
+                  {
+                    "id": "diff",
+                    "title": "堆积量",
+                    "path": "/diff",
+                    "type": "display"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "group-clients",
+            "title": "在线客户端",
+            "renderer": {
+              "kind": "native"
+            },
+            "route": {
+              "group": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "load": {
+              "operation": "groupClients"
+            },
+            "links": [
+              {
+                "title": "全部订阅组",
+                "pageId": "groups",
+                "route": {}
+              },
+              {
+                "title": "消费进度",
+                "pageId": "group-detail",
+                "route": {
+                  "group": {
+                    "source": "route",
+                    "path": "/group",
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "stack": [
+              {
+                "kind": "table",
+                "itemsPath": "/clients",
+                "keyPaths": [
+                  "/client_id"
+                ],
+                "pagination": {
+                  "kind": "none"
+                },
+                "columns": [
+                  {
+                    "id": "clientId",
+                    "title": "客户端 ID",
+                    "path": "/client_id",
+                    "type": "string",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "clientAddr",
+                    "title": "地址",
+                    "path": "/client_addr",
+                    "type": "display",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "language",
+                    "title": "语言",
+                    "path": "/language",
+                    "type": "display"
+                  },
+                  {
+                    "id": "version",
+                    "title": "版本",
+                    "path": "/version",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
+                    "id": "subscriptions",
+                    "title": "订阅 Topic",
+                    "path": "/subscriptions",
+                    "type": "display"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "messages",
+            "title": "消息查询",
+            "renderer": {
+              "kind": "shell",
+              "viewId": "messages",
+              "fallback": "native"
+            },
+            "load": {
+              "operation": "listTopics"
+            },
+            "stack": [
+              {
                 "kind": "viewer",
                 "format": "json"
               }
             ]
           },
           {
-            "id": "create-topic",
-            "title": "Create Topic",
-            "renderer": {
-              "kind": "native"
-            },
-            "stack": [
-              {
-                "kind": "form",
-                "submit": {
-                  "operation": "createTopic"
-                },
-                "inputs": [
-                  {
-                    "id": "topic",
-                    "type": "string",
-                    "editor": "text",
-                    "required": true
-                  },
-                  {
-                    "id": "queueCount",
-                    "type": "number",
-                    "editor": "text",
-                    "default": "4",
-                    "required": true
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "delete-topic",
-            "title": "Delete Topic",
-            "renderer": {
-              "kind": "native"
-            },
-            "stack": [
-              {
-                "kind": "form",
-                "submit": {
-                  "operation": "deleteTopic"
-                },
-                "inputs": [
-                  {
-                    "id": "topic",
-                    "type": "string",
-                    "editor": "text",
-                    "required": true
-                  }
-                ]
-              }
-            ]
-          },
-          {
             "id": "send-message",
-            "title": "Send Message",
+            "title": "发送消息",
             "renderer": {
               "kind": "shell",
-              "viewId": "send-message"
+              "viewId": "send-message",
+              "fallback": "native"
+            },
+            "load": {
+              "operation": "listTopics"
             },
             "stack": [
               {
@@ -609,19 +976,9 @@
           },
           {
             "id": "reset-offset",
-            "title": "Reset Offset",
+            "title": "重置消费位点",
             "renderer": {
               "kind": "native"
-            },
-            "route": {
-              "topic": {
-                "type": "string",
-                "required": false
-              },
-              "group": {
-                "type": "string",
-                "required": false
-              }
             },
             "stack": [
               {
@@ -634,20 +991,27 @@
                     "id": "group",
                     "type": "string",
                     "editor": "text",
-                    "required": true
+                    "required": true,
+                    "label": "订阅组",
+                    "placeholder": "order-consumer"
                   },
                   {
                     "id": "topic",
                     "type": "string",
                     "editor": "text",
-                    "required": true
+                    "required": true,
+                    "label": "Topic",
+                    "placeholder": "order-topic"
                   },
                   {
                     "id": "timestamp",
                     "type": "string",
                     "editor": "text",
                     "default": "",
-                    "required": false
+                    "required": false,
+                    "label": "重置到时间点",
+                    "placeholder": "Unix 毫秒，留空表示当前时刻（跳过全部历史消息）",
+                    "description": "按消息存储时间点重置：留空会重置到最新位点，历史消息不再投递"
                   }
                 ]
               }
@@ -656,87 +1020,31 @@
         ],
         "layout": {
           "left": {
+            "width": 190,
             "source": {
-              "kind": "tree",
-              "roots": [
+              "kind": "list",
+              "items": [
                 {
-                  "id": "topics",
-                  "title": "Topics",
-                  "pageId": "topics",
-                  "children": {
-                    "operation": "listTopics",
-                    "itemsPath": "/topics",
-                    "keyPaths": [
-                      "/name"
-                    ],
-                    "labelPath": "/name",
-                    "open": {
-                      "pageId": "topic-detail",
-                      "route": {
-                        "topic": {
-                          "source": "selection",
-                          "path": "/name",
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "id": "groups",
-                  "title": "Groups",
-                  "pageId": "groups",
-                  "children": {
-                    "operation": "listGroups",
-                    "itemsPath": "/groups",
-                    "keyPaths": [
-                      "/group"
-                    ],
-                    "labelPath": "/group",
-                    "open": {
-                      "pageId": "group-detail",
-                      "route": {
-                        "group": {
-                          "source": "selection",
-                          "path": "/group",
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "id": "overview",
-                  "title": "Overview",
                   "pageId": "overview"
                 },
                 {
-                  "id": "send-message",
-                  "title": "Send Message",
+                  "pageId": "topics"
+                },
+                {
+                  "pageId": "groups"
+                },
+                {
+                  "pageId": "messages"
+                },
+                {
                   "pageId": "send-message"
-                },
-                {
-                  "id": "create-topic",
-                  "title": "Create Topic",
-                  "pageId": "create-topic"
-                },
-                {
-                  "id": "delete-topic",
-                  "title": "Delete Topic",
-                  "pageId": "delete-topic"
-                },
-                {
-                  "id": "reset-offset",
-                  "title": "Reset Offset",
-                  "pageId": "reset-offset"
                 }
               ]
             }
           },
           "center": {
             "source": {
-              "kind": "pages",
-              "tabGroups": []
+              "kind": "pages"
             }
           }
         }
@@ -744,9 +1052,39 @@
     ],
     "shellViews": [
       {
+        "id": "overview",
+        "title": "RocketMQ 集群概览",
+        "description": "集群与 Broker 拓扑、TPS、消息量与连接数指标卡片，可自动刷新。",
+        "entry": "ui/overview.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "messages",
+        "title": "RocketMQ 消息查询",
+        "description": "按 Topic + 时间窗口 / Key / Message ID 查询消息，结果表格与消息详情。",
+        "entry": "ui/messages.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
         "id": "send-message",
-        "title": "RocketMQ Message Sender",
-        "description": "Send a message to a topic through the unified workbench dispatcher.",
+        "title": "RocketMQ 消息发送",
+        "description": "选择 Topic 发送带 Tag/Key 的消息，支持 JSON/文本消息体与发送历史。",
         "entry": "ui/send-message.js",
         "surface": "tab",
         "singleton": false,
