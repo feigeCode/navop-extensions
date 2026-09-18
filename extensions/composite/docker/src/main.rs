@@ -51,6 +51,14 @@ type ProviderResult = Result<Value, Box<ProtocolError>>;
 /// 单次日志读取的行数上限:防止宿主把 provider 内存拖爆。
 const MAX_LOG_TAIL: u64 = 5_000;
 
+/// 本地连接缺省 socket,与 docker CLI 的缺省一致。
+const DEFAULT_LOCAL_SOCKET: &str = "unix://~/.docker/run/docker.sock";
+
+/// Windows 上本地 socket 不可用时的报错(见 `DockerTarget::local_socket`)。
+#[cfg(not(unix))]
+const LOCAL_SOCKET_UNSUPPORTED: &str = "local docker socket is not supported on Windows; \
+     switch the connection mode to \"remote\" and fill tcp_host/tcp_port";
+
 /// 镜像拉取任务的资源类型前缀(用于校验 job 目标)。
 const PULL_METHOD: &str = "docker/image/pull";
 
@@ -262,6 +270,9 @@ struct DockerTarget {
 }
 
 enum Endpoint {
+    /// 本地 unix socket。Windows 上不存在(`Windows 只走远程 TCP/TLS`),
+    /// 所以整个变体按平台门控 —— bollard 的 unix 实现本身也是 `#[cfg(unix)]` 的。
+    #[cfg(unix)]
     Unix(String),
     Http(String),
     Https {
@@ -276,16 +287,7 @@ impl DockerTarget {
     /// 把连接配置解析为目标。缺省 `mode` 时按本地 socket 处理,兼容旧连接。
     fn resolve(config: &Value) -> Result<Self, Box<ProtocolError>> {
         match text(config, "mode").unwrap_or("local") {
-            "local" => {
-                let socket = text(config, "socket").unwrap_or("unix://~/.docker/run/docker.sock");
-                let path = expand_socket(socket)?;
-                Ok(Self {
-                    cli_host: format!("unix://{path}"),
-                    endpoint: Endpoint::Unix(path),
-                    tls: false,
-                    tls_cert_dir: String::new(),
-                })
-            }
+            "local" => Self::local_socket(text(config, "socket").unwrap_or(DEFAULT_LOCAL_SOCKET)),
             "remote" => {
                 // 字段名刻意用 tcp_ 前缀:宿主的 provider 端点鉴权只识别 host/port/
                 // url/socket 等固定键,而 net:tcp 权限的端口不能写通配符(跨度≤100),
@@ -331,6 +333,30 @@ impl DockerTarget {
         }
     }
 
+    /// 本地 unix socket 目标;非 unix 平台直接报错。
+    ///
+    /// Windows 上本地 Docker Desktop 的传输是命名管道,而宿主的 provider 端点鉴权
+    /// 只认 `unix` / `http` / `https` / `tcp`(`allows_endpoint`),没有命名管道这一类
+    /// ⇒ 约定 Windows **只支持远程 TCP/TLS**。这里给一条能指路的错,而不是让后面的
+    /// `connect()` 撞上一个平台不存在的 API。
+    fn local_socket(socket: &str) -> Result<Self, Box<ProtocolError>> {
+        #[cfg(unix)]
+        {
+            let path = expand_socket(socket)?;
+            Ok(Self {
+                cli_host: format!("unix://{path}"),
+                endpoint: Endpoint::Unix(path),
+                tls: false,
+                tls_cert_dir: String::new(),
+            })
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = socket;
+            Err(invalid(LOCAL_SOCKET_UNSUPPORTED))
+        }
+    }
+
     /// 从 docker CLI 风格的 `DOCKER_HOST` / `DOCKER_TLS_VERIFY` /
     /// `DOCKER_CERT_PATH` 环境变量解析目标,供 `exec-bridge` 子命令复用。
     fn from_env() -> Result<Self, Box<ProtocolError>> {
@@ -346,13 +372,7 @@ impl DockerTarget {
         let host = value("DOCKER_HOST").ok_or_else(|| invalid("DOCKER_HOST is required"))?;
         let tls = value("DOCKER_TLS_VERIFY").is_some();
         if host.starts_with("unix://") {
-            let path = expand_socket(&host)?;
-            return Ok(Self {
-                cli_host: host,
-                endpoint: Endpoint::Unix(path),
-                tls: false,
-                tls_cert_dir: String::new(),
-            });
+            return Self::local_socket(&host);
         }
         let addr = host
             .replacen("https://", "tcp://", 1)
@@ -385,6 +405,7 @@ impl DockerTarget {
     fn connect(&self) -> Result<Docker, Box<ProtocolError>> {
         let version = bollard::API_DEFAULT_VERSION;
         let result = match &self.endpoint {
+            #[cfg(unix)]
             Endpoint::Unix(path) => Docker::connect_with_unix(path, 120, version),
             Endpoint::Http(addr) => Docker::connect_with_http(addr, 120, version),
             Endpoint::Https {
@@ -1724,6 +1745,8 @@ fn expand_dir(value: &str) -> Result<PathBuf, Box<ProtocolError>> {
     Ok(PathBuf::from(path))
 }
 
+/// 把 `unix://` socket 串展开为绝对路径(只给 unix 用,见 `DockerTarget::local_socket`)。
+#[cfg(unix)]
 fn expand_socket(value: &str) -> Result<String, Box<ProtocolError>> {
     let path = value
         .strip_prefix("unix://")
@@ -1925,6 +1948,7 @@ mod tests {
         assert_eq!(err.code, error_codes::RESOURCE_CLOSED);
     }
 
+    #[cfg(unix)]
     #[test]
     fn target_defaults_to_local_socket() {
         // 旧连接只带 socket,缺 mode 时必须仍按本地 socket 处理。
@@ -1933,6 +1957,26 @@ mod tests {
         assert_eq!(target.cli_host, "unix:///var/run/docker.sock");
         assert!(!target.tls);
         assert!(matches!(target.endpoint, Endpoint::Unix(_)));
+    }
+
+    /// Windows 没有 unix socket:本地模式必须**明确报错**,而不是静默产出一个空地址
+    /// 或编译期就撞上不存在的 `connect_with_unix`。
+    #[cfg(not(unix))]
+    #[test]
+    fn target_rejects_local_socket_off_unix() {
+        // 缺省 mode("local")与显式 socket 都走同一条错。
+        for config in [
+            json!({"socket": "unix:///var/run/docker.sock"}),
+            json!({"mode": "local", "socket": "unix:///var/run/docker.sock"}),
+        ] {
+            let err = DockerTarget::resolve(&config).unwrap_err();
+            assert_eq!(err.code, error_codes::INVALID_PARAMS);
+            assert!(err.message.contains("not supported on Windows"), "{err:?}");
+        }
+        // 远程模式在非 unix 平台仍然可用。
+        let remote =
+            DockerTarget::resolve(&json!({"mode": "remote", "tcp_host": "10.0.0.2"})).unwrap();
+        assert_eq!(remote.cli_host, "tcp://10.0.0.2:2375");
     }
 
     #[test]
@@ -2009,13 +2053,27 @@ mod tests {
 
     #[test]
     fn exec_bridge_target_parses_socket_and_tls_env() {
-        let unix = DockerTarget::from_env_vars(env_from(&[(
-            "DOCKER_HOST",
-            "unix:///var/run/docker.sock",
-        )]))
-        .unwrap();
-        assert!(matches!(unix.endpoint, Endpoint::Unix(_)));
-        assert!(!unix.tls);
+        #[cfg(unix)]
+        {
+            let unix = DockerTarget::from_env_vars(env_from(&[(
+                "DOCKER_HOST",
+                "unix:///var/run/docker.sock",
+            )]))
+            .unwrap();
+            assert!(matches!(unix.endpoint, Endpoint::Unix(_)));
+            assert!(!unix.tls);
+        }
+        // Windows 上同一个 DOCKER_HOST 必须报平台错,而不是落到别的分支上。
+        #[cfg(not(unix))]
+        {
+            let err = DockerTarget::from_env_vars(env_from(&[(
+                "DOCKER_HOST",
+                "unix:///var/run/docker.sock",
+            )]))
+            .unwrap_err();
+            assert_eq!(err.code, error_codes::INVALID_PARAMS);
+            assert!(err.message.contains("not supported on Windows"), "{err:?}");
+        }
 
         let plain =
             DockerTarget::from_env_vars(env_from(&[("DOCKER_HOST", "tcp://10.0.0.3:2375")]))

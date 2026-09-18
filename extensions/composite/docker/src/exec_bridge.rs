@@ -20,6 +20,16 @@ use bollard::{
 };
 use futures_util::StreamExt;
 use tokio::{io::AsyncWriteExt, sync::mpsc, time::sleep};
+#[cfg(windows)]
+use windows_sys::{
+    Win32::System::Console::{
+        CONSOLE_MODE, CONSOLE_SCREEN_BUFFER_INFO, ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT,
+        ENABLE_PROCESSED_INPUT, ENABLE_VIRTUAL_TERMINAL_INPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+        GetConsoleMode, GetConsoleScreenBufferInfo, GetStdHandle, STD_HANDLE, STD_INPUT_HANDLE,
+        STD_OUTPUT_HANDLE, SetConsoleMode,
+    },
+    core::BOOL,
+};
 
 use super::DockerTarget;
 
@@ -235,10 +245,24 @@ async fn exit_code(docker: &Docker, exec_id: &str) -> i32 {
 }
 
 /// 本地终端 raw 模式守卫:进入时关闭行缓冲/回显,退出(Drop)时恢复。
+///
+/// 两个平台各一套实现,`enter()` / `size()` 的形状一致,调用方不分平台:
+///
+/// - Unix:`termios`(`cfmakeraw` + `TIOCGWINSZ`)。
+/// - Windows:控制台模式。输入侧关掉行缓冲/回显/`ENABLE_PROCESSED_INPUT`
+///   (等价于关掉 `ISIG`,让 Ctrl+C 作为字节交给远端),并开
+///   `ENABLE_VIRTUAL_TERMINAL_INPUT` 使按键以 VT 序列原样透传;输出侧开
+///   `ENABLE_VIRTUAL_TERMINAL_PROCESSING`,否则容器里的转义序列会被控制台
+///   当普通字符处理掉。宿主侧终端走 ConPTY(`crates/terminal/src/pty_backend.rs`),
+///   这里拿到的是伪控制台句柄。
+///
+/// 两边都容忍「标准流不是终端」(被重定向/管道):此时不做 raw 处理,仍可转发字节。
+#[cfg(unix)]
 struct Tty {
     original: Option<libc::termios>,
 }
 
+#[cfg(unix)]
 impl Tty {
     fn enter() -> Self {
         let mut original: libc::termios = unsafe { std::mem::zeroed() };
@@ -267,6 +291,7 @@ impl Tty {
     }
 }
 
+#[cfg(unix)]
 impl Drop for Tty {
     fn drop(&mut self) {
         if let Some(original) = self.original {
@@ -275,6 +300,75 @@ impl Drop for Tty {
             }
         }
     }
+}
+
+#[cfg(windows)]
+struct Tty {
+    stdin: Option<CONSOLE_MODE>,
+    stdout: Option<CONSOLE_MODE>,
+}
+
+#[cfg(windows)]
+impl Tty {
+    fn enter() -> Self {
+        // 输入:非控制台(管道)时 `None`,与 Unix 侧 `tcgetattr` 失败同样处理。
+        let stdin = console_mode(STD_INPUT_HANDLE).and_then(|original| {
+            let raw = (original
+                & !(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT))
+                | ENABLE_VIRTUAL_TERMINAL_INPUT;
+            set_console_mode(STD_INPUT_HANDLE, raw).then_some(original)
+        });
+        let stdout = console_mode(STD_OUTPUT_HANDLE).and_then(|original| {
+            set_console_mode(
+                STD_OUTPUT_HANDLE,
+                original | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+            )
+            .then_some(original)
+        });
+        Self { stdin, stdout }
+    }
+
+    fn size(&self) -> Option<(u16, u16)> {
+        let mut info: CONSOLE_SCREEN_BUFFER_INFO = unsafe { std::mem::zeroed() };
+        let ok: BOOL =
+            unsafe { GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &mut info) };
+        if ok == 0 {
+            return None;
+        }
+        // `srWindow` 是**闭区间**(含两端),所以宽度要 +1。
+        let width = i32::from(info.srWindow.Right) - i32::from(info.srWindow.Left) + 1;
+        let height = i32::from(info.srWindow.Bottom) - i32::from(info.srWindow.Top) + 1;
+        if width > 0 && height > 0 {
+            Some((width as u16, height as u16))
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for Tty {
+    fn drop(&mut self) {
+        if let Some(original) = self.stdin {
+            set_console_mode(STD_INPUT_HANDLE, original);
+        }
+        if let Some(original) = self.stdout {
+            set_console_mode(STD_OUTPUT_HANDLE, original);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn console_mode(which: STD_HANDLE) -> Option<CONSOLE_MODE> {
+    let mut mode: CONSOLE_MODE = 0;
+    let ok: BOOL = unsafe { GetConsoleMode(GetStdHandle(which), &mut mode) };
+    (ok != 0).then_some(mode)
+}
+
+#[cfg(windows)]
+fn set_console_mode(which: STD_HANDLE, mode: CONSOLE_MODE) -> bool {
+    let ok: BOOL = unsafe { SetConsoleMode(GetStdHandle(which), mode) };
+    ok != 0
 }
 
 #[cfg(test)]

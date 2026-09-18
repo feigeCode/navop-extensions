@@ -9,11 +9,17 @@ bollard = { workspace = true }
 extension-protocol = { workspace = true }
 futures-util = { workspace = true }
 interprocess = { workspace = true }
-libc = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 uuid = { workspace = true }
+
+# exec 桥的本地终端 raw 模式:两个平台各一套,依赖互斥,别把它们合并回上面。
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
 
 [dev-dependencies]
 extension-host = { workspace = true }

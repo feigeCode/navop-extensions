@@ -186,6 +186,7 @@ test("Go IPC driver metadata declares all cross-compiled release targets", () =>
 
 test("native Windows extensions declare the Windows x86 release target", () => {
   const extensionPaths = [
+    "extensions/composite/docker",
     "extensions/ipc/dm",
     "extensions/ipc/iotdb",
     "extensions/ipc/kingbase",
@@ -1128,13 +1129,14 @@ test("Windows x86 backfill matrix resolves every supported published extension",
   );
   const matrix = JSON.parse(output);
 
-  assert.equal(matrix.include.length, 17);
+  assert.equal(matrix.include.length, 18);
   assert.deepEqual(
     matrix.include.map((entry) => entry.extension),
     [
       "claude-acp",
       "codex-acp",
       "dm",
+      "docker",
       "duckdb",
       "iotdb",
       "kingbase",

@@ -52,7 +52,7 @@
       {
         "id": "docker-local",
         "label": "Docker",
-        "description": "Connect to a local or remote Docker daemon over a Unix socket, plain TCP, or TLS.",
+        "description": "Connect to a local or remote Docker daemon over a Unix socket, plain TCP, or TLS. Unix sockets are macOS/Linux only — on Windows, use Remote (TCP / TLS).",
         "icon": "icons/docker-color.svg",
         "runtimeId": "main",
         "resourceType": "docker",
@@ -71,7 +71,7 @@
                   "options": [
                     {
                       "value": "local",
-                      "label": "Local (Unix socket)"
+                      "label": "Local (Unix socket, macOS / Linux)"
                     },
                     {
                       "value": "remote",
