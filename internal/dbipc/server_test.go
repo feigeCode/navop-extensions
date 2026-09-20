@@ -422,8 +422,15 @@ func TestCursorFetchEncodesByteArraysByDeclaredColumnType(t *testing.T) {
 	if row[11]["value"] != float64(-42) {
 		t.Fatalf("int value = %#v, want -42", row[11]["value"])
 	}
-	if row[12]["value"] != "18446744073709551615" {
-		t.Fatalf("bigint unsigned value = %#v, want lossless decimal text", row[12]["value"])
+	// u64 必须以 JSON 数字发出：宿主 serde 结构体是 u64，发十进制文本会判定类型不匹配。
+	// 这里直接比对原始 JSON，避免 map[string]any 的 float64 往返掩盖精度丢失。
+	var rawFetch map[string]json.RawMessage
+	decodeResult(t, fetchResp, &rawFetch)
+	if !strings.Contains(string(rawFetch["rows"]), `"type":"u64","value":18446744073709551615`) {
+		t.Fatalf("bigint unsigned cell must be a lossless JSON number, got %s", rawFetch["rows"])
+	}
+	if _, isNumber := row[12]["value"].(float64); !isNumber {
+		t.Fatalf("bigint unsigned value = %#v, want JSON number", row[12]["value"])
 	}
 	if row[13]["value"] != float64(3.141592653589793) {
 		t.Fatalf("double value = %#v", row[13]["value"])

@@ -248,8 +248,13 @@ func toCellForKind(value any, kind string) cellValue {
 			return cellValue{"type": "text", "value": string(raw)}
 		}
 	case "u64":
+		// 与上方原生 uint 家族保持一致：u64 必须以 JSON 数字发出。
+		// 宿主 serde 结构体把该字段定义为 u64，发十进制文本会先在宿主
+		// 反序列化层判定类型不匹配（invalid type: string "4", expected u64），
+		// 由宿主的容错层兜底属于契约倒置。数字不丢精度：宿主 serde_json
+		// 已启用 arbitrary_precision，u64 上界同样按原始十进制解析。
 		if n, err := strconv.ParseUint(string(raw), 10, 64); err == nil {
-			return cellValue{"type": "u64", "value": strconv.FormatUint(n, 10)}
+			return cellValue{"type": "u64", "value": n}
 		}
 		if utf8.Valid(raw) {
 			return cellValue{"type": "text", "value": string(raw)}
