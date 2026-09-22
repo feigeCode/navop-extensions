@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "com.navop.docker",
   "name": "Docker",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "Navop",
   "license": "Apache-2.0",
   "description": "基于 Rust 原生资源后端（native resource provider）的 Docker 管理扩展：支持本地 docker.sock 与远程 TCP/TLS 守护进程（Windows 上仅支持远程 TCP/TLS），提供引擎概览、镜像管理与异步镜像拉取，并附日志查看、容器进程与文件系统变更视图及 exec 终端。 Rust-native Docker management composite extension that talks to a local docker socket or a remote TCP/TLS daemon (remote TCP/TLS only on Windows), providing engine overview, image management with asynchronous pulls, plus log viewer, container process and filesystem change views, and exec terminals.",
@@ -19,7 +19,7 @@
   ],
   "engines": {
     "onetcli": ">=0.17.0",
-    "gpui_shell": "0.2.0"
+    "gpui_shell": "0.6.4"
   },
   "api": {
     "extension": "1.0"

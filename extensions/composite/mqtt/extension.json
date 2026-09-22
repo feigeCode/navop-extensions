@@ -3,7 +3,7 @@
   "kind": "composite",
   "id": "com.navop.middleware.mqtt",
   "name": "MQTT",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Navop",
   "license": "Apache-2.0",
   "description": "MQTT 3.1.1 客户端工作台（Rust 原生 provider）：连接概览、订阅管理、实时/历史消息浏览、消息发布、TLS 与遗嘱配置。 Native Rust MQTT 3.1.1 client workbench: connection overview, subscription management, live/history message browser, publisher, TLS and last-will support.",
@@ -21,7 +21,7 @@
   ],
   "engines": {
     "onetcli": ">=0.17.0",
-    "gpui_shell": "0.2.0"
+    "gpui_shell": "0.6.4"
   },
   "api": {
     "extension": "1.0",

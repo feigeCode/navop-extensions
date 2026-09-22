@@ -206,7 +206,7 @@
 
 `renderer.kind = "shell"` 的页面是**正常可用**的页面承载方式（不是废弃对象），在开启 `shell-plugins` 的产物里正常加载。唯一的构建约束来自 §5 硬约束：未开该 feature 的自建构建（如 `--no-default-features`）里取不到 host，此时**只有**声明了 `fallback: "native"` 才会退回该页的原生 `template` 渲染，否则显示错误块。参考实现见同仓 docker 扩展（5 个 shell 页全部带 `fallback: "native"`）。
 
-- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Select`、`Switch`、`Badge`、`Button`、`chart`、`description_list`、`virtual_list` 等。
+- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.6.4"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Select`、`Switch`、`Badge`、`Button`、`chart`、`description_list`、`virtual_list` 等。
 - 运行时 API 要点：`InputState.new({value, placeholder})` + `Input.new(state)`（placeholder 只能在 `InputState.new` 设置，`Input` 元素无该方法）；`Select(id, rowsFn, renderRowFn, onSelect)` 与 `DataTable(state, rowsFn, cellFn)`、`DataTableState(columns)`、`Badge()` 均为位置参数或 nullary 构造；`navop.context.current()`、`navop.resource.invoke`、`navop.blob.read/close`。
 - 布局硬规则（都踩过，且都是**静默**故障——页面照常渲染、不报错）：
   1. **`Select` 必须包在定宽容器里**：`div().w(200).flex_shrink_0().child(new Select(...))`。`Select` 的根是 shell 对 `div` 的 `RenderOnce` 包装，自带整行宽度；裸着当行子元素会让同行的 `div().flex_1()` 拿到 0 基准宽、没有剩余空间可 grow ⇒ **输入框整块消失**（订阅页的过滤器输入框就这么没的），或者把不可收缩的兄弟（标题、按钮）挤出可视区（消息详情页的格式选择器）。守卫测试：`extension UI rows size every Select instead of letting it claim the line`。
