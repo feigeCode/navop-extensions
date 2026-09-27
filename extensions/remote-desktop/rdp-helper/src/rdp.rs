@@ -2,8 +2,8 @@ use std::future;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use ironrdp_client::rdp::{GraphicsOutputMode, RdpClient, RdpOutputEvent};
-use tokio::sync::mpsc;
+use ironrdp_client::output_channel::{OutputEventReceiver, output_channel};
+use ironrdp_client::rdp::{RdpClient, RdpOutputEvent};
 
 use crate::clipboard::{TextClipboardController, text_clipboard};
 use crate::output_mailbox::{OutputReceiver, OutputSender, output_mailbox};
@@ -36,10 +36,11 @@ pub struct RdpRuntime {
 
 pub fn start(connect: ConnectRequest) -> anyhow::Result<RdpRuntime> {
     let config = config::build_config(connect)?;
-    let (output_tx, output_rx) = mpsc::channel::<RdpOutputEvent>(64);
+    let (output_tx, output_rx) = output_channel(64);
     let (helper_output_tx, helper_output_rx) = output_mailbox();
-    let client = RdpClient::new(config, output_tx)
-        .with_graphics_output_mode(GraphicsOutputMode::DirtyRegions);
+    // IronRDP publishes tightly packed dirty regions instead of full snapshots
+    // once the embedder opts in; the helper forwards them as delta frames.
+    let client = RdpClient::new(config, output_tx).with_desktop_updates();
     let input_tx = HelperInputSender::production(client.input_sender());
     let (clipboard, cliprdr_factory) = text_clipboard(input_tx.clone(), helper_output_tx.clone());
     let client = client.with_cliprdr_backend_factory(cliprdr_factory);
@@ -79,7 +80,7 @@ impl RdpRuntime {
 
 fn spawn_client_thread(
     client: RdpClient,
-    output_rx: mpsc::Receiver<RdpOutputEvent>,
+    output_rx: OutputEventReceiver,
     helper_output_tx: OutputSender,
 ) -> anyhow::Result<std::thread::JoinHandle<anyhow::Result<()>>> {
     let thread = std::thread::Builder::new()
@@ -91,7 +92,7 @@ fn spawn_client_thread(
 
 fn run_client_thread(
     client: RdpClient,
-    output_rx: mpsc::Receiver<RdpOutputEvent>,
+    output_rx: OutputEventReceiver,
     helper_output_tx: OutputSender,
 ) -> anyhow::Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -109,7 +110,7 @@ fn run_client_thread(
 
 async fn run_client(
     client: RdpClient,
-    output_rx: mpsc::Receiver<RdpOutputEvent>,
+    output_rx: OutputEventReceiver,
     helper_output_tx: OutputSender,
 ) -> anyhow::Result<()> {
     let output_task = tokio::spawn(map_output_events(output_rx, helper_output_tx));
@@ -120,7 +121,7 @@ async fn run_client(
 }
 
 async fn map_output_events(
-    mut output_rx: mpsc::Receiver<RdpOutputEvent>,
+    mut output_rx: OutputEventReceiver,
     helper_output_tx: OutputSender,
 ) -> anyhow::Result<()> {
     let mut output_mapper = RdpOutputMapper::default();
@@ -136,7 +137,7 @@ async fn map_output_events(
                         pacing_stats.record_received(pending_image.replace(image).is_some());
                         presentation_schedule.record_image(tokio::time::Instant::now());
                     }
-                    Some(region @ RdpOutputEvent::ImageRegion { .. }) => {
+                    Some(region @ RdpOutputEvent::DesktopUpdate(_)) => {
                         flush_pending_image(
                             &mut pending_image,
                             &mut presentation_schedule,
@@ -395,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn image_burst_presents_only_the_latest_frame() {
-        let (output_tx, output_rx) = mpsc::channel(8);
+        let (output_tx, output_rx) = output_channel(8);
         let (helper_output_tx, helper_output_rx) = output_mailbox();
         let mapper = tokio::spawn(map_output_events(output_rx, helper_output_tx));
         for red in [1, 2, 3] {
@@ -495,7 +496,7 @@ mod tests {
 
     #[tokio::test]
     async fn settled_image_is_presented_while_the_input_channel_remains_open() {
-        let (output_tx, output_rx) = mpsc::channel(8);
+        let (output_tx, output_rx) = output_channel(8);
         let (helper_output_tx, helper_output_rx) = output_mailbox();
         let mapper = tokio::spawn(map_output_events(output_rx, helper_output_tx));
         let receiver =
@@ -529,7 +530,7 @@ mod tests {
 
     #[tokio::test]
     async fn pointer_event_does_not_split_an_image_burst() {
-        let (output_tx, output_rx) = mpsc::channel(8);
+        let (output_tx, output_rx) = output_channel(8);
         let (helper_output_tx, helper_output_rx) = output_mailbox();
         let mapper = tokio::spawn(map_output_events(output_rx, helper_output_tx));
 
@@ -565,24 +566,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dirty_region_flushes_the_pending_base_frame_first() {
-        let (output_tx, output_rx) = mpsc::channel(8);
+    async fn desktop_update_publishes_a_base_frame_then_dirty_regions() {
+        let (output_tx, output_rx) = output_channel(8);
         let (helper_output_tx, helper_output_rx) = output_mailbox();
         let mapper = tokio::spawn(map_output_events(output_rx, helper_output_tx));
 
-        output_tx.send(image(1)).await.unwrap();
+        // IronRDP sends the whole framebuffer as a single region on the first
+        // update of a session, then patches with dirty regions.
         output_tx
-            .send(RdpOutputEvent::ImageRegion {
-                bgra: vec![3, 2, 1, 0xff],
-                width: NonZeroU16::new(1).unwrap(),
-                height: NonZeroU16::new(1).unwrap(),
-                region: ironrdp_client::rdp::RdpImageRegion {
-                    x: 0,
-                    y: 0,
-                    width: 1,
-                    height: 1,
-                },
-            })
+            .send(desktop_update(&[0x000000ff; 4], 2, 2, 0, 0, 2, 2))
+            .await
+            .unwrap();
+        output_tx
+            .send(desktop_update(&[0x00010203], 2, 2, 1, 1, 1, 1))
             .await
             .unwrap();
         drop(output_tx);
@@ -591,26 +587,26 @@ mod tests {
         assert_eq!(
             helper_output_rx.recv(),
             Some(HelperEvent::Connected {
-                width: 1,
-                height: 1
+                width: 2,
+                height: 2
             })
         );
         assert_eq!(
             helper_output_rx.recv(),
             Some(HelperEvent::FrameBgraBytes {
-                width: 1,
-                height: 1,
-                bgra: vec![0, 0, 1, 0xff],
+                width: 2,
+                height: 2,
+                bgra: vec![0xff, 0, 0, 0xff].repeat(4),
             })
         );
         assert_eq!(
             helper_output_rx.recv(),
             Some(HelperEvent::FrameBgraRects {
-                width: 1,
-                height: 1,
+                width: 2,
+                height: 2,
                 rects: vec![crate::protocol::HelperFrameRect {
-                    x: 0,
-                    y: 0,
+                    x: 1,
+                    y: 1,
                     width: 1,
                     height: 1,
                     byte_len: 4,
@@ -619,6 +615,31 @@ mod tests {
             })
         );
         assert_eq!(helper_output_rx.recv(), None);
+    }
+
+    fn desktop_update(
+        pixels: &[u32],
+        width: u16,
+        height: u16,
+        x: u16,
+        y: u16,
+        region_width: u16,
+        region_height: u16,
+    ) -> RdpOutputEvent {
+        RdpOutputEvent::DesktopUpdate(
+            ironrdp_client::rdp::DesktopUpdate::new(
+                pixels.to_vec(),
+                NonZeroU16::new(width).unwrap(),
+                NonZeroU16::new(height).unwrap(),
+                ironrdp::pdu::geometry::InclusiveRectangle {
+                    left: x,
+                    top: y,
+                    right: x + region_width - 1,
+                    bottom: y + region_height - 1,
+                },
+            )
+            .expect("test desktop update must be consistent"),
+        )
     }
 
     fn image(red: u8) -> RdpOutputEvent {

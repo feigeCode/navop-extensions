@@ -52,6 +52,32 @@ impl RdpOutputMapper {
             | RdpOutputEvent::LoginComplete
             | RdpOutputEvent::PostLogonDisplayRedraw
             | RdpOutputEvent::MalformedBitmapDisplayRedraw => Vec::new(),
+            // Remote monitor layout and RAIL windowing are not negotiated by this
+            // provider, so their events carry no host-visible state.
+            RdpOutputEvent::MonitorLayout(_)
+            | RdpOutputEvent::WindowingOrders(_)
+            | RdpOutputEvent::RailHandshake { .. }
+            | RdpOutputEvent::RailDesktopSynchronized { .. }
+            | RdpOutputEvent::RailPostHandshakeQueueReleased { .. }
+            | RdpOutputEvent::RailExecuteResult(_)
+            | RdpOutputEvent::RailExecuteFailed { .. }
+            | RdpOutputEvent::RailApplicationId { .. }
+            | RdpOutputEvent::RailControl(_)
+            | RdpOutputEvent::AutoReconnected => Vec::new(),
+            // Reconnect cookies are not requested here, so declining is the only
+            // correct answer; dropping the response sender stops the reconnect.
+            RdpOutputEvent::AutoReconnecting {
+                attempt,
+                maximum_attempts,
+                ..
+            } => {
+                tracing::debug!(
+                    attempt,
+                    maximum_attempts,
+                    "Declined an RDP auto-reconnect because the provider manages reconnects"
+                );
+                Vec::new()
+            }
             RdpOutputEvent::DisplayResizeFallback(reason) => {
                 tracing::warn!(?reason, "RDP dynamic display resize fell back to reconnect");
                 self.reset_session();
@@ -81,18 +107,65 @@ impl RdpOutputMapper {
                 ));
                 events
             }
-            RdpOutputEvent::ImageRegion {
-                bgra,
-                width,
-                height,
-                region,
-            } => {
+            RdpOutputEvent::DesktopUpdate(update) => {
+                let (buffer, width, height, region) = update.into_parts();
+                let width = width.get();
+                let height = height.get();
+                let region_width = region
+                    .right
+                    .checked_sub(region.left)
+                    .and_then(|span| span.checked_add(1));
+                let region_height = region
+                    .bottom
+                    .checked_sub(region.top)
+                    .and_then(|span| span.checked_add(1));
+                let (Some(region_width), Some(region_height)) = (region_width, region_height) else {
+                    tracing::warn!(?region, "Ignored malformed RDP dirty region bounds");
+                    return Vec::new();
+                };
+                let expected_pixels = usize::from(region_width).checked_mul(usize::from(region_height));
+                if region_width == 0
+                    || region_height == 0
+                    || region.right >= width
+                    || region.bottom >= height
+                    || expected_pixels != Some(buffer.len())
+                {
+                    tracing::warn!(
+                        width,
+                        height,
+                        region = ?region,
+                        actual_pixels = buffer.len(),
+                        expected_pixels = ?expected_pixels,
+                        "Ignored malformed RDP dirty region"
+                    );
+                    return Vec::new();
+                }
+
+                // IronRDP publishes the whole framebuffer as one region whenever the
+                // desktop extent changes, including for the very first update of a
+                // session. That region is the base frame the embedder renders against.
+                let covers_base_frame = region.left == 0
+                    && region.top == 0
+                    && region_width == width
+                    && region_height == height;
+                let bgra = rdp_u32_pixels_to_bgra(&buffer);
+
+                if covers_base_frame {
+                    let mut events = Vec::with_capacity(if self.connected { 1 } else { 4 });
+                    if !self.connected {
+                        events.push(HelperEvent::Connected { width, height });
+                        self.connected = true;
+                        self.pending_cursor.append_to(&mut events);
+                    }
+                    self.base_size = Some((width, height));
+                    events.push(HelperEvent::frame(width, height, bgra));
+                    return events;
+                }
+
                 if !self.connected {
                     tracing::warn!("Ignored RDP dirty region before the complete base frame");
                     return Vec::new();
                 }
-                let width = width.get();
-                let height = height.get();
                 if self.base_size != Some((width, height)) {
                     tracing::warn!(
                         width,
@@ -102,39 +175,16 @@ impl RdpOutputMapper {
                     );
                     return Vec::new();
                 }
-                let expected_len = usize::from(region.width)
-                    .checked_mul(usize::from(region.height))
-                    .and_then(|pixels| pixels.checked_mul(4));
-                let right = u32::from(region.x) + u32::from(region.width);
-                let bottom = u32::from(region.y) + u32::from(region.height);
-                if region.width == 0
-                    || region.height == 0
-                    || right > u32::from(width)
-                    || bottom > u32::from(height)
-                    || expected_len != Some(bgra.len())
-                {
-                    tracing::warn!(
-                        width,
-                        height,
-                        region_x = region.x,
-                        region_y = region.y,
-                        region_width = region.width,
-                        region_height = region.height,
-                        actual_bytes = bgra.len(),
-                        expected_bytes = ?expected_len,
-                        "Ignored malformed RDP dirty region"
-                    );
-                    return Vec::new();
-                }
+
                 let byte_len = bgra.len();
                 vec![HelperEvent::FrameBgraRects {
                     width,
                     height,
                     rects: vec![HelperFrameRect {
-                        x: region.x,
-                        y: region.y,
-                        width: region.width,
-                        height: region.height,
+                        x: region.left,
+                        y: region.top,
+                        width: region_width,
+                        height: region_height,
                         byte_len,
                     }],
                     bgra,
@@ -200,7 +250,8 @@ mod tests {
 
     use ironrdp::connector::ConnectorErrorExt as _;
     use ironrdp::graphics::pointer::DecodedPointer;
-    use ironrdp_client::rdp::RdpImageRegion;
+    use ironrdp::pdu::geometry::InclusiveRectangle;
+    use ironrdp_client::rdp::DesktopUpdate;
 
     use super::*;
 
@@ -269,12 +320,28 @@ mod tests {
     }
 
     #[test]
+    fn full_extent_desktop_update_establishes_the_base_frame() {
+        let mut mapper = RdpOutputMapper::default();
+
+        assert_eq!(
+            mapper.map(region(vec![0x33, 0x22, 0x11, 0xff], 1, 1, 0, 0, 1, 1)),
+            vec![
+                HelperEvent::Connected {
+                    width: 1,
+                    height: 1,
+                },
+                HelperEvent::frame(1, 1, vec![0x33, 0x22, 0x11, 0xff]),
+            ]
+        );
+    }
+
+    #[test]
     fn dirty_region_cannot_cross_the_connected_base_frame_barrier() {
         let mut mapper = RdpOutputMapper::default();
 
         assert!(
             mapper
-                .map(region(vec![0, 0, 0, 0xff], 1, 1, 0, 0, 1, 1))
+                .map(region(vec![0, 0, 0, 0xff], 2, 2, 0, 0, 1, 1))
                 .is_empty()
         );
         assert_eq!(
@@ -294,19 +361,12 @@ mod tests {
         let mut mapper = RdpOutputMapper::default();
         mapper.map(image(&[0; 4], 2, 2));
 
+        // A region packed for a 3x2 framebuffer cannot patch the 2x2 base frame.
+        // Malformed payloads themselves are already rejected by `DesktopUpdate::new`,
+        // so only the base-frame mismatch remains reachable here.
         assert!(
             mapper
                 .map(region(vec![0, 0, 0, 0xff], 3, 2, 0, 0, 1, 1))
-                .is_empty()
-        );
-        assert!(
-            mapper
-                .map(region(vec![0, 0, 0], 2, 2, 0, 0, 1, 1))
-                .is_empty()
-        );
-        assert!(
-            mapper
-                .map(region(vec![0, 0, 0, 0xff], 2, 2, 2, 0, 1, 1))
                 .is_empty()
         );
     }
@@ -314,7 +374,7 @@ mod tests {
     #[test]
     fn resize_fallback_resets_first_frame_barrier_for_reconnected_session() {
         let mut mapper = RdpOutputMapper::default();
-        mapper.map(image(&[0x00112233], 1, 1));
+        mapper.map(image(&[0x00112233, 0, 0, 0], 2, 2));
 
         assert_eq!(
             mapper.map(RdpOutputEvent::DisplayResizeFallback(
@@ -327,7 +387,7 @@ mod tests {
         );
         assert!(
             mapper
-                .map(region(vec![0, 0, 0, 0xff], 1, 1, 0, 0, 1, 1))
+                .map(region(vec![0, 0, 0, 0xff], 2, 2, 0, 0, 1, 1))
                 .is_empty()
         );
         assert_eq!(
@@ -429,6 +489,8 @@ mod tests {
         }
     }
 
+    /// Builds a dirty-region event from BGRA bytes, round-tripping them through
+    /// IronRDP's packed `0x00RRGGBB` pixel representation.
     fn region(
         bgra: Vec<u8>,
         width: u16,
@@ -438,16 +500,23 @@ mod tests {
         region_width: u16,
         region_height: u16,
     ) -> RdpOutputEvent {
-        RdpOutputEvent::ImageRegion {
-            bgra,
-            width: NonZeroU16::new(width).unwrap(),
-            height: NonZeroU16::new(height).unwrap(),
-            region: RdpImageRegion {
-                x,
-                y,
-                width: region_width,
-                height: region_height,
-            },
-        }
+        let buffer = bgra
+            .chunks_exact(4)
+            .map(|pixel| u32::from_be_bytes([0, pixel[2], pixel[1], pixel[0]]))
+            .collect::<Vec<u32>>();
+        RdpOutputEvent::DesktopUpdate(
+            DesktopUpdate::new(
+                buffer,
+                NonZeroU16::new(width).unwrap(),
+                NonZeroU16::new(height).unwrap(),
+                InclusiveRectangle {
+                    left: x,
+                    top: y,
+                    right: x + region_width - 1,
+                    bottom: y + region_height - 1,
+                },
+            )
+            .expect("test dirty region must be a consistent desktop update"),
+        )
     }
 }

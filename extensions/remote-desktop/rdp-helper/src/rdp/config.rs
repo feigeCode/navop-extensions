@@ -18,7 +18,7 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         .with_desktop_width(connect.width)
         .with_desktop_height(connect.height)
         .with_desktop_scale_factor(connect.scale_factor)
-        .with_keyboard_type(ironrdp::pdu::gcc::KeyboardType::IbmEnhanced)
+        .with_keyboard_type(ironrdp::pdu::gcc::KeyboardType::IBM_ENHANCED)
         .with_keyboard_subtype(0)
         .with_keyboard_layout(0)
         .with_keyboard_functional_keys_count(12)
