@@ -49,6 +49,149 @@ export default class MqttPublish extends View {
     /** 大 payload 的二次确认状态(见 publish());存放被确认的 topic+长度。 */
     this.armed = null;
     this.history = [];
+    /**
+     * 压测台状态。
+     *
+     * 定时器由页面自己持有(宿主按页面世代回收,见标准 §2):这里只需保证
+     * 停止/完成/重开时把 task.cancel() 调干净,不停出僵尸定时器。
+     */
+    this.benchOpen = false;
+    this.benchTopic = InputState.new({ value: "", placeholder: "压测主题(可用 {i} 占位符);留空则用当前主题 + /bench" });
+    this.benchCount = InputState.new({ value: "100", placeholder: "发送条数(1-10000)" });
+    this.benchInterval = InputState.new({ value: "100", placeholder: "间隔毫秒(0-10000)" });
+    this.bench = { running: false, task: null, index: 0, target: 0, sent: 0, failed: 0, startedAt: 0, lastError: null };
+  }
+
+  /** 压测配置解析与校验(失败返回 null 并已写状态)。 */
+  benchSettings(cx) {
+    const count = Number(this.benchCount.value().trim());
+    const interval = Number(this.benchInterval.value().trim());
+    if (!Number.isInteger(count) || count < 1 || count > 10000) {
+      this.fail("压测条数需为 1-10000 的整数", cx);
+      return null;
+    }
+    if (!Number.isFinite(interval) || interval < 0 || interval > 10000) {
+      this.fail("压测间隔需为 0-10000 毫秒", cx);
+      return null;
+    }
+    const topicTemplate = this.benchTopic.value().trim() || `${this.topic.value().trim()}/bench`;
+    if (!topicTemplate) {
+      this.fail("压测主题为空:请填写主题或用 {i} 模板", cx);
+      return null;
+    }
+    let body;
+    try {
+      body = encodePayload(this.body.value(), this.format);
+    } catch (error) {
+      this.fail(errorMessage(error), cx);
+      return null;
+    }
+    if (body.length > MAX_PAYLOAD_BYTES) {
+      this.fail(`压测内容 ${humanBytes(body.length)} 超过单条上限 ${humanBytes(MAX_PAYLOAD_BYTES)}`, cx);
+      return null;
+    }
+    return { count, interval, topicTemplate };
+  }
+
+  startBench(cx) {
+    const settings = this.benchSettings(cx);
+    if (!settings) return;
+    if (this.bench.task) this.bench.task.cancel();
+    this.bench = {
+      running: true,
+      task: null,
+      index: 0,
+      target: settings.count,
+      sent: 0,
+      failed: 0,
+      startedAt: Date.now(),
+      lastError: null,
+    };
+    this.status = `压测开始:${settings.count} 条 / 间隔 ${settings.interval}ms`;
+    this.statusError = false;
+    // 间隔为 0 时仍然走定时器(0ms 即尽快),避免另写一条异步循环分支
+    this.bench.task = cx.timer.every(settings.interval, async (_cx) => {
+      await this.benchTick(settings);
+    });
+    cx.notify();
+  }
+
+  stopBench(reason, cx) {
+    if (this.bench.task) {
+      this.bench.task.cancel();
+      this.bench.task = null;
+    }
+    const wasRunning = this.bench.running;
+    this.bench.running = false;
+    if (wasRunning) {
+      const seconds = Math.max(0.001, (Date.now() - this.bench.startedAt) / 1000);
+      this.status = `${reason}:共 ${this.bench.sent + this.bench.failed} 条(成功 ${this.bench.sent} / 失败 ${this.bench.failed})`
+        + `,用时 ${seconds.toFixed(1)}s,约 ${Math.round((this.bench.sent + this.bench.failed) / seconds)} 条/秒`
+        + (this.bench.lastError ? `;最后一次错误:${this.bench.lastError}` : "");
+      this.statusError = this.bench.failed > 0 || Boolean(this.bench.lastError);
+    }
+    if (cx) cx.notify();
+  }
+
+  /** 每轮发一条。失败不中断整轮,只计数并记下最后一条错误。 */
+  async benchTick(settings) {
+    if (!this.bench.running) return;
+    if (this.bench.index >= this.bench.target) {
+      this.stopBench("压测完成", null);
+      return;
+    }
+    const index = this.bench.index;
+    this.bench.index += 1;
+    const topic = settings.topicTemplate.split("{i}").join(String(index));
+    const text = this.body.value().split("{i}").join(String(index));
+    let body;
+    try {
+      body = encodePayload(text, this.format);
+    } catch (error) {
+      this.bench.failed += 1;
+      this.bench.lastError = errorMessage(error);
+      return;
+    }
+    try {
+      await dispatch("publish", {
+        topic,
+        body,
+        properties: [["qos", this.qos], ["retain", this.retain ? "true" : "false"]],
+      }, { confirmed: true });
+      this.bench.sent += 1;
+    } catch (error) {
+      this.bench.failed += 1;
+      this.bench.lastError = errorMessage(error);
+    }
+  }
+
+  /** 压测面板:配置 + 进度。 */
+  benchPanel(cx) {
+    const bench = this.bench;
+    const done = bench.sent + bench.failed;
+    return v_flex().gap(6).p(10).border_1().rounded(6).flex_shrink_0()
+      .child(h_flex().items_center().gap(8).min_w_0()
+        .child(div().font_semibold().child("压测台"))
+        .child(div().flex_1().min_w_0().text_size(11).text_color(cx.theme().colors.muted_foreground)
+          .child("复用当前主题/内容/QoS/Retain;主题与内容里的 {i} 会替换为序号")))
+      .child(h_flex().items_center().gap(6).min_w_0()
+        .child(div().flex_1().min_w_0().child(new Input(this.benchTopic)))
+        .child(div().w(110).flex_shrink_0().child(new Input(this.benchCount)))
+        .child(div().w(110).flex_shrink_0().child(new Input(this.benchInterval))))
+      .child(h_flex().items_center().gap(8)
+        .child(new Button("mqtt-bench-start").primary().size("small")
+          .label(bench.running ? "重新开始" : "开始压测")
+          .on_click((_e, cx) => this.startBench(cx)))
+        .child(new Button("mqtt-bench-stop").ghost().size("small").label("停止")
+          .disabled(!bench.running)
+          .on_click((_e, cx) => this.stopBench("已停止", cx)))
+        .child(new Tag().size("xsmall").outline().child(`${done}/${bench.target}`))
+        .children(bench.failed
+          ? [new Tag().size("xsmall").variant("danger").child(`失败 ${bench.failed}`)]
+          : [])
+        .children(bench.sent
+          ? [new Tag().size("xsmall").variant("success").child(`成功 ${bench.sent}`)]
+          : []));
   }
 
   async publish(cx) {
@@ -189,12 +332,17 @@ export default class MqttPublish extends View {
           .child(div().flex_1().min_w_0().text_size(12).text_ellipsis()
             .text_color(this.statusError ? cx.theme().colors.destructive : cx.theme().colors.muted_foreground)
             .child(this.status || "")))
-        .children(sizeHint ? [sizeHint] : []))
+        .children(sizeHint ? [sizeHint] : [])
+        .children(this.benchOpen ? [this.benchPanel(cx)] : []))
       .child(v_flex().w(280).flex_none().h_full().min_h_0().border_l_1().p(8).gap(6)
         .child(h_flex().items_center().justify_between().flex_shrink_0()
           .child(div().font_semibold().text_size(13).child("发送历史"))
-          .child(new Button("mqtt-pub-history-clear").ghost().size("xsmall").label("清除")
-            .on_click((_e, cx) => { this.history = []; cx.notify(); })))
+          .child(h_flex().items_center().gap(4)
+            .child(new Button("mqtt-pub-bench-toggle").ghost().size("xsmall")
+              .label(this.benchOpen ? "收起压测" : "压测台")
+              .on_click((_e, cx) => { this.benchOpen = !this.benchOpen; cx.notify(); }))
+            .child(new Button("mqtt-pub-history-clear").ghost().size("xsmall").label("清除")
+              .on_click((_e, cx) => { this.history = []; cx.notify(); }))))
         .child(div().flex_1().min_h_0().overflow_y_scrollbar()
           .children(this.history.length
             ? this.history.map((entry, index) => this.historyRow(cx, entry, index))

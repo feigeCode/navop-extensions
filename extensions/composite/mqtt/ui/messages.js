@@ -1,202 +1,220 @@
 // MQTT 消息浏览:轮询 provider 的历史缓冲增量拉取,收/发消息同一时间线。
 //
-// 嵌入式工作台页面不能使用 navop.event(CustomPageHost 契约),
-// 因此以 queryByWindow 增量轮询代替事件流。
-//
-// **水位为什么不能只用序号**:宿主重启 provider 进程后,新进程的缓冲是空的、
-// 合成 ID 的序号也从 0 重来。若把 `seq > lastSeq` 当成唯一去重条件,重启后所有
-// 新消息都会被判成"已读"而永久消失(这正是"点几下消息就没了"的成因之一)。
-// 现在:
-//   1. 游标用**时间**(begin_unix_ms = 上一批最大的 received_at_ms),跨重启有效;
-//   2. 同一批内按 `message_id` 去重,不再依赖跨代次可比的序号;
-//   3. 序号**倒退**即判定 provider 换代 → 清空重读。
-// 另:嵌入式页面**不允许**声明 navop.runtime 模块(见 shell_page_host
-// ::ensure_embeddable),所以拿不到 generation,只能靠这两条信号。
+// 轮询 / 水位 / 去重 / 换代判定 / 退避重连都在 ui/feed.js(与主题树页共用),
+// 这里只负责列表与详情的呈现。
+import { Buffer } from "buffer";
 import { View, div } from "gpui";
 import { h_flex, v_flex, InputState } from "gpui-base";
-import { Button, Input, Select, Tag } from "gpui-component";
+import { Button, Clipboard, Input, Select, Tag } from "gpui-component";
 import { dispatch } from "navop.workbench";
+import { MessageFeed } from "./feed.js";
+import { diffLines, diffSummary, flattenJson, parseJson } from "./payload.js";
 import {
-  FORMAT_OPTIONS, banner, decodePayload, errorMessage, formatTime, humanBytes, kv, parseError,
+  FORMAT_OPTIONS, decodePayload, errorMessage, feedBanner, formatTime, humanBytes, kv,
   payloadSize, props, topicMatches,
 } from "./shared.js";
 
-const POLL_MS = 1000;
-const PAGE_SIZE = 200;
-const MAX_ROWS = 2000;
-/** 出错后的退避下限/上限:1s 无退避轮询在 provider 已死时会刷屏报错。 */
-const BACKOFF_MIN_MS = 1000;
-const BACKOFF_MAX_MS = 15000;
-/** 换代提示的停留时间(到时自动消失,不要求用户手动关)。 */
-const NOTICE_MS = 5000;
+/** 详情区视图模式。 */
+const VIEW_MODES = [
+  { id: "text", label: "文本" },
+  { id: "tree", label: "JSON 树" },
+  { id: "diff", label: "与上一帧对比" },
+];
 
-function seqOf(message) {
-  const match = /^mqtt-(\d+)$/.exec(message.message_id || "");
-  return match ? Number(match[1]) : -1;
+/** 完整内容的纯文本(用于 JSON 解析与 diff);body_text 缺失时回退字节解码。 */
+function plainText(message) {
+  if (!message) return "";
+  if (typeof message.body_text === "string") return message.body_text;
+  if (Array.isArray(message.body)) return Buffer.from(message.body).toString("utf8");
+  return "";
 }
 
 export default class MqttMessages extends View {
   init(_props, cx) {
-    this.rows = [];
-    this.lastSeq = -1;
-    this.lastMs = 0;
-    this.paused = false;
-    this.error = null;
-    this.errorTransient = false;
-    this.notice = null;
-    this.noticeUntil = 0;
-    this.halted = false;
-    this.failures = 0;
-    this.nextAttemptAt = 0;
-    this.needsResync = false;
-    this.polling = false;
+    this.feed = new MessageFeed({
+      // 换代重读时列表整体作废:选中行与已取回的详情都属于旧进程
+      onReset: () => {
+        this.selected = null;
+        this.detailMessage = null;
+        this.detailError = null;
+      },
+      onUpdate: (cx) => cx.notify(),
+    });
     this.format = "text";
     this.direction = "all";
     this.selected = null;
     this.detailMessage = null;
     this.detailError = null;
+    /** 详情区模式:文本 / JSON 树 / 与上一帧对比。 */
+    this.viewMode = "text";
+    /** JSON 树的展开路径集合(数据刷新时保留)。 */
+    this.jsonExpanded = new Set();
+    /** 同主题的上一帧(用于 diff)与其加载状态。 */
+    this.prevMessage = null;
+    this.prevLoading = false;
+    this.prevError = null;
+    /** 行内二次确认的武装键(大 payload 重发 / 清除 retained)。 */
+    this.armed = null;
+    this.actionStatus = null;
+    this.actionError = false;
     this.topicFilter = InputState.new({ value: "", placeholder: "主题过滤(支持 + / #)" });
     this.keyword = InputState.new({ value: "", placeholder: "关键字(主题或内容)" });
     this.topicFilter.on("change", (_e, cx) => cx.notify());
     this.keyword.on("change", (_e, cx) => cx.notify());
-    cx.spawn(async (cx) => this.poll(cx));
-    this.timer = cx.timer.every(POLL_MS, (cx) => {
-      if (!this.paused) return this.poll(cx);
+    this.feed.start(cx);
+  }
+
+  /** 按 ID 取回一条消息的完整字节:列表只带预览,详情按需拉单条。 */
+  async fetchMessage(row) {
+    if (Array.isArray(row?.body)) return row;
+    const result = await dispatch("queryById", {
+      ById: { topic: row.topic, message_id: row.message_id },
     });
+    const found = (result?.messages || [])[0];
+    if (!found) throw new Error("这条消息已不在 provider 缓冲里(默认只保留最近若干条)");
+    return found;
   }
 
-  /** 拉取 `beginMs` 之后的消息(最多 10 页),并报告是否发现序号倒退。 */
-  async fetchSince(beginMs) {
-    let page = 1;
-    const messages = [];
-    let regression = false;
-    for (;;) {
-      const result = await dispatch("queryByWindow", {
-        ByTimeWindow: {
-          topic: "#",
-          begin_unix_ms: beginMs,
-          // 上界取当前时间:2^53-1 这种哨兵值没有意义,时间窗口也无法作为索引下推
-          end_unix_ms: Date.now(),
-          page,
-          page_size: PAGE_SIZE,
-        },
-      });
-      for (const message of result?.messages || []) {
-        // 序号比水位小 ⇒ provider 换了进程(新缓冲从 0 开始)
-        if (seqOf(message) >= 0 && seqOf(message) < this.lastSeq) regression = true;
-        messages.push(message);
-      }
-      if (!result?.has_more || page >= 10) break;
-      page += 1;
-    }
-    return { messages, regression };
+  /** 当前选中消息的完整文本(详情未回来时退回列表预览)。 */
+  selectedText() {
+    return plainText(this.detailMessage) || plainText(this.selected);
   }
 
-  /** 丢水位:换代后序号从头开始,旧行与新行不可比,整段重读。 */
-  resetWatermarks() {
-    this.rows = [];
-    this.lastSeq = -1;
-    this.lastMs = 0;
-    this.selected = null;
-    this.detailMessage = null;
-    this.detailError = null;
+  /** 同主题的上一帧:列表按时间倒序,取选中行之后的第一条同主题行。 */
+  previousRow() {
+    const m = this.selected;
+    if (!m) return null;
+    const rows = this.feed.rows;
+    const index = rows.findIndex((row) => row.message_id === m.message_id);
+    if (index < 0) return null;
+    for (let i = index + 1; i < rows.length; i += 1) {
+      if (rows[i].topic === m.topic) return rows[i];
+    }
+    return null;
   }
 
-  /** 把一批消息并进列表(按 message_id 去重,不再用跨代次的序号水位)。 */
-  merge(messages) {
-    if (!messages.length) return 0;
-    const seen = new Set(this.rows.map((message) => message.message_id));
-    const fresh = [];
-    for (const message of messages) {
-      if (seen.has(message.message_id)) continue;
-      seen.add(message.message_id);
-      fresh.push(message);
+  /** 对比上一帧:上一帧可能不在列表里(更早的已滚出缓冲),取不到就直说。 */
+  async loadPrevious(cx) {
+    if (this.prevLoading) return;
+    const row = this.previousRow();
+    if (!row) {
+      this.prevMessage = null;
+      this.prevError = "这是该主题在本页缓冲里的第一条消息,没有可比对的上一帧";
+      cx.notify();
+      return;
     }
-    if (fresh.length) {
-      fresh.sort((a, b) =>
-        (Number(props(a).received_at_ms) || 0) - (Number(props(b).received_at_ms) || 0)
-        || seqOf(a) - seqOf(b));
-      this.rows = fresh.reverse().concat(this.rows).slice(0, MAX_ROWS);
-    }
-    // 水位始终向前推进,便于下一轮把窗口收窄
-    for (const message of messages) {
-      this.lastSeq = Math.max(this.lastSeq, seqOf(message));
-      this.lastMs = Math.max(this.lastMs, Number(props(message).received_at_ms) || 0);
-    }
-    return fresh.length;
-  }
-
-  async poll(cx) {
-    if (this.polling || this.halted) return;
-    if (Date.now() < this.nextAttemptAt) return;
-    this.polling = true;
+    const target = this.selected?.message_id ?? null;
+    this.prevLoading = true;
+    this.prevError = null;
+    cx.notify();
     try {
-      // 上一次是传输中断:旧行属于已死的那个进程,而新进程的 ID 会与它撞车
-      // (又从 `mqtt-0` 开始),所以先清空再从 0 重读一次。
-      let resynced = this.needsResync;
-      if (resynced) {
-        this.resetWatermarks();
-        this.needsResync = false;
-      }
-      let { messages, regression } = await this.fetchSince(this.lastMs);
-      if (regression) {
-        // 序号倒退 = 换代:旧行与新行不可比,清空后从 0 重读整个缓冲
-        this.resetWatermarks();
-        messages = (await this.fetchSince(0)).messages;
-        resynced = true;
-      }
-      if (resynced) {
-        this.notice = "provider 已重启,消息缓冲已重建(重启前的缓冲无法恢复)";
-        this.noticeUntil = Date.now() + NOTICE_MS;
-      } else if (Date.now() >= (this.noticeUntil || 0)) {
-        this.notice = null;
-      }
-      this.merge(messages);
-      this.error = null;
-      this.errorTransient = false;
-      this.failures = 0;
-      this.nextAttemptAt = 0;
+      const found = await this.fetchMessage(row);
+      // 期间用户可能点了别的行:只在仍选中同一条时回填
+      if (this.selected?.message_id !== target) return;
+      this.prevMessage = found;
     } catch (error) {
-      const info = parseError(error);
-      this.error = info.message;
-      this.errorTransient = info.transient;
-      this.failures += 1;
-      if (info.transient) {
-        // 传输断了:几乎一定是 provider 进程被换掉了,水位与缓冲一起作废
-        this.needsResync = true;
-        this.notice = `provider 连接已断开,正在自动重连…(第 ${this.failures} 次)`;
-        this.noticeUntil = 0;
-        this.nextAttemptAt = Date.now() + Math.min(
-          BACKOFF_MIN_MS * 2 ** Math.min(this.failures - 1, 4),
-          BACKOFF_MAX_MS,
-        );
-      } else {
-        // 参数/权限这类错误重试没有意义:停下来把控制权交回用户
-        this.halted = true;
-      }
+      this.prevMessage = null;
+      this.prevError = errorMessage(error);
     }
-    this.polling = false;
+    this.prevLoading = false;
     cx.notify();
   }
 
-  /** 选中一行并取回完整字节:列表页只带预览,详情按需拉单条。 */
+  setAction(text, isError, cx) {
+    this.actionStatus = text;
+    this.actionError = Boolean(isError);
+    if (cx) cx.notify();
+  }
+
+  /**
+   * 以选中消息的主题与内容重新发布。
+   *
+   * 与 publish.js 同一约定:大 payload 会放大 IPC 帧,第一次点击只做预告,
+   * 第二次才真发;小消息单击即发。
+   */
+  async republish(cx) {
+    const m = this.selected;
+    if (!m) return;
+    const topic = m.topic || "";
+    const p = props(m);
+    if (!topic || topic.includes("+") || topic.includes("#")) {
+      this.setAction(`主题“${topic}”不是可发布的具体主题(含通配符或为空)`, true, cx);
+      return;
+    }
+    const text = this.selectedText();
+    const bytes = Buffer.from(text, "utf8");
+    const key = `pub:${topic}:${bytes.length}`;
+    if (bytes.length > 256 * 1024 && this.armed !== key) {
+      this.armed = key;
+      this.setAction(`内容约 ${humanBytes(bytes.length)},体积偏大;再点一次确认发布到 ${topic}`, false, cx);
+      return;
+    }
+    this.armed = null;
+    this.setAction("发布中…", false, cx);
+    try {
+      const result = await dispatch("publish", {
+        topic,
+        body: Array.from(bytes),
+        properties: [["qos", p.qos || "1"], ["retain", p.retain === "true" ? "true" : "false"]],
+      }, { confirmed: true });
+      this.setAction(`已发布到 ${topic} · ${humanBytes(bytes.length)} · ${result?.message_id || ""}`, false, cx);
+    } catch (error) {
+      this.setAction(`发布失败: ${errorMessage(error)}`, true, cx);
+    }
+  }
+
+  /**
+   * 清除该主题的 retained 消息(空 payload + retain)。
+   *
+   * 只对**具体主题**开放:通配符会把同层其它主题的 retained 一起清掉。
+   */
+  async clearRetained(cx) {
+    const m = this.selected;
+    if (!m) return;
+    const topic = m.topic || "";
+    if (!topic || topic.includes("+") || topic.includes("#")) {
+      this.setAction(`只能对具体主题清除 retained,当前是“${topic}”`, true, cx);
+      return;
+    }
+    const key = `retain:${topic}`;
+    if (this.armed !== key) {
+      this.armed = key;
+      this.setAction(`再点一次确认:以空 payload 向 ${topic} 发布 retained,该主题的保留消息将被删除`, false, cx);
+      return;
+    }
+    this.armed = null;
+    this.setAction("清除中…", false, cx);
+    try {
+      await dispatch("publish", {
+        topic,
+        body: [],
+        properties: [["qos", props(m).qos || "1"], ["retain", "true"]],
+      }, { confirmed: true });
+      this.setAction(`已向 ${topic} 发送空 retained,保留消息应已被 broker 删除`, false, cx);
+    } catch (error) {
+      this.setAction(`清除失败: ${errorMessage(error)}`, true, cx);
+    }
+  }
+
+  /** 选中一行并取回完整字节;对比模式下顺带拉取上一帧。 */
   async select(message, cx) {
+    // 换一条消息:与上一帧的对比结果、行内二次确认都随之作废
+    this.prevMessage = null;
+    this.prevError = null;
+    this.armed = null;
+    this.actionStatus = null;
+    this.actionError = false;
     this.selected = message;
     this.detailMessage = Array.isArray(message.body) ? message : null;
     this.detailError = null;
     cx.notify();
+    if (this.viewMode === "diff") cx.spawn(async (cx) => this.loadPrevious(cx));
     if (this.detailMessage) return;
     try {
-      const result = await dispatch("queryById", {
-        ById: { topic: message.topic, message_id: message.message_id },
-      });
+      const found = await this.fetchMessage(message);
       // 期间用户可能点了别的行:只在仍选中同一条时回填
       if (!this.selected || this.selected.message_id !== message.message_id) return;
-      const found = (result?.messages || [])[0];
       this.detailMessage = found || null;
-      if (!found) {
-        this.detailError = "这条消息已不在 provider 缓冲里(默认只保留最近若干条)";
-      }
     } catch (error) {
       if (!this.selected || this.selected.message_id !== message.message_id) return;
       this.detailError = errorMessage(error);
@@ -207,7 +225,7 @@ export default class MqttMessages extends View {
   visible() {
     const filter = this.topicFilter.value().trim();
     const needle = this.keyword.value().trim().toLowerCase();
-    return this.rows.filter((m) => {
+    return this.feed.rows.filter((m) => {
       if (this.direction !== "all" && props(m).direction !== this.direction) return false;
       if (filter && !topicMatches(filter, m.topic || "")) return false;
       if (needle) {
@@ -240,6 +258,70 @@ export default class MqttMessages extends View {
       .child(div().text_size(12).text_color(cx.theme().colors.muted_foreground).text_ellipsis().child(preview));
   }
 
+  /** JSON 树的一行:可展开的路径可点击折叠/展开(折叠态按路径保留)。 */
+  treeRow(cx, row) {
+    const muted = cx.theme().colors.muted_foreground;
+    return h_flex().id(`mqtt-msg-tree-${row.path}`).items_start().gap(6).py(2)
+      .when(row.depth > 0, (el) => el.pl(row.depth * 12))
+      .when(row.expandable, (el) => el.cursor_pointer().on_click((_e, cx) => {
+        if (this.jsonExpanded.has(row.path)) this.jsonExpanded.delete(row.path);
+        else this.jsonExpanded.add(row.path);
+        cx.notify();
+      }))
+      .child(div().flex_shrink_0().text_size(11).text_color(muted)
+        .child(row.expandable ? (row.expanded ? "▾" : "▸") : "·"))
+      .children(row.key
+        ? [div().flex_shrink_0().text_size(12).text_color(cx.theme().colors.primary).child(`${row.key}:`)]
+        : [])
+      .child(div().flex_1().min_w_0().text_size(12)
+        .text_color(row.kind === "string" ? cx.theme().colors.foreground : muted)
+        .child(row.preview));
+  }
+
+  /** diff 的一行:增/删/未变三态。 */
+  diffRow(cx, row) {
+    const color = row.kind === "add"
+      ? cx.theme().colors.primary
+      : (row.kind === "del" ? cx.theme().colors.destructive : cx.theme().colors.muted_foreground);
+    const sign = row.kind === "add" ? "+" : (row.kind === "del" ? "-" : " ");
+    return h_flex().items_start().gap(6).py(1)
+      .child(div().w(10).flex_shrink_0().text_size(11).text_color(color).child(sign))
+      .child(div().flex_1().min_w_0().text_size(12).font_family("monospace").text_color(color)
+        .child(row.text === "" ? " " : row.text));
+  }
+
+  /** 详情区主体:文本 / JSON 树 / 与上一帧对比三选一。 */
+  detailBody(cx, m) {
+    const full = this.detailMessage || m;
+    const text = plainText(full) || plainText(m);
+    if (this.viewMode === "tree") {
+      const parsed = parseJson(text);
+      if (!parsed.ok) {
+        return [div().p(8).text_size(12).text_color(cx.theme().colors.destructive)
+          .child(`不是合法 JSON:${parsed.reason}`)];
+      }
+      const rows = flattenJson(parsed.value, { expanded: this.jsonExpanded });
+      return rows.map((row) => this.treeRow(cx, row));
+    }
+    if (this.viewMode === "diff") {
+      if (this.prevLoading) {
+        return [div().p(8).text_size(12).text_color(cx.theme().colors.muted_foreground).child("读取上一帧…")];
+      }
+      if (this.prevError) {
+        return [div().p(8).text_size(12).text_color(cx.theme().colors.muted_foreground).child(this.prevError)];
+      }
+      if (!this.prevMessage) {
+        return [div().p(8).text_size(12).text_color(cx.theme().colors.muted_foreground).child("暂无对比结果")];
+      }
+      const rows = diffLines(plainText(this.prevMessage), text);
+      const summary = diffSummary(rows);
+      return [div().px(6).py(2).text_size(11).text_color(cx.theme().colors.muted_foreground)
+        .child(`对比上一帧(${this.prevMessage.message_id}):+${summary.added} / -${summary.removed}`)]
+        .concat(rows.map((row) => this.diffRow(cx, row)));
+    }
+    return [div().child(decodePayload(full, this.format))];
+  }
+
   detail(cx) {
     const m = this.selected;
     if (!m) {
@@ -251,29 +333,64 @@ export default class MqttMessages extends View {
     // 每页 200 条 × 完整 payload 塞进响应帧。
     const full = this.detailMessage || m;
     const bytes = Array.isArray(this.detailMessage?.body) ? this.detailMessage.body.length : null;
+    const text = plainText(full) || plainText(m);
+    const republishArmed = String(this.armed || "").startsWith("pub:");
+    const clearArmed = String(this.armed || "").startsWith("retain:");
     return v_flex().size_full().min_h_0().p(10).gap(6)
       .child(h_flex().items_center().justify_between().gap(6).min_w_0()
         .child(div().flex_1().min_w_0().text_ellipsis().font_semibold().text_size(13).child("消息详情"))
+        // 格式选择器只在文本模式有意义(树形与 diff 都是结构化展示)。
+        .children(this.viewMode === "text"
+          ? [div().w(120).flex_shrink_0().child(
+              new Select("mqtt-msg-format", () => FORMAT_OPTIONS, (row) => div().child(row.label), (value, cx) => {
+                this.format = String(value);
+                cx.notify();
+              }).placeholder(`格式: ${this.format}`).menu_width(140))]
+          : [])
         // 同 subscriptions.js:选择器自带整行宽度,裸着当行子元素会把标题挤没。
-        .child(div().w(150).flex_shrink_0().child(
-          new Select("mqtt-msg-format", () => FORMAT_OPTIONS, (row) => div().child(row.label), (value, cx) => {
-            this.format = String(value);
+        .child(div().w(140).flex_shrink_0().child(
+          new Select("mqtt-msg-view", () => VIEW_MODES, (row) => div().child(row.label), (value, cx) => {
+            this.viewMode = String(value);
+            if (this.viewMode === "diff" && !this.prevMessage) cx.spawn(async (cx) => this.loadPrevious(cx));
             cx.notify();
-          }).placeholder(`格式: ${this.format}`).menu_width(140))))
-      .child(kv(cx, "主题", m.topic))
+          }).placeholder(VIEW_MODES.find((v) => v.id === this.viewMode)?.label || "文本").menu_width(160))))
+      .child(h_flex().items_center().gap(6).min_w_0()
+        .child(div().w(96).flex_shrink_0().text_size(12).text_color(cx.theme().colors.muted_foreground).child("主题"))
+        .child(div().flex_1().min_w_0().text_size(12).font_family("monospace").text_ellipsis().child(m.topic || ""))
+        .child(new Clipboard("mqtt-msg-copy-topic").value(m.topic || "").tooltip("复制主题")
+          .child(new Tag().size("xsmall").outline().child("复制主题"))))
       .child(kv(cx, "方向", p.direction === "out" ? "发送" : "接收"))
       .child(kv(cx, "QoS / Retain", `${p.qos || "-"} / ${p.retain || "false"}`))
       .child(kv(cx, "时间", m.store_time || formatTime(m)))
       .child(kv(cx, "大小", humanBytes(bytes ?? (Number(p.payload_size) || payloadSize(m)))))
-      .child(kv(cx, "ID", m.message_id))
       .children(this.detailError
         ? [div().text_size(11).text_color(cx.theme().colors.destructive).child(this.detailError)]
         : (!Array.isArray(this.detailMessage?.body) && !Array.isArray(m.body)
             ? [div().text_size(11).text_color(cx.theme().colors.muted_foreground).child("完整内容读取中…")]
             : []))
+      // 操作行:复制主题/内容(Clipboard 组件直写系统剪贴板)、重发、清除 retained。
+      // 重发与 retained 清除都是**会改 broker 状态**的动作:第一次点只做预告(见
+      // republish / clearRetained),第二次才真发。
+      .child(h_flex().items_center().gap(6).flex_wrap().min_w_0()
+        .child(new Clipboard("mqtt-msg-copy-body").value(text).tooltip("复制内容")
+          .child(new Tag().size("xsmall").outline().child("复制内容")))
+        .child(new Button("mqtt-msg-republish").ghost().size("xsmall")
+          .label(republishArmed ? "确认发布" : "以此内容发布")
+          .disabled(!text)
+          .on_click((_e, cx) => cx.spawn(async (cx) => this.republish(cx))))
+        .children(p.retain === "true"
+          ? [new Button("mqtt-msg-clear-retained").ghost().size("xsmall")
+              .label(clearArmed ? "确认清除 retained" : "清除 retained")
+              .on_click((_e, cx) => cx.spawn(async (cx) => this.clearRetained(cx)))]
+          : []))
+      .children(this.actionStatus
+        ? [div().text_size(11).text_ellipsis()
+            .text_color(this.actionError ? cx.theme().colors.destructive : cx.theme().colors.muted_foreground)
+            .child(this.actionStatus)]
+        : [])
       .child(div().flex_1().min_h_0().overflow_y_scrollbar().border_1().rounded(6).p(8)
         .font_family("monospace").text_size(12)
-        .child(decodePayload(full, this.format)));
+        .children(this.detailBody(cx, m)));
   }
 
   render(cx) {
@@ -297,45 +414,27 @@ export default class MqttMessages extends View {
               this.direction = String(value);
               cx.notify();
             }).placeholder(directions.find((d) => d.id === this.direction)?.label || "全部").menu_width(120)))
-          .child(div().flex_shrink_0().text_color(cx.theme().colors.muted_foreground).text_size(11).whitespace_nowrap().child(`${visible.length} / ${this.rows.length}`))
+          .child(div().flex_shrink_0().text_color(cx.theme().colors.muted_foreground).text_size(11).whitespace_nowrap().child(`${visible.length} / ${this.feed.rows.length}`))
           .child(new Button("mqtt-msg-pause").ghost().size("small").flex_shrink_0()
-            .label(this.paused ? "继续" : "暂停")
-            .on_click((_e, cx) => { this.paused = !this.paused; cx.notify(); }))
+            .label(this.feed.paused ? "继续" : "暂停")
+            .on_click((_e, cx) => { this.feed.paused = !this.feed.paused; cx.notify(); }))
           .child(new Button("mqtt-msg-clear").ghost().size("small").flex_shrink_0().label("清空")
             .on_click((_e, cx) => {
-              this.rows = [];
-              this.selected = null;
-              this.detailMessage = null;
+              this.feed.clear();
+              this.prevMessage = null;
+              this.prevError = null;
+              this.armed = null;
+              this.actionStatus = null;
               cx.notify();
             })))
         // 状态条分三类:provider 断开(自动退避重连)、不可自愈的错误(停止轮询 +
-        // 手动重试)、换代提示。base64 envelope 已由 shared.js 剥掉,不再直接
-        // 铺在页面上。
-        .children(this.error
-          ? [banner(cx, `${this.errorTransient ? "连接中断" : "轮询失败"}: ${this.error}`, {
-              error: true,
-              action: this.halted
-                ? {
-                    id: "mqtt-msg-retry",
-                    label: "重试",
-                    on_click: (cx) => {
-                      this.halted = false;
-                      this.failures = 0;
-                      this.nextAttemptAt = 0;
-                      this.needsResync = true;
-                      cx.spawn(async (cx) => this.poll(cx));
-                    },
-                  }
-                : null,
-            })]
-          : (this.notice
-              ? [banner(cx, this.notice, {})]
-              : []))
+        // 手动重试)、换代提示。与主题树页共用(shared.js::feedBanner)。
+        .children(feedBanner(cx, this.feed))
         .child(div().flex_1().min_h_0().overflow_y_scrollbar()
           .children(visible.length
             ? visible.map((m) => this.row(cx, m))
             : [div().p(16).text_color(cx.theme().colors.muted_foreground).text_size(12)
-                .child(this.rows.length ? "没有匹配过滤条件的消息" : "等待消息…请确认已订阅相关主题")])))
-      .child(div().w(360).flex_shrink_0().h_full().min_h_0().border_l_1().child(this.detail(cx)));
+                .child(this.feed.rows.length ? "没有匹配过滤条件的消息" : "等待消息…请确认已订阅相关主题")])))
+      .child(div().w(420).flex_shrink_0().h_full().min_h_0().border_l_1().child(this.detail(cx)));
   }
 }

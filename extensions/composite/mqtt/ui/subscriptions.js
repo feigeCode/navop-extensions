@@ -8,8 +8,8 @@
 //     才真正下发。写操作不靠固定的 `confirmed: true` 静默绕过宿主确认语义,
 //     而是由这个真实交互产生。
 import { View, div } from "gpui";
-import { h_flex, v_flex, InputState } from "gpui-base";
-import { Button, Input, Select, Tag } from "gpui-component";
+import { h_flex, v_flex, InputState, TextareaState } from "gpui-base";
+import { Button, Input, Select, Tag, Textarea } from "gpui-component";
 import { dispatch } from "navop.workbench";
 import * as context from "navop.context";
 import {
@@ -18,6 +18,35 @@ import {
 
 /** provider 对自动订阅给出的 topic_type(见 admin.rs)。 */
 const AUTO_TOPIC_TYPE = "AUTO_SUBSCRIPTION";
+
+/**
+ * 过滤器收藏的存储键。
+ *
+ * 用 `localStorage`(宿主里是文件,重启仍在)而不是宿主 KV:收藏是纯前端的
+ * 便利数据,不值得为它再走一轮 provider 往返;宿主 KV 还会随 provider 换代清空。
+ */
+const COLLECTION_KEY = "mqtt.subscription.favorites";
+
+/** 收藏的过滤器(去重、只保留合法过滤器;存储不可用时按空处理)。 */
+function readFavorites() {
+  try {
+    const raw = localStorage.getItem(COLLECTION_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((item) => typeof item === "string" && item) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 写回收藏;返回是否成功(存储被禁用时 UI 据此给出提示而不是假装保存了)。 */
+function writeFavorites(list) {
+  try {
+    localStorage.setItem(COLLECTION_KEY, JSON.stringify(list));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 宿主是否真的把订阅存下来了(provider 在 open metadata 里给结论)。
@@ -64,6 +93,11 @@ export default class MqttSubscriptions extends View {
     this.pendingUnsubscribe = null;
     this.persistenceHint = persistenceHint();
     this.autoFilter = autoFilter();
+    /** 批量订阅输入(每行一个过滤器)与展开状态 */
+    this.batchOpen = false;
+    this.batch = TextareaState.new({ value: "", placeholder: "每行一个主题过滤器,例如:\nsensors/+/temp\ndevices/#", rows: 4 });
+    /** 收藏的过滤器(localStorage) */
+    this.favorites = readFavorites();
     cx.spawn(async (cx) => this.load(cx));
   }
 
@@ -138,6 +172,90 @@ export default class MqttSubscriptions extends View {
     await this.load(cx);
   }
 
+  /**
+   * 批量订阅:一行一个过滤器,逐个下发。
+   *
+   * 不把所有行合成一次调用 —— provider 的 subscribe 是单条语义,而部分成功
+   * 比全有全无更有用:成功多少、哪几行不合法都要如实告知。
+   */
+  async subscribeBatch(cx) {
+    const lines = String(this.batch.value() || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) {
+      this.notice = "批量输入为空:每行写一个主题过滤器";
+      this.noticeError = true;
+      cx.notify();
+      return;
+    }
+    const invalid = lines.filter((line) => !isValidFilter(line));
+    const valid = lines.filter((line) => isValidFilter(line) && line !== this.autoFilter);
+    const skipped = lines.length - valid.length - invalid.length;
+    this.busy = true;
+    this.notice = null;
+    this.noticeError = false;
+    cx.notify();
+    let done = 0;
+    const failures = [];
+    for (const topic of valid) {
+      try {
+        // 每次订阅都是用户明确点「批量订阅」后发起的,confirmed 由该交互授权
+        await dispatch("subscribe", { topic, qos: Number(this.qos) }, { confirmed: true });
+        done += 1;
+      } catch (error) {
+        failures.push(`${topic}(${errorMessage(error)})`);
+      }
+    }
+    this.busy = false;
+    this.notice = `批量订阅完成:成功 ${done} 条` + (skipped ? `,跳过 ${skipped} 条(已由自动订阅覆盖)` : "")
+      + (invalid.length ? `,非法 ${invalid.length} 条:${invalid.join("、")}` : "")
+      + (failures.length ? `,失败 ${failures.length} 条:${failures.join(";")}` : "");
+    this.noticeError = invalid.length > 0 || failures.length > 0;
+    if (done > 0 && !failures.length) this.batch.set_value("");
+    await this.load(cx);
+  }
+
+  /** 收藏/取消收藏一个过滤器(不触碰 provider)。 */
+  toggleFavorite(filter, cx) {
+    if (!filter) return;
+    const exists = this.favorites.includes(filter);
+    const next = exists ? this.favorites.filter((item) => item !== filter) : [...this.favorites, filter];
+    if (!writeFavorites(next)) {
+      this.notice = "本机浏览器存储不可用,收藏无法保存";
+      this.noticeError = true;
+      cx.notify();
+      return;
+    }
+    this.favorites = next;
+    this.notice = exists ? `已取消收藏 ${filter}` : `已收藏 ${filter}`;
+    this.noticeError = false;
+    cx.notify();
+  }
+
+  /** 用当前过滤器输入框内容发起订阅(收藏项点击后直接订阅)。 */
+  async subscribeTopic(topic, cx) {
+    if (!isValidFilter(topic)) {
+      this.notice = `过滤器非法: \`${topic}\``;
+      this.noticeError = true;
+      cx.notify();
+      return;
+    }
+    this.busy = true;
+    this.notice = null;
+    this.noticeError = false;
+    cx.notify();
+    try {
+      await dispatch("subscribe", { topic, qos: Number(this.qos) }, { confirmed: true });
+      this.notice = `已订阅 ${topic}(${qosLabel(this.qos)})`;
+    } catch (error) {
+      this.notice = `订阅失败: ${errorMessage(error)}`;
+      this.noticeError = true;
+    }
+    this.busy = false;
+    await this.load(cx);
+  }
+
   row(topic, cx) {
     const name = topic.name || "";
     const managed = topic.topic_type === AUTO_TOPIC_TYPE;
@@ -198,7 +316,35 @@ export default class MqttSubscriptions extends View {
             .on_click((_e, cx) => cx.spawn(async (cx) => this.subscribe(cx)))))
         .children(this.notice ? [div().text_size(12)
           .text_color(this.noticeError ? cx.theme().colors.destructive : cx.theme().colors.muted_foreground)
-          .child(this.notice)] : []))
+          .child(this.notice)] : [])
+        .child(h_flex().items_center().gap(6).flex_wrap().min_w_0()
+          .child(new Button("mqtt-sub-batch-toggle").ghost().size("xsmall")
+            .label(this.batchOpen ? "收起批量输入" : "批量订阅(MQTTX 支持逐行粘贴)")
+            .on_click((_e, cx) => { this.batchOpen = !this.batchOpen; cx.notify(); }))
+          .child(new Button("mqtt-sub-favorite-add").ghost().size("xsmall")
+            .label(this.favorites.includes(this.filter.value().trim()) ? "取消收藏当前过滤器" : "收藏当前过滤器")
+            .on_click((_e, cx) => this.toggleFavorite(this.filter.value().trim(), cx)))
+          .child(div().flex_1().min_w_0()))
+        .children(this.batchOpen
+          ? [
+            div().flex_shrink_0().child(new Textarea(this.batch)),
+            h_flex().items_center().gap(6)
+              .child(new Button("mqtt-sub-batch-run").size("small").label(this.busy ? "处理中…" : "订阅全部")
+                .disabled(this.busy)
+                .on_click((_e, cx) => cx.spawn(async (cx) => this.subscribeBatch(cx))))
+              .child(div().flex_1().min_w_0().text_size(11).text_color(cx.theme().colors.muted_foreground)
+                .child("每行一个过滤器;非法行会被跳过并在结果里列出来")),
+          ]
+          : [])
+        .children(this.favorites.length
+          ? [h_flex().items_center().gap(6).flex_wrap().min_w_0()
+            .child(div().flex_shrink_0().text_size(11).text_color(cx.theme().colors.muted_foreground).child("收藏:"))
+            .children(this.favorites.map((filter) => h_flex().id(`mqtt-fav-${filter}`).items_center().gap(4)
+              .child(new Button(`mqtt-fav-sub-${filter}`).ghost().size("xsmall").label(filter)
+                .on_click((_e, cx) => cx.spawn(async (cx) => this.subscribeTopic(filter, cx))))
+              .child(new Button(`mqtt-fav-del-${filter}`).ghost().size("xsmall").label("×")
+                .on_click((_e, cx) => this.toggleFavorite(filter, cx)))))]
+          : []))
       // 列表非空但读失败(例如 provider 被重启):列表保留旧内容,状态条给出原因和重试
       .children(this.error
         ? [banner(cx, `订阅列表可能已过期:${this.error}`, { error: true, action: {

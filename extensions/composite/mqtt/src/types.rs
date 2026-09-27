@@ -24,8 +24,18 @@ pub(crate) struct MqttConnectionConfig {
     pub username: Option<String>,
     /// 密码(经宿主 reverse Host API 解析 `secret://self/...` 后注入)
     pub password: Option<String>,
-    /// 是否启用 TLS(表单未暴露,预留 8883 端口场景,默认 false)
+    /// 是否启用 TLS
     pub use_tls: bool,
+    /// 自定义 CA 证书(PEM 文本;空表示用系统根证书)
+    pub tls_ca_pem: String,
+    /// 自定义 CA 证书文件路径(PEM;`tls_ca_pem` 为空时才读取)
+    pub tls_ca_path: String,
+    /// mTLS 客户端证书路径(PEM)
+    pub tls_client_cert_path: String,
+    /// mTLS 客户端私钥路径(PEM)
+    pub tls_client_key_path: String,
+    /// 跳过服务端证书校验(自签/调试场景)
+    pub tls_skip_verify: bool,
     /// 连接超时(秒)
     pub timeout: u64,
     /// keep-alive 间隔(秒;标准 §4 表单默认 60)
@@ -65,6 +75,11 @@ impl Default for MqttConnectionConfig {
             username: None,
             password: None,
             use_tls: false,
+            tls_ca_pem: String::new(),
+            tls_ca_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
+            tls_skip_verify: false,
             timeout: default_timeout(),
             keep_alive_secs: default_keep_alive(),
             clean_session: true,
@@ -78,6 +93,35 @@ impl MqttConnectionConfig {
     /// 服务器信息显示
     pub(crate) fn server_info(&self) -> String {
         format!("{}:{}", self.host, self.port)
+    }
+
+    /// 是否要求自定义 TLS 材料(自定义 CA / mTLS / 跳过校验)。
+    ///
+    /// 三者都没有时保持 rumqttc 的默认 TLS 配置(系统根证书),
+    /// 这样老配置(只填 use_tls)行为完全不变。
+    pub(crate) fn has_custom_tls(&self) -> bool {
+        self.tls_skip_verify
+            || !self.tls_ca_pem.trim().is_empty()
+            || !self.tls_ca_path.trim().is_empty()
+            || !self.tls_client_cert_path.trim().is_empty()
+            || !self.tls_client_key_path.trim().is_empty()
+    }
+
+    /// TLS 方案描述(供 open 元数据与 UI 展示,不含凭据内容)
+    pub(crate) fn tls_mode(&self) -> &'static str {
+        if !self.use_tls {
+            return "off";
+        }
+        if self.tls_skip_verify {
+            return "skip-verify";
+        }
+        if !self.tls_client_cert_path.trim().is_empty() {
+            return "mutual";
+        }
+        if self.has_custom_tls() {
+            return "custom-ca";
+        }
+        "system-roots"
     }
 }
 
@@ -94,6 +138,8 @@ pub(crate) enum MqttError {
     Connection(String),
     /// 认证错误(broker 拒绝凭据)
     Auth(String),
+    /// 配置错误(如 TLS 材料缺失/互斥组合),归到标准 §3 的「配置错误」类
+    Config(String),
 }
 
 impl std::fmt::Display for MqttError {
@@ -104,6 +150,7 @@ impl std::fmt::Display for MqttError {
             Self::NotConnected => write!(f, "连接错误: 尚未连接到 MQTT 服务器"),
             Self::Connection(detail) => write!(f, "连接错误: {detail}"),
             Self::Auth(detail) => write!(f, "认证错误: {detail}"),
+            Self::Config(detail) => write!(f, "配置错误: {detail}"),
         }
     }
 }
@@ -118,6 +165,7 @@ impl From<MqttError> for MiddlewareError {
             MqttError::NotConnected => Self::Connection("尚未连接到 MQTT 服务器".to_string()),
             MqttError::Connection(detail) => Self::Connection(detail),
             MqttError::Auth(detail) => Self::Auth(detail),
+            MqttError::Config(detail) => Self::Config(detail),
             MqttError::Protocol(detail) => Self::Protocol(detail),
         }
     }

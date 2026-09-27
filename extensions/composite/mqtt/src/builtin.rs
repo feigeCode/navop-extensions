@@ -12,7 +12,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use rumqttc::{AsyncClient, ConnectionError, Event, Incoming, MqttOptions, Transport};
+use rumqttc::{
+    AsyncClient, ConnectionError, Event, Incoming, MqttOptions, TlsConfiguration, Transport,
+};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::crypto::WebPkiSupportedAlgorithms;
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::{ClientConfig, DigitallySignedStruct, Error as RustlsError, SignatureScheme};
 use tokio::sync::{Mutex, broadcast, mpsc, watch};
 use tokio::time::timeout;
 
@@ -57,6 +63,133 @@ fn is_fatal_auth_error(error: &ConnectionError) -> bool {
                 | rumqttc::ConnectReturnCode::NotAuthorized
         )
     )
+}
+
+/// ring 提供的签名校验算法集(跳过证书校验模式下仍需按算法集校验握手签名)
+fn signature_algorithms() -> WebPkiSupportedAlgorithms {
+    rustls::crypto::ring::default_provider().signature_verification_algorithms
+}
+
+/// 「跳过服务端证书校验」模式下的校验器:接受任意证书链与主机名。
+///
+/// 只放行「证书是否可信」这一层;握手签名的完整性仍按 ring 算法集正常校验——
+/// 跳过的是信任判断,不是 TLS 本身。仅用于自签/内网调试。
+#[derive(Debug)]
+struct AcceptAnyServerCertificate;
+
+impl ServerCertVerifier for AcceptAnyServerCertificate {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, RustlsError> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        rustls::crypto::verify_tls12_signature(message, cert, dss, &signature_algorithms())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        rustls::crypto::verify_tls13_signature(message, cert, dss, &signature_algorithms())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        signature_algorithms().supported_schemes()
+    }
+}
+
+/// 读取 TLS 材料:内联 PEM 优先,其次文件路径;两者都没有则 None。
+///
+/// 读不到直接报错(带路径与原因),**不静默降级**到系统根证书:静默降级会让用户
+/// 以为自签证书已生效,而真实失败原因还藏在 TLS 校验里看不出来。
+/// 证书文件只有几 KiB,这里用同步 IO(tokio 未开 `fs` feature)。
+fn read_tls_material(
+    inline_pem: &str,
+    path: &str,
+    label: &str,
+) -> Result<Option<Vec<u8>>, MqttError> {
+    let inline = inline_pem.trim();
+    if !inline.is_empty() {
+        return Ok(Some(inline.as_bytes().to_vec()));
+    }
+    let path = path.trim();
+    if path.is_empty() {
+        return Ok(None);
+    }
+    std::fs::read(path).map(Some).map_err(|error| {
+        MqttError::Config(format!("读取{label}文件 `{path}` 失败: {error}"))
+    })
+}
+
+/// 构建 TLS 传输。
+///
+/// - 未提供任何 TLS 材料:沿用 rumqttc 默认配置(系统根证书),老配置行为不变
+/// - 提供 CA(内联或路径):以该 CA 作为信任根(自签证书直接填这里即可)
+/// - 提供客户端证书/私钥:mTLS(同时必须提供 CA)
+/// - `tls_skip_verify`:接受任意服务端证书(与 mTLS 互斥)
+fn build_transport(config: &MqttConnectionConfig) -> Result<Transport, MqttError> {
+    if !config.has_custom_tls() {
+        return Ok(Transport::tls_with_default_config());
+    }
+
+    let has_cert = !config.tls_client_cert_path.trim().is_empty();
+    let has_key = !config.tls_client_key_path.trim().is_empty();
+    if has_cert != has_key {
+        return Err(MqttError::Config(
+            "mTLS 需要同时提供客户端证书与私钥（tls_client_cert_path / tls_client_key_path）"
+                .to_string(),
+        ));
+    }
+    if config.tls_skip_verify && has_cert {
+        return Err(MqttError::Config(
+            "「跳过证书校验」与 mTLS 互斥：跳过校验时无法验证客户端证书链".to_string(),
+        ));
+    }
+
+    if config.tls_skip_verify {
+        let client_config = ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(AcceptAnyServerCertificate))
+            .with_no_client_auth();
+        return Ok(Transport::tls_with_config(TlsConfiguration::Rustls(
+            Arc::new(client_config),
+        )));
+    }
+
+    let Some(ca) = read_tls_material(&config.tls_ca_pem, &config.tls_ca_path, "CA 证书")? else {
+        return Err(MqttError::Config(
+            "自定义 TLS 与 mTLS 都需要 CA 证书：请填入 `tls_ca_pem` 或 `tls_ca_path`".to_string(),
+        ));
+    };
+    let client_auth = if has_cert {
+        let cert = read_tls_material("", &config.tls_client_cert_path, "客户端证书")?
+            .unwrap_or_default();
+        let key =
+            read_tls_material("", &config.tls_client_key_path, "客户端私钥")?.unwrap_or_default();
+        Some((cert, key))
+    } else {
+        None
+    };
+
+    Ok(Transport::tls_with_config(TlsConfiguration::Simple {
+        ca,
+        alpn: None,
+        client_auth,
+    }))
 }
 
 /// MQTT 连接实现(rumqttc AsyncClient + EventLoop)
@@ -207,7 +340,7 @@ impl MqttConnection for MqttConnectionImpl {
             options.set_credentials(username.to_string(), password);
         }
         if self.config.use_tls {
-            options.set_transport(Transport::tls_with_default_config());
+            options.set_transport(build_transport(&self.config)?);
         }
         if let Some(will) = &self.config.last_will {
             options.set_last_will(rumqttc::LastWill::new(
@@ -487,5 +620,131 @@ mod tests {
             ..MqttConnectionConfig::default()
         });
         assert!(impl_.subscriptions.try_lock().unwrap().is_empty());
+    }
+
+    /// 构建 TLS 传输并断言失败(Transport 未实现 Debug,不能用 `expect_err`)
+    fn transport_error(config: &MqttConnectionConfig) -> MqttError {
+        match build_transport(config) {
+            Ok(_) => panic!("期望 TLS 传输构建失败"),
+            Err(error) => error,
+        }
+    }
+
+    #[test]
+    fn default_config_uses_system_roots() {
+        let config = MqttConnectionConfig::default();
+        assert!(!config.has_custom_tls());
+        assert_eq!(config.tls_mode(), "off");
+        // 无 TLS 材料 → 沿用 rumqttc 默认配置(系统根证书)
+        let transport = build_transport(&config).expect("默认 TLS 传输应构建成功");
+        assert!(matches!(
+            transport,
+            Transport::Tls(TlsConfiguration::Simple { .. } | TlsConfiguration::Rustls(_))
+        ));
+
+        // 空白材料不算配置(避免表单留白触发自定义分支)
+        let config = MqttConnectionConfig {
+            use_tls: true,
+            tls_ca_pem: "   \n ".into(),
+            tls_ca_path: "  ".into(),
+            ..MqttConnectionConfig::default()
+        };
+        assert!(!config.has_custom_tls());
+        assert_eq!(config.tls_mode(), "system-roots");
+    }
+
+    #[test]
+    fn inline_ca_selects_custom_roots() {
+        let config = MqttConnectionConfig {
+            use_tls: true,
+            tls_ca_pem: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----".into(),
+            ..MqttConnectionConfig::default()
+        };
+        assert_eq!(config.tls_mode(), "custom-ca");
+        let Transport::Tls(TlsConfiguration::Simple { ca, client_auth, .. }) =
+            build_transport(&config).expect("自定义 CA 应构建成功")
+        else {
+            panic!("自定义 CA 应走 TlsConfiguration::Simple");
+        };
+        assert!(String::from_utf8(ca).unwrap().contains("BEGIN CERTIFICATE"));
+        assert!(client_auth.is_none());
+    }
+
+    #[test]
+    fn ca_file_is_read_from_path() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        let path = dir.path().join("ca.pem");
+        std::fs::write(&path, b"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----").unwrap();
+        let config = MqttConnectionConfig {
+            use_tls: true,
+            tls_ca_path: path.display().to_string(),
+            ..MqttConnectionConfig::default()
+        };
+        let Transport::Tls(TlsConfiguration::Simple { ca, .. }) =
+            build_transport(&config).expect("CA 文件应读取成功")
+        else {
+            panic!("CA 文件应走 TlsConfiguration::Simple");
+        };
+        assert!(String::from_utf8(ca).unwrap().contains("BEGIN CERTIFICATE"));
+
+        // 读取失败必须报配置错误(不静默降级到系统根)
+        let error = transport_error(&MqttConnectionConfig {
+            use_tls: true,
+            tls_ca_path: dir.path().join("missing.pem").display().to_string(),
+            ..MqttConnectionConfig::default()
+        });
+        assert!(matches!(error, MqttError::Config(_)));
+        assert!(error.to_string().starts_with("配置错误: "), "{error}");
+    }
+
+    #[test]
+    fn mutual_tls_requires_cert_and_key_and_ca() {
+        let cert = MqttConnectionConfig {
+            use_tls: true,
+            tls_client_cert_path: "/tmp/client.pem".into(),
+            tls_ca_pem: "ca".into(),
+            ..MqttConnectionConfig::default()
+        };
+        let error = transport_error(&cert);
+        assert!(error.to_string().contains("同时提供客户端证书与私钥"), "{error}");
+
+        // 证书/私钥齐备但没有 CA:mTLS 无法建立信任根,必须报错而不是用系统根
+        let no_ca = MqttConnectionConfig {
+            use_tls: true,
+            tls_client_cert_path: "/tmp/client.pem".into(),
+            tls_client_key_path: "/tmp/client.key".into(),
+            ..MqttConnectionConfig::default()
+        };
+        assert_eq!(no_ca.tls_mode(), "mutual");
+        let error = transport_error(&no_ca);
+        assert!(error.to_string().contains("需要 CA 证书"), "{error}");
+    }
+
+    #[test]
+    fn skip_verify_builds_insecure_rustls_config() {
+        let config = MqttConnectionConfig {
+            use_tls: true,
+            tls_skip_verify: true,
+            ..MqttConnectionConfig::default()
+        };
+        assert_eq!(config.tls_mode(), "skip-verify");
+        let Transport::Tls(TlsConfiguration::Rustls(client_config)) =
+            build_transport(&config).expect("跳过校验应构建成功")
+        else {
+            panic!("跳过校验应走 TlsConfiguration::Rustls");
+        };
+        // 跳过校验模式不额外设置 ALPN,也不要求任何信任根
+        assert!(client_config.alpn_protocols.is_empty());
+
+        // 与 mTLS 互斥
+        let conflicted = MqttConnectionConfig {
+            use_tls: true,
+            tls_skip_verify: true,
+            tls_client_cert_path: "/tmp/client.pem".into(),
+            tls_client_key_path: "/tmp/client.key".into(),
+            ..MqttConnectionConfig::default()
+        };
+        let error = transport_error(&conflicted);
+        assert!(error.to_string().contains("互斥"), "{error}");
     }
 }

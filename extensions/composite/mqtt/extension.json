@@ -83,7 +83,7 @@
                 },
                 {
                   "id": "use_tls",
-                  "label": "启用 TLS（使用系统根证书）",
+                  "label": "启用 TLS",
                   "fieldType": "Checkbox",
                   "defaultValue": "false"
                 },
@@ -97,6 +97,42 @@
                   "label": "密码",
                   "fieldType": "Password",
                   "secret": true
+                }
+              ]
+            },
+            {
+              "id": "tls",
+              "label": "TLS",
+              "fields": [
+                {
+                  "id": "tls_ca_pem",
+                  "label": "CA 证书（PEM 文本）",
+                  "fieldType": "TextArea",
+                  "placeholder": "-----BEGIN CERTIFICATE-----…\n留空则使用系统根证书；自签证书直接贴这里即可"
+                },
+                {
+                  "id": "tls_ca_path",
+                  "label": "CA 证书文件路径",
+                  "fieldType": "Text",
+                  "placeholder": "/etc/mqtt/ca.pem（上面的 PEM 文本为空时才读取）"
+                },
+                {
+                  "id": "tls_client_cert_path",
+                  "label": "客户端证书路径（mTLS）",
+                  "fieldType": "Text",
+                  "placeholder": "/etc/mqtt/client.crt"
+                },
+                {
+                  "id": "tls_client_key_path",
+                  "label": "客户端私钥路径（mTLS）",
+                  "fieldType": "Text",
+                  "placeholder": "/etc/mqtt/client.key"
+                },
+                {
+                  "id": "tls_skip_verify",
+                  "label": "跳过服务端证书校验（自签调试，勿用于生产）",
+                  "fieldType": "Checkbox",
+                  "defaultValue": "false"
                 }
               ]
             },
@@ -409,6 +445,20 @@
             ]
           },
           {
+            "id": "topics",
+            "title": "主题树",
+            "renderer": {
+              "kind": "shell",
+              "viewId": "topics"
+            },
+            "stack": [
+              {
+                "kind": "viewer",
+                "format": "json"
+              }
+            ]
+          },
+          {
             "id": "live",
             "title": "实时消息",
             "renderer": {
@@ -521,6 +571,21 @@
         "title": "MQTT 消息发布",
         "description": "按 QoS/Retain 发布文本、JSON、Hex 或 Base64 消息，支持重发历史。",
         "entry": "ui/publish.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "resource": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "topics",
+        "title": "MQTT 主题树",
+        "description": "按层级聚合观测到的主题（含 retained 标记），可订阅分支、查看分支最新消息并清除 retained。",
+        "entry": "ui/topics.js",
         "surface": "tab",
         "singleton": false,
         "backends": {

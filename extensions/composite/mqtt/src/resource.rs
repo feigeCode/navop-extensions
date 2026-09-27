@@ -104,6 +104,8 @@ impl MqttResource {
             "broker": config.server_info(),
             "client_id": config.client_id,
             "tls": config.use_tls,
+            // TLS 方案（system-roots / custom-ca / mutual / skip-verify / off），不含凭据材料
+            "tls_mode": config.tls_mode(),
             "clean_session": config.clean_session,
             "auto_subscribe": config.auto_subscribe,
             // 实时消息事件流的 kind:UI 用它调用 navop.event.open (见标准 §5.2)

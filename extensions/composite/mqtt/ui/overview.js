@@ -7,9 +7,28 @@ import { banner, card, errorMessage, errorView, kv, loadingView, parseError } fr
 
 const REFRESH_MS = 2000;
 
+/** provider 的 tls_mode 取值 -> 中文说明(见 builtin.rs::tls_mode)。 */
+const TLS_MODES = {
+  off: "未启用",
+  "system-roots": "系统根证书",
+  "custom-ca": "自定义 CA",
+  mutual: "mTLS(双向证书)",
+  "skip-verify": "跳过校验(仅调试)",
+};
+
+/** 连接配置元数据(provider open 响应里的 metadata,不含任何凭据)。 */
+function resourceMetadata(context) {
+  try {
+    return context?.connection?.resource?.metadata || null;
+  } catch {
+    return null;
+  }
+}
+
 export default class MqttOverview extends View {
   init(_props, cx) {
     this.context = current();
+    this.metadata = resourceMetadata(this.context);
     this.metrics = null;
     this.client = null;
     this.error = null;
@@ -83,6 +102,17 @@ export default class MqttOverview extends View {
         .child(kv(cx, "Client ID", client.client_id))
         .child(kv(cx, "协议", client.version))
         .child(kv(cx, "连接名", this.context?.connection?.name || "-")))
+      .child(v_flex().gap(6).border_1().rounded(6).p(12)
+        .child(div().font_semibold().child("连接配置"))
+        .child(kv(cx, "MQTT 版本", this.metadata?.mqtt_version || "3.1.1"))
+        .child(kv(cx, "TLS", TLS_MODES[this.metadata?.tls_mode] || "-"))
+        .child(kv(cx, "Clean Session", this.metadata ? String(Boolean(this.metadata.clean_session)) : "-"))
+        .child(kv(cx, "自动订阅", this.metadata?.auto_subscribe || "-"))
+        .child(kv(cx, "订阅持久化",
+          this.metadata?.persistence === "host"
+            ? `宿主持久化(已恢复 ${Number(this.metadata.restored_subscriptions) || 0} 条)`
+            : "本机未启用(重启后会丢)"))
+        .child(kv(cx, "Broker", this.metadata?.broker)))
       .child(v_flex().gap(6).border_1().rounded(6).p(12)
         .child(div().font_semibold().child(`订阅(${(client.subscriptions || []).length})`))
         .children((client.subscriptions || []).length

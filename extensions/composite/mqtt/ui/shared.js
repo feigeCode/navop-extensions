@@ -230,6 +230,28 @@ export function banner(cx, text, options) {
       .on_click((_e, cx) => opts.action.on_click(cx))] : []);
 }
 
+/**
+ * 轮询型页面共用的状态条。
+ *
+ * 分三类:provider 断开(自动退避重连,不需用户动)、不可自愈的错误(已停止轮询,
+ * 需要一个手动重试)、换代提示。错误已由 parseError 剥掉 base64 envelope。
+ */
+export function feedBanner(cx, feed) {
+  if (feed.error) {
+    return [banner(cx, `${feed.errorTransient ? "连接中断" : "轮询失败"}: ${feed.error}`, {
+      error: true,
+      action: feed.halted
+        ? {
+            id: "mqtt-feed-retry",
+            label: "重试",
+            on_click: (cx) => cx.spawn(async (cx) => feed.retry(cx)),
+          }
+        : null,
+    })];
+  }
+  return feed.notice ? [banner(cx, feed.notice, {})] : [];
+}
+
 export function card(cx, label, value, hint) {
   return v_flex().p(12).gap(4).border_1().rounded(6).min_w(150).flex_1()
     .child(div().text_color(cx.theme().colors.muted_foreground).text_size(12).child(label))

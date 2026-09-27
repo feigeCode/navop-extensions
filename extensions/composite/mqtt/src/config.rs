@@ -43,6 +43,20 @@ struct OpenConfig {
     keep_alive_secs: Option<u64>,
     #[serde(default)]
     use_tls: Option<bool>,
+    /// 自定义 CA(PEM 文本)
+    #[serde(default)]
+    tls_ca_pem: Option<String>,
+    /// 自定义 CA 文件路径(PEM)
+    #[serde(default)]
+    tls_ca_path: Option<String>,
+    /// mTLS 客户端证书/私钥路径(PEM)
+    #[serde(default)]
+    tls_client_cert_path: Option<String>,
+    #[serde(default)]
+    tls_client_key_path: Option<String>,
+    /// 跳过服务端证书校验(自签/调试)
+    #[serde(default)]
+    tls_skip_verify: Option<bool>,
     #[serde(default)]
     clean_session: Option<bool>,
     /// 自动订阅过滤器;缺省 `#`,显式空串表示不自动订阅
@@ -58,6 +72,11 @@ struct OpenConfig {
     will_retain: Option<bool>,
     #[serde(default)]
     credential_refs: BTreeMap<String, String>,
+}
+
+/// 表单文本字段统一去空白(未填/全空白 → 空串,便于 `is_empty()` 判断"未配置")
+fn trimmed(value: Option<&str>) -> String {
+    value.map(str::trim).unwrap_or_default().to_string()
 }
 
 /// 表单 Select 提交字符串、直传 JSON 可能是数字:两者都接受
@@ -137,6 +156,11 @@ pub(crate) fn parse_open_params(params: Value) -> OpenPlanResult {
         // 明文密码在此只是占位,Reference 场景由调用方回填
         password: None,
         use_tls: config.use_tls.unwrap_or(false),
+        tls_ca_pem: trimmed(config.tls_ca_pem.as_deref()),
+        tls_ca_path: trimmed(config.tls_ca_path.as_deref()),
+        tls_client_cert_path: trimmed(config.tls_client_cert_path.as_deref()),
+        tls_client_key_path: trimmed(config.tls_client_key_path.as_deref()),
+        tls_skip_verify: config.tls_skip_verify.unwrap_or(false),
         timeout: MqttConnectionConfig::default().timeout,
         keep_alive_secs: config
             .keep_alive_secs
