@@ -3,10 +3,10 @@
   "kind": "composite",
   "id": "com.navop.middleware.mqtt",
   "name": "MQTT",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "MQTT 3.1.1 客户端工作台（Rust 原生 provider）：连接概览、订阅管理、实时/历史消息浏览、消息发布、TLS 与遗嘱配置。 Native Rust MQTT 3.1.1 client workbench: connection overview, subscription management, live/history message browser, publisher, TLS and last-will support.",
+  "description": "MQTT 3.1.1 客户端工作台（Rust 原生 provider）：连接概览与 Broker $SYS 指标、主题树与 retained 视图、订阅批量粘贴与收藏、实时/历史消息浏览（JSON 树与帧对比）、消息发布与压测台、自定义 CA/mTLS 与遗嘱配置。 Native Rust MQTT 3.1.1 client workbench: connection overview with broker $SYS metrics, topic tree with retained view, batch subscribe and favorites, live/history message browser with JSON tree and frame diff, publisher with load testing, custom CA/mTLS and last-will support.",
   "categories": [
     "middleware",
     "messaging",
