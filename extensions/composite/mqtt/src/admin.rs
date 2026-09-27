@@ -31,6 +31,33 @@ use crate::types::{MqttMessage, MqttQos, MqttSubscription};
 /// 管理视图消息环形缓冲上限,超出丢最旧
 pub(crate) const MQTT_ADMIN_BUFFER_CAPACITY: usize = 1000;
 
+/// 环形缓冲的**字节**预算(约 32 MiB)。
+///
+/// 只按条数限流挡不住大 payload:1000 条 1 MiB 的消息就是 1 GiB,provider 会
+/// 被 OOM 掉 —— 那同样表现为「provider 进程消失、会话断开」。条数与字节两个
+/// 上限同时生效,谁先到就丢最旧的。
+pub(crate) const MQTT_ADMIN_BUFFER_MAX_BYTES: usize = 32 * 1024 * 1024;
+
+/// 单条消息体上限(2 MiB)。
+///
+/// 请求体在 IPC 里是 JSON 字节数组(每字节最坏 4 字符),宿主单帧上限 16 MiB,
+/// 所以 2 MiB 的 payload 最坏约 8 MiB 帧,仍在安全区。超过就明确报错,避免把
+/// 超长帧写进宿主 → 宿主判协议错误 → 断开 transport → UI 只看到
+/// 「rpc client is unavailable」这种无从下手的报错。
+pub(crate) const MQTT_MAX_PUBLISH_BYTES: usize = 2 * 1024 * 1024;
+
+/// 列表页消息体预览上限(**字节**)。列表不返回原始字节,预览过长也只是白占带宽。
+const SUMMARY_TEXT_LIMIT_BYTES: usize = 1024;
+
+/// 实时事件流里单条消息的文本预览上限(字节)。
+///
+/// 按字节而不是字符限流:事件批的字节预算是硬护栏,而 JSON 转义最坏会把一个
+/// 字节放大到 6 字节(`\u00XX`),只有字节上限才能给出确定的帧大小上界。
+const LIVE_TEXT_LIMIT_BYTES: usize = 4096;
+
+/// 自动订阅(`auto_subscribe`)在 Topic 列表里的类型标记 —— UI 据此禁止"取消订阅"
+pub(crate) const AUTO_SUBSCRIPTION_TOPIC_TYPE: &str = "AUTO_SUBSCRIPTION";
+
 /// TPS 统计窗口(秒):取窗口内平均速率
 const TPS_WINDOW_SECS: i64 = 5;
 
@@ -53,6 +80,8 @@ pub(crate) struct BufferedMessage {
 pub(crate) struct AdminInnerState {
     /// 消息环形缓冲
     pub buffer: VecDeque<BufferedMessage>,
+    /// 环形缓冲当前占用的字节数(payload + topic),与 `MQTT_ADMIN_BUFFER_MAX_BYTES` 配合
+    pub buffered_bytes: usize,
     /// 下一个序号
     pub next_seq: u64,
     /// 累计接收消息数
@@ -186,7 +215,16 @@ impl MqttAdminAdapter {
             .list_subscriptions()
             .await
             .map_err(|error| MiddlewareError::Connection(error.to_string()))?;
-        Ok(subscriptions.iter().map(sub_to_topic_info).collect())
+        // 自动订阅(auto_subscribe,默认 `#`)与用户手工订阅在列表里必须可区分,
+        // 否则用户一按"取消订阅"就把全局收流关了。
+        let auto_filter = guard.config().auto_subscribe.trim().to_string();
+        Ok(subscriptions
+            .iter()
+            .map(|subscription| {
+                let managed = !auto_filter.is_empty() && subscription.topic_filter == auto_filter;
+                sub_to_topic_info(subscription, managed)
+            })
+            .collect())
     }
 
     /// Topic 详情(MQTT 无服务端队列位点概念,返回空统计)
@@ -228,8 +266,18 @@ impl MqttAdminAdapter {
     }
 
     /// 删除 Topic = 取消订阅主题过滤器(标准 §3:MQTT 语义)。
+    ///
+    /// 拒绝取消 `auto_subscribe` 生成的自动订阅:它是连接级配置的产物,单独取消
+    /// 只会让 provider 与配置不一致(重连时又会被加回来),而且默认值就是 `#`,
+    /// 一按就把全局收流关了。
     pub(crate) async fn delete_topic(&self, topic: &str) -> Result<(), MiddlewareError> {
         let guard = self.connection.read().await;
+        let auto_filter = guard.config().auto_subscribe.trim().to_string();
+        if !auto_filter.is_empty() && topic.trim() == auto_filter {
+            return Err(MiddlewareError::Config(format!(
+                "`{auto_filter}` 是连接配置的自动订阅(auto_subscribe),不能单独取消;要停收请修改连接配置"
+            )));
+        }
         guard
             .unsubscribe(topic)
             .await
@@ -248,6 +296,13 @@ impl MqttAdminAdapter {
             return Err(MiddlewareError::Config(
                 "发布主题不能为空且不能包含通配符 `+`/`#`".to_string(),
             ));
+        }
+        if request.body.len() > MQTT_MAX_PUBLISH_BYTES {
+            return Err(MiddlewareError::Config(format!(
+                "消息体 {} 字节超过上限 {} 字节",
+                request.body.len(),
+                MQTT_MAX_PUBLISH_BYTES
+            )));
         }
         let guard = self.connection.read().await;
         guard
@@ -366,18 +421,33 @@ pub(crate) fn record_sent(
     id
 }
 
-/// 入环形缓冲(超容量丢最旧),返回合成 ID
+/// 入环形缓冲(超容量或超字节预算时丢最旧),返回合成 ID
 fn push_buffered(inner: &mut AdminInnerState, message: MqttMessage, outgoing: bool) -> String {
     let seq = inner.next_seq;
     inner.next_seq = inner.next_seq.saturating_add(1);
     let id = format!("mqtt-{seq}");
+    inner.buffered_bytes = inner
+        .buffered_bytes
+        .saturating_add(message.payload.len().saturating_add(message.topic.len()));
     inner.buffer.push_back(BufferedMessage {
         id: id.clone(),
         message,
         outgoing,
     });
-    while inner.buffer.len() > MQTT_ADMIN_BUFFER_CAPACITY {
-        inner.buffer.pop_front();
+    // 两个上限同时生效:条数上限保证列表规模,字节上限保证进程内存
+    while inner.buffer.len() > MQTT_ADMIN_BUFFER_CAPACITY
+        || (inner.buffered_bytes > MQTT_ADMIN_BUFFER_MAX_BYTES && inner.buffer.len() > 1)
+    {
+        if let Some(dropped) = inner.buffer.pop_front() {
+            let dropped_bytes = dropped
+                .message
+                .payload
+                .len()
+                .saturating_add(dropped.message.topic.len());
+            inner.buffered_bytes = inner.buffered_bytes.saturating_sub(dropped_bytes);
+        } else {
+            break;
+        }
     }
     id
 }
@@ -411,29 +481,61 @@ pub(crate) fn mqtt_topic_match(filter: &str, topic: &str) -> bool {
     ti == topic_parts.len()
 }
 
-/// 订阅 -> 标准 Topic 信息(SUBSCRIPTION 类型,queue_count 携带 QoS)
-pub(crate) fn sub_to_topic_info(subscription: &MqttSubscription) -> MiddlewareTopicInfo {
+/// 订阅 -> 标准 Topic 信息(SUBSCRIPTION 类型,queue_count 携带 QoS)。
+///
+/// `managed` 为真表示这条订阅来自连接配置的 `auto_subscribe`(例如默认的 `#`),
+/// 不是用户手工订阅:UI 会打标记并禁止"取消订阅",否则用户一点就把全局收流关了。
+pub(crate) fn sub_to_topic_info(
+    subscription: &MqttSubscription,
+    managed: bool,
+) -> MiddlewareTopicInfo {
     MiddlewareTopicInfo {
         name: subscription.topic_filter.clone(),
-        topic_type: Some("SUBSCRIPTION".to_string()),
+        topic_type: Some(
+            if managed {
+                AUTO_SUBSCRIPTION_TOPIC_TYPE
+            } else {
+                "SUBSCRIPTION"
+            }
+            .to_string(),
+        ),
         queue_count: Some(subscription.qos.as_u8() as u32),
         perm: None,
         message_count: None,
-        description: None,
+        description: managed.then(|| "连接配置自动订阅(auto_subscribe),不可单独取消".to_string()),
         created_at: None,
     }
 }
 
-/// 缓冲消息 -> 标准消息模型
+/// 缓冲消息 -> 标准消息模型(带完整消息体,用于详情/按 ID 查询)
 pub(crate) fn buffered_to_model(buffered: &BufferedMessage) -> MiddlewareMessage {
+    buffered_to_model_inner(buffered, true)
+}
+
+/// 缓冲消息 -> 列表用的**摘要**模型。
+///
+/// 列表页只要 topic/时间/属性,不需要原始字节:200 条 256 KiB 的消息一旦带上
+/// `body` 就是 50 MiB 的响应帧,既慢又可能直接顶到宿主帧上限。摘要只保留
+/// 截断后的文本预览,字节留给按 ID 的详情查询(UI 点开行时才拉)。
+pub(crate) fn buffered_to_summary(buffered: &BufferedMessage) -> MiddlewareMessage {
+    buffered_to_model_inner(buffered, false)
+}
+
+fn buffered_to_model_inner(buffered: &BufferedMessage, detail: bool) -> MiddlewareMessage {
     let message = &buffered.message;
+    let text = message.payload_text();
+    let body_text = if detail {
+        text
+    } else {
+        text.map(|text| truncate_text(&text, SUMMARY_TEXT_LIMIT_BYTES))
+    };
     MiddlewareMessage {
         message_id: buffered.id.clone(),
         topic: message.topic.clone(),
         tag: None,
         key: None,
-        body: Some(message.payload.clone()),
-        body_text: message.payload_text(),
+        body: detail.then(|| message.payload.clone()),
+        body_text,
         store_time: Some(
             message
                 .received_at
@@ -456,16 +558,33 @@ pub(crate) fn buffered_to_model(buffered: &BufferedMessage) -> MiddlewareMessage
                 "received_at_ms".to_string(),
                 message.received_at.timestamp_millis().to_string(),
             ),
+            (
+                "payload_size".to_string(),
+                message.payload.len().to_string(),
+            ),
         ],
     }
+}
+
+/// 按字节数截断(不切断 UTF-8 边界),并标注截断
+fn truncate_text(text: &str, max_bytes: usize) -> String {
+    if text.len() <= max_bytes {
+        return text.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…(已截断,点开查看完整内容)", &text[..end])
 }
 
 /// 实时事件消息 -> 标准消息模型。
 ///
 /// 与 [`buffered_to_model`] 的差异只在 `message_id` 前缀(`mqtt-live-<seq>`,
-/// 流内单调递增)与 `body`(实时事件不带原始字节,避免大消息体把事件批撑爆;
-/// 需要字节时用 `middleware/message/query` 查历史)。模型本身沿用标准
-/// [`MiddlewareMessage`],UI 可对查询结果与实时事件复用同一套单元格/详情渲染。
+/// 流内单调递增)、`body`(实时事件不带原始字节)与 `body_text`(只留预览):
+/// 实时流的每一批都要整体塞进一个 IPC 响应帧,带上完整消息体的话,一条 5 MiB
+/// 的消息就足以撑爆宿主帧上限并把 transport 一起带走。需要完整内容时用
+/// `middleware/message/query` 的 `ById` 查历史(那条路径单独一帧、只取一条)。
 pub(crate) fn live_to_model(seq: u64, message: &MqttMessage) -> MiddlewareMessage {
     MiddlewareMessage {
         message_id: format!("mqtt-live-{seq}"),
@@ -473,7 +592,9 @@ pub(crate) fn live_to_model(seq: u64, message: &MqttMessage) -> MiddlewareMessag
         tag: None,
         key: None,
         body: None,
-        body_text: message.payload_text(),
+        body_text: message
+            .payload_text()
+            .map(|text| truncate_text(&text, LIVE_TEXT_LIMIT_BYTES)),
         store_time: Some(
             message
                 .received_at
@@ -493,11 +614,18 @@ pub(crate) fn live_to_model(seq: u64, message: &MqttMessage) -> MiddlewareMessag
                 "received_at_ms".to_string(),
                 message.received_at.timestamp_millis().to_string(),
             ),
+            (
+                "payload_size".to_string(),
+                message.payload.len().to_string(),
+            ),
         ],
     }
 }
 
-/// 按查询条件过滤缓冲并分页(纯函数;接受任何缓冲消息引用迭代器)
+/// 按查询条件过滤缓冲并分页(纯函数;接受任何缓冲消息引用迭代器)。
+///
+/// 只有 `ById` 是"点开某条"的详情查询,返回完整消息体;其余(窗口/Key/列表)
+/// 一律返回摘要,避免列表响应被消息体撑爆。
 pub(crate) fn filter_and_paginate<'a, I>(messages: I, query: &MessageQuery) -> MessagePage
 where
     I: IntoIterator<Item = &'a BufferedMessage>,
@@ -535,11 +663,18 @@ where
         _ => (1, total.max(1) as usize),
     };
     let start = page.saturating_sub(1).saturating_mul(page_size);
+    let detail = matches!(query, MessageQuery::ById { .. });
     let messages = filtered
         .into_iter()
         .skip(start)
         .take(page_size)
-        .map(buffered_to_model)
+        .map(|buffered| {
+            if detail {
+                buffered_to_model(buffered)
+            } else {
+                buffered_to_summary(buffered)
+            }
+        })
         .collect::<Vec<_>>();
     let has_more = start + messages.len() < total as usize;
     MessagePage {
@@ -692,6 +827,18 @@ mod tests {
             Ok(())
         }
 
+        async fn seed_subscriptions(
+            &mut self,
+            subscriptions: Vec<MqttSubscription>,
+        ) -> Result<(), crate::types::MqttError> {
+            self.shared
+                .subscriptions
+                .lock()
+                .unwrap()
+                .extend(subscriptions);
+            Ok(())
+        }
+
         async fn disconnect(&mut self) -> Result<(), crate::types::MqttError> {
             Ok(())
         }
@@ -782,14 +929,71 @@ mod tests {
 
     #[test]
     fn sub_to_topic_info_maps_fields() {
-        let info = sub_to_topic_info(&MqttSubscription {
-            topic_filter: "sensors/+".into(),
-            qos: MqttQos::ExactlyOnce,
-        });
+        let info = sub_to_topic_info(
+            &MqttSubscription {
+                topic_filter: "sensors/+".into(),
+                qos: MqttQos::ExactlyOnce,
+            },
+            false,
+        );
         assert_eq!(info.name, "sensors/+");
         assert_eq!(info.topic_type.as_deref(), Some("SUBSCRIPTION"));
         assert_eq!(info.queue_count, Some(2));
         assert!(info.perm.is_none());
+        assert!(info.description.is_none());
+    }
+
+    #[test]
+    fn managed_subscription_is_marked_for_ui() {
+        let info = sub_to_topic_info(
+            &MqttSubscription {
+                topic_filter: "#".into(),
+                qos: MqttQos::AtLeastOnce,
+            },
+            true,
+        );
+        assert_eq!(
+            info.topic_type.as_deref(),
+            Some(AUTO_SUBSCRIPTION_TOPIC_TYPE)
+        );
+        assert!(info.description.is_some(), "自动订阅应有可读说明");
+    }
+
+    #[test]
+    fn summary_omits_body_and_truncates_preview() {
+        let big = "x".repeat(SUMMARY_TEXT_LIMIT_BYTES + 50);
+        let buffered = BufferedMessage {
+            id: "mqtt-1".into(),
+            message: message_at("a/b", big.as_bytes(), 1_700_000_000),
+            outgoing: false,
+        };
+        let summary = buffered_to_summary(&buffered);
+        assert!(summary.body.is_none(), "列表摘要不能带原始字节");
+        let preview = summary.body_text.expect("摘要保留文本预览");
+        assert!(preview.chars().count() < big.chars().count());
+        assert!(preview.starts_with('x'));
+        assert!(preview.contains("已截断"));
+        // 详情仍给完整内容
+        let detail = buffered_to_model(&buffered);
+        assert_eq!(detail.body.as_deref(), Some(big.as_bytes()));
+        assert_eq!(detail.body_text.as_deref(), Some(big.as_str()));
+    }
+
+    #[test]
+    fn byte_budget_evicts_oldest_even_under_count_cap() {
+        let mut inner = AdminInnerState::default();
+        let now = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        // 每条都超过半个预算:第 2 条入队就必须把第 1 条挤出去
+        let per_message = MQTT_ADMIN_BUFFER_MAX_BYTES / 2 + 1;
+        for index in 0..3 {
+            record_received(
+                &mut inner,
+                message_at("a/b", vec![b'x'; per_message].as_slice(), index),
+                now,
+            );
+        }
+        assert!(inner.buffer.len() <= 1, "字节预算应把旧消息挤出去");
+        assert!(inner.buffered_bytes <= MQTT_ADMIN_BUFFER_MAX_BYTES);
     }
 
     #[test]

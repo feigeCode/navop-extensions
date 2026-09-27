@@ -46,15 +46,18 @@ impl ProviderState {
     /// 见 `navop/crates/universal-plugins/src/shell_plugin_host/event.rs`),
     /// 而 MQTT 的实时消息源就是某个具体连接,因此只有在**恰好一个**连接打开时
     /// 才能唯一定位;否则由调用方转成可操作错误(不猜、不随机取一个)。
-    pub(crate) fn sole_resource(&self) -> Result<&MqttResource, SoleResourceError> {
-        let mut iter = self.resources.values();
-        let Some(first) = iter.next() else {
+    ///
+    /// 返回资源 ID:事件流要记住消息源,才能在资源关闭时定向回收
+    /// (见 [`event::ProviderEventStreamTable::close_for_resource`])。
+    pub(crate) fn sole_resource_with_id(&self) -> Result<(&str, &MqttResource), SoleResourceError> {
+        let mut iter = self.resources.iter();
+        let Some((resource_id, first)) = iter.next() else {
             return Err(SoleResourceError::None);
         };
         if iter.next().is_some() {
             return Err(SoleResourceError::Ambiguous(self.resources.len()));
         }
-        Ok(first)
+        Ok((resource_id.as_str(), first))
     }
 
     /// 插入资源并返回新资源 ID(`mqtt-resource-<uuid>`,前缀稳定、每次打开唯一)
@@ -77,7 +80,9 @@ impl ProviderState {
         // (事件流持有的广播接收端在连接 drop 后即进入 Closed,这里同时回收表项)
         resource.disconnect().await;
         self.blobs.close_for_resource(resource_id);
-        self.events.clear();
+        // 只回收属于这个资源的流:`clear()` 会把其他连接的流一起清掉,而事件流
+        // 上限只有 16 条,残留的僵尸流会让后续连接再也开不出流来。
+        self.events.close_for_resource(resource_id);
         true
     }
 

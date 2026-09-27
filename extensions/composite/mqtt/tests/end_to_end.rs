@@ -396,6 +396,8 @@ fn read_mqtt_string(bytes: &[u8], pos: &mut usize) -> Option<String> {
 
 struct TestHostApi {
     secret_allowed: bool,
+    /// 宿主 KV(内存实现)。跨 provider 进程复用的同一个 Arc 就是"重启后仍在"。
+    kv: Arc<Mutex<std::collections::HashMap<String, Value>>>,
 }
 
 #[async_trait::async_trait]
@@ -438,17 +440,21 @@ impl HostApiProvider for TestHostApi {
 
     async fn storage_get(
         &self,
-        _params: host::StorageGetParams,
+        params: host::StorageGetParams,
     ) -> HostResult<host::StorageGetResult> {
-        Err(HostError::NotImplemented(
-            "storage is not used by this test host".into(),
-        ))
+        let key = kv_key(&params.namespace, &params.key);
+        Ok(host::StorageGetResult {
+            value: self.kv.lock().expect("test kv lock").get(&key).cloned(),
+        })
     }
 
-    async fn storage_set(&self, _params: host::StorageSetParams) -> HostResult<()> {
-        Err(HostError::NotImplemented(
-            "storage is not used by this test host".into(),
-        ))
+    async fn storage_set(&self, params: host::StorageSetParams) -> HostResult<()> {
+        let key = kv_key(&params.namespace, &params.key);
+        self.kv
+            .lock()
+            .expect("test kv lock")
+            .insert(key, params.value);
+        Ok(())
     }
 
     async fn log(&self, _params: host::LogParams) -> HostResult<()> {
@@ -469,6 +475,15 @@ struct TestHarness {
 }
 
 async fn harness(secret_allowed: bool) -> TestHarness {
+    harness_with_kv(secret_allowed, Arc::new(Mutex::new(Default::default()))).await
+}
+
+/// 用指定的宿主 KV 起一个 provider 进程:两份 harness 共享同一个 KV 即等价于
+/// "provider 重启后宿主存储还在"。
+async fn harness_with_kv(
+    secret_allowed: bool,
+    kv: Arc<Mutex<std::collections::HashMap<String, Value>>>,
+) -> TestHarness {
     let root = tempfile::tempdir().expect("extension temp root");
     let bin_dir = root.path().join("bin");
     fs::create_dir_all(&bin_dir).expect("create bin directory");
@@ -486,6 +501,7 @@ async fn harness(secret_allowed: bool) -> TestHarness {
         .with_label("com.navop.middleware.mqtt::main")
         .with_host_api(Arc::new(HostApiHandler::new(Arc::new(TestHostApi {
             secret_allowed,
+            kv,
         }))));
     let session = Arc::new(
         ProcessRpcSession::start(config)
@@ -498,6 +514,11 @@ async fn harness(secret_allowed: bool) -> TestHarness {
         session,
         root,
     }
+}
+
+/// 宿主 KV 的真实键:namespace 缺省时宿主会补上扩展 id,这里只做等价拼接
+fn kv_key(namespace: &Option<String>, key: &str) -> String {
+    format!("{}/{}", namespace.as_deref().unwrap_or("default"), key)
 }
 
 fn copy_executable(source: &Path, destination: &Path) {
@@ -658,7 +679,9 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     assert_eq!(false, caps["cluster_overview"]);
     assert_eq!(true, caps["message_stream"]);
 
-    // topic/list = 订阅列表(SUBSCRIPTION,queue_count=QoS)
+    // topic/list = 订阅列表(queue_count=QoS)。
+    // `#` 来自连接配置的 auto_subscribe,必须被标记成 AUTO_SUBSCRIPTION:
+    // UI 据此禁止"取消订阅",否则用户一点就把全局收流关了。
     let topics = inline(
         &harness.client,
         &resource_id,
@@ -667,8 +690,31 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     )
     .await;
     assert_eq!("#", topics["topics"][0]["name"]);
-    assert_eq!("SUBSCRIPTION", topics["topics"][0]["topic_type"]);
+    assert_eq!("AUTO_SUBSCRIPTION", topics["topics"][0]["topic_type"]);
     assert_eq!(1, topics["topics"][0]["queue_count"]);
+    assert!(
+        topics["topics"][0]["description"].is_string(),
+        "自动订阅应带可读说明: {topics}"
+    );
+    // 自动订阅不能被取消(它是连接级配置的产物)
+    let delete_auto = harness
+        .client
+        .invoke_resource(&ResourceInvokeParams {
+            resource_id: resource_id.clone(),
+            method: "middleware/topic/delete".to_owned(),
+            params: json!({"topic": "#"}),
+        })
+        .await
+        .expect_err("取消自动订阅应被拒绝");
+    let HostError::Protocol(protocol) = delete_auto else {
+        panic!("取消自动订阅应返回协议错误");
+    };
+    assert_eq!(error_codes::INVALID_PARAMS, protocol.code);
+    assert!(
+        protocol.message.starts_with("配置错误:"),
+        "取消自动订阅的错误文本应说明原因: {}",
+        protocol.message
+    );
 
     // topic/detail:MQTT 无队列位点,返回空统计
     let detail = inline(
@@ -709,15 +755,14 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     assert_eq!(1, page["total"], "推送的消息应进入查询结果: {page}");
     assert_eq!("sensors/room-1", page["messages"][0]["topic"]);
     assert_eq!("hello mqtt", page["messages"][0]["body_text"]);
-    assert_eq!(
-        vec![104, 101, 108, 108, 111, 32, 109, 113, 116, 116],
-        page["messages"][0]["body"]
-            .as_array()
-            .expect("body 应为字节数组")
-            .iter()
-            .map(|byte| byte.as_u64().expect("字节值"))
-            .collect::<Vec<_>>()
+    // 列表页**不带**原始字节(只带 preview + payload_size):一页最多 200 条,
+    // 每条都塞 payload 的响应帧会撑爆宿主帧上限。字节走 ById 详情。
+    assert!(
+        page["messages"][0]["body"].is_null(),
+        "列表页不应内联完整消息体: {page}"
     );
+    assert_eq!("payload_size", page["messages"][0]["properties"][4][0]);
+    assert_eq!("10", page["messages"][0]["properties"][4][1]);
 
     // ByKey 尽力匹配(payload 文本包含,大小写不敏感)
     let by_key = inline(
@@ -729,7 +774,7 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     .await;
     assert_eq!(1, by_key["total"]);
 
-    // ById 命中合成 ID
+    // ById 命中合成 ID,并且**带完整字节**(详情路径按需取,单条一帧)
     let message_id = page["messages"][0]["message_id"].as_str().unwrap();
     let by_id = inline(
         &harness.client,
@@ -739,6 +784,15 @@ async fn provider_roundtrips_standard_methods_against_fake_broker() {
     )
     .await;
     assert_eq!(1, by_id["total"]);
+    assert_eq!(
+        vec![104, 101, 108, 108, 111, 32, 109, 113, 116, 116],
+        by_id["messages"][0]["body"]
+            .as_array()
+            .expect("ById 详情应带字节数组")
+            .iter()
+            .map(|byte| byte.as_u64().expect("字节值"))
+            .collect::<Vec<_>>()
+    );
 
     // message/send = publish(properties 指定 qos=1)
     let send = inline(
@@ -1339,4 +1393,132 @@ async fn message_stream_invoke_returns_event_stream_ref() {
         .await
         .expect("close resource");
     harness.session.shutdown().await;
+}
+
+/// 订阅在 provider 进程被替换后必须恢复。
+///
+/// 这是「左边订阅/消息点几下就空了、topic 也没了」那类症状的正面回归:provider
+/// 进程被宿主重启后,只要宿主 KV 还在,手工订阅就要自动回来,而不是只剩
+/// `auto_subscribe` 的那一条。
+#[tokio::test]
+async fn subscriptions_survive_provider_restart() {
+    let (broker, port) = FakeBroker::start(false).await;
+    // 同一个 KV 跨两个 provider 进程 = "宿主存储没变"
+    let kv: Arc<Mutex<std::collections::HashMap<String, Value>>> =
+        Arc::new(Mutex::new(Default::default()));
+
+    // --- 第一个进程:建立一个手工订阅 ---
+    let first = harness_with_kv(true, Arc::clone(&kv)).await;
+    let opened = first
+        .client
+        .open_resource(&open_params(port))
+        .await
+        .expect("open resource");
+    let resource_id = opened.resource_id.clone();
+    let metadata = opened.metadata.clone().expect("open metadata");
+    assert_eq!(
+        "host", metadata["persistence"],
+        "宿主实现了 KV 时应报告已启用持久化: {metadata}"
+    );
+    assert_eq!(0, metadata["restored_subscriptions"]);
+    let first_client_id = broker.with_state(|state| {
+        state
+            .connects
+            .last()
+            .expect("first connect")
+            .client_id
+            .clone()
+    });
+
+    inline(
+        &first.client,
+        &resource_id,
+        "middleware/topic/create",
+        json!({"topic": "sensors/+", "queue_count": 1}),
+    )
+    .await;
+    assert!(
+        wait_until(Duration::from_secs(5), Duration::from_millis(25), || {
+            broker.with_state(|state| state.subscriptions.iter().any(|f| f == "sensors/+"))
+        })
+        .await,
+        "broker 应记录新增订阅"
+    );
+    first.session.shutdown().await;
+
+    // --- 第二个进程:同一宿主 KV,订阅应自动回来 ---
+    let second = harness_with_kv(true, Arc::clone(&kv)).await;
+    let reopened = second
+        .client
+        .open_resource(&open_params(port))
+        .await
+        .expect("reopen resource");
+    let metadata = reopened.metadata.clone().expect("reopen metadata");
+    assert_eq!(
+        1, metadata["restored_subscriptions"],
+        "重启后应恢复 1 条手工订阅: {metadata}"
+    );
+    assert_eq!(
+        first_client_id, metadata["client_id"],
+        "用户没填 client_id 时应沿用上次的身份"
+    );
+
+    let topics = inline(
+        &second.client,
+        &reopened.resource_id,
+        "middleware/topic/list",
+        json!({}),
+    )
+    .await;
+    let names: Vec<&str> = topics["topics"]
+        .as_array()
+        .expect("topics 数组")
+        .iter()
+        .filter_map(|topic| topic["name"].as_str())
+        .collect();
+    assert!(names.contains(&"sensors/+"), "订阅应恢复: {topics}");
+    assert!(names.contains(&"#"), "自动订阅仍在: {topics}");
+    // 恢复的订阅必须真的重新 SUBSCRIBE 到 broker(ConnAck 时统一下发)
+    assert!(
+        wait_until(Duration::from_secs(5), Duration::from_millis(25), || {
+            broker.with_state(|state| {
+                state
+                    .subscriptions
+                    .iter()
+                    .filter(|f| f.as_str() == "sensors/+")
+                    .count()
+                    >= 2
+            })
+        })
+        .await,
+        "重启后的进程应重新订阅恢复的过滤器"
+    );
+
+    // 恢复的订阅是用户订阅,不是自动订阅:可以正常取消
+    inline(
+        &second.client,
+        &reopened.resource_id,
+        "middleware/topic/delete",
+        json!({"topic": "sensors/+"}),
+    )
+    .await;
+    let after_delete = inline(
+        &second.client,
+        &reopened.resource_id,
+        "middleware/topic/list",
+        json!({}),
+    )
+    .await;
+    let names: Vec<&str> = after_delete["topics"]
+        .as_array()
+        .expect("topics 数组")
+        .iter()
+        .filter_map(|topic| topic["name"].as_str())
+        .collect();
+    assert!(
+        names.contains(&"#") && !names.contains(&"sensors/+"),
+        "取消后只剩自动订阅: {after_delete}"
+    );
+
+    second.session.shutdown().await;
 }

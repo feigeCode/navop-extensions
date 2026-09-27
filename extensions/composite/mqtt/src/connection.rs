@@ -19,6 +19,16 @@ pub(crate) trait MqttConnection: Send + Sync {
     /// 建立连接(等待初始 ConnAck;失败即连接测试失败——标准约定 conn test 语义在 open)
     async fn connect(&mut self) -> Result<(), MqttError>;
 
+    /// 预置订阅(provider 重启后从宿主 KV 恢复),**必须在 [`Self::connect`] 之前**调用。
+    ///
+    /// 只写本地订阅表、不发网络请求;真正的 SUBSCRIBE 由 poll 任务在收到
+    /// ConnAck 时统一下发(与 `auto_subscribe` 同一条路径),因此初始连接与
+    /// rumqttc 自动重连都会带上这些订阅。与已有条目重复时保留先到的 QoS。
+    async fn seed_subscriptions(
+        &mut self,
+        subscriptions: Vec<MqttSubscription>,
+    ) -> Result<(), MqttError>;
+
     /// 断开连接
     async fn disconnect(&mut self) -> Result<(), MqttError>;
 

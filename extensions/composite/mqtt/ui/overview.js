@@ -3,7 +3,7 @@ import { View, div } from "gpui";
 import { h_flex, v_flex } from "gpui-base";
 import { Button, Tag } from "gpui-component";
 import { current, dispatch } from "navop.workbench";
-import { card, errorMessage, errorView, kv, loadingView } from "./shared.js";
+import { banner, card, errorMessage, errorView, kv, loadingView, parseError } from "./shared.js";
 
 const REFRESH_MS = 2000;
 
@@ -13,6 +13,7 @@ export default class MqttOverview extends View {
     this.metrics = null;
     this.client = null;
     this.error = null;
+    this.errorTransient = false;
     this.loading = true;
     this.auto = true;
     cx.spawn(async (cx) => this.load(cx));
@@ -27,8 +28,10 @@ export default class MqttOverview extends View {
       this.metrics = metrics?.metrics || metrics || {};
       this.client = (clients?.clients || [])[0] || null;
       this.error = null;
+      this.errorTransient = false;
     } catch (error) {
       this.error = errorMessage(error);
+      this.errorTransient = parseError(error).transient;
     }
     this.loading = false;
     cx.notify();
@@ -36,7 +39,14 @@ export default class MqttOverview extends View {
 
   render(cx) {
     if (this.loading && !this.metrics) return loadingView(cx, "正在读取连接指标…");
-    if (this.error && !this.metrics) return errorView(cx, "mqtt-overview-retry", `加载失败: ${this.error}`, (cx) => this.load(cx));
+    if (this.error && !this.metrics) {
+      // 空页面上的报错要写明"可能是宿主重启了 provider",而不是把
+      // `rpc client is closed` 直接甩给用户(shared.js 已剥掉 base64 envelope)
+      const text = this.errorTransient
+        ? `连接已断开(宿主可能重启了扩展 provider):${this.error}`
+        : `加载失败: ${this.error}`;
+      return errorView(cx, "mqtt-overview-retry", text, (cx) => this.load(cx));
+    }
     const m = this.metrics || {};
     const extras = Object.fromEntries(m.extras || []);
     const client = this.client || {};
@@ -44,7 +54,9 @@ export default class MqttOverview extends View {
       .child(h_flex().gap(8).items_center().justify_between()
         .child(h_flex().gap(8).items_center()
           .child(div().text_size(16).font_semibold().child("MQTT 连接"))
-          .child(new Tag().variant("success").size("small").child("已连接"))
+          .children(this.errorTransient
+            ? [new Tag().variant("warning").size("small").child("连接中断")]
+            : [new Tag().variant("success").size("small").child("已连接")])
           .child(div().text_color(cx.theme().colors.muted_foreground).text_size(12).child(client.version || "MQTT 3.1.1")))
         .child(h_flex().gap(6)
           .child(new Button("mqtt-overview-auto").ghost().size("small")
@@ -52,7 +64,13 @@ export default class MqttOverview extends View {
             .on_click((_e, cx) => { this.auto = !this.auto; cx.notify(); }))
           .child(new Button("mqtt-overview-refresh").ghost().size("small").label("刷新")
             .on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))))))
-      .children(this.error ? [div().text_color(cx.theme().colors.destructive).text_size(12).child(`刷新失败: ${this.error}`)] : [])
+      .children(this.error
+        ? [banner(cx, `刷新失败: ${this.error}`, { error: true, action: {
+            id: "mqtt-overview-reload",
+            label: "重试",
+            on_click: (cx) => cx.spawn(async (cx) => this.load(cx)),
+          } })]
+        : [])
       .child(h_flex().gap(8).flex_wrap()
         .child(card(cx, "接收速率", `${Number(m.tps_in ?? 0).toFixed(1)} /s`, "最近 5 秒平均"))
         .child(card(cx, "发送速率", `${Number(m.tps_out ?? 0).toFixed(1)} /s`, "最近 5 秒平均"))

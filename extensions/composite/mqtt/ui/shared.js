@@ -133,8 +133,67 @@ export function isValidFilter(filter) {
   });
 }
 
+/** 结构化错误 envelope 的标记(见 shell_plugin_host/error.rs)。 */
+const ERROR_ENVELOPE = "__NAVOP_ERROR__";
+
+/** provider 被宿主重启/传输断开时,错误里会出现这些特征。 */
+const TRANSIENT_CODES = ["RUNTIME_UNAVAILABLE", "STALE_HANDLE", "EXTENSION_UNLOADED"];
+const TRANSIENT_PATTERN = /rpc client is (closed|unavailable)|provider call failed|transport|broken pipe|connection reset/i;
+
+/**
+ * 解析工作台抛出的错误。
+ *
+ * 宿主把结构化错误挂在 message 尾部(`...__NAVOP_ERROR__<base64url>`),直接
+ * 渲染就会在页面上出现一长串 base64 —— 用户看不懂,真正的错误码也被淹没。
+ * 这里把它解回 `{code, message}`,并判定是否为「provider 被重启」这类可自愈错误。
+ */
+export function parseError(error) {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  let code = typeof error?.code === "string" ? error.code : null;
+  let message = raw;
+  const marker = raw.indexOf(ERROR_ENVELOPE);
+  if (marker >= 0) {
+    const encoded = raw.slice(marker + ERROR_ENVELOPE.length).trim().split(/[^A-Za-z0-9\-_+/=]/)[0];
+    let decoded = null;
+    try {
+      decoded = JSON.parse(
+        Buffer.from(encoded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"),
+      );
+    } catch {
+      decoded = null;
+    }
+    if (decoded && typeof decoded.message === "string") {
+      message = decoded.message;
+      if (typeof decoded.code === "string") code = decoded.code;
+    } else {
+      // 解不开也别把 base64 甩给用户
+      message = raw.slice(0, marker).trim() || "操作失败(错误详情无法解析)";
+    }
+  }
+  const transient = (code != null && TRANSIENT_CODES.includes(code)) || TRANSIENT_PATTERN.test(message)
+    // 宿主现在把「provider 调用失败且运行时已不在」映射成可重试的
+    // RUNTIME_UNAVAILABLE(见 navop 侧 WorkbenchDispatchError::ProviderUnavailable)。
+    // 这一条文本兜底留给旧宿主:它们把同一件事笼统报成 PROTOCOL_ERROR。
+    || (code === "PROTOCOL_ERROR" && /closed|unavailable/i.test(message));
+  return { code, message: cleanMessage(message), transient };
+}
+
+/** 去掉宿主加的前缀,只留人能读的部分。 */
+function cleanMessage(message) {
+  return String(message)
+    .replace(/^navop\.workbench\.dispatch:\s*/, "")
+    .replace(/^provider call failed:\s*/, "")
+    .trim();
+}
+
+/** 面向用户的错误文本(已剥离 envelope)。 */
 export function errorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
+  return parseError(error).message;
+}
+
+/** 是否为「provider 被重启/连接断开」这类可自愈错误。 */
+export function isTransientError(error) {
+  return parseError(error).transient;
 }
 
 // 颜色一律从主题读(`cx.theme().colors.*`):shell 只接受 #rgb/#rrggbb/#rrggbbaa
@@ -152,6 +211,23 @@ export function errorView(cx, id, text, retry) {
   return v_flex().size_full().p(16).gap(8)
     .child(div().text_color(cx.theme().colors.destructive).child(text))
     .child(new Button(id).label("重试").on_click((_e, cx) => cx.spawn(async (cx) => retry(cx))));
+}
+
+/**
+ * 内联状态条:`action` 给出时右侧带一个按钮(退避重试 / 确认操作)。
+ *
+ * `children([...])` 而不是条件式链式调用:banner 里的按钮是可选的,而构建器
+ * 只能在末尾追加,不能中途分支。
+ */
+export function banner(cx, text, options) {
+  const opts = options || {};
+  return h_flex().items_center().gap(8).px(10).py(6).border_1().rounded(6).min_w_0()
+    .child(div().flex_1().min_w_0().text_size(12).text_ellipsis()
+      .text_color(opts.error ? cx.theme().colors.destructive : cx.theme().colors.muted_foreground)
+      .child(text))
+    .children(opts.action ? [new Button(opts.id || "mqtt-banner-action").ghost().size("small").flex_shrink_0()
+      .label(opts.action.label)
+      .on_click((_e, cx) => opts.action.on_click(cx))] : []);
 }
 
 export function card(cx, label, value, hint) {

@@ -183,7 +183,9 @@ impl MqttConnection for MqttConnectionImpl {
         }
 
         let host = normalize_direct_host(&self.config.host);
-        // 标准 §4:client_id 留空时由 provider 生成 `navop-mqtt-<随机后缀>`
+        // 标准 §4:client_id 留空时由 provider 生成 `navop-mqtt-<随机后缀>`。
+        // 上层(server/resource.rs)在 open 时已尽可能用宿主 KV 里保存过的 id 回填
+        // `config.client_id`,所以这里生成的随机 id 只在「首次连接且宿主无 KV」时出现。
         let client_id = if self.config.client_id.trim().is_empty() {
             format!("{CLIENT_ID_PREFIX}{}", uuid::Uuid::new_v4())
         } else {
@@ -308,6 +310,29 @@ impl MqttConnection for MqttConnectionImpl {
         Ok(())
     }
 
+    async fn seed_subscriptions(
+        &mut self,
+        subscriptions: Vec<MqttSubscription>,
+    ) -> Result<(), MqttError> {
+        let mut table = self.subscriptions.lock().await;
+        for subscription in subscriptions {
+            let filter = subscription.topic_filter.trim().to_string();
+            if filter.is_empty() {
+                continue;
+            }
+            // 已存在(auto_subscribe 或恢复列表里的重复项)时不覆盖:重复的
+            // SUBSCRIBE 会让 broker 以新 QoS 重订阅,但本地表只该有一份真相。
+            if table.iter().any(|existing| existing.topic_filter == filter) {
+                continue;
+            }
+            table.push(MqttSubscription {
+                topic_filter: filter,
+                qos: subscription.qos,
+            });
+        }
+        Ok(())
+    }
+
     async fn disconnect(&mut self) -> Result<(), MqttError> {
         if let Some(client) = self.client.take() {
             let _ = client.disconnect().await;
@@ -342,29 +367,33 @@ impl MqttConnection for MqttConnectionImpl {
                 "subscription topic filter must not be empty".to_string(),
             ));
         }
-        // 覆盖式更新本地订阅表(仅当 QoS 不同时变更),断线重连时会据此恢复。
-        let mut subscriptions = self.subscriptions.lock().await;
-        match subscriptions
-            .iter_mut()
-            .find(|sub| sub.topic_filter == filter)
-        {
-            Some(existing) => {
-                if existing.qos == qos {
-                    return Ok(());
-                }
-                existing.qos = qos;
-            }
-            None => subscriptions.push(MqttSubscription {
-                topic_filter: filter.clone(),
-                qos,
-            }),
+        // 先看本地表,决定要不要真的发 SUBSCRIBE
+        let already_same_qos = {
+            let table = self.subscriptions.lock().await;
+            table
+                .iter()
+                .find(|sub| sub.topic_filter == filter)
+                .is_some_and(|existing| existing.qos == qos)
+        };
+        if already_same_qos {
+            return Ok(());
         }
-        drop(subscriptions);
+        // **先通报 broker,再改本地表**:反过来写的话,broker 侧失败(事件循环
+        // 已死/网络断)时本地表已经多出一条只存在于 provider 记忆里的订阅,
+        // 之后既不会重试也恢复不了。
         let client = self.require_sendable_client()?;
         client
             .subscribe(filter.as_str(), map_qos(qos))
             .await
             .map_err(|error| Self::classify_client_error(error, "subscribe failed"))?;
+        let mut table = self.subscriptions.lock().await;
+        match table.iter_mut().find(|sub| sub.topic_filter == filter) {
+            Some(existing) => existing.qos = qos,
+            None => table.push(MqttSubscription {
+                topic_filter: filter,
+                qos,
+            }),
+        }
         Ok(())
     }
 
@@ -375,11 +404,11 @@ impl MqttConnection for MqttConnectionImpl {
                 "subscription topic filter must not be empty".to_string(),
             ));
         }
+        // 同上:先确认本地有这条订阅(没有就报错,不必打扰 broker),
+        // 再通报 broker,最后才从本地表移除。
         {
-            let mut subscriptions = self.subscriptions.lock().await;
-            let before = subscriptions.len();
-            subscriptions.retain(|sub| sub.topic_filter != filter);
-            if subscriptions.len() == before {
+            let table = self.subscriptions.lock().await;
+            if !table.iter().any(|sub| sub.topic_filter == filter) {
                 return Err(MqttError::Protocol(format!(
                     "no active subscription for `{filter}`"
                 )));
@@ -390,6 +419,8 @@ impl MqttConnection for MqttConnectionImpl {
             .unsubscribe(filter.as_str())
             .await
             .map_err(|error| Self::classify_client_error(error, "unsubscribe failed"))?;
+        let mut table = self.subscriptions.lock().await;
+        table.retain(|sub| sub.topic_filter != filter);
         Ok(())
     }
 

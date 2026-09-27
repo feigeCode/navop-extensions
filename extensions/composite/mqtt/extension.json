@@ -313,6 +313,21 @@
               }
             }
           },
+          "queryById": {
+            "mode": "invoke",
+            "method": "middleware/message/query",
+            "requires": [
+              "middleware/message/query"
+            ],
+            "effect": "read",
+            "params": {
+              "ById": {
+                "source": "input",
+                "path": "/ById",
+                "type": "json"
+              }
+            }
+          },
           "messageStream": {
             "mode": "invoke",
             "method": "middleware/message/stream",

@@ -13,7 +13,7 @@
 //! - **消息源唯一**:事件协议不携带资源标识(宿主固定传 `conn_id: None`),
 //!   因此只有**恰好一个**连接打开时才能打开事件流,见 [`ProviderState::sole_resource`]。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
 
 use extension_protocol::{
@@ -35,6 +35,20 @@ pub(crate) const MQTT_MESSAGE_EVENT_KIND: &str = "mqtt/message/events";
 /// 同时在开的事件流上限(每个流占用一个广播接收端)。
 const MAX_EVENT_STREAMS: usize = 16;
 
+/// 单次 `event/read` 返回批次的**字节**预算(约 512 KiB)。
+///
+/// 事件批整体内联在一个 IPC 响应帧里,宿主单帧上限 16 MiB(`framing::MAX_MSG_SIZE`),
+/// 而一条大 payload 就足以把帧顶爆 —— 宿主会判协议错误并断开 transport,UI 只能
+/// 看到「连接已断开」这种无从下手的报错。所以按**实测字节**切批:这一轮装不下的
+/// 事件挪进 [`ProviderEventStream::pending`],下一轮长轮询继续吐(不丢消息)。
+const MQTT_EVENT_BATCH_MAX_BYTES: usize = 512 * 1024;
+
+/// 单流待发事件的积压上限(约 512 KiB)。
+///
+/// 纯粹是内存护栏:极端情况下(例如消息洪峰 + UI 拉取很慢)宁可丢弃**并计入
+/// `dropped_count`**(UI 会如实显示丢了多少),也不要让 provider 无限涨内存。
+const MQTT_EVENT_PENDING_MAX_BYTES: usize = 512 * 1024;
+
 /// 单次 `event/read` 允许的最长阻塞等待。
 ///
 /// 宿主的 `navop.event.read` 把 UI 的 `waitMs` 原样下发(上限 60_000,见
@@ -48,14 +62,20 @@ pub(crate) struct ProviderEventStream {
     /// 事件流 kind(当前仅 [`MQTT_MESSAGE_EVENT_KIND`])
     #[allow(dead_code)]
     kind: String,
+    /// 消息源资源 ID —— 资源关闭时据此定向回收(事件协议本身不携带资源标识)
+    resource_id: String,
     /// 独立广播接收端(独立游标,与管理适配器的排水互不影响)
     handle: MqttPubSubHandle,
-    /// 累计丢弃(广播滞后)消息数,随每次 read 一起上报
+    /// 累计丢弃(广播滞后 + 积压溢出)消息数,随每次 read 一起上报
     dropped: u64,
     /// 流内消息序号(单调递增;`message_id` = `mqtt-live-<seq>`)
     next_seq: u64,
     /// 广播端已关闭(连接被释放)
     closed: bool,
+    /// 上一轮因字节预算没装下的已序列化事件(`(事件, 序列化字节数)`)
+    pending: VecDeque<(serde_json::Value, usize)>,
+    /// `pending` 当前占用的字节数
+    pending_bytes: usize,
 }
 
 impl ProviderEventStream {
@@ -90,6 +110,22 @@ impl ProviderEventStreamTable {
 
     fn remove(&mut self, stream_id: &str) -> bool {
         self.streams.remove(stream_id).is_some()
+    }
+
+    /// 回收某个资源名下的事件流(资源关闭时调用)。
+    ///
+    /// 之前这里是无条件 `clear()`,虽然"顺手"清干净了,但语义不对:关一个连接
+    /// 会把别的连接正在用的流一起关掉。反过来漏清更糟 —— 上限只有 16 条,僵尸
+    /// 流会占满配额,后续连接再也开不出流。
+    pub(crate) fn close_for_resource(&mut self, resource_id: &str) {
+        self.streams
+            .retain(|_, stream| stream.resource_id != resource_id);
+    }
+
+    /// 清掉消息源已经不在资源表里的流(流未显式 close 就被遗弃时的兜底)
+    fn prune_stale(&mut self, mut is_live: impl FnMut(&str) -> bool) {
+        self.streams
+            .retain(|_, stream| is_live(&stream.resource_id));
     }
 }
 
@@ -126,14 +162,18 @@ impl ProviderState {
                 format!("unknown MQTT event stream kind `{kind}`"),
             ));
         }
+        // 先清掉消息源已消失的流,再判上限:否则被遗弃的僵尸流会把 16 条配额占死
+        let resources = &self.resources;
+        self.events
+            .prune_stale(|resource_id| resources.contains_key(resource_id));
         if self.events.len() >= MAX_EVENT_STREAMS {
             return Err(boxed_error(
                 error_codes::RESOURCE_BUSY,
                 format!("MQTT 实时消息流数量已达上限({MAX_EVENT_STREAMS})"),
             ));
         }
-        let resource = match self.sole_resource() {
-            Ok(resource) => resource,
+        let (resource_id, _resource) = match self.sole_resource_with_id() {
+            Ok(found) => found,
             Err(SoleResourceError::None) => return Err(resource_error()),
             Err(SoleResourceError::Ambiguous(count)) => {
                 return Err(boxed_error(
@@ -144,19 +184,28 @@ impl ProviderState {
                 ));
             }
         };
-        let handle = resource
-            .open_pubsub()
-            .await
-            .map_err(crate::error::middleware_error)?;
+        let resource_id = resource_id.to_string();
+        // 资源 ID 已复制出来,这里不再借用 `sole_resource_with_id` 的返回引用,
+        // 以便随后插入流表时对状态取可变借用
+        let handle = match self.resources.get(&resource_id) {
+            Some(resource) => resource
+                .open_pubsub()
+                .await
+                .map_err(crate::error::middleware_error)?,
+            None => return Err(resource_error()),
+        };
         let stream_id = format!("mqtt-stream-{}", Uuid::new_v4());
         self.events.streams.insert(
             stream_id.clone(),
             ProviderEventStream {
                 kind: kind.to_string(),
+                resource_id,
                 handle,
                 dropped: 0,
                 next_seq: 0,
                 closed: false,
+                pending: VecDeque::new(),
+                pending_bytes: 0,
             },
         );
         Ok(stream_id)
@@ -164,9 +213,12 @@ impl ProviderState {
 
     /// 读取一批事件(`event/read`)。
     ///
-    /// 顺序:先非阻塞排空已到达的消息;批次为空且 `wait_ms > 0` 时再做一次
-    /// **有上限**的阻塞等待(见 [`MQTT_EVENT_READ_MAX_WAIT_MS`])。
+    /// 顺序:先吐上一轮没装下的积压;再从广播通道排水(非阻塞);批次仍为空且
+    /// `wait_ms > 0` 时做一次**有上限**的阻塞等待(见 [`MQTT_EVENT_READ_MAX_WAIT_MS`])。
     /// 未知/已关闭的流返回 `closed: true` 的空批(UI 据此停止轮询)。
+    ///
+    /// 批次按 [`MQTT_EVENT_BATCH_MAX_BYTES`] 切,装不下的进 pending 而不是丢弃 ——
+    /// 大消息场景下 UI 会看到略慢但完整的尾巴,而不是一帧把 transport 顶爆。
     pub(crate) async fn read_event_stream(
         &mut self,
         params: EventReadParams,
@@ -181,13 +233,43 @@ impl ProviderState {
             });
         };
 
-        let mut events = Vec::new();
-        let (messages, dropped) = stream.handle.drain_available(max_events);
-        stream.dropped = stream.dropped.saturating_add(dropped);
-        for message in messages {
-            events.push(stream.event_for(&message));
+        let mut events: Vec<serde_json::Value> = Vec::new();
+        let mut used = 0usize;
+
+        // 1) 上一轮的积压优先(保持顺序:积压一定比通道里的更早)
+        while let Some((event, size)) = stream.pending.pop_front() {
+            stream.pending_bytes = stream.pending_bytes.saturating_sub(size);
+            if !events.is_empty() && used.saturating_add(size) > MQTT_EVENT_BATCH_MAX_BYTES {
+                stream.pending.push_front((event, size));
+                stream.pending_bytes = stream.pending_bytes.saturating_add(size);
+                break;
+            }
+            used = used.saturating_add(size);
+            events.push(event);
         }
 
+        // 2) 通道排水:装不下的进 pending,超出积压上限的丢弃并计数
+        if events.len() < max_events {
+            let (messages, dropped) = stream.handle.drain_available(max_events - events.len());
+            stream.dropped = stream.dropped.saturating_add(dropped);
+            for message in messages {
+                let event = stream.event_for(&message);
+                let size = serialized_len(&event);
+                if !events.is_empty() && used.saturating_add(size) > MQTT_EVENT_BATCH_MAX_BYTES {
+                    if stream.pending_bytes.saturating_add(size) <= MQTT_EVENT_PENDING_MAX_BYTES {
+                        stream.pending.push_back((event, size));
+                        stream.pending_bytes = stream.pending_bytes.saturating_add(size);
+                    } else {
+                        stream.dropped = stream.dropped.saturating_add(1);
+                    }
+                    continue;
+                }
+                used = used.saturating_add(size);
+                events.push(event);
+            }
+        }
+
+        // 3) 批次空且允许等待:再等一条,避免 UI 空转
         if events.is_empty() && wait_ms > 0 && !stream.closed {
             match timeout(
                 Duration::from_millis(u64::from(wait_ms)),
@@ -219,6 +301,11 @@ impl ProviderState {
     }
 }
 
+/// 事件序列化后的字节数(用于字节预算;序列化失败按 0 计,不影响计数逻辑)
+fn serialized_len(event: &serde_json::Value) -> usize {
+    serde_json::to_vec(event).map_or(0, |bytes| bytes.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,10 +322,13 @@ mod tests {
             stream_id.clone(),
             ProviderEventStream {
                 kind: MQTT_MESSAGE_EVENT_KIND.to_string(),
+                resource_id: "mqtt-resource-test".to_string(),
                 handle: MqttPubSubHandle::new(sender.subscribe()),
                 dropped: 0,
                 next_seq: 0,
                 closed: false,
+                pending: VecDeque::new(),
+                pending_bytes: 0,
             },
         );
         (table, stream_id)
@@ -298,5 +388,31 @@ mod tests {
         let (mut table, _) = table_with_stream(&sender);
         table.clear();
         assert_eq!(table.len(), 0);
+    }
+
+    #[test]
+    fn close_for_resource_only_drops_matching_streams() {
+        let (sender, _) = broadcast::channel(4);
+        let (mut table, stream_id) = table_with_stream(&sender);
+        table.close_for_resource("mqtt-resource-other");
+        assert_eq!(table.len(), 1, "别的资源关掉不该影响本流");
+        table.close_for_resource("mqtt-resource-test");
+        assert_eq!(table.len(), 0);
+        assert!(!table.remove(&stream_id));
+    }
+
+    #[test]
+    fn prune_stale_drops_streams_without_live_resource() {
+        let (sender, _) = broadcast::channel(4);
+        let (mut table, _) = table_with_stream(&sender);
+        table.prune_stale(|resource_id| resource_id == "mqtt-resource-other");
+        assert_eq!(table.len(), 0);
+    }
+
+    #[test]
+    fn serialized_len_counts_json_escaped_size() {
+        let plain = serialized_len(&serde_json::json!({"body_text": "abcd"}));
+        let escaped = serialized_len(&serde_json::json!({"body_text": "\u{1}abcd"}));
+        assert!(escaped > plain, "控制字符会被转义成 6 字节");
     }
 }

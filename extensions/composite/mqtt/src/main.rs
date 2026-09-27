@@ -12,6 +12,7 @@ mod config;
 mod connection;
 mod contract;
 mod error;
+mod host_state;
 mod ipc;
 mod middleware_contract;
 mod pubsub;
