@@ -221,6 +221,96 @@
           "context",
           "workbench"
         ]
+      },
+      {
+        "id": "container-inspect",
+        "title": "Docker Container Inspect",
+        "description": "Distilled container inspect document: overview, state, resources, network, mounts, env and labels.",
+        "entry": "ui/container-inspect.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "container-mounts",
+        "title": "Docker Container Mounts",
+        "description": "Mount table of a container: type, source, destination and access mode.",
+        "entry": "ui/container-mounts.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "container-stats",
+        "title": "Docker Container Stats",
+        "description": "Live CPU and memory gauges for a container, refreshed on a timer.",
+        "entry": "ui/container-stats.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "images",
+        "title": "Docker Images",
+        "description": "Image list with filter, inline tag/remove actions, prune and a distilled detail pane.",
+        "entry": "ui/images.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "volumes",
+        "title": "Docker Volumes",
+        "description": "Volume list with filter, inline create/remove actions, prune and a distilled detail pane.",
+        "entry": "ui/volumes.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
+      },
+      {
+        "id": "networks",
+        "title": "Docker Networks",
+        "description": "Network list with filter, inline create/remove actions, prune and a distilled detail pane.",
+        "entry": "ui/networks.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "workbench"
+        ]
       }
     ],
     "resourceWorkbenches": [
@@ -422,7 +512,7 @@
             "params": {
               "name": {
                 "source": "selection",
-                "path": "/name",
+                "path": "/remove_target",
                 "type": "string"
               }
             }
@@ -618,6 +708,76 @@
               }
             }
           },
+          "imageInspectByRef": {
+            "mode": "invoke",
+            "method": "docker/image/inspect",
+            "requires": [
+              "docker/image/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "imageHistoryByRef": {
+            "mode": "invoke",
+            "method": "docker/image/history",
+            "requires": [
+              "docker/image/history"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "imageRemoveByRef": {
+            "mode": "invoke",
+            "method": "docker/image/remove",
+            "requires": [
+              "docker/image/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "imageTagByRef": {
+            "mode": "invoke",
+            "method": "docker/image/tag",
+            "requires": [
+              "docker/image/tag"
+            ],
+            "effect": "write",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              },
+              "repo": {
+                "source": "input",
+                "path": "/repo",
+                "type": "string"
+              },
+              "tag": {
+                "source": "input",
+                "path": "/tag",
+                "type": "string"
+              }
+            }
+          },
           "imagePrune": {
             "mode": "invoke",
             "method": "docker/image/prune",
@@ -775,6 +935,36 @@
               }
             }
           },
+          "networkInspectById": {
+            "mode": "invoke",
+            "method": "docker/network/inspect",
+            "requires": [
+              "docker/network/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "id": {
+                "source": "input",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
+          "networkRemoveById": {
+            "mode": "invoke",
+            "method": "docker/network/remove",
+            "requires": [
+              "docker/network/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "id": {
+                "source": "input",
+                "path": "/id",
+                "type": "string"
+              }
+            }
+          },
           "networkCreate": {
             "mode": "invoke",
             "method": "docker/network/create",
@@ -842,6 +1032,36 @@
               "docker/network/prune"
             ],
             "effect": "destructive"
+          },
+          "volumeInspectByName": {
+            "mode": "invoke",
+            "method": "docker/volume/inspect",
+            "requires": [
+              "docker/volume/inspect"
+            ],
+            "effect": "read",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
+          },
+          "volumeRemoveByName": {
+            "mode": "invoke",
+            "method": "docker/volume/remove",
+            "requires": [
+              "docker/volume/remove"
+            ],
+            "effect": "destructive",
+            "params": {
+              "name": {
+                "source": "input",
+                "path": "/name",
+                "type": "string"
+              }
+            }
           },
           "volumeCreate": {
             "mode": "invoke",
@@ -934,6 +1154,20 @@
                     "path": "/status",
                     "type": "display",
                     "style": "muted"
+                  },
+                  {
+                    "id": "ports",
+                    "title": "Ports",
+                    "path": "/ports",
+                    "type": "display",
+                    "style": "mono"
+                  },
+                  {
+                    "id": "created",
+                    "title": "Created",
+                    "path": "/created",
+                    "type": "display",
+                    "style": "muted"
                   }
                 ],
                 "open": {
@@ -990,7 +1224,9 @@
             "id": "container-detail",
             "title": "Inspect",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "container-inspect",
+              "fallback": "native"
             },
             "route": {
               "id": {
@@ -1038,7 +1274,9 @@
             "id": "container-mounts",
             "title": "Bind mounts",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "container-mounts",
+              "fallback": "native"
             },
             "route": {
               "id": {
@@ -1061,7 +1299,9 @@
             "id": "container-stats",
             "title": "Stats",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "container-stats",
+              "fallback": "native"
             },
             "route": {
               "id": {
@@ -1206,7 +1446,9 @@
             "id": "images",
             "title": "Images",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "images",
+              "fallback": "native"
             },
             "load": {
               "operation": "listImages"
@@ -1236,6 +1478,13 @@
                     "type": "string"
                   },
                   {
+                    "id": "tags",
+                    "title": "Tags",
+                    "path": "/tag_count",
+                    "type": "display",
+                    "style": "muted"
+                  },
+                  {
                     "id": "id",
                     "title": "Image ID",
                     "path": "/id",
@@ -1252,7 +1501,7 @@
                   {
                     "id": "size",
                     "title": "Size",
-                    "path": "/size_mb",
+                    "path": "/size",
                     "type": "display",
                     "style": "muted"
                   }
@@ -1269,7 +1518,7 @@
                   "route": {
                     "name": {
                       "source": "selection",
-                      "path": "/name",
+                      "path": "/remove_target",
                       "type": "string"
                     }
                   }
@@ -1281,7 +1530,9 @@
             "id": "volumes",
             "title": "Volumes",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "volumes",
+              "fallback": "native"
             },
             "load": {
               "operation": "listVolumes"
@@ -1397,7 +1648,9 @@
             "id": "networks",
             "title": "Networks",
             "renderer": {
-              "kind": "native"
+              "kind": "shell",
+              "viewId": "networks",
+              "fallback": "native"
             },
             "load": {
               "operation": "listNetworks"

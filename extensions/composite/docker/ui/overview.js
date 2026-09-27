@@ -62,12 +62,12 @@ export default class DockerOverview extends View {
     if (this.loading && !this.usage) {
       return v_flex().size_full().items_center().justify_center().gap(8)
         .child(new Spinner().size("medium"))
-        .child(div().text_color(cx.theme().colors.muted_foreground).child("正在统计引擎使用情况…"));
+        .child(div().text_color(cx.theme().colors.muted_foreground).child("Loading engine usage…"));
     }
     if (this.error) {
       return v_flex().size_full().p(16).gap(8)
-        .child(div().text_color(cx.theme().colors.destructive).child(`加载失败: ${this.error}`))
-        .child(new Button("docker-usage-retry").label("重试").on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))));
+        .child(div().text_color(cx.theme().colors.destructive).child(`Failed to load: ${this.error}`))
+        .child(new Button("docker-usage-retry").label("Retry").on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx))));
     }
     const u = this.usage || {};
     const diskUsed = u.disk_used_bytes ?? 0;
@@ -77,27 +77,27 @@ export default class DockerOverview extends View {
     return v_flex().size_full().min_h_0().min_w_0().overflow_y_scrollbar().p(16).gap(16)
       .child(h_flex().gap(8).items_center().justify_between()
         .child(h_flex().gap(8).items_center()
-          .child(div().text_size(16).font_semibold().child("Docker 引擎"))
-          .child(new Badge().child(u.engine ? "运行中" : "不可用"))
+          .child(div().text_size(16).font_semibold().child("Docker Engine"))
+          .child(new Badge().child(u.engine ? "Running" : "Unavailable"))
           .child(div().text_color(cx.theme().colors.muted_foreground).text_size(12).child(`Server ${u.server_version || "?"} · ${u.cpu_count ?? 0} CPUs`)))
-        .child(new Button("docker-usage-refresh").ghost().label("刷新")
+        .child(new Button("docker-usage-refresh").ghost().label("Refresh")
           .on_click((_e, cx) => cx.spawn(async (cx) => this.load(cx)))))
       .child(h_flex().gap(8).flex_wrap()
-        .child(this.card(cx, "容器", `${u.containers_running ?? 0} / ${u.containers_total ?? 0}`, "运行中 / 总数"))
-        .child(this.card(cx, "镜像", String(u.images ?? 0), "本机镜像数"))
-        .child(this.card(cx, "卷", String(u.volumes ?? 0), "逻辑卷数量"))
-        .child(this.card(cx, "网络", String(u.networks ?? 0), "网络数量")))
+        .child(this.card(cx, "Containers", `${u.containers_running ?? 0} / ${u.containers_total ?? 0}`, "running / total"))
+        .child(this.card(cx, "Images", String(u.images ?? 0), "local images"))
+        .child(this.card(cx, "Volumes", String(u.volumes ?? 0), "logical volumes"))
+        .child(this.card(cx, "Networks", String(u.networks ?? 0), "networks")))
       .child(v_flex().gap(6).border_r_1().rounded(6).p(12)
-        .child(div().font_semibold().child("磁盘占用"))
-        .child(this.meter(cx, "已用", diskUsed, diskTotal || 1))
+        .child(div().font_semibold().child("Disk usage"))
+        .child(this.meter(cx, "Used", diskUsed, diskTotal || 1))
         .child(h_flex().gap(8)
-          .child(div().text_size(12).text_color(cx.theme().colors.muted_foreground).child(`可回收 ${human(diskReclaimable)}`))
-          .child(new Badge().color(cx.theme().colors.accent).child(`可回收 ${diskTotal > 0 ? Math.round(diskReclaimable / diskTotal * 100) : 0}%`))))
+          .child(div().text_size(12).text_color(cx.theme().colors.muted_foreground).child(`Reclaimable ${human(diskReclaimable)}`))
+          .child(new Badge().color(cx.theme().colors.accent).child(`Reclaimable ${diskTotal > 0 ? Math.round(diskReclaimable / diskTotal * 100) : 0}%`))))
       .child(v_flex().gap(6).border_r_1().rounded(6).p(12)
-        .child(div().font_semibold().child("运行中容器资源"))
+        .child(div().font_semibold().child("Running container resources"))
         .child(h_flex().gap(16).text_size(13)
-          .child(div().child(`内存合计: ${human(memUsed)}`))
-          .child(div().child(`CPU 占用(估计): ${(u.containers_cpu_percent ?? 0).toFixed(1)}%`))
-          .child(div().child(`容器总数(运行中): ${u.containers_running ?? 0} / ${u.containers_total ?? 0}`))));
+          .child(div().child(`Memory total: ${human(memUsed)}`))
+          .child(div().child(`CPU (estimated): ${(u.containers_cpu_percent ?? 0).toFixed(1)}%`))
+          .child(div().child(`Containers (running): ${u.containers_running ?? 0} / ${u.containers_total ?? 0}`))));
   }
 }

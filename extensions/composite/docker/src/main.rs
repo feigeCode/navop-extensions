@@ -92,6 +92,7 @@ const CAPABILITIES: &[&str] = &[
     "docker/container/files/list",
     "docker/container/files/delete",
     "docker/image/list",
+    "docker/image/remove",
     "docker/image/inspect",
     "docker/image/history",
     "docker/image/tag",
@@ -448,13 +449,39 @@ async fn invoke(state: &State, params: Value) -> ProviderResult {
                 .map_err(|e| unavailable(e.to_string()))?;
             let rows = containers
                 .into_iter()
-                .map(|container| json!({
-                    "id": container.id,
-                    "name": container.names.unwrap_or_default().into_iter().next().unwrap_or_default().trim_start_matches('/'),
-                    "image": container.image,
-                    "state": container.state,
-                    "status": container.status,
-                }))
+                .map(|container| {
+                    // 端口映射:有宿主端口时展示 `8080->80/tcp`,仅暴露未发布时展示 `80/tcp`。
+                    // 端口项由 daemon 汇总,顺序不保证,这里保持原样不排序,免得 UI 每次刷新都跳。
+                    let ports = container
+                        .ports
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|port| {
+                            let protocol = port
+                                .typ
+                                .map(|kind| format!("{kind:?}").to_lowercase())
+                                .unwrap_or_else(|| "tcp".to_string());
+                            match port.public_port {
+                                Some(public) => {
+                                    format!("{public}->{}/{}", port.private_port, protocol)
+                                }
+                                None => format!("{}/{}", port.private_port, protocol),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let created = container.created.unwrap_or(0);
+                    json!({
+                        "id": container.id,
+                        "name": container.names.unwrap_or_default().into_iter().next().unwrap_or_default().trim_start_matches('/'),
+                        "image": container.image,
+                        "state": container.state,
+                        "status": container.status,
+                        "ports": ports,
+                        "created": utc_format(created),
+                        "created_epoch": created,
+                    })
+                })
                 .collect::<Vec<_>>();
             json!({"containers": rows})
         }
@@ -551,20 +578,34 @@ async fn invoke(state: &State, params: Value) -> ProviderResult {
             let rows = images
                 .into_iter()
                 .map(|image| {
-                    let short_id = image.id.trim_start_matches("sha256:");
-                    // 删除操作的目标:优先用第一个 repo tag,虚悬镜像退回完整 id。
-                    let name = image
+                    let full_id = image.id.clone();
+                    let short_id = full_id.trim_start_matches("sha256:");
+                    let short_id = short_id.get(..12).unwrap_or(short_id).to_string();
+                    // `<none>:<none>` 是虚悬镜像的占位 tag:既不能当展示名,也不能当删除目标。
+                    let tags: Vec<String> = image
                         .repo_tags
+                        .into_iter()
+                        .filter(|tag| !tag.is_empty() && !tag.contains("<none>"))
+                        .collect();
+                    let tag_count = tags.len();
+                    let dangling = tag_count == 0;
+                    // 展示名:虚悬镜像统一显示 `<none>`,不再把 64 位 id 塞进 Repository 列。
+                    let display_name = tags
                         .first()
-                        .filter(|tag| !tag.is_empty() && tag.as_str() != "<none>")
                         .cloned()
-                        .unwrap_or_else(|| image.id.clone());
+                        .unwrap_or_else(|| "<none>".to_string());
+                    // 删除目标:有 tag 时用第一个 tag(删的是这个 tag),虚悬镜像必须用完整 id。
+                    let remove_target = tags.first().cloned().unwrap_or_else(|| full_id.clone());
                     json!({
-                        "name": name,
-                        "id": short_id.get(..12).unwrap_or(short_id),
-                        "tags": image.repo_tags,
+                        "name": display_name,
+                        "remove_target": remove_target,
+                        "id": short_id,
+                        "tags": tags,
+                        "tag_count": tag_count,
+                        "dangling": dangling,
                         "created": utc_format(image.created),
                         "created_epoch": image.created,
+                        "size": human_size(image.size.max(0) as u64),
                         "size_mb": image.size / (1024 * 1024),
                     })
                 })
@@ -1936,33 +1977,46 @@ mod tests {
     #[test]
     fn capabilities_cover_all_resource_methods() {
         // 能力位必须覆盖 manifest 与 provider 实现的每一个方法,宿主据此校验。
-        let expected = [
-            "docker/system/info",
-            "docker/system/usage",
-            "docker/system/prune",
-            "docker/container/create",
-            "docker/container/pause",
-            "docker/container/unpause",
-            "docker/container/kill",
-            "docker/container/rename",
-            "docker/container/update",
-            "docker/container/top",
-            "docker/container/diff",
-            "docker/image/inspect",
-            "docker/image/history",
-            "docker/image/tag",
-            "docker/image/prune",
-            "docker/image/pull",
-            "docker/network/create",
-            "docker/network/connect",
-            "docker/network/disconnect",
-            "docker/network/prune",
-            "docker/volume/create",
-            "docker/volume/prune",
-        ];
-        for method in expected {
+        // 期望集直接从 manifest 派生(而非手抄一份子集):漏补能力位时,宿主只会在
+        // 运行时抛 MissingCapability,单测必须提前拦住。
+        let manifest: serde_json::Value = serde_json::from_str(include_str!("../extension.json"))
+            .expect("extension.json 必须是合法 JSON");
+
+        fn collect_requires(value: &serde_json::Value, out: &mut Vec<String>) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    for (key, child) in map {
+                        if key == "requires" {
+                            if let Some(items) = child.as_array() {
+                                out.extend(
+                                    items
+                                        .iter()
+                                        .filter_map(|item| item.as_str().map(str::to_string)),
+                                );
+                            }
+                        }
+                        collect_requires(child, out);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for item in items {
+                        collect_requires(item, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut expected = Vec::new();
+        collect_requires(&manifest, &mut expected);
+        assert!(
+            !expected.is_empty(),
+            "manifest 里没有解析到任何 requires,检查 collect_requires"
+        );
+
+        for method in &expected {
             assert!(
-                CAPABILITIES.contains(&method),
+                CAPABILITIES.contains(&method.as_str()),
                 "missing capability {method}"
             );
         }
