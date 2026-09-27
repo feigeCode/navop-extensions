@@ -30,6 +30,11 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         .with_sound(connect.audio_playback)
         .with_server_pointer(true)
         .with_pointer_software_rendering(false)
+        // GNOME Remote Desktop 50 refuses to serve a session at all unless the client
+        // advertises the RDP Graphics Pipeline Extension in its Client Core Data early
+        // capability flags. RdpClient registers an EGFX-capable dynamic channel, so the
+        // flag can be advertised safely.
+        .with_support_dyn_vc_gfx_protocol(true)
         .with_performance_flags(PerformanceFlags::default())
         // Keep bulk compression disabled. ConfigBuilder defaults compression
         // to K64 unless with_compression(false) is set explicitly.

@@ -13,14 +13,14 @@ anyhow = "1"
 # offer TLS 1.0. This direct dependency constrains IronRDP's transitive native-tls
 # dependency without changing its backend.
 native-tls = "=0.2.14"
-ironrdp = { git = "https://github.com/feigeCode/IronRDP", rev = "86ba64c37d0a2f6105d25357c326f001f5ad6637", features = [
+ironrdp = { git = "https://github.com/feigeCode/IronRDP", rev = "f13b3b9b673babfe739793c1d14e1dd2a2362bff", features = [
     "connector",
     "cliprdr",
     "graphics",
     "input",
     "pdu",
 ] }
-ironrdp-client = { git = "https://github.com/feigeCode/IronRDP", rev = "86ba64c37d0a2f6105d25357c326f001f5ad6637", default-features = false, features = [
+ironrdp-client = { git = "https://github.com/feigeCode/IronRDP", rev = "f13b3b9b673babfe739793c1d14e1dd2a2362bff", default-features = false, features = [
     "clipboard",
     "native-tls",
     "sound",
