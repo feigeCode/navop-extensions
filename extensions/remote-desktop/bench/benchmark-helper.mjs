@@ -43,6 +43,7 @@ writeRequest({
   width: options.width,
   height: options.height,
   scale_factor: options.scaleFactor,
+  egfx: options.egfx,
 });
 
 const activity = setInterval(() => {
@@ -149,6 +150,8 @@ function parseArgs(args) {
     width: Number(parsed.width || 1280),
     height: Number(parsed.height || 720),
     scaleFactor: Number(parsed.scaleFactor || 100),
+    // The host app sends the per-connection graphics pipeline policy; auto reproduces it.
+    egfx: parsed.egfx || "auto",
   };
 }
 

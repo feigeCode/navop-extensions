@@ -44,6 +44,7 @@ fn debug_connect_request(
         scale_factor,
         audio_playback,
         audio_capture,
+        egfx,
         shared_folders,
     } = request
     else {
@@ -62,6 +63,7 @@ fn debug_connect_request(
         .field("scale_factor", scale_factor)
         .field("audio_playback", audio_playback)
         .field("audio_capture", audio_capture)
+        .field("egfx", egfx)
         .field("shared_folder_count", &shared_folders.len())
         .finish()
 }
@@ -148,6 +150,7 @@ impl fmt::Debug for ConnectRequest {
             .field("scale_factor", &self.scale_factor)
             .field("audio_playback", &self.audio_playback)
             .field("audio_capture", &self.audio_capture)
+            .field("egfx", &self.egfx)
             .field("shared_folder_count", &self.shared_folders.len())
             .finish()
     }

@@ -2,7 +2,7 @@ use ironrdp::pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp::pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_client::config::{ClipboardType, Config, ConfigBuilder, Destination};
 
-use crate::protocol::ConnectRequest;
+use crate::protocol::{ConnectRequest, EgfxMode};
 
 pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
     let mut builder = ConfigBuilder::new()
@@ -33,8 +33,9 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         // GNOME Remote Desktop 50 refuses to serve a session at all unless the client
         // advertises the RDP Graphics Pipeline Extension in its Client Core Data early
         // capability flags, but advertising it also lets hosts that accept it encode the
-        // session with codecs this helper does not decode. See EgfxPolicy for the default.
-        .with_support_dyn_vc_gfx_protocol(EgfxPolicy::from_env().advertises())
+        // session with codecs this helper does not decode. See EgfxPolicy for how the
+        // connection setting and the environment decide this.
+        .with_support_dyn_vc_gfx_protocol(EgfxPolicy::resolve(connect.egfx).advertises())
         .with_performance_flags(PerformanceFlags::default())
         // Keep bulk compression disabled. ConfigBuilder defaults compression
         // to K64 unless with_compression(false) is set explicitly.
@@ -53,9 +54,10 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
 /// RdpClient registers an EGFX-capable dynamic channel either way; this only decides the
 /// capability flag in the Client Core Data. Some hosts (GNOME Remote Desktop 50) refuse to serve
 /// a session without it, while others (Windows) accept it and may then encode the session with
-/// codecs this helper cannot decode. The default therefore connects without the flag and lets
-/// RdpClient retry once when a host refuses the connection without it, which keeps both kinds of
-/// host working. `NAVOP_RDP_EGFX=on` skips the extra attempt and `=off` never advertises.
+/// codecs this helper cannot decode. The host app picks a mode per connection: `Auto` connects
+/// without the flag and lets RdpClient retry once when a host refuses the connection (which keeps
+/// both kinds of host working), `Always` skips the extra attempt and `Never` never advertises.
+/// `NAVOP_RDP_EGFX=on`/`=off` still overrides the `Auto` mode for debugging.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum EgfxPolicy {
     Never,
@@ -64,6 +66,15 @@ pub(super) enum EgfxPolicy {
 }
 
 impl EgfxPolicy {
+    /// Resolves the per-connection mode chosen by the host app.
+    pub(super) fn resolve(mode: EgfxMode) -> Self {
+        match mode {
+            EgfxMode::Always => Self::Always,
+            EgfxMode::Never => Self::Never,
+            EgfxMode::Auto => Self::from_env(),
+        }
+    }
+
     pub(super) fn from_env() -> Self {
         Self::parse(std::env::var("NAVOP_RDP_EGFX").ok().as_deref())
     }
@@ -121,6 +132,7 @@ mod tests {
             scale_factor: 200,
             audio_playback: false,
             audio_capture: false,
+            egfx: EgfxMode::Auto,
             shared_folders: Vec::new(),
         })
         .expect("config builds");
@@ -145,6 +157,7 @@ mod tests {
                 scale_factor: 100,
                 audio_playback,
                 audio_capture: false,
+                egfx: EgfxMode::Auto,
                 shared_folders: Vec::new(),
             })
             .expect("config builds");
@@ -174,6 +187,7 @@ mod tests {
             scale_factor: 100,
             audio_playback: false,
             audio_capture: false,
+            egfx: EgfxMode::Auto,
             shared_folders: Vec::new(),
         })
         .expect("config builds");
@@ -194,5 +208,25 @@ mod tests {
         assert!(!EgfxPolicy::Always.retries_when_refused());
         assert!(!EgfxPolicy::Never.advertises());
         assert!(!EgfxPolicy::Never.retries_when_refused());
+    }
+
+    #[test]
+    fn explicit_connection_modes_win_over_the_environment_override() {
+        assert_eq!(EgfxPolicy::Always, EgfxPolicy::resolve(EgfxMode::Always));
+        assert_eq!(EgfxPolicy::Never, EgfxPolicy::resolve(EgfxMode::Never));
+        assert_eq!(
+            EgfxPolicy::Fallback,
+            EgfxPolicy::resolve(EgfxMode::Auto),
+            "the auto mode still honours NAVOP_RDP_EGFX"
+        );
+    }
+
+    #[test]
+    fn parse_mode_accepts_the_wire_names_and_case_variants() {
+        assert_eq!(EgfxMode::Always, EgfxMode::parse("always"));
+        assert_eq!(EgfxMode::Always, EgfxMode::parse("Always"));
+        assert_eq!(EgfxMode::Never, EgfxMode::parse("never"));
+        assert_eq!(EgfxMode::Auto, EgfxMode::parse("auto"));
+        assert_eq!(EgfxMode::Auto, EgfxMode::parse("nonsense"));
     }
 }

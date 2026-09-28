@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
-use crate::protocol::HelperEvent;
+use crate::protocol::{HelperEvent, HelperFrameRect};
 
 pub struct OutputSender {
     shared: Arc<Shared>,
@@ -61,7 +61,7 @@ impl OutputSender {
             delta @ HelperEvent::FrameBgraRects { .. } => {
                 state.latest_delta = Some(match state.latest_delta.take() {
                     Some(previous) => merge_deltas(previous, delta),
-                    None => delta,
+                    None => normalize_delta(delta),
                 });
             }
             terminal @ (HelperEvent::ConnectionFailure { .. } | HelperEvent::Terminated { .. }) => {
@@ -146,8 +146,8 @@ fn merge_deltas(previous: HelperEvent, next: HelperEvent) -> HelperEvent {
             HelperEvent::FrameBgraRects {
                 width,
                 height,
-                mut rects,
-                mut bgra,
+                rects,
+                bgra,
             },
             HelperEvent::FrameBgraRects {
                 width: next_width,
@@ -156,8 +156,7 @@ fn merge_deltas(previous: HelperEvent, next: HelperEvent) -> HelperEvent {
                 bgra: next_bgra,
             },
         ) if width == next_width && height == next_height => {
-            rects.extend(next_rects);
-            bgra.extend(next_bgra);
+            let (rects, bgra) = merge_delta_payload(rects, bgra, next_rects, next_bgra);
             HelperEvent::FrameBgraRects {
                 width,
                 height,
@@ -167,6 +166,187 @@ fn merge_deltas(previous: HelperEvent, next: HelperEvent) -> HelperEvent {
         }
         (_, next) => next,
     }
+}
+
+/// Upper bound on the rectangles a merged delta may carry. Past it the helper stops
+/// trimming and appends instead, so a pathological stream cannot grow a payload without
+/// limit.
+const MAX_MERGED_DELTA_RECTS: usize = 4096;
+
+/// Folds the newer update's rectangles into the pending payload.
+///
+/// The newer update supersedes every pixel it covers, so the part of an earlier
+/// rectangle that it covers can leave the payload instead of being applied first and
+/// overwritten right after. Without this, a queue of overlapping repaints (a scroll band,
+/// then the repaint on top of it) ships the shared pixels once per repaint, which is what
+/// turns one screen change into tens of megabytes downstream.
+fn merge_delta_payload(
+    rects: Vec<HelperFrameRect>,
+    bgra: Vec<u8>,
+    next_rects: Vec<HelperFrameRect>,
+    next_bgra: Vec<u8>,
+) -> (Vec<HelperFrameRect>, Vec<u8>) {
+    let entries = fold_payload(split_payload(&rects, &bgra), split_payload(&next_rects, &next_bgra));
+    join_payload(entries)
+}
+
+/// Trims a delta against itself, so the rectangles it carries stop covering each other.
+///
+/// One update paints all of its rectangles from the same composited image, so where two
+/// of them overlap the later one already writes the same pixels.
+fn normalize_delta(event: HelperEvent) -> HelperEvent {
+    match event {
+        HelperEvent::FrameBgraRects {
+            width,
+            height,
+            rects,
+            bgra,
+        } => {
+            let entries = fold_payload(Vec::new(), split_payload(&rects, &bgra));
+            let (rects, bgra) = join_payload(entries);
+            HelperEvent::FrameBgraRects {
+                width,
+                height,
+                rects,
+                bgra,
+            }
+        }
+        event => event,
+    }
+}
+
+/// Applies `covers` to `entries` in order, trimming from the earlier rectangles whatever a
+/// later one covers. The result holds pairwise disjoint rectangles carrying every pixel of
+/// the union exactly once.
+fn fold_payload(mut entries: Vec<DeltaEntry>, covers: Vec<DeltaEntry>) -> Vec<DeltaEntry> {
+    for (cover, cover_pixels) in covers {
+        if entries.len() > MAX_MERGED_DELTA_RECTS {
+            entries.push((cover, cover_pixels));
+            continue;
+        }
+
+        let mut trimmed = Vec::with_capacity(entries.len() + 1);
+        for (rect, pixels) in entries {
+            trim_covered_pixels(&rect, &pixels, &cover, &mut trimmed);
+        }
+        trimmed.push((cover, cover_pixels));
+        entries = trimmed;
+    }
+
+    entries
+}
+
+/// A rectangle of a delta together with the pixels it occupies in the payload.
+type DeltaEntry = (HelperFrameRect, Vec<u8>);
+
+fn split_payload(rects: &[HelperFrameRect], bgra: &[u8]) -> Vec<DeltaEntry> {
+    let mut entries = Vec::with_capacity(rects.len());
+    let mut offset = 0usize;
+
+    for rect in rects {
+        let end = offset.saturating_add(rect.byte_len);
+        entries.push((
+            rect.clone(),
+            bgra.get(offset..end).unwrap_or_default().to_vec(),
+        ));
+        offset = end;
+    }
+
+    entries
+}
+
+fn join_payload(entries: Vec<DeltaEntry>) -> (Vec<HelperFrameRect>, Vec<u8>) {
+    let mut rects = Vec::with_capacity(entries.len());
+    let mut bgra = Vec::new();
+
+    for (rect, pixels) in entries {
+        bgra.extend_from_slice(&pixels);
+        rects.push(HelperFrameRect {
+            byte_len: pixels.len(),
+            ..rect
+        });
+    }
+
+    (rects, bgra)
+}
+
+/// Pushes `rect` minus `cover`, with the matching pixels, into `parts`.
+fn trim_covered_pixels(
+    rect: &HelperFrameRect,
+    pixels: &[u8],
+    cover: &HelperFrameRect,
+    parts: &mut Vec<DeltaEntry>,
+) {
+    let rect_left = usize::from(rect.x);
+    let rect_top = usize::from(rect.y);
+    let rect_right = rect_left + usize::from(rect.width);
+    let rect_bottom = rect_top + usize::from(rect.height);
+
+    let cover_left = usize::from(cover.x);
+    let cover_top = usize::from(cover.y);
+    let cover_right = cover_left + usize::from(cover.width);
+    let cover_bottom = cover_top + usize::from(cover.height);
+
+    let left = cover_left.max(rect_left);
+    let top = cover_top.max(rect_top);
+    let right = cover_right.min(rect_right);
+    let bottom = cover_bottom.min(rect_bottom);
+
+    if left >= right || top >= bottom {
+        parts.push((rect.clone(), pixels.to_vec()));
+        return;
+    }
+
+    // The rows outside the covered band survive whole, inside it only the columns next to
+    // the covered one do.
+    push_band(rect, pixels, rect_top, top, rect_left, rect_right, parts);
+    push_band(rect, pixels, bottom, rect_bottom, rect_left, rect_right, parts);
+    push_band(rect, pixels, top, bottom, rect_left, left, parts);
+    push_band(rect, pixels, top, bottom, right, rect_right, parts);
+}
+
+/// Copies the rows `[row_start, row_end)` and columns `[column_start, column_end)` of
+/// `rect` out of `pixels` into a part of its own.
+#[allow(clippy::too_many_arguments)]
+fn push_band(
+    rect: &HelperFrameRect,
+    pixels: &[u8],
+    row_start: usize,
+    row_end: usize,
+    column_start: usize,
+    column_end: usize,
+    parts: &mut Vec<DeltaEntry>,
+) {
+    if row_start >= row_end || column_start >= column_end {
+        return;
+    }
+
+    let rect_left = usize::from(rect.x);
+    let rect_top = usize::from(rect.y);
+    let stride = usize::from(rect.width) * 4;
+    let band_width = column_end - column_start;
+    let mut band = Vec::with_capacity(band_width * (row_end - row_start) * 4);
+
+    for row in row_start..row_end {
+        let start = (row - rect_top) * stride + (column_start - rect_left) * 4;
+        let end = start + band_width * 4;
+        let Some(slice) = pixels.get(start..end) else {
+            // A truncated payload: keep nothing rather than half a band.
+            return;
+        };
+        band.extend_from_slice(slice);
+    }
+
+    // Every coordinate is a sub-range of `rect`'s fields, so it stays within `u16`.
+    #[allow(clippy::cast_possible_truncation)]
+    let part = HelperFrameRect {
+        x: column_start as u16,
+        y: row_start as u16,
+        width: band_width as u16,
+        height: (row_end - row_start) as u16,
+        byte_len: band.len(),
+    };
+    parts.push((part, band));
 }
 
 fn enqueue_control(control: &mut VecDeque<HelperEvent>, event: HelperEvent) {

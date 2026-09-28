@@ -37,9 +37,10 @@ pub struct RdpRuntime {
 pub fn start(connect: ConnectRequest) -> anyhow::Result<RdpRuntime> {
     // The helper cannot tell which RDP server it is about to reach, and the two answers are
     // mutually exclusive: a host may need the Graphics Pipeline Extension advertised, or it may
-    // accept it and then send frames this helper cannot decode. The default policy connects
-    // without it and has the client retry when a host refuses such a connection.
-    let retry_without_egfx = config::EgfxPolicy::from_env().retries_when_refused();
+    // accept it and then send frames this helper cannot decode. The host app picks the policy per
+    // connection; its default connects without the capability and has the client retry when a host
+    // refuses such a connection.
+    let retry_without_egfx = config::EgfxPolicy::resolve(connect.egfx).retries_when_refused();
     let config = config::build_config(connect)?;
     let (output_tx, output_rx) = output_channel(64);
     let (helper_output_tx, helper_output_rx) = output_mailbox();

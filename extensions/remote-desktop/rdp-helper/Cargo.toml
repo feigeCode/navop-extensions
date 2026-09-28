@@ -1,6 +1,6 @@
 [package]
 name = "navop-rdp-helper"
-version = "0.3.9"
+version = "0.3.10"
 edition = "2024"
 publish = false
 
@@ -13,14 +13,14 @@ anyhow = "1"
 # offer TLS 1.0. This direct dependency constrains IronRDP's transitive native-tls
 # dependency without changing its backend.
 native-tls = "=0.2.14"
-ironrdp = { git = "https://github.com/feigeCode/IronRDP", rev = "2a0f48440646c06ae55b6e1e85ea28587f28bb3f", features = [
+ironrdp = { git = "https://github.com/feigeCode/IronRDP", rev = "feba27a59f8a86d569da8cd2af6b680b956cf3c6", features = [
     "connector",
     "cliprdr",
     "graphics",
     "input",
     "pdu",
 ] }
-ironrdp-client = { git = "https://github.com/feigeCode/IronRDP", rev = "2a0f48440646c06ae55b6e1e85ea28587f28bb3f", default-features = false, features = [
+ironrdp-client = { git = "https://github.com/feigeCode/IronRDP", rev = "feba27a59f8a86d569da8cd2af6b680b956cf3c6", default-features = false, features = [
     "clipboard",
     "native-tls",
     "sound",

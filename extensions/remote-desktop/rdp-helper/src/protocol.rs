@@ -19,6 +19,9 @@ pub enum HelperRequest {
         audio_playback: bool,
         #[serde(default)]
         audio_capture: bool,
+        /// How the client advertises the RDP Graphics Pipeline Extension; `Auto` when absent.
+        #[serde(default)]
+        egfx: EgfxMode,
         #[serde(default)]
         shared_folders: Vec<RemoteDesktopSharedFolder>,
     },
@@ -89,7 +92,43 @@ pub struct ConnectRequest {
     pub scale_factor: u32,
     pub audio_playback: bool,
     pub audio_capture: bool,
+    pub egfx: EgfxMode,
     pub shared_folders: Vec<RemoteDesktopSharedFolder>,
+}
+
+/// How the client advertises the RDP Graphics Pipeline Extension (EGFX).
+///
+/// The host app owns this per connection; see `EgfxPolicy` for how each mode is honoured. Values
+/// the helper does not recognise fall back to `Auto`, so a newer app cannot break an older helper.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EgfxMode {
+    /// Connect without the capability and retry with it when a host refuses the connection.
+    #[default]
+    Auto,
+    /// Advertise the capability from the first attempt onwards.
+    Always,
+    /// Never advertise the capability and never retry.
+    Never,
+}
+
+impl EgfxMode {
+    pub(crate) fn parse(value: &str) -> Self {
+        match value.to_ascii_lowercase().as_str() {
+            "always" => Self::Always,
+            "never" => Self::Never,
+            _ => Self::Auto,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for EgfxMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::parse(&String::deserialize(deserializer)?))
+    }
 }
 
 fn default_scale_factor() -> u32 {
@@ -193,6 +232,7 @@ pub fn connect_request(request: HelperRequest) -> anyhow::Result<ConnectRequest>
             scale_factor,
             audio_playback,
             audio_capture,
+            egfx,
             shared_folders,
         } => Ok(ConnectRequest {
             destination,
@@ -204,6 +244,7 @@ pub fn connect_request(request: HelperRequest) -> anyhow::Result<ConnectRequest>
             scale_factor,
             audio_playback,
             audio_capture,
+            egfx,
             shared_folders,
         }),
         _ => anyhow::bail!("first helper request must be Connect"),

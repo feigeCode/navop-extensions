@@ -61,6 +61,7 @@ fn helper_request_debug_redacts_credentials_and_local_paths() {
         scale_factor: 100,
         audio_playback: true,
         audio_capture: false,
+        egfx: EgfxMode::Auto,
         shared_folders: vec![RemoteDesktopSharedFolder {
             name: "workspace".to_string(),
             path: PathBuf::from("/private/customer-workspace"),
@@ -91,6 +92,7 @@ fn connect_request_debug_redacts_credentials_and_local_paths() {
         scale_factor: 100,
         audio_playback: true,
         audio_capture: false,
+        egfx: EgfxMode::Auto,
         shared_folders: vec![RemoteDesktopSharedFolder {
             name: "workspace".to_string(),
             path: PathBuf::from("/private/customer-workspace"),
