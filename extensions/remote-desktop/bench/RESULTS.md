@@ -127,6 +127,61 @@ repeated full-screen copies.
 | 3 | 245 ms | 32 | 1 | 31 | 59,912,704 | 60,116,001 | 5.71 | 4.30% | 19,376 KiB |
 | Average | 245 ms | 34 | 1 | 33 | 61,951,403 | 62,161,819 | 5.91 | 5.19% | 19,338.67 KiB |
 
+## Real Windows RDP: incremental payload and Graphics Pipeline handshake
+
+Measured against a real Windows RDP server over the LAN at 2724x1530 with 200%
+display scaling. The probe only reads the helper's output, so the activity is whatever
+the live desktop was doing; runs are compared by payload shape rather than by frame
+rate.
+
+Helper revision: `feba27a5` on branch `navop/upstream-merge-2026-09` of
+https://github.com/feigeCode/IronRDP.
+
+### Graphics Pipeline handshake
+
+Windows negotiates the Graphics Pipeline at capability version 8 and encodes the
+surface updates with RFX Progressive. Once the pipeline is open the client cannot
+decline progressive encoding, and the decoder fails on it, ending the session:
+
+~~~text
+[payload error] PDU error, caused by:
+[ironrdp_egfx::client::GraphicsPipelineClient::handle_wire_to_surface2::{{closure}}]
+other (rfx progressive decode failed)
+~~~
+
+The helper therefore connects without advertising the Graphics Pipeline and retries
+once when a server refuses the connection because of it, which is what GNOME Remote
+Desktop 50 requires. The per-connection policy (`--egfx auto|always|never`) overrides
+that: `always` advertises from the first attempt, `never` never advertises or retries,
+`auto` keeps the fallback.
+
+### Incremental payload
+
+Every region of a batch used to be packed on its own, so overlapping bands shipped the
+same pixels once per band. Merging consecutive updates then appended their rectangles,
+which multiplied the overlap a second time.
+
+| Stage | Largest delta update | Payload / damaged area |
+| --- | ---: | ---: |
+| Packed per region, appended on merge | 56,476,800 B | 3.4x |
+| Regions coalesced per batch | 34,590,176 B | 2.1x |
+| Regions trimmed to the union | 16,670,880 B | 1.0x |
+
+The trimmed payload carries the damaged area exactly once: `frame bytes == union area`
+for every delta, and the largest one equals `2724 * 1530 * 4 = 16,670,880` bytes, one
+full screen. Total payload over the same window drops from about 305 MB / 11 s to
+109 MB / 8 s.
+
+### Frame recovery loop
+
+At this size a single legitimate delta update is already about a full screen (16.7 MB),
+while the view chain used a fixed 16 MiB budget for pending deltas. Over budget it
+dropped the pending base frame and asked the backend to reconnect, so the session
+restarted roughly every 500 ms without ever committing a frame (`phase=Recovering`,
+`base_size=None`, `full_frames=0`). The budgets now scale with the frame extent, a
+queued base frame is never discarded in favour of deltas, and a reconnect is only
+requested when no base is available.
+
 ## Reproduction
 
 Build the helpers:
