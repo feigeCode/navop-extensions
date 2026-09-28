@@ -182,6 +182,37 @@ restarted roughly every 500 ms without ever committing a frame (`phase=Recoverin
 queued base frame is never discarded in favour of deltas, and a reconnect is only
 requested when no base is available.
 
+### Delivery cadence under a slow consumer
+
+A bounded merge is what keeps the *latency* in check once the consumer falls behind.
+Merging without a payload cap answered a busy screen with single full-screen updates
+(15.9 MB at 2724 x 1530): each one costs proportionally longer to ship and to process, so
+the consumer falls further behind and the next merge grows even bigger. 0.3.11 caps one
+queued update at 4 MiB (`NAVOP_RDP_MERGE_CAP_BYTES`), cutting a larger rectangle into
+horizontal bands and never folding events back into something bigger than the cap.
+
+Measured on the same Windows host at 2724 x 1530, 10 s each, with synthetic mouse and
+wheel input:
+
+| Consumer | Metric | 0.3.10 | 0.3.11 |
+|---|---|---|---|
+| eager | frames / fps | 91 / 9.1 | 123 / 12.3 |
+| eager | largest delta | 15.9 MB | 4.0 MB |
+| eager | gap p50 / p90 | 35 / 337 ms | 30 / 97 ms |
+| 60 ms per event | largest delta | 15.9 MB | 4.0 MB |
+| 60 ms per event | gap p90 | 389 ms | 112 ms |
+
+### Graphics pipeline on this host
+
+Advertising the capability is not enough for this server: it answers with
+`avc420=false avc444=false`, so the graphics pipeline can only carry RFX progressive
+tiles. Decoding them dies in the SRL stage of the progressive decoder
+(`Srl(MissingTerminator)`: the component streams end on their last data byte instead of
+the trailing zero terminator we require). Decoding without that terminator moves the
+failure to `Srl(Truncated)`, so a second, codec-level defect remains. The graphics
+pipeline stays an opt-in per connection, and the retry without it is what keeps Windows
+servers working.
+
 ## Reproduction
 
 Build the helpers:

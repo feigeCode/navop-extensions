@@ -403,6 +403,123 @@ fn delta_boxes(rects: &[(u16, u16, u16, u16)], value: u8) -> HelperEvent {
     }
 }
 
+#[test]
+fn splits_a_merged_payload_at_the_byte_cap() {
+    let mut state = pending_state();
+    // Each rectangle carries 400 payload bytes.
+    queue_delta_with_cap(&mut state, delta_rects(&[(0, 0, 10, 10)]), 500);
+    queue_delta_with_cap(&mut state, delta_rects(&[(50, 50, 10, 10)]), 500);
+
+    // Merging both updates would ship 800 bytes in one event, so the cap splits them into
+    // two events that each fit under it.
+    assert_eq!(2, state.pending_deltas.len());
+
+    let mut shipped = Vec::new();
+    let mut corners = Vec::new();
+    for event in state.pending_deltas.drain(..) {
+        let HelperEvent::FrameBgraRects { rects, bgra, .. } = event else {
+            panic!("expected a delta");
+        };
+        assert!(bgra.len() <= 500, "chunk of {} bytes exceeds the cap", bgra.len());
+        shipped.extend_from_slice(&bgra);
+        corners.extend(rects.iter().map(|rect| (rect.x, rect.y)));
+    }
+
+    // Both updates still reach the consumer, in order and without loss.
+    assert_eq!(800, shipped.len());
+    assert_eq!(vec![(0, 0), (50, 50)], corners);
+}
+
+#[test]
+fn cuts_a_rectangle_that_exceeds_the_cap_into_bands() {
+    let mut state = pending_state();
+    // One 10x10 rectangle: 400 payload bytes over 10 rows of 40 bytes.
+    queue_delta_with_cap(&mut state, delta_rects(&[(0, 0, 10, 10)]), 120);
+
+    let mut rows = 0usize;
+    let mut bytes = 0usize;
+    for event in state.pending_deltas.drain(..) {
+        let HelperEvent::FrameBgraRects { rects, bgra, .. } = event else {
+            panic!("expected a delta");
+        };
+        assert!(bgra.len() <= 120, "chunk of {} bytes exceeds the cap", bgra.len());
+        for rect in rects {
+            rows += usize::from(rect.height);
+            assert_eq!(usize::from(rect.width) * usize::from(rect.height) * 4, rect.byte_len);
+        }
+        bytes += bgra.len();
+    }
+
+    // Every row of the damaged block still arrives exactly once.
+    assert_eq!(10, rows);
+    assert_eq!(400, bytes);
+}
+
+#[test]
+fn never_ships_an_event_larger_than_the_cap_when_the_consumer_falls_behind() {
+    let mut state = pending_state();
+
+    for index in 0..20u16 {
+        let left = (index % 4) * 20;
+        let top = (index / 4) * 20;
+        queue_delta_with_cap(&mut state, delta_rects(&[(left, top, 10, 10)]), 500);
+    }
+
+    // A slow consumer must not turn the backlog into events bigger than the cap: the cap
+    // is what keeps a single update's processing time predictable.
+    let mut covered = Vec::new();
+    for event in state.pending_deltas.drain(..) {
+        let HelperEvent::FrameBgraRects { rects, bgra, .. } = event else {
+            panic!("expected a delta");
+        };
+        assert!(
+            bgra.len() <= 500,
+            "event of {} bytes exceeds the cap",
+            bgra.len()
+        );
+        for rect in rects {
+            covered.push((rect.x, rect.y));
+        }
+    }
+
+    for index in 0..20u16 {
+        let expected = ((index % 4) * 20, (index / 4) * 20);
+        assert!(covered.contains(&expected), "lost the update at {expected:?}");
+    }
+}
+
+#[test]
+fn folds_overlapping_updates_while_a_slow_consumer_catches_up() {
+    let mut state = pending_state();
+
+    for _ in 0..20 {
+        queue_delta_with_cap(&mut state, delta_rects(&[(0, 0, 10, 10)]), 500);
+    }
+
+    // Repaints of the same block share their pixels, so folding them keeps the backlog
+    // bounded instead of queueing one event per repaint.
+    assert!(
+        state.pending_deltas.len() <= MAX_PENDING_DELTA_EVENTS,
+        "queued {} events",
+        state.pending_deltas.len()
+    );
+    assert!(
+        queued_bytes(&state) < 20 * 400,
+        "kept {} bytes of 20 identical repaints",
+        queued_bytes(&state)
+    );
+}
+
+fn pending_state() -> State {
+    State {
+        control: VecDeque::new(),
+        latest_frame: None,
+        pending_deltas: VecDeque::new(),
+        sender_count: 1,
+        receiver_alive: true,
+    }
+}
+
 /// A delta whose rectangles are filled with their index, so a test can tell which
 /// pixels survived a merge.
 fn delta_rects(rects: &[(u16, u16, u16, u16)]) -> HelperEvent {

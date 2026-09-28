@@ -23,7 +23,7 @@ struct Shared {
 struct State {
     control: VecDeque<HelperEvent>,
     latest_frame: Option<HelperEvent>,
-    latest_delta: Option<HelperEvent>,
+    pending_deltas: VecDeque<HelperEvent>,
     sender_count: usize,
     receiver_alive: bool,
 }
@@ -33,7 +33,7 @@ pub fn output_mailbox() -> (OutputSender, OutputReceiver) {
         state: Mutex::new(State {
             control: VecDeque::new(),
             latest_frame: None,
-            latest_delta: None,
+            pending_deltas: VecDeque::new(),
             sender_count: 1,
             receiver_alive: true,
         }),
@@ -56,17 +56,14 @@ impl OutputSender {
         match event {
             frame @ HelperEvent::FrameBgraBytes { .. } => {
                 state.latest_frame = Some(frame);
-                state.latest_delta = None;
+                state.pending_deltas.clear();
             }
             delta @ HelperEvent::FrameBgraRects { .. } => {
-                state.latest_delta = Some(match state.latest_delta.take() {
-                    Some(previous) => merge_deltas(previous, delta),
-                    None => normalize_delta(delta),
-                });
+                queue_delta(&mut state, delta);
             }
             terminal @ (HelperEvent::ConnectionFailure { .. } | HelperEvent::Terminated { .. }) => {
                 state.latest_frame = None;
-                state.latest_delta = None;
+                state.pending_deltas.clear();
                 discard_pending_cursor_events(&mut state.control);
                 state.control.push_back(terminal);
             }
@@ -113,7 +110,7 @@ impl OutputReceiver {
             if let Some(frame) = state.latest_frame.take() {
                 return Some(frame);
             }
-            if let Some(delta) = state.latest_delta.take() {
+            if let Some(delta) = state.pending_deltas.pop_front() {
                 return Some(delta);
             }
             if state.sender_count == 0 {
@@ -134,9 +131,192 @@ impl Drop for OutputReceiver {
         state.receiver_alive = false;
         state.control.clear();
         state.latest_frame = None;
-        state.latest_delta = None;
+        state.pending_deltas.clear();
         drop(state);
         self.shared.ready.notify_all();
+    }
+}
+
+/// Upper bound on the payload a single queued delta may carry.
+///
+/// Merging exists to keep the wire small, but an unbounded merge answers a busy screen
+/// with one full-screen event that takes proportionally longer to ship and to process.
+/// Bounding the payload ships several smaller, fresher updates instead.
+const MAX_MERGED_DELTA_BYTES: usize = 4 * 1024 * 1024;
+
+/// Deltas that may wait for delivery. A consumer slower than the screen must not let the
+/// helper hold an unbounded backlog in memory.
+const MAX_PENDING_DELTA_EVENTS: usize = 12;
+
+/// Pixels still waiting for delivery may not exceed this many screens, so a helper that
+/// outruns the consumer keeps its backlog proportional to the screen rather than to time.
+const MAX_PENDING_DELTA_SCREENS: usize = 3;
+
+/// Payload cap for one delta, overridable with `NAVOP_RDP_MERGE_CAP_BYTES`.
+fn merge_byte_cap() -> usize {
+    std::env::var("NAVOP_RDP_MERGE_CAP_BYTES")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|cap| *cap > 0)
+        .unwrap_or(MAX_MERGED_DELTA_BYTES)
+}
+
+fn delta_payload_bytes(event: &HelperEvent) -> usize {
+    match event {
+        HelperEvent::FrameBgraRects { bgra, .. } => bgra.len(),
+        _ => 0,
+    }
+}
+
+fn delta_extent_bytes(event: &HelperEvent) -> usize {
+    match event {
+        HelperEvent::FrameBgraRects { width, height, .. } => {
+            usize::from(*width) * usize::from(*height) * 4
+        }
+        _ => 0,
+    }
+}
+
+fn queued_bytes(state: &State) -> usize {
+    state.pending_deltas.iter().map(delta_payload_bytes).sum()
+}
+
+/// Queues a delta, merging it into the newest pending one first so a repaint never ships
+/// the pixels it shares with an update still waiting, then splits the result so no single
+/// event exceeds the payload cap.
+fn queue_delta(state: &mut State, delta: HelperEvent) {
+    queue_delta_with_cap(state, delta, merge_byte_cap());
+}
+
+fn queue_delta_with_cap(state: &mut State, delta: HelperEvent, cap: usize) {
+    let budget = cap.max(delta_extent_bytes(&delta)) * MAX_PENDING_DELTA_SCREENS;
+    let merged = match state.pending_deltas.pop_back() {
+        Some(previous) => merge_deltas(previous, delta),
+        None => normalize_delta(delta),
+    };
+
+    for chunk in split_delta_into_chunks(merged, cap) {
+        // The consumer is behind. Folding the two oldest events keeps the backlog small
+        // whenever they share pixels, but only as long as that actually shrinks it: growing
+        // an event to hold a screen's worth of disjoint damage is what the cap exists to
+        // prevent, and the merged result is re-split so no event ever exceeds it.
+        let mut previous_shape = (usize::MAX, usize::MAX);
+        while state.pending_deltas.len() >= 2
+            && (state.pending_deltas.len() >= MAX_PENDING_DELTA_EVENTS
+                || queued_bytes(state).saturating_add(delta_payload_bytes(&chunk)) > budget)
+        {
+            let shape = (state.pending_deltas.len(), queued_bytes(state));
+            if shape >= previous_shape {
+                break;
+            }
+            previous_shape = shape;
+
+            let Some(oldest) = state.pending_deltas.pop_front() else {
+                break;
+            };
+            let Some(second) = state.pending_deltas.pop_front() else {
+                state.pending_deltas.push_front(oldest);
+                break;
+            };
+
+            let mut folded = split_delta_into_chunks(merge_deltas(oldest, second), cap);
+            folded.reverse();
+            for event in folded {
+                state.pending_deltas.push_front(event);
+            }
+        }
+        state.pending_deltas.push_back(chunk);
+    }
+}
+
+/// Splits a delta into events of at most `cap` payload bytes, preserving rectangle order.
+fn split_delta_into_chunks(event: HelperEvent, cap: usize) -> Vec<HelperEvent> {
+    let HelperEvent::FrameBgraRects {
+        width,
+        height,
+        rects,
+        bgra,
+    } = event
+    else {
+        return vec![event];
+    };
+
+    let mut chunks = Vec::new();
+    let mut current: Vec<DeltaEntry> = Vec::new();
+    let mut current_bytes = 0usize;
+
+    let bands = split_payload(&rects, &bgra)
+        .into_iter()
+        .flat_map(|entry| split_entry_into_bands(entry, cap));
+
+    for entry in bands {
+        let entry_bytes = entry.1.len();
+        if !current.is_empty() && current_bytes.saturating_add(entry_bytes) > cap {
+            chunks.push(frame_chunk(width, height, std::mem::take(&mut current)));
+            current_bytes = 0;
+        }
+        current_bytes = current_bytes.saturating_add(entry_bytes);
+        current.push(entry);
+    }
+
+    if !current.is_empty() {
+        chunks.push(frame_chunk(width, height, current));
+    }
+
+    chunks
+}
+
+/// Cuts one rectangle that is larger than the cap into horizontal bands of whole rows.
+///
+/// The payload is row-major, so a band is exactly the rows it keeps.
+fn split_entry_into_bands(entry: DeltaEntry, cap: usize) -> Vec<DeltaEntry> {
+    let (rect, pixels) = entry;
+    let stride = usize::from(rect.width) * 4;
+    if stride == 0 || pixels.len() <= cap {
+        return vec![(rect, pixels)];
+    }
+
+    let rows_per_band = (cap / stride).max(1);
+    let height = usize::from(rect.height);
+    let mut bands = Vec::new();
+    let mut row = 0usize;
+
+    while row < height {
+        let rows = rows_per_band.min(height - row);
+        let start = row * stride;
+        let end = start + rows * stride;
+        let Some(band) = pixels.get(start..end) else {
+            // A truncated payload: keep what is left rather than half a band.
+            bands.push((band_rect(&rect, row, height - row, pixels.len() - start), pixels[start..].to_vec()));
+            break;
+        };
+        bands.push((band_rect(&rect, row, rows, band.len()), band.to_vec()));
+        row += rows;
+    }
+
+    bands
+}
+
+fn band_rect(rect: &HelperFrameRect, row: usize, rows: usize, byte_len: usize) -> HelperFrameRect {
+    let offset = u16::try_from(row).unwrap_or(u16::MAX);
+    let height = u16::try_from(rows).unwrap_or(u16::MAX);
+
+    HelperFrameRect {
+        x: rect.x,
+        y: rect.y.saturating_add(offset),
+        width: rect.width,
+        height,
+        byte_len,
+    }
+}
+
+fn frame_chunk(width: u16, height: u16, entries: Vec<DeltaEntry>) -> HelperEvent {
+    let (rects, bgra) = join_payload(entries);
+    HelperEvent::FrameBgraRects {
+        width,
+        height,
+        rects,
+        bgra,
     }
 }
 
