@@ -32,9 +32,9 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         .with_pointer_software_rendering(false)
         // GNOME Remote Desktop 50 refuses to serve a session at all unless the client
         // advertises the RDP Graphics Pipeline Extension in its Client Core Data early
-        // capability flags. RdpClient registers an EGFX-capable dynamic channel, so the
-        // flag can be advertised safely.
-        .with_support_dyn_vc_gfx_protocol(true)
+        // capability flags, but advertising it also lets hosts that accept it encode the
+        // session with codecs this helper does not decode. See EgfxPolicy for the default.
+        .with_support_dyn_vc_gfx_protocol(EgfxPolicy::from_env().advertises())
         .with_performance_flags(PerformanceFlags::default())
         // Keep bulk compression disabled. ConfigBuilder defaults compression
         // to K64 unless with_compression(false) is set explicitly.
@@ -46,6 +46,45 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
     }
 
     builder.build()
+}
+
+/// How the helper advertises the RDP Graphics Pipeline Extension (EGFX).
+///
+/// RdpClient registers an EGFX-capable dynamic channel either way; this only decides the
+/// capability flag in the Client Core Data. Some hosts (GNOME Remote Desktop 50) refuse to serve
+/// a session without it, while others (Windows) accept it and may then encode the session with
+/// codecs this helper cannot decode. The default therefore connects without the flag and lets
+/// RdpClient retry once when a host refuses the connection without it, which keeps both kinds of
+/// host working. `NAVOP_RDP_EGFX=on` skips the extra attempt and `=off` never advertises.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum EgfxPolicy {
+    Never,
+    Fallback,
+    Always,
+}
+
+impl EgfxPolicy {
+    pub(super) fn from_env() -> Self {
+        Self::parse(std::env::var("NAVOP_RDP_EGFX").ok().as_deref())
+    }
+
+    /// Advertises EGFX from the first attempt onwards.
+    pub(super) fn advertises(self) -> bool {
+        matches!(self, Self::Always)
+    }
+
+    /// Connects without EGFX and retries with it when a host refuses the connection.
+    pub(super) fn retries_when_refused(self) -> bool {
+        matches!(self, Self::Fallback)
+    }
+
+    fn parse(value: Option<&str>) -> Self {
+        match value {
+            Some("1" | "on" | "true" | "always") => Self::Always,
+            Some("0" | "off" | "false" | "never") => Self::Never,
+            _ => Self::Fallback,
+        }
+    }
 }
 
 fn client_build() -> anyhow::Result<u32> {
@@ -140,5 +179,20 @@ mod tests {
         .expect("config builds");
 
         assert_eq!(None, config.connector().compression_type);
+    }
+
+    #[test]
+    fn egfx_policy_defaults_to_a_retry_when_a_host_refuses_the_connection() {
+        assert_eq!(EgfxPolicy::Fallback, EgfxPolicy::parse(None));
+        assert_eq!(EgfxPolicy::Fallback, EgfxPolicy::parse(Some("auto")));
+        assert_eq!(EgfxPolicy::Always, EgfxPolicy::parse(Some("on")));
+        assert_eq!(EgfxPolicy::Never, EgfxPolicy::parse(Some("off")));
+
+        assert!(!EgfxPolicy::Fallback.advertises());
+        assert!(EgfxPolicy::Fallback.retries_when_refused());
+        assert!(EgfxPolicy::Always.advertises());
+        assert!(!EgfxPolicy::Always.retries_when_refused());
+        assert!(!EgfxPolicy::Never.advertises());
+        assert!(!EgfxPolicy::Never.retries_when_refused());
     }
 }
