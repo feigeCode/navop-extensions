@@ -96,17 +96,40 @@ func TestSpecBuildsDamengMetadataSQLWithOwnerFilters(t *testing.T) {
 	spec := Spec()
 
 	databasesSQL := spec.SchemaSQL.Databases(cfg)
-	for _, want := range []string{"USER AS NAME FROM DUAL", "USERNAME AS NAME FROM ALL_USERS", "OWNER AS NAME FROM ALL_TABLES"} {
+	for _, want := range []string{"USERNAME AS NAME FROM ALL_USERS", "DISTINCT OWNER AS NAME FROM ALL_OBJECTS"} {
 		if !strings.Contains(databasesSQL, want) {
 			t.Fatalf("databases SQL %q does not contain %q", databasesSQL, want)
 		}
 	}
+	// 回归：ALL_TABLES 全表扫描要 ~900ms（驱动不了库列表的性能），SYS.SYSOBJECTS 普通用户无权限。
+	if strings.Contains(databasesSQL, "ALL_TABLES") {
+		t.Fatalf("databases SQL regressed to the slow ALL_TABLES scan: %q", databasesSQL)
+	}
+	if strings.Contains(databasesSQL, "SYSOBJECTS") {
+		t.Fatalf("databases SQL must not depend on SYS.SYSOBJECTS privileges: %q", databasesSQL)
+	}
+
+	schemasSQL := spec.SchemaSQL.Schemas(cfg, "AI_M_TEST")
+	if !strings.Contains(schemasSQL, "SELECT NAME, NAME FROM") {
+		t.Fatalf("schemas SQL must keep projecting two columns: %q", schemasSQL)
+	}
 
 	objectsSQL := spec.SchemaSQL.Objects(cfg, "", "app's", nil)
-	for _, want := range []string{"ALL_TABLES", "ALL_VIEWS", "ALL_TAB_COMMENTS", "OWNER = 'APP''S'"} {
+	for _, want := range []string{"ALL_OBJECTS", "ALL_TAB_COMMENTS", "OWNER = 'APP''S'"} {
 		if !strings.Contains(objectsSQL, want) {
 			t.Fatalf("objects SQL %q does not contain %q", objectsSQL, want)
 		}
+	}
+	// 回归：ALL_TABLES/ALL_VIEWS 两段 UNION 实测 350ms，ALL_OBJECTS 只要 186ms。
+	if strings.Contains(objectsSQL, "ALL_TABLES") {
+		t.Fatalf("objects SQL regressed to the slow ALL_TABLES union: %q", objectsSQL)
+	}
+	// kind 过滤：只能落在子查询投影出来的 KIND 上（OBJECT_TYPE 推不进字典底层）。
+	if tablesOnly := spec.SchemaSQL.Objects(cfg, "", "app", []string{"table"}); !strings.Contains(tablesOnly, "KIND IN ('table')") {
+		t.Fatalf("objects SQL table filter lost: %q", tablesOnly)
+	}
+	if viewsOnly := spec.SchemaSQL.Objects(cfg, "", "app", []string{"view"}); !strings.Contains(viewsOnly, "KIND IN ('view')") {
+		t.Fatalf("objects SQL view filter lost: %q", viewsOnly)
 	}
 
 	columnsSQL := spec.SchemaSQL.Columns(cfg, "", "app", "demo")

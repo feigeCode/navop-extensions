@@ -61,24 +61,36 @@ func buildDSN(cfg dbipc.Config) (string, error) {
 	return dsn + "?" + query, nil
 }
 
+// dmSchemaNamesSQL 是库/schema 列表共用的来源表达式。
+// 注意：不要改回 “USER AS NAME FROM DUAL UNION USERNAME FROM ALL_USERS UNION OWNER FROM ALL_TABLES”。
+// 达梦对 ALL_TABLES 的全表扫描实测要 ~900ms（9000+ 行，每行还要过权限检查），
+// 而 ALL_USERS ∪ ALL_OBJECTS 只要 ~150ms，而且实测两者结果集完全一致。
+// 也不要改用 SYS.SYSOBJECTS（1.8ms）：它只授权给 SOI/DB_POLICY_SOI/DB_AUDIT_SOI，
+// 普通用户读不了，会把库列表直接搞挂。
+const dmSchemaNamesSQL = "SELECT NAME FROM (SELECT USERNAME AS NAME FROM ALL_USERS UNION SELECT DISTINCT OWNER AS NAME FROM ALL_OBJECTS) WHERE NAME IS NOT NULL ORDER BY NAME"
+
 func dmDatabasesSQL(cfg dbipc.Config) string {
-	return "SELECT NAME FROM (SELECT USER AS NAME FROM DUAL UNION SELECT USERNAME AS NAME FROM ALL_USERS UNION SELECT OWNER AS NAME FROM ALL_TABLES) WHERE NAME IS NOT NULL ORDER BY NAME"
+	return dmSchemaNamesSQL
 }
 
 func dmSchemasSQL(cfg dbipc.Config, database string) string {
-	return "SELECT USERNAME, USERNAME FROM (SELECT USER AS USERNAME FROM DUAL UNION SELECT USERNAME FROM ALL_USERS UNION SELECT OWNER AS USERNAME FROM ALL_TABLES) WHERE USERNAME IS NOT NULL ORDER BY USERNAME"
+	// schemas 节点会同时展示 name / owner 两列，所以这里必须仍然返回两列。
+	return "SELECT NAME, NAME FROM (SELECT USERNAME AS NAME FROM ALL_USERS UNION SELECT DISTINCT OWNER AS NAME FROM ALL_OBJECTS) WHERE NAME IS NOT NULL ORDER BY NAME"
 }
 
 func dmObjectsSQL(cfg dbipc.Config, database, schema string, kinds []string) string {
 	ownerFilter := ""
 	if owner := dmOwner(database, schema); owner != "" {
-		ownerFilter = fmt.Sprintf(" AND OWNER = '%s'", upperEscapeSQL(owner))
+		ownerFilter = fmt.Sprintf(" AND o.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return "SELECT OBJECT_NAME, KIND, COMMENTS, OWNER FROM (" +
-		"SELECT t.OWNER, t.TABLE_NAME AS OBJECT_NAME, 'table' AS KIND, NVL(c.COMMENTS, '') AS COMMENTS FROM ALL_TABLES t LEFT JOIN ALL_TAB_COMMENTS c ON c.OWNER = t.OWNER AND c.TABLE_NAME = t.TABLE_NAME " +
-		"UNION ALL " +
-		"SELECT v.OWNER, v.VIEW_NAME AS OBJECT_NAME, 'view' AS KIND, NVL(c.COMMENTS, '') AS COMMENTS FROM ALL_VIEWS v LEFT JOIN ALL_TAB_COMMENTS c ON c.OWNER = v.OWNER AND c.TABLE_NAME = v.VIEW_NAME" +
-		") WHERE 1 = 1" + ownerFilter + dmKindFilter(kinds) + " ORDER BY OWNER, OBJECT_NAME"
+	// 注意：不要改回 “ALL_TABLES / ALL_VIEWS 两段 UNION ALL” 的写法。
+	// 同库同 schema 实测：旧写法 350ms，下面 ALL_OBJECTS 驱动只要 186ms，
+	// 而且 5 个 schema（含 1484 个对象的 XCOA8）结果集完全一致。
+	// OBJECT_TYPE 谓词实测推不进字典底层（加不加都是 ~250ms），所以就用常量。
+	return "SELECT x.OBJECT_NAME, x.KIND, NVL(c.COMMENTS, ''), x.OWNER FROM (" +
+		"SELECT o.OWNER, o.OBJECT_NAME, CASE WHEN o.OBJECT_TYPE = 'VIEW' THEN 'view' ELSE 'table' END AS KIND FROM ALL_OBJECTS o WHERE o.OBJECT_TYPE IN ('TABLE', 'VIEW')" + ownerFilter +
+		") x LEFT JOIN ALL_TAB_COMMENTS c ON c.OWNER = x.OWNER AND c.TABLE_NAME = x.OBJECT_NAME " +
+		"WHERE 1 = 1" + dmKindFilter(kinds) + " ORDER BY x.OWNER, x.OBJECT_NAME"
 }
 
 func dmColumnsSQL(cfg dbipc.Config, database, schema, table string) string {
