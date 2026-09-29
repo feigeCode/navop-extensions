@@ -44,19 +44,33 @@ func TestSchemasSQLReturnsAllSchemas(t *testing.T) {
 			t.Fatalf("查询失败: %v\nSQL: %s", err, query)
 		}
 		defer rows.Close()
+		cols, err := rows.Columns()
+		if err != nil {
+			t.Fatalf("取列失败: %v", err)
+		}
 		var out []string
 		for rows.Next() {
-			var name, second sql.NullString
-			if err := rows.Scan(&name, &second); err != nil {
+			vals := make([]any, len(cols))
+			holders := make([]any, len(cols))
+			for i := range vals {
+				holders[i] = &vals[i]
+			}
+			if err := rows.Scan(holders...); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
-			if strings.TrimSpace(name.String) == "" {
+			name := ""
+			if vals[0] != nil {
+				name = fmt.Sprint(vals[0])
+			}
+			if strings.TrimSpace(name) == "" {
 				t.Fatalf("列表里出现空名字: %s", query)
 			}
-			if second.Valid && second.String == "" {
-				t.Fatalf("schemas 第二列（owner）为空: %s", query)
+			for _, extra := range vals[1:] {
+				if extra == nil || fmt.Sprint(extra) == "" {
+					t.Fatalf("schemas 第二列（owner）为空: %s", query)
+				}
 			}
-			out = append(out, name.String)
+			out = append(out, name)
 		}
 		if err := rows.Err(); err != nil {
 			t.Fatalf("迭代失败: %v", err)
