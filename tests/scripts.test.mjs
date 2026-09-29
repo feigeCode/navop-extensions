@@ -272,6 +272,7 @@ test("architecture-independent extensions remain universal for Windows x86 fallb
     }
   }
 
+  assert.ok(checked.includes("gbase8a"));
   assert.ok(checked.includes("gbase8s"));
   assert.ok(checked.includes("oscar"));
   assert.ok(checked.includes("dbeaver-importer"));
@@ -359,6 +360,94 @@ test("GBase8s Java IPC driver manifest exposes the full method surface", () => {
     "schema/dump_ddl",
   ]) {
     assert.ok(driverJson.methods.includes(method), `gbase8s methods missing ${method}`);
+  }
+});
+
+test("GBase8a Java IPC driver manifest exposes the MySQL-style JDBC surface", () => {
+  const metadata = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8a/extension.build.json"), "utf8"),
+  );
+  assert.equal(metadata.language, "java");
+  assert.equal(metadata.package, "java/gbase8a-ipc-driver");
+  assert.equal(metadata.binary, "gbase8a-ipc-driver");
+  assert.equal(metadata.jar, "gbase8a-ipc-driver.jar");
+  assert.deepEqual(metadata.targets, ["universal"]);
+  assert.equal(
+    metadata.published,
+    false,
+    "gbase8a is unreleased, so it must not be listed in the marketplace manifest",
+  );
+
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8a/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.id, "gbase8a");
+  assert.equal(driverJson.category, "domestic_database");
+  assert.equal(driverJson.entry.command, "./gbase8a-ipc-driver");
+  assert.equal(driverJson.entry.commands.windows, "./gbase8a-ipc-driver.cmd");
+  assert.equal(driverJson.entry.env_from_config.GBASE8A_JDK_HOME, "extra_params.jdk_home");
+  assert.equal(driverJson.transport.name, "gbase8a-driver.sock");
+  assert.equal(driverJson.ui.default_port, 5258);
+  // GBase 8a speaks the MySQL wire protocol, so it quotes identifiers with
+  // backticks and can fall back to the host's built-in MySQL DDL builders.
+  assert.equal(driverJson.dialect.identifier_quote_left, "`");
+  assert.equal(driverJson.dialect.identifier_quote_right, "`");
+  assert.equal(driverJson.dialect.compatible_database_type, "MySQL");
+  assert.ok(
+    fs.existsSync(
+      path.join(
+        repoRoot,
+        "java/gbase8a-ipc-driver/bin/lib/gbase-connector-java-9.5.0.10-build1-bin.jar",
+      ),
+    ),
+    "gbase8a should include the official JDBC jar by default",
+  );
+
+  const connectionForm = driverJson.ui.form.forms.find((form) => form.kind === "Connection");
+  const advancedTab = connectionForm.tabs.find((tab) => tab.id === "advanced");
+  assert.ok(advancedTab, "gbase8a connection form should expose an advanced tab");
+  assert.deepEqual(
+    advancedTab.fields.map((field) => field.id),
+    [
+      "jdk_home",
+      "jdbc_url",
+      "jdbc_jar",
+      "driver_class",
+      "characterEncoding",
+      "connectTimeout",
+      "socketTimeout",
+    ],
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "jdbc_jar").default_value,
+    "lib/gbase-connector-java-9.5.0.10-build1-bin.jar",
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "driver_class").default_value,
+    "com.gbase.jdbc.Driver",
+  );
+  for (const method of [
+    "tx/begin",
+    "tx/commit",
+    "tx/rollback",
+    "tx/savepoint",
+    "tx/release",
+    "ddl/build",
+    "ddl/build_create_table",
+    "ddl/build_alter_table",
+    "ddl/build_drop",
+    "data/export",
+    "data/import_begin",
+    "data/import_chunk",
+    "data/import_commit",
+    "data/import_abort",
+    "stream/read",
+    "stream/close",
+    "schema/object_view",
+    "schema/dump_ddl",
+    "schema/view_definition",
+  ]) {
+    assert.ok(driverJson.methods.includes(method), `gbase8a methods missing ${method}`);
   }
 });
 
@@ -1514,7 +1603,7 @@ test("IPC driver categories keep domestic database routing manifest-driven", () 
     }
   }
 
-  assert.deepEqual(domesticIds, ["dm", "gbase8s", "kingbase", "oceanbase", "opengauss", "oscar"]);
+  assert.deepEqual(domesticIds, ["dm", "gbase8a", "gbase8s", "kingbase", "oceanbase", "opengauss", "oscar"]);
 });
 
 test("IPC connection form extra params use raw extra parameter keys", () => {

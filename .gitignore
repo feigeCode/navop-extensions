@@ -3,8 +3,11 @@
 /.idea/
 .DS_Store
 *.log
+.workbuddy/
+java/gbase8a-ipc-driver/target/
 java/gbase8s-ipc-driver/target/
 java/oscar-ipc-driver/target/
+java/gbase8a-ipc-driver/bin/lib/gbase8a-ipc-driver.jar
 java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar
 extensions/remote-desktop/rdp-helper/target/
 extensions/remote-desktop/vnc-helper/target/
