@@ -23,6 +23,7 @@ extensions/
     iotdb/        Go Apache IoTDB IPC database driver
     dm/           Go Dameng DM IPC database driver
     kingbase/     Go KingbaseES IPC database driver
+    gbase8a/      Java GBase 8a IPC database driver
     gbase8s/      Java GBase 8s IPC database driver
     oceanbase/    Go OceanBase IPC database driver
     opengauss/    Rust openGauss IPC database driver
@@ -39,6 +40,7 @@ cmd/
   oceanbase-ipc-driver/
   oracle-go-ipc-driver/
 java/
+  gbase8a-ipc-driver/
   gbase8s-ipc-driver/
 internal/
   dbipc/          shared Go IPC database server runtime
@@ -84,6 +86,7 @@ implementation tasks, but they are not extension runtime inputs.
 | Apache IoTDB | Go | `extensions/ipc/iotdb/extension.build.json` | `extensions/ipc/iotdb/driver.json` | Time-series database driver. Uses `cmd/iotdb-ipc-driver` and `internal/drivers/iotdb`. |
 | Dameng DM | Go | `extensions/ipc/dm/extension.build.json` | `extensions/ipc/dm/driver.json` | Uses shared `internal/dbipc` runtime and `dm_driver` build tag. |
 | KingbaseES | Go | `extensions/ipc/kingbase/extension.build.json` | `extensions/ipc/kingbase/driver.json` | Uses shared `internal/dbipc` runtime and `kingbase_driver` build tag. |
+| GBase 8a | Java | `extensions/ipc/gbase8a/extension.build.json` | `extensions/ipc/gbase8a/driver.json` | Uses `java/gbase8a-ipc-driver`. Preserve `java/gbase8a-ipc-driver/bin/lib/gbase8a-ipc-driver.jar` when present. MySQL-wire dialect (backtick quoting), `information_schema` catalog, default port 5258. Universal (cross-platform) target only. |
 | GBase 8s | Java | `extensions/ipc/gbase8s/extension.build.json` | `extensions/ipc/gbase8s/driver.json` | Uses `java/gbase8s-ipc-driver`. Preserve `java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar` when present. Universal (cross-platform) target only. |
 | OceanBase | Go | `extensions/ipc/oceanbase/extension.build.json` | `extensions/ipc/oceanbase/driver.json` | Uses shared `internal/dbipc` runtime and `oceanbase_driver` build tag. |
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member. Uses `tokio-opengauss` async driver. |
@@ -188,6 +191,7 @@ GOCACHE=/private/tmp/navop-go-cache go test ./internal/dbipc
 Run Java driver tests:
 
 ```bash
+mvn -f java/gbase8a-ipc-driver/pom.xml test
 mvn -f java/gbase8s-ipc-driver/pom.xml test
 ```
 
@@ -227,6 +231,15 @@ HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 bash scripts/build-go-driver.sh dm "$HOST_TRIPLE"
 mkdir -p artifacts
 bash scripts/package-driver.sh dm "$HOST_TRIPLE" artifacts 0.1.0
+```
+
+Build and package the Java GBase 8a driver:
+
+```bash
+HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
+bash scripts/build-java-driver.sh gbase8a "$HOST_TRIPLE"
+mkdir -p artifacts
+bash scripts/package-driver.sh gbase8a "$HOST_TRIPLE" artifacts 0.1.0
 ```
 
 Build and package the Java GBase 8s driver:

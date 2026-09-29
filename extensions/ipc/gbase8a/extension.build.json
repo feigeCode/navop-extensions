@@ -1,0 +1,18 @@
+{
+  "id": "gbase8a",
+  "kind": "database_driver",
+  "language": "java",
+  "package": "java/gbase8a-ipc-driver",
+  "binary": "gbase8a-ipc-driver",
+  "jar": "gbase8a-ipc-driver.jar",
+  "path": "extensions/ipc/gbase8a",
+  "source_paths": [
+    "java/gbase8a-ipc-driver"
+  ],
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "gbase8a-v",
+  "r2Prefix": "extensions/gbase8a",
+  "published": false
+}

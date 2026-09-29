@@ -19,6 +19,7 @@ extensions/
     iotdb/        Go Apache IoTDB IPC 数据库驱动
     dm/           Go 达梦 DM IPC 数据库驱动
     kingbase/     Go KingbaseES IPC 数据库驱动
+    gbase8a/      Java GBase 8a IPC 数据库驱动
     gbase8s/      Java GBase 8s IPC 数据库驱动
     oceanbase/    Go OceanBase IPC 数据库驱动
     opengauss/    Rust openGauss IPC 数据库驱动
@@ -35,6 +36,7 @@ cmd/
   oceanbase-ipc-driver/
   oracle-go-ipc-driver/
 java/
+  gbase8a-ipc-driver/
   gbase8s-ipc-driver/
 internal/
   dbipc/          Go IPC 数据库驱动共享运行时
@@ -75,6 +77,7 @@ docs/
 | Apache IoTDB | Go | `extensions/ipc/iotdb/extension.build.json` | `extensions/ipc/iotdb/driver.json` | 时序数据库驱动。使用 `cmd/iotdb-ipc-driver` 和 `internal/drivers/iotdb`。 |
 | 达梦 DM | Go | `extensions/ipc/dm/extension.build.json` | `extensions/ipc/dm/driver.json` | 复用 `internal/dbipc` 共享运行时，并使用 `dm_driver` build tag。 |
 | KingbaseES | Go | `extensions/ipc/kingbase/extension.build.json` | `extensions/ipc/kingbase/driver.json` | 复用 `internal/dbipc` 共享运行时，并使用 `kingbase_driver` build tag。 |
+| GBase 8a | Java | `extensions/ipc/gbase8a/extension.build.json` | `extensions/ipc/gbase8a/driver.json` | 使用 `java/gbase8a-ipc-driver`。如果存在 `java/gbase8a-ipc-driver/bin/lib/gbase8a-ipc-driver.jar`，需要保留。MySQL 协议方言（反引号引号）、`information_schema` 元数据、默认端口 5258。仅 universal（跨平台）target。 |
 | GBase 8s | Java | `extensions/ipc/gbase8s/extension.build.json` | `extensions/ipc/gbase8s/driver.json` | 使用 `java/gbase8s-ipc-driver`。如果存在 `java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar`，需要保留。仅 universal（跨平台）target。 |
 | OceanBase | Go | `extensions/ipc/oceanbase/extension.build.json` | `extensions/ipc/oceanbase/driver.json` | 复用 `internal/dbipc` 共享运行时，并使用 `oceanbase_driver` build tag。 |
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member。使用 `tokio-opengauss` 异步驱动。 |
@@ -162,6 +165,7 @@ GOCACHE=/private/tmp/navop-go-cache go test ./internal/dbipc
 运行 Java 驱动测试：
 
 ```bash
+mvn -f java/gbase8a-ipc-driver/pom.xml test
 mvn -f java/gbase8s-ipc-driver/pom.xml test
 ```
 
@@ -198,6 +202,15 @@ HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 bash scripts/build-go-driver.sh dm "$HOST_TRIPLE"
 mkdir -p artifacts
 bash scripts/package-driver.sh dm "$HOST_TRIPLE" artifacts 0.1.0
+```
+
+构建并打包 Java GBase 8a 驱动：
+
+```bash
+HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
+bash scripts/build-java-driver.sh gbase8a "$HOST_TRIPLE"
+mkdir -p artifacts
+bash scripts/package-driver.sh gbase8a "$HOST_TRIPLE" artifacts 0.1.0
 ```
 
 构建并打包 Java GBase 8s 驱动：
