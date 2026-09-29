@@ -7,11 +7,6 @@ on:
         description: Extension release tag, for example duckdb-v1.0.0
         required: true
         type: string
-  workflow_run:
-    workflows:
-      - Release
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       tag:
@@ -23,14 +18,10 @@ permissions:
   actions: read
   contents: read
 
-concurrency:
-  group: extension-marketplace-publish
-  cancel-in-progress: false
-
 jobs:
   upload:
     name: Upload extension assets to R2
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,24 +30,12 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          INPUT_TAG: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.tag || '' }}
-          WORKFLOW_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          if [ -n "$INPUT_TAG" ]; then
-            release_tag="$INPUT_TAG"
-            extension_id="${release_tag%%-v*}"
-            extension_version="${release_tag#${extension_id}-v}"
-          else
-            mkdir -p run-metadata
-            gh run download "$WORKFLOW_RUN_ID" \
-              --repo "$GITHUB_REPOSITORY" \
-              --name release-metadata \
-              --dir run-metadata
-            release_tag="$(node -e 'const fs = require("fs"); const d = JSON.parse(fs.readFileSync("run-metadata/release-metadata.json", "utf8")); process.stdout.write(d.release_tag);')"
-            extension_id="$(node -e 'const fs = require("fs"); const d = JSON.parse(fs.readFileSync("run-metadata/release-metadata.json", "utf8")); process.stdout.write(d.extension_id);')"
-            extension_version="$(node -e 'const fs = require("fs"); const d = JSON.parse(fs.readFileSync("run-metadata/release-metadata.json", "utf8")); process.stdout.write(d.extension_version);')"
-          fi
+          release_tag="$INPUT_TAG"
+          extension_id="${release_tag%%-v*}"
+          extension_version="${release_tag#${extension_id}-v}"
           if [[ ! "$extension_id" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
             echo "::error::Invalid extension id resolved from release tag: $extension_id"
             exit 1

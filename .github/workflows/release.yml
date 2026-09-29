@@ -242,6 +242,7 @@ jobs:
         with:
           name: release-metadata
           path: artifacts/release-metadata.json
+          retention-days: 1
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -261,3 +262,17 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f tag="$RELEASE_TAG"
+
+  upload-r2:
+    name: Upload R2 (${{ needs.prepare.outputs.release_tag }})
+    needs:
+      - prepare
+      - release
+    if: ${{ always() && needs.release.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/upload-r2.yml
+    with:
+      tag: ${{ needs.prepare.outputs.release_tag }}
+    secrets: inherit

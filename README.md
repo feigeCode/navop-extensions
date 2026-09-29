@@ -429,6 +429,15 @@ git tag duckdb-v1.0.0
 git push origin duckdb-v1.0.0
 ```
 
+When releasing several extensions at once, push the tags one by one with
+`scripts/push-release-tags.sh`. A single `git push` carrying more than three
+tags produces no tag push events at all on GitHub, so none of the Release
+workflows would trigger:
+
+```bash
+scripts/push-release-tags.sh dm-v0.1.9 oceanbase-v0.1.13
+```
+
 The Release workflow:
 
 1. Resolves the extension id and version from the tag.
@@ -438,6 +447,8 @@ The Release workflow:
 5. Generates the current extension plugin manifest.
 6. Publishes a GitHub Release with packages, checksums, and the current
    extension `extension-manifest.json`.
+7. Uploads packages and marketplace manifests to R2 (reusable job in
+   `upload-r2.yml`) and dispatches the CNB mirror sync.
 
 Manual release is also available through `workflow_dispatch` with:
 
@@ -446,8 +457,9 @@ Manual release is also available through `workflow_dispatch` with:
 
 ## R2 Upload
 
-`.github/workflows/upload-r2.yml` runs after a successful Release workflow or
-can be triggered manually with a release tag.
+`.github/workflows/upload-r2.yml` is called by the Release workflow as a
+reusable job right after the GitHub Release is created, and can also be
+triggered manually with a release tag (useful for retrying a failed upload).
 
 Repository secrets:
 
@@ -458,8 +470,7 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET
 ```
 
-The upload workflow is serialized with the `extension-marketplace-publish`
-concurrency group. For DuckDB `1.0.0`, R2 receives:
+For DuckDB `1.0.0`, R2 receives:
 
 ```text
 extensions/duckdb/1.0.0/<package>.tar.gz

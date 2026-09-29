@@ -383,6 +383,14 @@ git tag duckdb-v1.0.0
 git push origin duckdb-v1.0.0
 ```
 
+一次发多个扩展时，用 `scripts/push-release-tags.sh` 逐个推送 tag。
+一次 `git push` 携带超过 3 个 tag 时 GitHub 不产生任何 tag push 事件，
+Release workflow 一个都不会触发：
+
+```bash
+scripts/push-release-tags.sh dm-v0.1.9 oceanbase-v0.1.13
+```
+
 Release workflow 会执行：
 
 1. 从 tag 解析扩展 id 和版本。
@@ -391,6 +399,7 @@ Release workflow 会执行：
 4. 生成 checksum。
 5. 生成当前扩展的插件级 manifest。
 6. 发布包含扩展包、checksum 和当前扩展 `extension-manifest.json` 的 GitHub Release。
+7. 把包和 marketplace manifest 上传到 R2（`upload-r2.yml` 可复用 job），并 dispatch CNB 镜像同步。
 
 也可以通过 `workflow_dispatch` 手动发布，参数包括：
 
@@ -399,7 +408,7 @@ Release workflow 会执行：
 
 ## R2 上传
 
-`.github/workflows/upload-r2.yml` 会在 Release workflow 成功后运行，也可以用 release tag 手动触发。
+`.github/workflows/upload-r2.yml` 由 Release workflow 在 GitHub Release 创建后作为可复用 job 直接调用，也可以用 release tag 手动触发（用于重试失败的上传）。
 
 仓库 secrets：
 
@@ -410,7 +419,6 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET
 ```
 
-上传 workflow 使用 `extension-marketplace-publish` concurrency group 串行执行。
 以 DuckDB `1.0.0` 为例，R2 会收到：
 
 ```text
