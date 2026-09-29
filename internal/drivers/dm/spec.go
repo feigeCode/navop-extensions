@@ -87,7 +87,14 @@ func dmColumnsSQL(cfg dbipc.Config, database, schema, table string) string {
 	if owner != "" {
 		ownerFilter = fmt.Sprintf(" AND c.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return fmt.Sprintf("SELECT c.COLUMN_ID, c.COLUMN_NAME, c.DATA_TYPE, c.NULLABLE, c.DATA_DEFAULT, NVL(cc.COMMENTS, '') FROM ALL_TAB_COLUMNS c LEFT JOIN ALL_COL_COMMENTS cc ON cc.OWNER = c.OWNER AND cc.TABLE_NAME = c.TABLE_NAME AND cc.COLUMN_NAME = c.COLUMN_NAME WHERE c.TABLE_NAME = '%s'%s ORDER BY c.COLUMN_ID", upperEscapeSQL(table), ownerFilter)
+	// 注意：不要改回 “LEFT JOIN ALL_COL_COMMENTS cc ON cc.OWNER = c.OWNER” 的写法。
+	// 达梦 ALL_COL_COMMENTS 的 OWNER 列是坏的（视图里 SCH→UR 关联给出了别的用户名：
+	// 实测库 “ai-manager-330-dev” 的行 OWNER 显示成 V8_TEST），按 OWNER 关联永远命中不了，
+	// 注释一律读成空——表现为表设计器改完列注释“不生效”、对象页签注释列空白。
+	// 达梦自带的 DBA_COL_COMMENTS 就是把 SCHEMA_NAME 当 OWNER 暴露的，这里照它改成按
+	// SCHEMA_NAME 关联（两者都实测过：拿得到注释，行数不重复）。
+	// 也别改成标量子查询：292 列的表 620ms，这个 join 写法只要 20ms。
+	return fmt.Sprintf("SELECT c.COLUMN_ID, c.COLUMN_NAME, c.DATA_TYPE, c.NULLABLE, c.DATA_DEFAULT, NVL(cc.COMMENTS, '') FROM ALL_TAB_COLUMNS c LEFT JOIN ALL_COL_COMMENTS cc ON cc.SCHEMA_NAME = c.OWNER AND cc.TABLE_NAME = c.TABLE_NAME AND cc.COLUMN_NAME = c.COLUMN_NAME WHERE c.TABLE_NAME = '%s'%s ORDER BY c.COLUMN_ID", upperEscapeSQL(table), ownerFilter)
 }
 
 func dmIndexesSQL(cfg dbipc.Config, database, schema, table string) string {

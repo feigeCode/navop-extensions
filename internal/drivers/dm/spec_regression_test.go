@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+// 回归：达梦 ALL_COL_COMMENTS 的 OWNER 列不可用（视图 SCH→UR 关联给出别的用户名），
+// 按 OWNER 关联列注释永远读成空，表设计器里改完注释就“不生效”。
+func TestColumnsSQLReadsColumnCommentsBySchemaName(t *testing.T) {
+	cfg := ConfigFromWireNoError(t, map[string]any{
+		"host":     "127.0.0.1",
+		"username": "SYSDBA",
+	})
+	sql := Spec().SchemaSQL.Columns(cfg, "AI_M_TEST", "ai-manager-330-dev", "ai_skill_ability_sync_record")
+
+	if !strings.Contains(sql, "cc.SCHEMA_NAME = c.OWNER") {
+		t.Fatalf("columns SQL must match comments by SCHEMA_NAME, got %q", sql)
+	}
+	if strings.Contains(sql, "cc.OWNER = c.OWNER") {
+		t.Fatalf("columns SQL regressed to the broken ALL_COL_COMMENTS.OWNER join: %q", sql)
+	}
+	for _, want := range []string{
+		"FROM ALL_TAB_COLUMNS c",
+		"ALL_COL_COMMENTS",
+		"c.TABLE_NAME = 'AI_SKILL_ABILITY_SYNC_RECORD'",
+		"c.OWNER = 'AI-MANAGER-330-DEV'",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("columns SQL %q does not contain %q", sql, want)
+		}
+	}
+}
+
 // 回归：这两条 SQL 都曾在真实达梦实例（DM8）上把树节点拖到 20s+ 或直接报错。
 // 细节见 2026-09-29 的排查：单表索引 23.7s（撞上 navop 30s 请求超时 →
 // “加载失败”）、函数节点 -2207。
