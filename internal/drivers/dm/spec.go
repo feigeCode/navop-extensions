@@ -93,10 +93,17 @@ func dmColumnsSQL(cfg dbipc.Config, database, schema, table string) string {
 func dmIndexesSQL(cfg dbipc.Config, database, schema, table string) string {
 	owner, table := dmOwnerAndTable(database, schema, table)
 	ownerFilter := ""
+	pkOwnerFilter := ""
 	if owner != "" {
-		ownerFilter = fmt.Sprintf(" AND i.TABLE_OWNER = '%s'", upperEscapeSQL(owner))
+		ownerFilter = fmt.Sprintf(" AND c.TABLE_OWNER = '%s'", upperEscapeSQL(owner))
+		pkOwnerFilter = fmt.Sprintf(" AND pk.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return fmt.Sprintf("SELECT i.INDEX_NAME, LISTAGG(c.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY c.COLUMN_POSITION), CASE WHEN i.UNIQUENESS = 'UNIQUE' THEN 'YES' ELSE 'NO' END, CASE WHEN pk.CONSTRAINT_TYPE = 'P' THEN 'YES' ELSE 'NO' END, i.INDEX_TYPE FROM ALL_INDEXES i JOIN ALL_IND_COLUMNS c ON c.INDEX_OWNER = i.OWNER AND c.INDEX_NAME = i.INDEX_NAME LEFT JOIN ALL_CONSTRAINTS pk ON pk.OWNER = i.TABLE_OWNER AND pk.TABLE_NAME = i.TABLE_NAME AND pk.INDEX_NAME = i.INDEX_NAME AND pk.CONSTRAINT_TYPE = 'P' WHERE i.TABLE_NAME = '%s'%s GROUP BY i.INDEX_NAME, i.UNIQUENESS, pk.CONSTRAINT_TYPE, i.INDEX_TYPE ORDER BY i.INDEX_NAME", upperEscapeSQL(table), ownerFilter)
+	// 注意：不要改回 “ALL_INDEXES 驱动 + LEFT JOIN ALL_CONSTRAINTS” 的写法。
+	// 达梦无法把 TABLE_NAME/TABLE_OWNER 下推到 ALL_INDEXES，单表索引查询实测 20s 以上
+	// （同一实例 23.7s），会直接撞上上层 30s 请求超时，表现为树节点加载很慢/偶发失败。
+	// 现改为由 ALL_IND_COLUMNS（自带上表名/表所有者，字典层可直接过滤）驱动，
+	// 再在小结果集上判定主键约束，实测同样结果 <1s。
+	return fmt.Sprintf("SELECT i.INDEX_NAME, LISTAGG(c.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY c.COLUMN_POSITION), CASE WHEN i.UNIQUENESS = 'UNIQUE' THEN 'YES' ELSE 'NO' END, CASE WHEN i.INDEX_NAME IN (SELECT pk.INDEX_NAME FROM ALL_CONSTRAINTS pk WHERE pk.CONSTRAINT_TYPE = 'P' AND pk.TABLE_NAME = '%s'%s) THEN 'YES' ELSE 'NO' END, i.INDEX_TYPE FROM ALL_IND_COLUMNS c JOIN ALL_INDEXES i ON i.OWNER = c.INDEX_OWNER AND i.INDEX_NAME = c.INDEX_NAME AND i.TABLE_OWNER = c.TABLE_OWNER AND i.TABLE_NAME = c.TABLE_NAME WHERE c.TABLE_NAME = '%s'%s GROUP BY i.INDEX_NAME, i.UNIQUENESS, i.INDEX_TYPE ORDER BY i.INDEX_NAME", upperEscapeSQL(table), pkOwnerFilter, upperEscapeSQL(table), ownerFilter)
 }
 
 func dmForeignKeysSQL(cfg dbipc.Config, database, schema, table string) string {
@@ -121,7 +128,10 @@ func dmFunctionsSQL(cfg dbipc.Config, database, schema string) string {
 	if owner := dmOwner(database, schema); owner != "" {
 		ownerFilter = fmt.Sprintf(" AND o.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return "SELECT o.OBJECT_NAME, o.OWNER, NVL(p.DATA_TYPE, ''), 'SQL', '' FROM ALL_OBJECTS o LEFT JOIN ALL_PROCEDURES p ON p.OWNER = o.OWNER AND p.OBJECT_NAME = o.OBJECT_NAME WHERE o.OBJECT_TYPE = 'FUNCTION'" + ownerFilter + " ORDER BY o.OWNER, o.OBJECT_NAME"
+	// 注意：达梦的 ALL_PROCEDURES 没有 DATA_TYPE 列，旧写法引用 p.DATA_TYPE 会直接
+	// 报错 -2207「无法解析的成员访问表达式[p.DATA_TYPE]」，导致“函数”节点加载失败。
+	// 返回类型改从 ALL_ARGUMENTS 中取（ARGUMENT_NAME 为空、DATA_LEVEL=0 的行为返回类型）。
+	return "SELECT o.OBJECT_NAME, o.OWNER, NVL(a.DATA_TYPE, ''), 'SQL', '' FROM ALL_OBJECTS o LEFT JOIN ALL_ARGUMENTS a ON a.OWNER = o.OWNER AND a.OBJECT_NAME = o.OBJECT_NAME AND a.PACKAGE_NAME IS NULL AND a.DATA_LEVEL = 0 AND a.ARGUMENT_NAME IS NULL WHERE o.OBJECT_TYPE = 'FUNCTION'" + ownerFilter + " GROUP BY o.OBJECT_NAME, o.OWNER, a.DATA_TYPE ORDER BY o.OWNER, o.OBJECT_NAME"
 }
 
 func dmViewDefinitionSQL(cfg dbipc.Config, database, schema, view string) string {

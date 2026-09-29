@@ -117,10 +117,15 @@ func TestSpecBuildsDamengMetadataSQLWithOwnerFilters(t *testing.T) {
 	}
 
 	indexesSQL := spec.SchemaSQL.Indexes(cfg, "", "app", "demo")
-	for _, want := range []string{"ALL_INDEXES", "ALL_IND_COLUMNS", "TABLE_NAME = 'DEMO'", "TABLE_OWNER = 'APP'", "LISTAGG"} {
+	// 必须以 ALL_IND_COLUMNS 驱动：达梦无法把 TABLE_NAME/TABLE_OWNER 下推到 ALL_INDEXES，
+	// 旧写法单表查询要 20s+，会撞上上层 30s 请求超时。
+	for _, want := range []string{"FROM ALL_IND_COLUMNS c JOIN ALL_INDEXES i", "ALL_INDEXES", "ALL_CONSTRAINTS", "TABLE_NAME = 'DEMO'", "TABLE_OWNER = 'APP'", "LISTAGG"} {
 		if !strings.Contains(indexesSQL, want) {
 			t.Fatalf("indexes SQL %q does not contain %q", indexesSQL, want)
 		}
+	}
+	if strings.Contains(indexesSQL, "FROM ALL_INDEXES i JOIN ALL_IND_COLUMNS") {
+		t.Fatalf("indexes SQL regressed to the slow ALL_INDEXES-driven join: %q", indexesSQL)
 	}
 
 	foreignKeysSQL := spec.SchemaSQL.ForeignKeys(cfg, "", "app", "demo")
@@ -138,10 +143,14 @@ func TestSpecBuildsDamengMetadataSQLWithOwnerFilters(t *testing.T) {
 	}
 
 	functionsSQL := spec.SchemaSQL.Functions(cfg, "", "app")
-	for _, want := range []string{"ALL_OBJECTS", "ALL_PROCEDURES", "OBJECT_TYPE = 'FUNCTION'", "OWNER = 'APP'"} {
+	// 达梦的 ALL_PROCEDURES 没有 DATA_TYPE 列，引用它会报 -2207 导致“函数”节点加载失败。
+	for _, want := range []string{"ALL_OBJECTS", "ALL_ARGUMENTS", "OBJECT_TYPE = 'FUNCTION'", "OWNER = 'APP'"} {
 		if !strings.Contains(functionsSQL, want) {
 			t.Fatalf("functions SQL %q does not contain %q", functionsSQL, want)
 		}
+	}
+	if strings.Contains(functionsSQL, "ALL_PROCEDURES") {
+		t.Fatalf("functions SQL references ALL_PROCEDURES, which dm rejects with -2207: %q", functionsSQL)
 	}
 
 	viewSQL := spec.SchemaSQL.ViewDefinition(cfg, "", "app", "v_demo")
