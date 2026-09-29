@@ -1663,6 +1663,49 @@ func TestSchemaObjectViewColumnsUsesDriverSQL(t *testing.T) {
 	if len(result.Rows) != 2 || result.Rows[0][0] != "id" || result.Rows[0][1] != "BIGINT" || result.Rows[0][2] != "false" {
 		t.Fatalf("rows = %#v", result.Rows)
 	}
+	// A driver that does not project a comment column leaves the cell empty.
+	if len(result.Rows[0]) != 5 || result.Rows[0][4] != "" {
+		t.Fatalf("comment cell for legacy driver = %#v, want empty", result.Rows[0])
+	}
+}
+
+func TestSchemaObjectViewColumnsProjectsDriverComment(t *testing.T) {
+	driverName, state := registerStreamingDriver(t, [][]driver.Value{
+		{int64(1), "id", "BIGINT", "NO", nil, "主键"},
+		{int64(2), "name", "VARCHAR", "YES", "untitled", "客户名称"},
+	})
+	state.columns = []string{"ordinal", "column_name", "data_type", "is_nullable", "column_default", "comments"}
+	spec := testSpecWithSQLDriver(driverName)
+	spec.SchemaSQL.Columns = func(cfg Config, database, schema, table string) string {
+		return "SELECT ordinal, column_name, data_type, is_nullable, column_default, comments FROM test_columns"
+	}
+	server := NewServer(spec, nil)
+	server.initialized = true
+
+	connID := openTestConn(t, server)
+	resp := server.Handle(context.Background(), ipc.Message{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`2`),
+		Method:  "schema/object_view",
+		Params:  []byte(fmt.Sprintf(`{"conn_id":%d,"view":"columns","database":"main","schema":"app","table":"demo"}`, connID)),
+	})
+	if resp.Error != nil {
+		t.Fatalf("schema/object_view returned error: %#v", resp.Error)
+	}
+
+	var result struct {
+		Rows [][]string `json:"rows"`
+	}
+	decodeResult(t, resp, &result)
+	if len(result.Rows) != 2 {
+		t.Fatalf("rows = %#v", result.Rows)
+	}
+	if got := result.Rows[0][4]; got != "主键" {
+		t.Fatalf("comment cell = %q, want %q", got, "主键")
+	}
+	if got := result.Rows[1][4]; got != "客户名称" {
+		t.Fatalf("comment cell = %q, want %q", got, "客户名称")
+	}
 }
 
 func TestSchemaIndexesUsesDriverSQL(t *testing.T) {

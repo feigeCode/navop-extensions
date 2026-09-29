@@ -1184,7 +1184,10 @@ func (s *Server) handleSchemaObjectView(ctx context.Context, req ipc.Message) ip
 				stringCell(cols, 2),
 				fmt.Sprint(boolCell(cols, 3)),
 				stringCell(cols, 4),
-				"",
+				// Optional 6th column: the column comment, mirroring
+				// schema/columns. Drivers that do not project it leave it
+				// empty, which keeps the legacy behavior.
+				stringCell(cols, 5),
 			}
 		})
 		if err != nil {
