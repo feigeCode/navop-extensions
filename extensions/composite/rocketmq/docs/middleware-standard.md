@@ -207,7 +207,7 @@
 
 `renderer.kind = "shell"` 的页面是**正常可用**的页面承载方式（不是废弃对象），在开启 `shell-plugins` 的产物里正常加载。唯一的构建约束来自 §5 硬约束：未开该 feature 的自建构建（如 `--no-default-features`）里取不到 host，此时**只有**声明了 `fallback: "native"` 才会退回该页的原生 `template` 渲染，否则显示错误块。参考实现见同仓 docker 扩展（5 个 shell 页全部带 `fallback: "native"`）。
 
-- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.2.0"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Textarea`/`TextareaState`、`Select`、`Switch`、`Badge`、`Tag`、`Button`、`chart`、`description_list`、`virtual_list` 等。
+- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.6.4"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Textarea`/`TextareaState`、`Select`、`Switch`、`Badge`、`Tag`、`Button`、`chart`、`description_list`、`virtual_list` 等。
 - 运行时 API 要点（照抄现有实现，别按记忆写）：
   - 布局原语与输入状态来自 `gpui-base`（`h_flex` / `v_flex` / `InputState` / `TextareaState`），**元素与组件来自 `gpui-component`**：`InputState.new({value, placeholder})` + `new Input(state)`、`TextareaState.new({value, placeholder, rows})` + `new Textarea(state)`。placeholder 只能在 `*State.new` 里设置。
   - 组件构造：`Select(id, rowsFn, renderRowFn, onSelect)`（行对象约定 `{id, label}`，`onSelect` 收到 `id`）、`Tag()` / `Badge()` / `Spinner()` 为 nullary 构造；`Button(id)` 的 id 是**构造期必填**。

@@ -16,7 +16,7 @@
   "description": "中英双语、详尽；守卫测试强制双语描述同步",
   "categories": ["middleware", "messaging", "developer-tools"],
   "keywords": ["mqtt", "..."],
-  "engines": { "onetcli": ">=0.17.0", "gpui_shell": "0.2.0" },
+  "engines": { "onetcli": ">=0.17.0", "gpui_shell": "0.6.4" },
   "api": { "extension": "1.0", "shell": "1.0" },
   "permissions": [...],                        // 见 §2
   "runtime": { ... },                          // 见 §3

@@ -8,7 +8,7 @@
   "description": "纯 JS 工具扩展示例：本机 hosts 编辑器与加解密/hash 工具，演示 shell 视图权限 → 运行时 capability 装配。",
   "engines": {
     "onetcli": ">=0.16.1",
-    "gpui_shell": "0.2.0"
+    "gpui_shell": "0.6.4"
   },
   "api": {
     "extension": "1.0",

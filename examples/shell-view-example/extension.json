@@ -8,7 +8,7 @@
   "description": "Navop shell view 扩展示例：演示 jsconfig 类型提示 + navop.* 模块使用。",
   "engines": {
     "onetcli": ">=0.15.2",
-    "gpui_shell": "0.2.0"
+    "gpui_shell": "0.6.4"
   },
   "api": {
     "extension": "1.0",

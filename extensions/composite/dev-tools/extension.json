@@ -10,7 +10,7 @@
   "keywords": ["devtools", "extension", "debug"],
   "engines": {
     "onetcli": ">=0.16.1",
-    "gpui_shell": "0.2.0"
+    "gpui_shell": "0.6.4"
   },
   "api": {
     "extension": "1.0",
