@@ -13,6 +13,5 @@
     "universal"
   ],
   "releaseTagPrefix": "gbase8a-v",
-  "r2Prefix": "extensions/gbase8a",
-  "published": false
+  "r2Prefix": "extensions/gbase8a"
 }
