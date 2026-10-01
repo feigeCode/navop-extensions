@@ -40,6 +40,33 @@ The RDP helper is pinned to:
 This revision also contains the clipboard file-copy input event used by the RDP
 provider.
 
+## RDPSND silent-audio fix verification (2026-10-01)
+
+Issue: with "Play Remote Audio" enabled the session was silent on macOS clients.
+Root cause: upstream #1648 filters advertised RDPSND PCM formats against the
+local device enumeration; cpal 0.17 CoreAudio only enumerates F32 ("just use F32
+for now"), so every PCM candidate was dropped and negotiation with the server
+failed (empty intersection).
+
+Fix: fork commit `9a2603ea` (branch `fix/navop-rdpsnd-device-format-filter`) skips
+the device filter when the enumeration contains no integer PCM format at all;
+CoreAudio converts integer streams automatically. Shipped in rdp-helper 0.3.12.
+
+Verified against the Docker xrdp bench (`danielguerra/ubuntu-xrdp`, navop session,
+paplay through `module-xrdp-sink`):
+
+| Helper build | Server formats offered | Negotiation | Wave PDUs | Playback stream |
+|---|---|---|---|---|
+| old rev `feba27a5` (0.3.11) | PCM 44.1k/22.05k stereo 16-bit | stuck in `WaitingForTraining` | 256 received, all dropped | never started |
+| new rev `9a2603ea` (0.3.12) | same | `Ready`, training confirmed | 302 received | cpal stream started, ring buffer drained (drops only during startup burst) |
+
+New-build detail: the float-only skip warning fires once; server selects
+PCM 44100 stereo 16-bit (format_no 0); `Stream thread parking loop` → `unparked`
+shows the playback thread live; `Playback ring buffer underrun/partial underrun`
+traces prove the cpal callback consumed real samples (≈300 KB played over a 10 s
+paplay). Residual `dropping audio` warnings (≈2.1 MB total) are the undecoded
+startup burst before the stream spins up, not negotiation loss.
+
 ## Real Docker RDP
 
 The baseline helper was built from the provider commit before incremental frame
