@@ -372,11 +372,8 @@ test("GBase8a Java IPC driver manifest exposes the MySQL-style JDBC surface", ()
   assert.equal(metadata.binary, "gbase8a-ipc-driver");
   assert.equal(metadata.jar, "gbase8a-ipc-driver.jar");
   assert.deepEqual(metadata.targets, ["universal"]);
-  assert.equal(
-    metadata.published,
-    false,
-    "gbase8a is unreleased, so it must not be listed in the marketplace manifest",
-  );
+  // gbase8a 已发布 gbase8a-v0.1.0，不再声明 published: false。
+  assert.notEqual(metadata.published, false, "gbase8a is released, published: false must be removed");
 
   const driverJson = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/ipc/gbase8a/driver.json"), "utf8"),
@@ -1370,7 +1367,10 @@ test("temporary Windows x86 backfill workflow is manual, dry-run by default, and
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(r2Workflow, /\n  workflow_call:\n/);
   assert.match(r2Workflow, /workflow_call:\n    inputs:\n      tag:/);
-  assert.match(r2Workflow, /github\.event_name == 'workflow_call'/);
+  // job 级不能靠 github.event_name 判断 workflow_call：被 uses: 调用时
+  // github context 继承调用方事件（如 tag push 的 push），条件恒 false，
+  // Upload R2 会被整 job skip。触发器层面已限定 workflow_call/dispatch，无需再 if。
+  assert.doesNotMatch(r2Workflow, /github\.event_name == 'workflow_call'/);
   assert.match(r2Workflow, /extension manifest artifact mismatch/);
 });
 
@@ -4892,9 +4892,9 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
 
   assert.doesNotMatch(workflow, /aws-actions\/configure-aws-credentials/);
   assert.match(workflow, /contents:\s+read/);
-  assert.match(workflow, /concurrency:/);
-  assert.match(workflow, /group:\s+extension-marketplace-publish/);
-  assert.match(workflow, /cancel-in-progress:\s+false/);
+  // concurrency 组已被 c7bc5bd 移除：批量发版时多个 Release 排队会互相 cancel。
+  assert.doesNotMatch(workflow, /concurrency:/);
+  assert.doesNotMatch(workflow, /extension-marketplace-publish/);
   assert.match(workflow, /AWS_ACCESS_KEY_ID:\s+\$\{\{\s*secrets\.CLOUDFLARE_R2_ACCESS_KEY_ID\s*\}\}/);
   assert.match(
     workflow,
