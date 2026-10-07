@@ -5812,9 +5812,20 @@ test("R2 upload workflow keeps only the newest version of an extension", () => {
 set -euo pipefail
 case "\${1:-} \${2:-}" in
   "s3api list-objects-v2")
-    grep -v '^$' "\${FAKE_R2_STATE}" | while read -r version; do
-      printf '%s/%s/\\n' "\${FAKE_R2_PREFIX}" "\$version"
+    # 必须带 delimiter，否则列出来的是对象而不是版本目录。
+    if [[ " $* " != *" --delimiter / "* ]]; then
+      echo "s3api list-objects-v2 without --delimiter: $*" >&2
+      exit 42
+    fi
+    # 跟真实 aws cli 一致：--output text 对扁平列表是「一行、tab 拼接」，
+    # 之前这里按一行一个写，恰好把真实现场的解析 bug 掩盖过去了。
+    separator=""
+    line=""
+    for version in $(grep -v '^$' "\${FAKE_R2_STATE}"); do
+      line="\${line}\${separator}\${FAKE_R2_PREFIX}/\$version/"
+      separator=\$'\t'
     done
+    [[ -z "\$line" ]] || printf '%s\\n' "\$line"
     ;;
   "s3 rm")
     target=""

@@ -338,6 +338,8 @@ jobs:
 
           # 列出本扩展下的版本目录（delimiter 让每页只回顶层目录名，
           # manifest.json 是对象不是前缀，不会被列进来）。
+          # 注意：--output text 对扁平列表是「一行、tab 拼接」，所以先用 tr 把它
+          # 归一成一行一个，再用 ^...$ 锚定就对了；多页时同样是每行一个值。
           list_versions() {
             aws s3api list-objects-v2 \
               --bucket "${CLOUDFLARE_R2_BUCKET}" \
@@ -346,11 +348,13 @@ jobs:
               --endpoint-url "${endpoint}" \
               --query "CommonPrefixes[].Prefix" \
               --output text \
+              | tr '\t' '\n' \
               | sed -n "s|^${R2_PREFIX}/\\([^/]*\\)/\$|\\1|p" \
               | sort -u
           }
 
           versions="$(list_versions)"
+          echo "Versions in ${R2_PREFIX}: $(tr '\n' ' ' <<< "${versions}")"
 
           # 本次版本不在桶里就什么都不删：宁可留下旧版本，也不能在「新版本其实
           # 没上传成功」时把最后一份可用包清掉。
