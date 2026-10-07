@@ -127,7 +127,14 @@ fn setup_logging() -> anyhow::Result<()> {
         .from_env_lossy();
     tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(io::stderr))
+        .with(
+            tracing_subscriber::fmt::layer()
+                // stderr is piped to a log file in production; ANSI colour
+                // codes there break greppability (key=value pairs get split
+                // by escape sequences).
+                .with_ansi(false)
+                .with_writer(io::stderr),
+        )
         .try_init()?;
     Ok(())
 }
