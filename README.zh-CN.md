@@ -444,6 +444,12 @@ extensions/manifest.json
 上传。全局 manifest 是仓库维护的根目录 `manifest.json`，会原样上传到
 `extensions/manifest.json`。
 
+R2 上只保留扩展的最新版本：扩展包与两个 manifest 都就位之后，其余
+`extensions/<id>/<version>/` 会被删掉，桶里每个扩展只留一个版本而不是全部历史。
+清理发生在上传之后，且本次发布的版本不在桶里时拒绝删除，所以上传失败不会让市场
+失去可下载的扩展包。旧版本仍可从对应的 GitHub Release 与 CNB 镜像获取。
+`extensions/<id>/manifest.json` 与 `extensions/manifest.json` 永不触碰。
+
 ## CNB 同步
 
 `.github/workflows/sync-cnb-release-assets.yml` 会把 release 的 Git tag 和资产镜像到

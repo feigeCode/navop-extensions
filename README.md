@@ -496,6 +496,15 @@ global marketplace index are uploaded with `no-cache`. The global manifest is
 the repository-maintained root `manifest.json`, uploaded unchanged to
 `extensions/manifest.json`.
 
+R2 keeps only the newest version of an extension: once the packages and both
+manifests are in place, every other `extensions/<id>/<version>/` prefix is
+removed, so the bucket carries one version per extension instead of the whole
+history. The cleanup runs after the upload and refuses to delete anything when
+this release's own version is missing, so a failed upload cannot leave the
+marketplace without a downloadable package. Older packages stay on their GitHub
+Release and on the CNB mirror. `extensions/<id>/manifest.json` and
+`extensions/manifest.json` are never touched.
+
 ## CNB Sync
 
 `.github/workflows/sync-cnb-release-assets.yml` mirrors a release's Git tags and

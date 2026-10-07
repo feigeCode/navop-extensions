@@ -305,3 +305,76 @@ jobs:
           cp artifacts/extension-manifest.json "$current_manifest"
           upload_object "$current_manifest" "${R2_PREFIX}/manifest.json" "application/json; charset=utf-8" "no-cache"
           upload_object "manifest.json" "extensions/manifest.json" "application/json; charset=utf-8" "no-cache"
+
+      # 只留这次发布的版本：旧的扩展包在市场里已经不再被引用（全局与单扩展清单
+      # 都只声明当前 version 与它的下载地址），旧包另有 GitHub Release 存档。
+      # 必须排在上传与清单发布之后，且不能加 always()：上传没成功就一个对象
+      # 都不许删，否则可能出现「新版本没传上去、旧版本已经删了」的空窗。
+      - name: Prune older extension versions
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REGION: auto
+          AWS_EC2_METADATA_DISABLED: true
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          R2_PREFIX: ${{ steps.extension.outputs.r2_prefix }}
+          EXTENSION_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          endpoint="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # 前缀必须是 extensions/<扩展名> 这一层：万一 r2Prefix 写成了 extensions
+          # 本身或更深的路径，删除就会溢出到别的扩展，宁可跳过。
+          if [[ ! "${R2_PREFIX}" =~ ^extensions/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "::warning::Skipping R2 prune for unexpected extension prefix '${R2_PREFIX}'."
+            exit 0
+          fi
+          if [[ ! "${EXTENSION_VERSION}" =~ ^[0-9][0-9A-Za-z.+-]*$ ]]; then
+            echo "::warning::Skipping R2 prune for unexpected extension version '${EXTENSION_VERSION}'."
+            exit 0
+          fi
+
+          # 列出本扩展下的版本目录（delimiter 让每页只回顶层目录名，
+          # manifest.json 是对象不是前缀，不会被列进来）。
+          list_versions() {
+            aws s3api list-objects-v2 \
+              --bucket "${CLOUDFLARE_R2_BUCKET}" \
+              --prefix "${R2_PREFIX}/" \
+              --delimiter "/" \
+              --endpoint-url "${endpoint}" \
+              --query "CommonPrefixes[].Prefix" \
+              --output text \
+              | sed -n "s|^${R2_PREFIX}/\\([^/]*\\)/\$|\\1|p" \
+              | sort -u
+          }
+
+          versions="$(list_versions)"
+
+          # 本次版本不在桶里就什么都不删：宁可留下旧版本，也不能在「新版本其实
+          # 没上传成功」时把最后一份可用包清掉。
+          if ! grep -Fxq "${EXTENSION_VERSION}" <<< "${versions}"; then
+            echo "::error::Refusing to prune: ${R2_PREFIX}/${EXTENSION_VERSION}/ is not present in R2"
+            exit 1
+          fi
+
+          # 注意这里的 for 依赖分词逐行遍历。
+          for version in ${versions}; do
+            if [ "${version}" = "${EXTENSION_VERSION}" ]; then
+              continue
+            fi
+            echo "Deleting ${R2_PREFIX}/${version}/"
+            aws s3 rm "s3://${CLOUDFLARE_R2_BUCKET}/${R2_PREFIX}/${version}/" \
+              --recursive \
+              --endpoint-url "${endpoint}"
+          done
+
+          for version in $(list_versions); do
+            if [ "${version}" != "${EXTENSION_VERSION}" ]; then
+              echo "::error::R2 still holds ${R2_PREFIX}/${version}/ after pruning"
+              exit 1
+            fi
+          done
+
+          echo "R2 now keeps only ${R2_PREFIX}/${EXTENSION_VERSION}/"

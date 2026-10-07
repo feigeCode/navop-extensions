@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -5758,6 +5758,153 @@ test("release-driver packages native composite shell extensions", () => {
     extensionManifest.extensions[0].artifacts["x86_64-unknown-linux-gnu"].file,
     "elasticsearch-composite-x86_64-unknown-linux-gnu.tar.gz",
   );
+});
+
+test("R2 upload workflow keeps only the newest version of an extension", () => {
+  const workflow = fs.readFileSync(
+    path.join(repoRoot, ".github/workflows/upload-r2.yml"),
+    "utf8",
+  );
+
+  // 清理必须排在「上传扩展包 + 发布市场清单」之后，而且不能总是执行：上传失败时
+  // 一个对象都不能删，否则可能出现新版本没传上去、旧版本已经删掉的空窗。
+  const pruneIndex = workflow.indexOf("Prune older extension versions");
+  assert.notEqual(pruneIndex, -1, "upload-r2 应当有清理旧版本的步骤");
+  assert.ok(
+    pruneIndex > workflow.indexOf("Publish marketplace manifests"),
+    "清理必须排在上传与清单发布之后",
+  );
+  const pruneStep = workflow.slice(workflow.lastIndexOf("      - name:", pruneIndex));
+  assert.doesNotMatch(pruneStep, /always\(\)/);
+  assert.doesNotMatch(pruneStep, /continue-on-error/);
+
+  // 删除动作只能落在 extensions/<扩展名>/<版本>/ 下：前缀形状不对就整步跳过。
+  assert.match(pruneStep, /=\~ \^extensions\/\[A-Za-z0-9\]\[A-Za-z0-9\._-\]\*\$ \]\]/);
+  assert.match(pruneStep, /Skipping R2 prune for unexpected extension prefix/);
+  assert.match(pruneStep, /--prefix "\$\{R2_PREFIX\}\/"/);
+  assert.match(
+    pruneStep,
+    /aws s3 rm "s3:\/\/\$\{CLOUDFLARE_R2_BUCKET\}\/\$\{R2_PREFIX\}\/\$\{version\}\/" \\\n\s+--recursive/,
+  );
+  // 本次版本不在桶里就拒绝清理，删完还要复查一次。
+  assert.match(pruneStep, /if ! grep -Fxq "\$\{EXTENSION_VERSION\}" <<< "\$\{versions\}"; then/);
+  assert.match(pruneStep, /Refusing to prune: \$\{R2_PREFIX\}\/\$\{EXTENSION_VERSION\}\/ is not present in R2/);
+  assert.match(pruneStep, /R2 still holds \$\{R2_PREFIX\}\/\$\{version\}\/ after pruning/);
+
+  // 抽出真实脚本，配假 aws 跑一遍：真删、真复查。
+  const pruneRun = pruneStep
+    .match(/run: \|\n([\s\S]*)/)?.[1]
+    .split("\n")
+    .map((line) => line.replace(/^ {10}/, ""))
+    .join("\n");
+  assert.ok(pruneRun, "清理步骤应当有 run 脚本");
+
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "navop-r2-prune-"));
+  const statePath = path.join(fixtureDir, "bucket");
+  const deletedPath = path.join(fixtureDir, "deleted");
+  const fakeAws = path.join(fixtureDir, "aws");
+
+  // 假 aws 只实现这一步用到的两条命令。删除会真的从 fixture 里拿掉版本，所以
+  // 脚本最后的复查也一并被验证；删到扩展自己的前缀以外就直接报错退出。
+  fs.writeFileSync(
+    fakeAws,
+    `#!/usr/bin/env bash
+set -euo pipefail
+case "\${1:-} \${2:-}" in
+  "s3api list-objects-v2")
+    grep -v '^$' "\${FAKE_R2_STATE}" | while read -r version; do
+      printf '%s/%s/\\n' "\${FAKE_R2_PREFIX}" "\$version"
+    done
+    ;;
+  "s3 rm")
+    target=""
+    for argument in "\$@"; do
+      case "\$argument" in s3://*) target="\$argument" ;; esac
+    done
+    key="\${target#s3://*/}"
+    key="\${key%/}"
+    case "\$key" in
+      "\${FAKE_R2_PREFIX}"/*) ;;
+      *)
+        echo "unexpected delete outside the extension prefix: \$key" >&2
+        exit 42
+        ;;
+    esac
+    echo "\$key" >> "\${FAKE_R2_DELETED}"
+    version="\${key##*/}"
+    grep -Fxv "\$version" "\${FAKE_R2_STATE}" > "\${FAKE_R2_STATE}.tmp"
+    mv "\${FAKE_R2_STATE}.tmp" "\${FAKE_R2_STATE}"
+    ;;
+  *)
+    echo "unexpected aws invocation: \$*" >&2
+    exit 42
+    ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+
+  const runPrune = (versions, prefix = "extensions/duckdb", version = "0.2.0") => {
+    fs.writeFileSync(statePath, `${versions.join("\n")}\n`);
+    fs.writeFileSync(deletedPath, "");
+    const result = spawnSync("bash", ["-c", pruneRun], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${fixtureDir}:${process.env.PATH}`,
+        FAKE_R2_STATE: statePath,
+        FAKE_R2_DELETED: deletedPath,
+        FAKE_R2_PREFIX: prefix,
+        CLOUDFLARE_ACCOUNT_ID: "test-account",
+        CLOUDFLARE_R2_BUCKET: "test-bucket",
+        R2_PREFIX: prefix,
+        EXTENSION_VERSION: version,
+      },
+    });
+    return {
+      result,
+      remaining: fs
+        .readFileSync(statePath, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean),
+      deleted: fs
+        .readFileSync(deletedPath, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .sort(),
+    };
+  };
+
+  try {
+    const pruned = runPrune(["0.1.0", "0.2.0"]);
+    assert.equal(pruned.result.status, 0, pruned.result.stderr);
+    assert.deepEqual(pruned.remaining, ["0.2.0"]);
+    assert.deepEqual(pruned.deleted, ["extensions/duckdb/0.1.0"]);
+    assert.match(pruned.result.stdout, /R2 now keeps only extensions\/duckdb\/0\.2\.0\//);
+
+    // 本次版本不在桶里（上传其实没成功）时，一个旧版本都不能删。
+    const missing = runPrune(["0.1.0", "0.3.0"]);
+    assert.notEqual(missing.result.status, 0);
+    assert.match(missing.result.stdout, /Refusing to prune/);
+    assert.deepEqual(missing.deleted, []);
+    assert.deepEqual(missing.remaining, ["0.1.0", "0.3.0"]);
+
+    // 前缀形状不对（这里是最危险的 extensions 本身）就整步跳过，不删任何东西。
+    const dangerous = runPrune(["0.1.0", "0.2.0"], "extensions");
+    assert.equal(dangerous.result.status, 0, dangerous.result.stderr);
+    assert.match(dangerous.result.stdout, /Skipping R2 prune for unexpected extension prefix/);
+    assert.deepEqual(dangerous.deleted, []);
+
+    // 带下划线的扩展名（extensions/markdown_inline）同样是合法前缀。
+    const underscored = runPrune(["0.1.0", "0.2.0"], "extensions/markdown_inline");
+    assert.equal(underscored.result.status, 0, underscored.result.stderr);
+    assert.deepEqual(underscored.deleted, ["extensions/markdown_inline/0.1.0"]);
+    assert.deepEqual(underscored.remaining, ["0.2.0"]);
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  }
 });
 
 function makeTempDir() {
