@@ -3,6 +3,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use ironrdp::cliprdr::backend::ClipboardMessage;
+use ironrdp::cliprdr::pdu::LockDataId;
 
 use crate::output_mailbox::OutputSender;
 use crate::protocol::HelperEvent;
@@ -49,13 +50,25 @@ impl TextClipboardController {
             state.pending_remote = None;
             cancelled = true;
         }
-        if state
+        let cancelled_remote = state
             .remote_transfer
             .as_ref()
-            .is_some_and(|transfer| transfer.transfer_id() == transfer_id)
-        {
+            .is_some_and(|transfer| transfer.transfer_id() == transfer_id);
+        let released_lock = if cancelled_remote {
+            state
+                .remote_transfer
+                .as_ref()
+                .and_then(|transfer| transfer.clip_data_id())
+        } else {
+            None
+        };
+        if cancelled_remote {
             state.remote_transfer = None;
             cancelled = true;
+        }
+        drop(state);
+        if let Some(clip_data_id) = released_lock {
+            self.release_remote_lock(clip_data_id);
         }
         cancelled
     }
@@ -79,6 +92,24 @@ impl TextClipboardController {
 
     fn send_clipboard(&self, message: ClipboardMessage) -> anyhow::Result<()> {
         self.input_tx.send_clipboard(message)
+    }
+
+    /// Releases the outgoing clipboard lock a cancelled download was holding.
+    ///
+    /// Without this the remote would keep the File Stream data — and on Windows
+    /// `rdpclip.exe` also the *source* files — open until the lock went unused for
+    /// the inactivity timeout. Releasing an unknown or already-released lock is a
+    /// no-op on the cliprdr side.
+    fn release_remote_lock(&self, clip_data_id: u32) {
+        if let Err(error) =
+            self.send_clipboard(ClipboardMessage::ReleaseFileLock(LockDataId(clip_data_id)))
+        {
+            tracing::warn!(
+                ?error,
+                clip_data_id,
+                "failed to release the remote RDP clipboard lock"
+            );
+        }
     }
 }
 
