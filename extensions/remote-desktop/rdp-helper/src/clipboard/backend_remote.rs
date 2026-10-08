@@ -107,6 +107,12 @@ impl TextClipboardBackend {
                 // The whole file list is staged locally: nothing needs the
                 // remote's File Stream data any more, so let go of the lock
                 // now instead of waiting out the inactivity timeout.
+                tracing::info!(
+                    transfer_id,
+                    clip_data_id,
+                    files = paths.len(),
+                    "remote clipboard files fully staged; releasing lock and notifying host"
+                );
                 self.release_remote_lock(clip_data_id);
                 if self
                     .output_tx

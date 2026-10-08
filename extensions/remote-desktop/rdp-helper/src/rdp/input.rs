@@ -75,11 +75,23 @@ pub(crate) fn apply_input_request(
             pressed,
         } => send_operations(context, [key_operation(code, extended, pressed)?])?,
         HelperRequest::Text { text } => send_text(context, &text)?,
-        HelperRequest::ClipboardText { text } => context.clipboard.set_local_text(text)?,
+        HelperRequest::ClipboardText { text } => {
+            tracing::debug!(
+                chars = text.chars().count(),
+                "host pushed local clipboard text"
+            );
+            context.clipboard.set_local_text(text)?
+        }
         HelperRequest::ClipboardFiles { transfer_id, paths } => {
+            tracing::info!(
+                transfer_id,
+                count = paths.len(),
+                "host pushed local clipboard files for remote sync"
+            );
             set_local_files(context.clipboard, transfer_id, paths)
         }
         HelperRequest::CancelClipboardTransfer { transfer_id } => {
+            tracing::info!(transfer_id, "host cancelled clipboard transfer");
             context.clipboard.cancel_transfer(transfer_id);
         }
         HelperRequest::Close => return Ok(RdpInputAction::Close),

@@ -30,9 +30,16 @@ fn main() {
 
 fn run() -> anyhow::Result<()> {
     setup_logging()?;
+    tracing::info!(pid = std::process::id(), "rdp helper session started");
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
     let connect = read_connect_request(&mut lines)?;
+    tracing::info!(
+        destination = %connect.destination,
+        width = connect.width,
+        height = connect.height,
+        "connecting to RDP destination"
+    );
     write_event(&HelperEvent::Status {
         message: format!("connecting to RDP {}", connect.destination),
     })?;
@@ -122,21 +129,108 @@ fn write_event(event: &HelperEvent) -> anyhow::Result<()> {
 }
 
 fn setup_logging() -> anyhow::Result<()> {
-    let env_filter = EnvFilter::builder()
-        .with_env_var("ONETCLI_RDP_HELPER_LOG")
-        .from_env_lossy();
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                // stderr is piped to a log file in production; ANSI colour
-                // codes there break greppability (key=value pairs get split
-                // by escape sequences).
+    // `ONETCLI_RDP_HELPER_LOG` drives stderr. Production leaves it unset,
+    // which leaves stderr silent -- so the file layer below always captures
+    // the session (clipboard/lock lifecycle included) on its own, into
+    // `$TMPDIR/navop-rdp-helper-logs/helper-<unix_ts>-<pid>.log`.
+    let env_spec = std::env::var("ONETCLI_RDP_HELPER_LOG")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let stderr_filter = match &env_spec {
+        Some(spec) => EnvFilter::new(spec),
+        None => EnvFilter::new("off"),
+    };
+    let file_filter = match &env_spec {
+        Some(spec) => EnvFilter::new(spec),
+        None => EnvFilter::new("info,ironrdp_cliprdr=trace,navop_rdp_helper=debug"),
+    };
+
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        // stderr is piped to a log file in production; ANSI colour codes
+        // there break greppability (key=value pairs get split by escape
+        // sequences).
+        .with_ansi(false)
+        .with_writer(io::stderr)
+        .with_filter(stderr_filter);
+
+    match open_session_log() {
+        Some(file) => {
+            let file_layer = tracing_subscriber::fmt::layer()
                 .with_ansi(false)
-                .with_writer(io::stderr),
-        )
-        .try_init()?;
+                .with_writer(file)
+                .with_filter(file_filter);
+            tracing_subscriber::registry()
+                .with(stderr_layer)
+                .with(file_layer)
+                .try_init()?;
+        }
+        None => {
+            // Cannot create the log file (unwritable temp dir); stderr only.
+            tracing_subscriber::registry()
+                .with(stderr_layer)
+                .try_init()?;
+        }
+    }
     Ok(())
+}
+
+/// Thread-safe handle on the current session's log file, usable as a
+/// [`tracing_subscriber::fmt::MakeWriter`].
+struct SessionLogWriter(std::sync::Mutex<std::fs::File>);
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SessionLogWriter {
+    type Writer = SessionLogFileHandle<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SessionLogFileHandle(self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
+    }
+}
+
+struct SessionLogFileHandle<'a>(std::sync::MutexGuard<'a, std::fs::File>);
+
+impl io::Write for SessionLogFileHandle<'_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
+/// How many past session logs to keep alongside the current one.
+const SESSION_LOG_KEEP_COUNT: usize = 8;
+
+fn open_session_log() -> Option<SessionLogWriter> {
+    let dir = std::env::temp_dir().join("navop-rdp-helper-logs");
+    std::fs::create_dir_all(&dir).ok()?;
+    prune_session_logs(&dir);
+    let unix_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    let name = format!("helper-{unix_ts}-{}.log", std::process::id());
+    let file = std::fs::File::create(dir.join(name)).ok()?;
+    Some(SessionLogWriter(std::sync::Mutex::new(file)))
+}
+
+fn prune_session_logs(dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut logs: Vec<std::path::PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == std::ffi::OsStr::new("log")))
+        .collect();
+    if logs.len() < SESSION_LOG_KEEP_COUNT {
+        return;
+    }
+    logs.sort();
+    let stale_count = logs.len() - SESSION_LOG_KEEP_COUNT + 1;
+    for stale in &logs[..stale_count] {
+        let _ = std::fs::remove_file(stale);
+    }
 }
 
 fn combine_results<const N: usize>(results: [anyhow::Result<()>; N]) -> anyhow::Result<()> {
