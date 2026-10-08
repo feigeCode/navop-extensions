@@ -37,10 +37,6 @@ impl TextClipboardBackend {
             return;
         }
         state.pending_remote = None;
-        let clip_data_id = result
-            .as_ref()
-            .ok()
-            .and_then(|transfer| transfer.clip_data_id());
         let action = result.and_then(|mut transfer| {
             let action = transfer.start(state.allocate_stream_id())?;
             if matches!(action, RemoteTransferAction::Request(_)) {
@@ -49,7 +45,7 @@ impl TextClipboardBackend {
             Ok(action)
         });
         drop(state);
-        self.dispatch_remote_result(transfer_id, clip_data_id, action);
+        self.dispatch_remote_result(transfer_id, action);
     }
 
     pub(super) fn advance_remote_transfer(&self, response: FileContentsResponse<'_>) {
@@ -58,7 +54,6 @@ impl TextClipboardBackend {
             return;
         };
         let transfer_id = transfer.transfer_id();
-        let clip_data_id = transfer.clip_data_id();
         let action = transfer.advance(response, state.allocate_stream_id());
         if matches!(
             action,
@@ -73,13 +68,12 @@ impl TextClipboardBackend {
             state.last_remote_file_ready_at = Some(std::time::Instant::now());
         }
         drop(state);
-        self.dispatch_remote_result(transfer_id, clip_data_id, action);
+        self.dispatch_remote_result(transfer_id, action);
     }
 
     pub(super) fn dispatch_remote_result(
         &self,
         transfer_id: u64,
-        clip_data_id: Option<u32>,
         result: anyhow::Result<RemoteTransferAction>,
     ) {
         match result {
@@ -101,7 +95,6 @@ impl TextClipboardBackend {
                         transfer_id,
                         "failed to request remote RDP clipboard file contents"
                     );
-                    self.release_remote_lock(clip_data_id);
                     let _ = self.output_tx.send(HelperEvent::ClipboardTransferFailed {
                         transfer_id,
                         message: "RDP clipboard channel closed during the file transfer"
@@ -110,16 +103,11 @@ impl TextClipboardBackend {
                 }
             }
             Ok(RemoteTransferAction::Ready(paths)) => {
-                // The whole file list is staged locally: nothing needs the
-                // remote's File Stream data any more, so let go of the lock
-                // now instead of waiting out the inactivity timeout.
                 tracing::info!(
                     transfer_id,
-                    clip_data_id,
                     files = paths.len(),
-                    "remote clipboard files fully staged; releasing lock and notifying host"
+                    "remote clipboard files fully staged"
                 );
-                self.release_remote_lock(clip_data_id);
                 if self
                     .output_tx
                     .send(HelperEvent::ClipboardFilesReady { transfer_id, paths })
@@ -134,36 +122,11 @@ impl TextClipboardBackend {
             Ok(RemoteTransferAction::Ignore) => {}
             Err(error) => {
                 tracing::warn!(?error, transfer_id, "RDP clipboard transfer failed");
-                self.release_remote_lock(clip_data_id);
                 let _ = self.output_tx.send(HelperEvent::ClipboardTransferFailed {
                     transfer_id,
                     message: error.to_string(),
                 });
             }
-        }
-    }
-
-    /// Drops the outgoing clipboard lock a download was holding.
-    ///
-    /// The lock asks the remote to retain its File Stream data for the whole
-    /// download ([MS-RDPECLIP] 2.2.4.1). While it is held Windows `rdpclip.exe`
-    /// also keeps the *source* files open, so the user cannot delete or move
-    /// them. We release it as soon as we know we are done with it — the download
-    /// finished, failed, or was cancelled — rather than waiting for the
-    /// inactivity timeout. Releasing an id that is unknown or already released
-    /// is a no-op on the cliprdr side.
-    fn release_remote_lock(&self, clip_data_id: Option<u32>) {
-        let Some(clip_data_id) = clip_data_id else {
-            return;
-        };
-        if let Err(error) =
-            self.send_clipboard(ClipboardMessage::ReleaseFileLock(LockDataId(clip_data_id)))
-        {
-            tracing::warn!(
-                ?error,
-                clip_data_id,
-                "failed to release the remote RDP clipboard lock"
-            );
         }
     }
 
