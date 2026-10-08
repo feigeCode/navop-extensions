@@ -258,7 +258,7 @@ public class GBase8sIpcServerTest {
         assertFalse(dump.toString(), dump.has("error"));
         JsonNode statements = dump.get("result").get("statements");
         assertEquals(4, statements.size());
-        assertEquals("CREATE TABLE gbasedbt.sample (id INTEGER NOT NULL, name VARCHAR(64) DEFAULT abc, created_at DATETIME YEAR TO FRACTION(3), price DECIMAL(10,2), PRIMARY KEY (id));", statements.get(0).asText());
+        assertEquals("CREATE TABLE gbasedbt.sample (id INTEGER NOT NULL, name VARCHAR(64) DEFAULT abc, created_at DATETIME YEAR TO FRACTION(3), price DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (id));", statements.get(0).asText());
         assertEquals("COMMENT ON TABLE gbasedbt.sample IS 'Sample table comment';", statements.get(1).asText());
         assertEquals("COMMENT ON COLUMN gbasedbt.sample.name IS 'Sample column comment';", statements.get(2).asText());
         assertEquals("CREATE INDEX zz_sample_name_id ON gbasedbt.sample (name, id);", statements.get(3).asText());
@@ -567,6 +567,10 @@ public class GBase8sIpcServerTest {
                 statement.execute("INSERT INTO syscolumnsext VALUES (100, 4, 'price', 'DECIMAL')");
                 statement.execute("CREATE TABLE sysdefaults (tabid INT, colno INT, type CHAR(1), default VARCHAR(255), class CHAR(1))");
                 statement.execute("INSERT INTO sysdefaults VALUES (100, 2, 'L', 'AAAAAw abc', 'T')");
+                // Regression: real GBase 8s servers also emit shorter encoded
+                // headers ("AAA 0"); the old "AAAA" guard leaked them into the
+                // exported DDL as "DEFAULT AAA 0" (-201 syntax on re-import).
+                statement.execute("INSERT INTO sysdefaults VALUES (100, 4, 'L', 'AAA 0', 'T')");
                 statement.execute("CREATE TABLE syscomms (tabid INT, comments VARCHAR(255))");
                 statement.execute("INSERT INTO syscomms VALUES (100, 'Sample table comment')");
                 statement.execute("INSERT INTO syscomms VALUES (101, 'Sample view comment')");

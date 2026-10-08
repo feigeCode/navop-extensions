@@ -2043,13 +2043,32 @@ public final class GBase8sIpcServer {
         if (text.isEmpty()) {
             return null;
         }
-        if (text.startsWith("AAAA")) {
+        if (hasEncodedDefaultHeader(text)) {
             int split = firstWhitespace(text);
             if (split >= 0 && split + 1 < text.length()) {
                 text = text.substring(split + 1).trim();
             }
         }
         return text.isEmpty() ? null : text;
+    }
+
+    /**
+     * GBase 8s stores some literal defaults in sysdefaults.default behind an
+     * encoded binary header that surfaces as a run of 'A' bytes in front of
+     * the usable literal. Observed shapes: "AAAAAw abc" (literal "abc") and
+     * "AAA 0" (literal "0"). The old guard required the exact "AAAA" prefix,
+     * which let shorter variants such as "AAA 0" through and produced
+     * "DEFAULT AAA 0" in exported DDL -- a -201 syntax error on re-import.
+     * Any leading run of two or more 'A' bytes is treated as a header; a
+     * header with no whitespace in front of the literal (firstWhitespace
+     * returning -1) is left untouched, so values like "AA10" survive intact.
+     */
+    private static boolean hasEncodedDefaultHeader(String text) {
+        int run = 0;
+        while (run < text.length() && text.charAt(run) == 'A') {
+            run++;
+        }
+        return run >= 2 && run < text.length();
     }
 
     private String emptyIfNull(String value) {
