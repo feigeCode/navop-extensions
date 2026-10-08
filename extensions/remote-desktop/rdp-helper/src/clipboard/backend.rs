@@ -15,6 +15,7 @@ use crate::rdp::HelperInputSender;
 
 use super::controller::{TextClipboardState, lock_state};
 use super::staging::cleanup_stale_transfers;
+use crate::clipboard::REMOTE_TEXT_AFTER_FILES_SUPPRESS;
 
 #[derive(Clone)]
 pub(super) struct TextClipboardBackendFactory {
@@ -169,6 +170,24 @@ impl TextClipboardBackend {
             .iter()
             .any(|format| format.id() == ClipboardFormatId::CF_UNICODETEXT);
         let mut state = lock_state(&self.shared);
+        if unicode
+            && state
+                .last_remote_file_ready_at
+                .is_some_and(|at| at.elapsed() < REMOTE_TEXT_AFTER_FILES_SUPPRESS)
+        {
+            // rdpclip re-announces a just-copied .txt file's text format after
+            // the file stream transfer; pulling it would overwrite the file
+            // clipboard the host just installed with plain text.
+            tracing::info!(
+                elapsed_ms = state
+                    .last_remote_file_ready_at
+                    .map(|at| at.elapsed().as_millis())
+                    .unwrap_or_default(),
+                "ignoring remote text announcement right after a file transfer \
+                 (same clipboard generation re-announcement)"
+            );
+            return;
+        }
         state.pending_remote = None;
         state.remote_transfer = None;
         state.waiting_remote_text = unicode;

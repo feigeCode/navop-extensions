@@ -66,6 +66,12 @@ impl TextClipboardBackend {
         ) {
             state.remote_transfer = Some(transfer);
         }
+        if matches!(action, Ok(RemoteTransferAction::Ready(_))) {
+            // rdpclip may re-announce the copied file's text format shortly
+            // after this point; record when the files landed so
+            // begin_remote_text can suppress that same-generation text.
+            state.last_remote_file_ready_at = Some(std::time::Instant::now());
+        }
         drop(state);
         self.dispatch_remote_result(transfer_id, clip_data_id, action);
     }

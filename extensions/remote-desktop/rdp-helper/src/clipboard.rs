@@ -27,6 +27,14 @@ pub(crate) const REMOTE_CLIPBOARD_TRANSFER_BIT: u64 = 1 << 63;
 pub(crate) const LOCAL_CLIPBOARD_TRANSFER_MASK: u64 = REMOTE_CLIPBOARD_TRANSFER_BIT - 1;
 pub(crate) const FIRST_SEQUENCE_ID: u64 = 1;
 
+/// Window during which a remote *text* announcement right after a remote file
+/// transfer is treated as rdpclip re-announcing the same clipboard generation
+/// and ignored. Windows delayed-rendering can deliver the text format of a
+/// copied .txt file after the file stream has already been pulled; honouring
+/// it would have the host overwrite the installed file clipboard.
+pub(crate) const REMOTE_TEXT_AFTER_FILES_SUPPRESS: std::time::Duration =
+    std::time::Duration::from_secs(3);
+
 pub use controller::TextClipboardController;
 
 pub fn text_clipboard(

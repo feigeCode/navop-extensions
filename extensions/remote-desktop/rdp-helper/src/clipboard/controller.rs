@@ -128,6 +128,13 @@ pub(super) struct TextClipboardState {
     pub(super) waiting_remote_text: bool,
     pub(super) next_remote_sequence: u64,
     pub(super) next_stream_id: u32,
+    /// When the most recent remote file transfer finished staging. Windows
+    /// rdpclip re-announces a copied .txt file's *text* format shortly after
+    /// the file transfer completes (delayed rendering / re-announcement);
+    /// pulling that text would have the host overwrite the just-installed
+    /// file clipboard with plain text. Text announcements within
+    /// [`REMOTE_TEXT_AFTER_FILES_SUPPRESS`] of a file transfer are ignored.
+    pub(super) last_remote_file_ready_at: Option<std::time::Instant>,
 }
 
 impl TextClipboardState {
@@ -141,6 +148,7 @@ impl TextClipboardState {
             waiting_remote_text: false,
             next_remote_sequence: FIRST_SEQUENCE_ID,
             next_stream_id: 1,
+            last_remote_file_ready_at: None,
         }
     }
 
