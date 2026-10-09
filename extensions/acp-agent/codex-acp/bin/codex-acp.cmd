@@ -1,6 +1,6 @@
 @echo off
 set "PACKAGE=%CODEX_ACP_PACKAGE%"
-if "%PACKAGE%"=="" set "PACKAGE=@agentclientprotocol/codex-acp@1.0.1"
+if "%PACKAGE%"=="" set "PACKAGE=@agentclientprotocol/codex-acp@2.1.1"
 
 where npm >nul 2>nul
 if errorlevel 1 (

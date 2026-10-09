@@ -1,0 +1,18 @@
+{
+  "id": "gemini-acp",
+  "name": "Gemini CLI",
+  "description": "将 Google Gemini CLI 接入 Navop 的 Shell ACP 智能体扩展，使用 Gemini CLI 的原生 --experimental-acp 模式，可在工作区中进行代码理解、编辑和自动化开发任务；需要本机已安装并完成 Google 账号或 API Key 登录的 Gemini CLI。 Shell ACP agent extension that connects the Google Gemini CLI to Navop via its native --experimental-acp mode for code understanding, editing, and automated development tasks; requires a locally installed and authenticated Gemini CLI.",
+  "version": "0.1.0",
+  "agents": [
+    {
+      "id": "gemini-acp",
+      "name": "Gemini CLI",
+      "transport": {
+        "type": "stdio",
+        "command": "bin/gemini-acp",
+        "args": [],
+        "env": {}
+      }
+    }
+  ]
+}

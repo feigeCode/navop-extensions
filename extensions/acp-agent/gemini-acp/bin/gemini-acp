@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+set -eu
+
+find_gemini() {
+  if [ -n "${GEMINI_EXECUTABLE:-}" ] && [ -x "$GEMINI_EXECUTABLE" ]; then
+    printf '%s\n' "$GEMINI_EXECUTABLE"
+    return 0
+  fi
+
+  if command -v gemini >/dev/null 2>&1; then
+    command -v gemini
+    return 0
+  fi
+
+  for candidate in "$HOME"/.nvm/versions/node/*/bin/gemini \
+                   "$HOME"/.local/bin/gemini \
+                   /opt/homebrew/bin/gemini \
+                   /usr/local/bin/gemini; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+GEMINI_BIN="$(find_gemini || true)"
+if [ -z "$GEMINI_BIN" ]; then
+  echo "gemini was not found. Install the Gemini CLI before starting the Gemini ACP agent." >&2
+  exit 127
+fi
+
+exec "$GEMINI_BIN" --experimental-acp "$@"

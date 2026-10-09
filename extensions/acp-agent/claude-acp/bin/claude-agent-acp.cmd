@@ -1,6 +1,6 @@
 @echo off
 set "PACKAGE=%CLAUDE_AGENT_ACP_PACKAGE%"
-if "%PACKAGE%"=="" set "PACKAGE=@agentclientprotocol/claude-agent-acp@0.52.0"
+if "%PACKAGE%"=="" set "PACKAGE=@agentclientprotocol/claude-agent-acp@0.88.0"
 
 where npm >nul 2>nul
 if errorlevel 1 (
