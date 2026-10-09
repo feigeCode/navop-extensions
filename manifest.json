@@ -36,8 +36,8 @@
       "id": "claude-acp",
       "kind": "acp_agent",
       "name": "Claude Code",
-      "version": "0.1.0",
-      "release_tag": "claude-acp-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "claude-acp-v0.1.1",
       "description": "通过 Claude Agent ACP 将 Anthropic Claude Code 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、编辑和任务协作；需要 Node.js/npm 及适配器支持的 Claude Code 登录方式。 Shell ACP agent extension that connects Anthropic Claude Code to Navop through Claude Agent ACP for code analysis, editing, and task collaboration; requires Node.js/npm and a supported Claude Code authentication method.",
       "file_extensions": [],
       "manifest": "claude-acp/manifest.json"
@@ -46,8 +46,8 @@
       "id": "codex-acp",
       "kind": "acp_agent",
       "name": "Codex",
-      "version": "0.1.0",
-      "release_tag": "codex-acp-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "codex-acp-v0.1.1",
       "description": "将 OpenAI Codex 接入 Navop 的 Shell ACP 智能体扩展，可在工作区中进行代码分析、修改、命令执行和开发任务协作；需要 Node.js/npm 及 Codex ACP 适配器支持的认证方式。 Shell ACP agent extension that connects OpenAI Codex to Navop for code analysis, editing, command execution, and development workflows; requires Node.js/npm and an authentication method supported by the Codex ACP adapter.",
       "file_extensions": [],
       "manifest": "codex-acp/manifest.json"
