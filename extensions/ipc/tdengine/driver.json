@@ -2,7 +2,7 @@
   "id": "tdengine",
   "name": "TDengine",
   "description": "基于官方 taos 连接器(WebSocket 通道,ws-rustls 纯 Rust 实现)的 TDengine 时序数据库 IPC 驱动,支持连接管理、SQL 查询、超级表/子表/普通表元数据浏览及数据导入导出。 IPC driver for TDengine built on the official taos connector (WebSocket over taosAdapter port 6041), with connection management, SQL queries, super/child/normal table metadata browsing, and data import/export.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "onetcli": ">=0.10.0"
   },
