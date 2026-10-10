@@ -229,7 +229,9 @@ func oracleColumnsSQL(cfg dbipc.Config, database, schema, table string) string {
 	if owner != "" {
 		ownerFilter = fmt.Sprintf(" AND c.OWNER = '%s'", upperEscapeSQL(owner))
 	}
-	return fmt.Sprintf("SELECT c.COLUMN_ID, c.COLUMN_NAME, c.DATA_TYPE, c.NULLABLE, c.DATA_DEFAULT, NVL(cc.COMMENTS, '') FROM ALL_TAB_COLUMNS c LEFT JOIN ALL_COL_COMMENTS cc ON cc.OWNER = c.OWNER AND cc.TABLE_NAME = c.TABLE_NAME AND cc.COLUMN_NAME = c.COLUMN_NAME WHERE c.TABLE_NAME = '%s'%s ORDER BY c.COLUMN_ID", upperEscapeSQL(table), ownerFilter)
+	// 类型列拼上长度/精度（与 navop 原生 Oracle 插件 list_columns 一致），
+	// 否则 VARCHAR2(255)/NUMBER(10,4) 会被设计器读成裸类型。
+	return fmt.Sprintf("SELECT c.COLUMN_ID, c.COLUMN_NAME, c.DATA_TYPE || CASE WHEN c.DATA_TYPE IN ('VARCHAR','VARCHAR2','NVARCHAR2','CHAR','NCHAR','RAW') THEN '(' || c.CHAR_LENGTH || ')' WHEN c.DATA_TYPE = 'NUMBER' AND c.DATA_PRECISION IS NOT NULL THEN CASE WHEN c.DATA_SCALE > 0 THEN '(' || c.DATA_PRECISION || ',' || c.DATA_SCALE || ')' ELSE '(' || c.DATA_PRECISION || ')' END ELSE '' END, c.NULLABLE, c.DATA_DEFAULT, NVL(cc.COMMENTS, '') FROM ALL_TAB_COLUMNS c LEFT JOIN ALL_COL_COMMENTS cc ON cc.OWNER = c.OWNER AND cc.TABLE_NAME = c.TABLE_NAME AND cc.COLUMN_NAME = c.COLUMN_NAME WHERE c.TABLE_NAME = '%s'%s ORDER BY c.COLUMN_ID", upperEscapeSQL(table), ownerFilter)
 }
 
 func oracleIndexesSQL(cfg dbipc.Config, database, schema, table string) string {

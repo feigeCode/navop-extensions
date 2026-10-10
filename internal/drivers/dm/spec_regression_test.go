@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+// 回归：类型列必须拼上精度，否则 VARCHAR2(255)/DECIMAL(10,4) 被设计器读成裸类型。
+func TestColumnsSQLProjectsPrecision(t *testing.T) {
+	cfg := ConfigFromWireNoError(t, map[string]any{
+		"host":     "127.0.0.1",
+		"username": "SYSDBA",
+	})
+	sql := Spec().SchemaSQL.Columns(cfg, "AI_M_TEST", "ai-manager-330-dev", "t")
+	for _, want := range []string{
+		"c.CHAR_LENGTH",
+		"c.DATA_PRECISION",
+		"c.DATA_SCALE",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("columns SQL %q does not contain %q", sql, want)
+		}
+	}
+}
+
 // 回归：达梦 ALL_COL_COMMENTS 的 OWNER 列不可用（视图 SCH→UR 关联给出别的用户名），
 // 按 OWNER 关联列注释永远读成空，表设计器里改完注释就“不生效”。
 func TestColumnsSQLReadsColumnCommentsBySchemaName(t *testing.T) {
