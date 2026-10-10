@@ -21,8 +21,8 @@ use extension_protocol::query::{
     ExecBatchResult, ExecRunParams, ExecRunResult, QueryStartParams,
 };
 use extension_protocol::schema::{
-    ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams, ObjectInfo, ObjectKind,
-    ObjectViewKind, ObjectViewParams, ObjectsParams, ViewsParams,
+    ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams, DumpDdlParams, DumpDdlResult,
+    ObjectInfo, ObjectKind, ObjectViewKind, ObjectViewParams, ObjectsParams, ViewsParams,
 };
 use serde_json::Value;
 
@@ -535,6 +535,51 @@ pub async fn handle_schema_views(
         serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
     let _ = p;
     Ok(serde_json::json!([]))
+}
+
+/// `schema/dump_ddl`：TDengine 官方 DDL——`SHOW CREATE TABLE`。
+/// 普通表/子表(带 USING)/超级表都适用。取不到就报错，不做兑底拼装。
+pub async fn handle_schema_dump_ddl(
+    session: &TdSession,
+    params: &Value,
+) -> Result<Value, ProtocolError> {
+    let p: DumpDdlParams =
+        serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
+    let mut statements = Vec::new();
+    for object in &p.objects {
+        if !matches!(object.kind, ObjectKind::Table) {
+            continue;
+        }
+        let table = object.name.trim();
+        if table.is_empty() {
+            continue;
+        }
+        let database = resolve_database(session, object.database.as_deref()).await?;
+        let qualified = format!(
+            "{}.{}",
+            quote_identifier(&database),
+            quote_identifier(table)
+        );
+        let sql = format!("SHOW CREATE TABLE {qualified}");
+        let (_, rows) = session
+            .query_table(&sql, "dump table ddl")
+            .await
+            .map_err(ta_sql_error)?;
+        // SHOW CREATE TABLE 返回 (table, create_sql)。
+        let ddl = rows
+            .first()
+            .and_then(|row| row.get(1).cloned().flatten())
+            .filter(|ddl| !ddl.trim().is_empty())
+            .ok_or_else(|| {
+                protocol_error_from_anyhow(
+                    error_codes::SQL_UNKNOWN_TABLE,
+                    anyhow::anyhow!("SHOW CREATE TABLE returned no DDL for {qualified}"),
+                )
+            })?;
+        statements.push(ddl);
+    }
+    let result = DumpDdlResult { statements };
+    serde_json::to_value(result).map_err(serialize_error)
 }
 
 /// `schema/object_view`:TD 特有列视图。

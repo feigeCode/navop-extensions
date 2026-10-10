@@ -1782,8 +1782,10 @@ func (s *Server) handleSchemaDumpDDL(ctx context.Context, req ipc.Message) ipc.M
 	// The host exports one table per `schema/dump_ddl` request; each object's
 	// provider SQL is expected to return one row per statement with the DDL
 	// text in the last column (e.g. DBMS_METADATA.GET_DDL or SHOW CREATE
-	// TABLE). Any provider failure is non-fatal: an empty result lets the host
-	// fall back to its shared column-based DDL builder.
+	// TABLE). A provider failure is fatal: the host deliberately refuses to
+	// fall back to its shared column-based DDL builder when the driver
+	// declares this method (that builder drops identity/precision details),
+	// so swallowing the error would surface as a missing statement upstream.
 	statements := []string{}
 	for _, object := range p.Objects {
 		if !isTableKind(object.Kind) || strings.TrimSpace(object.Name) == "" {
@@ -1800,7 +1802,7 @@ func (s *Server) handleSchemaDumpDDL(ctx context.Context, req ipc.Message) ipc.M
 			return map[string]any{"ddl": stringCell(cols, len(cols)-1)}
 		})
 		if err != nil {
-			return s.ok(req.ID, map[string]any{"statements": []string{}})
+			return s.errFromError(req.ID, ErrSQLSyntax, fmt.Errorf("dump DDL for %s: %w", object.Name, err))
 		}
 		for _, row := range rows {
 			if ddl, ok := row["ddl"].(string); ok && strings.TrimSpace(ddl) != "" {

@@ -32,9 +32,10 @@ use extension_protocol::query::{
 };
 use extension_protocol::row::{CellValue, ColumnSpec, Row};
 use extension_protocol::schema::{
-    CheckInfo, ChecksParams, ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams, FunctionArg,
-    FunctionInfo, FunctionsParams, IndexInfo, IndexesParams, ObjectInfo, ObjectKind, ObjectsParams,
-    SchemaInfo, SchemasParams, ViewInfo, ViewsParams,
+    CheckInfo, ChecksParams, ColumnInfo, ColumnsParams, DatabaseInfo, DatabasesParams,
+    DumpDdlParams, DumpDdlResult, FunctionArg, FunctionInfo, FunctionsParams, IndexInfo,
+    IndexesParams, ObjectInfo, ObjectKind, ObjectsParams, SchemaInfo, SchemasParams, ViewInfo,
+    ViewsParams,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1233,6 +1234,95 @@ pub fn handle_schema_columns(
     serde_json::to_value(out).map_err(params_deserialize_error)
 }
 
+/// `schema/dump_ddl`：表 DDL 从 `duckdb_tables()` 取 catalog 原文，
+/// 索引从 `duckdb_indexes()` 补齐。没有共享兑底——取不到就报错，
+/// 拼出来的结构会丢方言细节。
+pub fn handle_schema_dump_ddl(
+    state: &mut ConnectionState,
+    params: &Value,
+) -> Result<Value, ProtocolError> {
+    let p: DumpDdlParams =
+        serde_json::from_value(params.clone()).map_err(params_deserialize_error)?;
+    let mut statements = Vec::new();
+    for object in &p.objects {
+        if !matches!(object.kind, ObjectKind::Table) {
+            continue;
+        }
+        let session = state
+            .get_conn(p.conn_id)
+            .ok_or_else(|| unknown_conn(p.conn_id))?;
+        let conn = session
+            .connection()
+            .map_err(|e| protocol_error_from_anyhow(error_codes::NOT_INITIALIZED, e))?;
+        let current_catalog = current_duckdb_catalog(session)?;
+
+        let mut sql = String::from(
+            "SELECT sql FROM duckdb_tables() WHERE table_name = ? AND internal = FALSE",
+        );
+        let mut values = vec![object.name.clone()];
+        append_database_schema_filters(
+            &mut sql,
+            &mut values,
+            object.database.clone(),
+            object.schema.clone(),
+            "database_name",
+            "schema_name",
+            &current_catalog,
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| {
+            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+        })?;
+        let table_ddl: Option<String> = stmt
+            .query_row(duckdb::params_from_iter(values.iter()), |row| row.get(0))
+            .map_err(|e| {
+                protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+            })?;
+        let table_ddl = table_ddl.filter(|ddl| !ddl.trim().is_empty()).ok_or_else(|| {
+            protocol_error_from_anyhow(
+                error_codes::INTERNAL_ERROR,
+                anyhow::anyhow!("duckdb_tables() has no DDL for table `{}`", object.name),
+            )
+        })?;
+        statements.push(table_ddl);
+
+        // 索引 DDL：同一张表的全部非内部索引。
+        let mut index_sql = String::from(
+            "SELECT sql FROM duckdb_indexes() WHERE table_name = ? AND internal = FALSE \
+             AND index_name IS NOT NULL ORDER BY index_name",
+        );
+        let mut index_values = vec![object.name.clone()];
+        append_database_schema_filters(
+            &mut index_sql,
+            &mut index_values,
+            object.database.clone(),
+            object.schema.clone(),
+            "database_name",
+            "schema_name",
+            &current_catalog,
+        );
+        let mut index_stmt = conn.prepare(&index_sql).map_err(|e| {
+            protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+        })?;
+        let index_rows = index_stmt
+            .query_map(duckdb::params_from_iter(index_values.iter()), |row| {
+                let ddl: Option<String> = row.get(0)?;
+                Ok(ddl)
+            })
+            .map_err(|e| {
+                protocol_error_from_anyhow(error_codes::INTERNAL_ERROR, anyhow::Error::from(e))
+            })?;
+        for row in index_rows {
+            if let Some(Some(ddl)) =
+                row.ok().map(|ddl| ddl.filter(|ddl| !ddl.trim().is_empty()))
+            {
+                statements.push(ddl);
+            }
+        }
+    }
+    let result = DumpDdlResult { statements };
+    serde_json::to_value(result).map_err(params_deserialize_error)
+}
+
 pub fn handle_schema_views(
     state: &mut ConnectionState,
     params: &Value,
@@ -1748,6 +1838,7 @@ fn declared_methods() -> &'static [&'static str] {
         method::SCHEMA_INDEXES,
         method::SCHEMA_CHECKS,
         method::SCHEMA_FUNCTIONS,
+        method::SCHEMA_DUMP_DDL,
         method::DDL_BUILD,
         method::DDL_BUILD_CREATE_TABLE,
         method::DDL_BUILD_ALTER_TABLE,

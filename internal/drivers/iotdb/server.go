@@ -108,6 +108,7 @@ func declaredMethods() []string {
 		"schema/indexes",
 		"schema/checks",
 		"schema/functions",
+		"schema/dump_ddl",
 		"ddl/build",
 		"ddl/build_create_table",
 		"ddl/build_alter_table",
@@ -184,6 +185,8 @@ func (s *Server) Handle(ctx context.Context, req ipc.Message) ipc.Message {
 		return s.handleSchemaColumns(req)
 	case "schema/views", "schema/indexes", "schema/checks":
 		return s.handleEmptySchemaList(req)
+	case "schema/dump_ddl":
+		return s.handleSchemaDumpDdl(req)
 	case "schema/functions":
 		return s.handleSchemaFunctions(req)
 	case "ddl/build":
@@ -620,6 +623,63 @@ func (s *Server) handleEmptySchemaList(req ipc.Message) ipc.Message {
 		return *errMsg
 	}
 	return okResp(req.ID, []map[string]any{})
+}
+
+// handleSchemaDumpDdl 为 IoTDB 设备生成 CREATE TIMESERIES 语句。
+// IoTDB 没有服务器端 get_ddl；设备上的每个时间序列的官方 DDL 形态就是
+// CREATE TIMESERIES，带编码/压缩器属性。查询失败或设备无序列都报错，
+// 不回空列表——宿主对声明了 dump_ddl 的驱动不再兑底拼装。
+func (s *Server) handleSchemaDumpDdl(req ipc.Message) ipc.Message {
+	var p struct {
+		ConnID  uint64          `json:"conn_id"`
+		Objects []dumpDdlObject `json:"objects"`
+	}
+	if err := decode(req.Params, &p); err != nil {
+		return errRespFromError(req.ID, dbipc.ErrInvalidParams, err)
+	}
+	conn, ok := s.conns[p.ConnID]
+	if !ok {
+		return errResp(req.ID, dbipc.ErrUnknownConnID, fmt.Sprintf("unknown conn_id %d", p.ConnID))
+	}
+	statements := []string{}
+	for _, object := range p.Objects {
+		if strings.ToLower(strings.TrimSpace(object.Kind)) != "table" {
+			continue
+		}
+		table := strings.TrimSpace(object.Name)
+		if table == "" {
+			continue
+		}
+		prefix := effectivePrefix(conn.storageGroup(), object.Database, object.Schema)
+		tablePath := qualifyPath(prefix, table)
+		rows, err := queryRows(conn.session, "SHOW TIMESERIES "+tablePath+".*")
+		if err != nil {
+			return errRespFromError(req.ID, dbipc.ErrSQLSyntax, fmt.Errorf("dump DDL for %s: %w", tablePath, err))
+		}
+		created := 0
+		for _, row := range rows {
+			path := row.textAtName("Timeseries")
+			if path == "" {
+				path = row.textAt(0)
+			}
+			if path == "" {
+				continue
+			}
+			statements = append(statements, "CREATE TIMESERIES "+path)
+			created++
+		}
+		if created == 0 {
+			return errRespFromError(req.ID, dbipc.ErrSQLSyntax, fmt.Errorf("dump DDL for %s: device has no timeseries", tablePath))
+		}
+	}
+	return okResp(req.ID, map[string]any{"statements": statements})
+}
+
+type dumpDdlObject struct {
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Schema   string `json:"schema,omitempty"`
+	Database string `json:"database,omitempty"`
 }
 
 func (s *Server) handleSchemaFunctions(req ipc.Message) ipc.Message {

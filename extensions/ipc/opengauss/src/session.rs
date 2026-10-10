@@ -796,9 +796,16 @@ impl OpenGaussSession {
                         &object.name,
                     )? {
                         Some(ddl) => statements.push(ddl),
-                        None => statements.push(format!(
-                            "-- DDL dump for table {qualified} requires server-side pg_get_tabledef support"
-                        )),
+                        // The host refuses to fall back to its shared column
+                        // builder when this method is declared, so a missing
+                        // server-side provider must surface as an error — a
+                        // placeholder comment would silently drop the table
+                        // from the export.
+                        None => anyhow::bail!(
+                            "DDL dump for table {qualified} requires server-side \
+                             pg_get_tabledef support; refusing to fabricate a \
+                             lossy replacement"
+                        ),
                     }
                 }
                 _ => {}

@@ -163,6 +163,9 @@ impl AsyncDriverConnection for TdengineConnection {
             method::SCHEMA_OBJECTS => handlers::handle_schema_objects(&self.session, params).await,
             method::SCHEMA_COLUMNS => handlers::handle_schema_columns(&self.session, params).await,
             method::SCHEMA_VIEWS => handlers::handle_schema_views(&self.session, params).await,
+            method::SCHEMA_DUMP_DDL => {
+                handlers::handle_schema_dump_ddl(&self.session, params).await
+            }
             method::SCHEMA_OBJECT_VIEW => {
                 handlers::handle_schema_object_view(&self.session, params).await
             }
@@ -224,6 +227,7 @@ pub fn declared_methods() -> &'static [&'static str] {
         method::SCHEMA_OBJECTS,
         method::SCHEMA_COLUMNS,
         method::SCHEMA_VIEWS,
+        method::SCHEMA_DUMP_DDL,
         method::DDL_BUILD,
         method::DDL_BUILD_CREATE_TABLE,
         method::DDL_BUILD_ALTER_TABLE,

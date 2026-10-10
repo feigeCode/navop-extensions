@@ -139,6 +139,7 @@ impl DriverConnection for DuckDbConnection {
                 handlers::handle_schema_object_view(&mut self.state, params)
             }
             method::SCHEMA_COLUMNS => handlers::handle_schema_columns(&mut self.state, params),
+            method::SCHEMA_DUMP_DDL => handlers::handle_schema_dump_ddl(&mut self.state, params),
             method::SCHEMA_VIEWS => handlers::handle_schema_views(&mut self.state, params),
             method::SCHEMA_INDEXES => handlers::handle_schema_indexes(&mut self.state, params),
             method::SCHEMA_CHECKS => handlers::handle_schema_checks(&mut self.state, params),

@@ -49,6 +49,7 @@
     "schema/objects",
     "schema/columns",
     "schema/views",
+    "schema/dump_ddl",
     "ddl/build",
     "ddl/build_create_table",
     "ddl/build_alter_table",

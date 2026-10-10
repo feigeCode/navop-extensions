@@ -9,7 +9,9 @@
   "license": "MIT",
   "repository": "https://github.com/duckdb/duckdb",
   "homepage": "https://duckdb.org",
-  "authors": ["DuckDB Labs <info@duckdb.org>"],
+  "authors": [
+    "DuckDB Labs <info@duckdb.org>"
+  ],
   "dependencies": {
     "onetcli-sdk": "^1.0.0"
   },
@@ -26,7 +28,11 @@
     "single_file": true,
     "single_connection": true,
     "close_on_release": true,
-    "path_fields": ["host", "database", "extra_params.path"]
+    "path_fields": [
+      "host",
+      "database",
+      "extra_params.path"
+    ]
   },
   "methods": [
     "$/ping",
@@ -61,6 +67,7 @@
     "schema/indexes",
     "schema/checks",
     "schema/functions",
+    "schema/dump_ddl",
     "ddl/build",
     "ddl/build_create_table",
     "ddl/build_alter_table",
@@ -178,9 +185,15 @@
             "label_i18n_key": "ImportExport.run_sql_file",
             "icon": null,
             "targets": [
-              { "node_type": "Connection" },
-              { "node_type": "Database" },
-              { "node_type": "Schema" }
+              {
+                "node_type": "Connection"
+              },
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              }
             ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
@@ -192,7 +205,11 @@
             "id": "CloseConnection",
             "label_i18n_key": "Connection.close_connection",
             "icon": null,
-            "targets": [{ "node_type": "Connection" }],
+            "targets": [
+              {
+                "node_type": "Connection"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": false,
             "group": null,
@@ -203,7 +220,11 @@
             "id": "DeleteConnection",
             "label_i18n_key": "Connection.delete_connection",
             "icon": null,
-            "targets": [{ "node_type": "Connection" }],
+            "targets": [
+              {
+                "node_type": "Connection"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": false,
             "group": null,
@@ -215,9 +236,15 @@
             "label_i18n_key": "Table.new_table",
             "icon": null,
             "targets": [
-              { "node_type": "Database" },
-              { "node_type": "Schema" },
-              { "node_type": "TablesFolder" }
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              },
+              {
+                "node_type": "TablesFolder"
+              }
             ],
             "placement": "Both",
             "requires_active_connection": true,
@@ -229,7 +256,11 @@
             "id": "DesignTable",
             "label_i18n_key": "Table.design_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -241,9 +272,15 @@
             "label_i18n_key": "Query.new_query",
             "icon": null,
             "targets": [
-              { "node_type": "Database" },
-              { "node_type": "Schema" },
-              { "node_type": "QueriesFolder" }
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              },
+              {
+                "node_type": "QueriesFolder"
+              }
             ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
@@ -256,9 +293,15 @@
             "label_i18n_key": "Query.new_query",
             "icon": null,
             "targets": [
-              { "node_type": "QueriesFolder" },
-              { "node_type": "NamedQuery" },
-              { "node_type": "Schema" }
+              {
+                "node_type": "QueriesFolder"
+              },
+              {
+                "node_type": "NamedQuery"
+              },
+              {
+                "node_type": "Schema"
+              }
             ],
             "placement": "Toolbar",
             "requires_active_connection": true,
@@ -270,7 +313,11 @@
             "id": "OpenTableData",
             "label_i18n_key": "Table.view_data",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -281,7 +328,11 @@
             "id": "OpenTableData",
             "label_i18n_key": "Table.view_data",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "Toolbar",
             "requires_active_connection": true,
             "group": null,
@@ -292,7 +343,11 @@
             "id": "RenameTable",
             "label_i18n_key": "Table.rename_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
             "group": null,
@@ -303,7 +358,11 @@
             "id": "CopyTable",
             "label_i18n_key": "Table.copy_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
             "group": null,
@@ -314,7 +373,11 @@
             "id": "TruncateTable",
             "label_i18n_key": "Table.truncate_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
             "group": null,
@@ -325,7 +388,11 @@
             "id": "DeleteTable",
             "label_i18n_key": "Table.delete_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -336,7 +403,11 @@
             "id": "DeleteTable",
             "label_i18n_key": "Table.delete_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "Toolbar",
             "requires_active_connection": true,
             "group": null,
@@ -348,9 +419,15 @@
             "label_i18n_key": "ImportExport.export_structure",
             "icon": null,
             "targets": [
-              { "node_type": "Database" },
-              { "node_type": "Schema" },
-              { "node_type": "Table" }
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              },
+              {
+                "node_type": "Table"
+              }
             ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
@@ -363,9 +440,15 @@
             "label_i18n_key": "ImportExport.export_data",
             "icon": null,
             "targets": [
-              { "node_type": "Database" },
-              { "node_type": "Schema" },
-              { "node_type": "Table" }
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              },
+              {
+                "node_type": "Table"
+              }
             ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
@@ -378,9 +461,15 @@
             "label_i18n_key": "ImportExport.export_structure_and_data",
             "icon": null,
             "targets": [
-              { "node_type": "Database" },
-              { "node_type": "Schema" },
-              { "node_type": "Table" }
+              {
+                "node_type": "Database"
+              },
+              {
+                "node_type": "Schema"
+              },
+              {
+                "node_type": "Table"
+              }
             ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
@@ -392,7 +481,11 @@
             "id": "ImportData",
             "label_i18n_key": "ImportExport.import_data",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
             "group": null,
@@ -403,7 +496,11 @@
             "id": "ExportData",
             "label_i18n_key": "ImportExport.export_table",
             "icon": null,
-            "targets": [{ "node_type": "Table" }],
+            "targets": [
+              {
+                "node_type": "Table"
+              }
+            ],
             "placement": "ContextMenu",
             "requires_active_connection": true,
             "group": null,
@@ -414,7 +511,11 @@
             "id": "OpenViewData",
             "label_i18n_key": "View.view_data",
             "icon": null,
-            "targets": [{ "node_type": "View" }],
+            "targets": [
+              {
+                "node_type": "View"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -425,7 +526,11 @@
             "id": "OpenViewData",
             "label_i18n_key": "View.view_data",
             "icon": null,
-            "targets": [{ "node_type": "View" }],
+            "targets": [
+              {
+                "node_type": "View"
+              }
+            ],
             "placement": "Toolbar",
             "requires_active_connection": true,
             "group": null,
@@ -436,7 +541,11 @@
             "id": "DeleteView",
             "label_i18n_key": "View.delete_view",
             "icon": null,
-            "targets": [{ "node_type": "View" }],
+            "targets": [
+              {
+                "node_type": "View"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -447,7 +556,11 @@
             "id": "DeleteView",
             "label_i18n_key": "View.delete_view",
             "icon": null,
-            "targets": [{ "node_type": "View" }],
+            "targets": [
+              {
+                "node_type": "View"
+              }
+            ],
             "placement": "Toolbar",
             "requires_active_connection": true,
             "group": null,
@@ -458,7 +571,11 @@
             "id": "OpenNamedQuery",
             "label_i18n_key": "Query.open_query",
             "icon": null,
-            "targets": [{ "node_type": "NamedQuery" }],
+            "targets": [
+              {
+                "node_type": "NamedQuery"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -469,7 +586,11 @@
             "id": "RenameQuery",
             "label_i18n_key": "Query.rename_query",
             "icon": null,
-            "targets": [{ "node_type": "NamedQuery" }],
+            "targets": [
+              {
+                "node_type": "NamedQuery"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,
@@ -480,7 +601,11 @@
             "id": "DeleteQuery",
             "label_i18n_key": "Query.delete_query",
             "icon": null,
-            "targets": [{ "node_type": "NamedQuery" }],
+            "targets": [
+              {
+                "node_type": "NamedQuery"
+              }
+            ],
             "placement": "Both",
             "requires_active_connection": true,
             "group": null,

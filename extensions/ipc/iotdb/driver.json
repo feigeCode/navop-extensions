@@ -54,6 +54,7 @@
     "schema/indexes",
     "schema/checks",
     "schema/functions",
+    "schema/dump_ddl",
     "ddl/build",
     "ddl/build_create_table",
     "ddl/build_alter_table",

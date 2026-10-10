@@ -1944,6 +1944,31 @@ func TestSchemaDumpDDLReturnsEmptyWhenDriverHasNoProvider(t *testing.T) {
 	}
 }
 
+func TestSchemaDumpDDLErrorsWhenProviderQueryFails(t *testing.T) {
+	driverName, state := registerStreamingDriver(t, nil)
+	state.queryErr = errors.New("DBMS_METADATA unavailable")
+	spec := testSpecWithSQLDriver(driverName)
+	spec.SchemaSQL.DumpDDL = func(cfg Config, database, schema, table string) string {
+		return "SELECT ddl FROM ddl_provider"
+	}
+	server := NewServer(spec, nil)
+	server.initialized = true
+
+	connID := openTestConn(t, server)
+	resp := server.Handle(context.Background(), ipc.Message{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`2`),
+		Method:  "schema/dump_ddl",
+		Params:  []byte(fmt.Sprintf(`{"conn_id":%d,"objects":[{"kind":"table","name":"demo","schema":"app","database":"main"}],"options":{}}`, connID)),
+	})
+	if resp.Error == nil {
+		t.Fatalf("dump_ddl must propagate provider failures instead of returning empty statements: %s", resp.Result)
+	}
+	if !strings.Contains(fmt.Sprint(resp.Error.Message), "demo") {
+		t.Fatalf("dump_ddl error should name the failing table: %#v", resp.Error)
+	}
+}
+
 func TestSchemaDumpDDLUsesLastColumnAndSkipsNonTables(t *testing.T) {
 	driverName, state := registerStreamingDriver(t, [][]driver.Value{
 		{"", "CREATE TABLE app.demo (id INT NOT NULL)"},
@@ -2106,6 +2131,7 @@ type streamingDriverState struct {
 	rows          [][]driver.Value
 	columns       []string
 	typeNames     []string
+	queryErr      error
 	queryCalls    int32
 	nextCalls     int32
 	closeCalls    int32
@@ -2170,6 +2196,9 @@ func (c *streamingConn) QueryContext(_ context.Context, query string, args []dri
 	}
 	c.state.lastQuerySQL = query
 	c.state.lastQueryArgs = cloneNamedValues(args)
+	if c.state.queryErr != nil {
+		return nil, c.state.queryErr
+	}
 	return &streamingRows{state: c.state, rows: c.state.rows}, nil
 }
 
