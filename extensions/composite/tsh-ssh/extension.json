@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.tsh-ssh",
+  "name": "Teleport SSH (tsh)",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "Static composite extension that opens a Teleport server terminal by running `tsh ssh <target>` as a local process. The saved connection only stores the target (user@server), and no provider process is needed. 静态复合扩展，通过 Teleport 的 tsh ssh 打开服务器终端：连接只保存目标（user@server），由宿主以本地进程运行 tsh ssh，无需 provider 进程。",
+  "categories": ["developer-tools"],
+  "keywords": ["teleport", "tsh", "ssh", "terminal"],
+  "engines": {
+    "onetcli": ">=0.21.0"
+  },
+  "api": {
+    "extension": "1.0"
+  },
+  "contributes": {
+    "connections": [
+      {
+        "id": "tsh-ssh",
+        "label": "Teleport SSH (tsh)",
+        "description": "Open a shell on a Teleport-protected server with `tsh ssh`.",
+        "terminal": {
+          "command": "tsh",
+          "args": ["ssh", "{{target}}"],
+          "env": {
+            "TELEPORT_PROXY": "{{proxy}}",
+            "TELEPORT_CLUSTER": "{{cluster}}"
+          },
+          "title": "{{target}}"
+        },
+        "form": {
+          "tabs": [
+            {
+              "id": "general",
+              "label": "General",
+              "fields": [
+                {
+                  "id": "target",
+                  "label": "Target",
+                  "fieldType": "Text",
+                  "required": true,
+                  "placeholder": "[user@]server.example.com"
+                },
+                {
+                  "id": "proxy",
+                  "label": "Proxy",
+                  "fieldType": "Text",
+                  "placeholder": "Optional, sets TELEPORT_PROXY"
+                },
+                {
+                  "id": "cluster",
+                  "label": "Cluster",
+                  "fieldType": "Text",
+                  "placeholder": "Optional, sets TELEPORT_CLUSTER"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

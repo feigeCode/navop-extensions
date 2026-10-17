@@ -2051,6 +2051,45 @@ test("package-composite-extension creates a static remote editor package", () =>
   );
 });
 
+test("package-composite-extension packages the provider-less tsh-ssh terminal connection", () => {
+  const workdir = makeTempDir();
+  copyScript("package-composite-extension.sh", workdir);
+  copyScript("verify-composite-package.sh", workdir);
+  fs.cpSync(
+    path.join(repoRoot, "extensions/composite/tsh-ssh"),
+    path.join(workdir, "extensions/composite/tsh-ssh"),
+    { recursive: true },
+  );
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-composite-extension.sh"),
+      "tsh-ssh",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  execFileSync("tar", ["xzf", archivePath, "-C", path.join(workdir, "unpacked")]);
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(workdir, "unpacked/extension.json"), "utf8"),
+  );
+  const connection = manifest.contributes.connections[0];
+  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.runtime, undefined);
+  assert.equal(connection.terminal.command, "tsh");
+  assert.equal(connection.runtimeId, undefined);
+  assert.equal(fs.existsSync(path.join(workdir, "unpacked/bin")), false);
+  execFileSync(
+    "bash",
+    [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
+    { cwd: workdir, encoding: "utf8" },
+  );
+});
+
 test("package-composite-extension creates a native shell provider package", () => {
   const workdir = makeTempDir();
   createNativeCompositeFixture(workdir);

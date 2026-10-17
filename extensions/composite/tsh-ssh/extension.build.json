@@ -1,0 +1,12 @@
+{
+  "id": "tsh-ssh",
+  "kind": "composite",
+  "language": "static",
+  "path": "extensions/composite/tsh-ssh",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "tsh-ssh-v",
+  "r2Prefix": "extensions/tsh-ssh",
+  "published": false
+}

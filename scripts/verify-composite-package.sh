@@ -130,9 +130,26 @@ if (shellViews.length > 0) {
 const connections = manifest.contributes?.connections || [];
 const connectionIds = new Set();
 for (const connection of connections) {
-  for (const key of ["id", "label", "runtimeId", "resourceType", "form"]) {
+  // 终端型连接(声明 terminal)由宿主直接起本地进程:没有 provider,
+  // 因此不得声明 runtimeId / resourceType / shellViewId。
+  const isTerminal = connection.terminal !== undefined;
+  const requiredKeys = isTerminal
+    ? ["id", "label", "form"]
+    : ["id", "label", "runtimeId", "resourceType", "form"];
+  for (const key of requiredKeys) {
     if (!connection[key]) {
       console.error(`connection contribution missing ${key}`);
+      process.exit(1);
+    }
+  }
+  if (isTerminal) {
+    if (connection.runtimeId || connection.resourceType || connection.shellViewId) {
+      console.error(`terminal connection ${connection.id} must not declare runtimeId, resourceType or shellViewId`);
+      process.exit(1);
+    }
+    const command = connection.terminal.command;
+    if (typeof command !== "string" || command.trim() === "" || command.includes("{{")) {
+      console.error(`terminal connection ${connection.id} command must be a fixed non-empty string`);
       process.exit(1);
     }
   }
@@ -141,7 +158,7 @@ for (const connection of connections) {
     process.exit(1);
   }
   connectionIds.add(connection.id);
-  if (!ipcIds.has(connection.runtimeId)) {
+  if (!isTerminal && !ipcIds.has(connection.runtimeId)) {
     console.error(`connection ${connection.id} references unknown IPC runtime: ${connection.runtimeId}`);
     process.exit(1);
   }
