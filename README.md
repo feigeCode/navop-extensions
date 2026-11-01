@@ -355,6 +355,21 @@ upload workflow serializes marketplace publication, uploads that plugin manifest
 to R2 at `extensions/<id>/manifest.json`, and uploads the committed root
 `manifest.json` to R2 at `extensions/manifest.json` with `no-cache`.
 
+Every upload also refreshes a fixed Release so the marketplace index is readable
+from the CNB mirror (CNB only serves Release assets anonymously, repository raw
+files require a login). `upload-r2.yml` creates or updates the Release at tag
+`manifest` and uploads the committed root `manifest.json` to it, then dispatches
+the CNB sync. The index is therefore reachable at two stable URLs, byte-identical
+and without any tag discovery:
+
+```text
+https://github.com/feigeCode/navop-extensions/releases/download/manifest/manifest.json
+https://cnb.cool/navop-dev/navop-extensions/-/releases/download/manifest/manifest.json
+```
+
+The `manifest` tag is a snapshot taken at release time; R2 (`extensions/manifest.json`)
+and the raw GitHub file stay the freshest copies between releases.
+
 An entry belongs in the root `manifest.json` only once the extension has actually
 been released: the host resolves every entry to `extensions/<slug>/manifest.json`
 on R2, and that object does not exist until a release has uploaded it. An entry
@@ -508,7 +523,9 @@ Release and on the CNB mirror. `extensions/<id>/manifest.json` and
 ## CNB Sync
 
 `.github/workflows/sync-cnb-release-assets.yml` mirrors a release's Git tags and
-assets to the CNB mirror `navop-dev/navop-extensions`. The Release workflow
+assets to the CNB mirror `navop-dev/navop-extensions`. It accepts the fixed
+`manifest` tag in addition to the `<id>-v<semver>` release tags, so the
+marketplace index can be mirrored by the same job. The Release workflow
 dispatches it for every new release, and `.github/workflows/sync-cnb-latest.yml`
 reconciles the latest stable release of every extension on a daily schedule
 (plus `workflow_dispatch`) so the Navop website can serve extension downloads
