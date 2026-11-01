@@ -45,7 +45,10 @@ jobs:
           # Trim any accidental line breaks from the secret so tools that read
           # CNB_TOKEN directly receive a clean value.
           CNB_TOKEN="$(printf '%s' "$CNB_TOKEN" | tr -d '\r\n')"
-          if [[ ! "$TAG_NAME" =~ ^[a-z0-9][a-z0-9._-]*-v[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$ ]]; then
+          # 扩展发布的 tag 是 `<id>-v<semver>`；`manifest` 是固定的市场清单
+          # Release tag（由 upload-r2 的 Publish marketplace manifest release 创建）。
+          if [ "$TAG_NAME" != "manifest" ] \
+            && [[ ! "$TAG_NAME" =~ ^[a-z0-9][a-z0-9._-]*-v[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::Invalid extension release tag: ${TAG_NAME}"
             exit 1
           fi

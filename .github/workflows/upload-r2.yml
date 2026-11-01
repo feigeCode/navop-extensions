@@ -15,8 +15,8 @@ on:
         type: string
 
 permissions:
-  actions: read
-  contents: read
+  actions: write
+  contents: write
 
 jobs:
   upload:
@@ -382,3 +382,38 @@ jobs:
           done
 
           echo "R2 now keeps only ${R2_PREFIX}/${EXTENSION_VERSION}/"
+
+      # 扩展市场清单也发一份 Release 资产：CNB 只镜像 Release 资产（仓库文件
+      # 直链在 CNB 上需要登录），固定 tag `manifest` 让客户端不需要 tag 发现，
+      # GitHub 与 CNB 用同一个路径就能读到同一份清单。
+      - name: Publish marketplace manifest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="manifest"
+          notes="扩展市场清单快照，每次扩展发布自动刷新。"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "扩展市场清单" --notes "$notes"
+          else
+            gh release create "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "扩展市场清单" \
+              --notes "$notes" \
+              --target "$GITHUB_SHA"
+          fi
+          # --clobber：清单每次发布都会覆盖，客户端只认最新一份。
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber manifest.json
+
+      # CNB 侧要 tag 与资产都就绪才能同步，所以派发放在 Release 之后。
+      - name: Dispatch CNB marketplace manifest sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run sync-cnb-release-assets.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f tag=manifest
