@@ -367,8 +367,10 @@ https://github.com/feigeCode/navop-extensions/releases/download/manifest/manifes
 https://cnb.cool/navop-dev/navop-extensions/-/releases/download/manifest/manifest.json
 ```
 
-The `manifest` tag is a snapshot taken at release time; R2 (`extensions/manifest.json`)
-and the raw GitHub file stay the freshest copies between releases.
+The `manifest` tag is a snapshot taken at release time, and clients read it from the
+GitHub or CNB copy rather than the raw branch file; R2 (`extensions/manifest.json`)
+is refreshed by the same job, and the raw GitHub file stays the live copy in case a
+client has to fall back to it.
 
 An entry belongs in the root `manifest.json` only once the extension has actually
 been released: the host resolves every entry to `extensions/<slug>/manifest.json`
