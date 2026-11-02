@@ -215,19 +215,14 @@ export default function Hosts() {
   function content(): JSX.Element {
     return (
       <Stack scroll padding={14} gap={12}>
-        <Card
-          title="主机条目"
-          hint={`${visible().length} 条`}
-          right={
-            <SearchField
-              value={filter()}
-              onChange={(value) => filter.set(value)}
-              placeholder="按 IP / 主机名过滤"
-              width={220}
-            />
-          }
-        >
+        <Card title="主机条目" hint="启用 / 禁用 / 删除后点保存写回文件">
           <View style={{ display: "flex", flexDirection: "column" }}>
+            {() =>
+              <Row gap={8} align="center" style={{ paddingBottom: 6 }}>
+                <Badge text={`${visible().length} / ${entries().length} 条`} />
+                <Text style={t.meta}>{filter().trim().length === 0 ? "整份文件里的主机条目" : `过滤词：${filter()}`}</Text>
+              </Row>
+            }
             {() =>
               visible().length === 0 ? (
                 <Empty
@@ -247,7 +242,7 @@ export default function Hosts() {
 
         <Card
           title="注释与空行"
-          hint={`${comments().length} 行（原样保留）`}
+          hint="原样保留，保存时按原位置写回"
           right={<Button label={showComments() ? "收起" : "展开"} small onPress={() => showComments.set(!showComments())} />}
         >
           <View style={{ display: "flex", flexDirection: "column" }}>
@@ -301,6 +296,12 @@ export default function Hosts() {
           <Badge text={`${entries().length} 条条目`} />
           <Text style={t.mono}>{HOSTS_PATH}</Text>
           {() => (dirty() ? <Badge text="有未保存修改" tone="warn" /> : null)}
+          <SearchField
+            value={filter()}
+            onChange={(value) => filter.set(value)}
+            placeholder="按 IP / 主机名过滤"
+            width={220}
+          />
         </Row>
         <Row gap={6}>
           <Button label="重新读取" small onPress={() => void load()} disabled={loading() || saving()} />
