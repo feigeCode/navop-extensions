@@ -303,17 +303,28 @@ export default function Hosts() {
             width={220}
           />
         </Row>
-        <Row gap={6}>
-          <Button label="重新读取" small onPress={() => void load()} disabled={loading() || saving()} />
-          <Button label={addOpen() ? "取消新增" : "新增条目"} small onPress={() => addOpen.set(!addOpen())} />
-          <Button
-            label={saving() ? "保存中…" : "保存"}
-            tone="primary"
-            small
-            disabled={saving() || loading() || error() !== null}
-            onPress={() => pendingSave.set(true)}
-          />
-        </Row>
+        {() =>
+          loading() || error() !== null ? (
+            <Row gap={6}>
+              <Button label="重新读取" small disabled />
+              <Button label="保存" small disabled />
+            </Row>
+          ) : (
+            <Row gap={6}>
+              <Button label="重新读取" small onPress={() => void load()} />
+              <Button label={addOpen() ? "取消新增" : "新增条目"} small onPress={() => addOpen.set(!addOpen())} />
+              <Button
+                label={saving() ? "保存中…" : "保存"}
+                tone="primary"
+                small
+                onPress={() => {
+                  if (saving()) return;
+                  pendingSave.set(true);
+                }}
+              />
+            </Row>
+          )
+        }
       </Row>
 
       <Row gap={8} style={{ paddingHorizontal: 14, paddingBottom: 6 }}>

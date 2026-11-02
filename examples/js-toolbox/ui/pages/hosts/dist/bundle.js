@@ -721,19 +721,7 @@ function Hosts() {
 				return [
 					component(Card, {
 						title: "主机条目",
-						get hint() {
-							return `${visible().length} 条`;
-						},
-						get right() {
-							return component(SearchField, {
-								get value() {
-									return filter();
-								},
-								onChange: (value) => filter.set(value),
-								placeholder: "按 IP / 主机名过滤",
-								width: 220
-							});
-						},
+						hint: "启用 / 禁用 / 删除后点保存写回文件",
 						get children() {
 							return (() => {
 								const __nsh_hv4 = element("view");
@@ -741,23 +729,35 @@ function Hosts() {
 									display: "flex",
 									flexDirection: "column"
 								});
-								insert(__nsh_hv4, () => visible().length === 0 ? component(Empty, {
+								insert(__nsh_hv4, [() => component(Row, {
+									gap: 8,
+									align: "center",
+									style: { paddingBottom: 6 },
+									get children() {
+										return [component(Badge, { get text() {
+											return `${visible().length} / ${entries().length} 条`;
+										} }), (() => {
+											const __nsh_hv5 = element("text");
+											bindProp(__nsh_hv5, "style", () => t.meta);
+											insert(__nsh_hv5, () => filter().trim().length === 0 ? "整份文件里的主机条目" : `过滤词：${filter()}`);
+											return __nsh_hv5;
+										})()];
+									}
+								}), () => visible().length === 0 ? component(Empty, {
 									get title() {
 										return filter().trim().length === 0 ? "还没有主机条目" : "没有匹配的条目";
 									},
 									get hint() {
 										return filter().trim().length === 0 ? "点上方「新增条目」加一行 IP 与主机名，保存后写入 /etc/hosts。" : "清空搜索词，或换一个 IP / 主机名再试。";
 									}
-								}) : visible().map((line) => entryRow(line)));
+								}) : visible().map((line) => entryRow(line))]);
 								return __nsh_hv4;
 							})();
 						}
 					}),
 					component(Card, {
 						title: "注释与空行",
-						get hint() {
-							return `${comments().length} 行（原样保留）`;
-						},
+						hint: "原样保留，保存时按原位置写回",
 						get right() {
 							return component(Button, {
 								get label() {
@@ -769,34 +769,34 @@ function Hosts() {
 						},
 						get children() {
 							return (() => {
-								const __nsh_hv5 = element("view");
-								prop(__nsh_hv5, "style", {
+								const __nsh_hv6 = element("view");
+								prop(__nsh_hv6, "style", {
 									display: "flex",
 									flexDirection: "column"
 								});
-								insert(__nsh_hv5, () => showComments() ? comments().length === 0 ? (() => {
-									const __nsh_hv6 = element("text");
-									bindProp(__nsh_hv6, "style", () => t.meta);
-									const __nsh_hv7 = text("文件里没有注释或空行。");
-									append(__nsh_hv6, __nsh_hv7);
-									return __nsh_hv6;
+								insert(__nsh_hv6, () => showComments() ? comments().length === 0 ? (() => {
+									const __nsh_hv7 = element("text");
+									bindProp(__nsh_hv7, "style", () => t.meta);
+									const __nsh_hv8 = text("文件里没有注释或空行。");
+									append(__nsh_hv7, __nsh_hv8);
+									return __nsh_hv7;
 								})() : comments().map((line) => (() => {
-									const __nsh_hv8 = element("text");
-									prop(__nsh_hv8, "numberOfLines", 1);
-									bindProp(__nsh_hv8, "style", () => ({
+									const __nsh_hv9 = element("text");
+									prop(__nsh_hv9, "numberOfLines", 1);
+									bindProp(__nsh_hv9, "style", () => ({
 										...t.mono,
 										color: c.muted()
 									}));
-									insert(__nsh_hv8, () => line.raw.length === 0 ? "（空行）" : line.raw);
-									return __nsh_hv8;
-								})()) : (() => {
-									const __nsh_hv9 = element("text");
-									bindProp(__nsh_hv9, "style", () => t.meta);
-									const __nsh_hv10 = text("注释不会丢：保存时按原位置写回。");
-									append(__nsh_hv9, __nsh_hv10);
+									insert(__nsh_hv9, () => line.raw.length === 0 ? "（空行）" : line.raw);
 									return __nsh_hv9;
+								})()) : (() => {
+									const __nsh_hv10 = element("text");
+									bindProp(__nsh_hv10, "style", () => t.meta);
+									const __nsh_hv11 = text("注释不会丢：保存时按原位置写回。");
+									append(__nsh_hv10, __nsh_hv11);
+									return __nsh_hv10;
 								})());
-								return __nsh_hv5;
+								return __nsh_hv6;
 							})();
 						}
 					}),
@@ -848,15 +848,15 @@ function Hosts() {
 		});
 	}
 	return (() => {
-		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "style", () => ({
+		const __nsh_hv12 = element("view");
+		bindProp(__nsh_hv12, "style", () => ({
 			flex: 1,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column",
 			backgroundColor: c.bg()
 		}));
-		insert(__nsh_hv11, [
+		insert(__nsh_hv12, [
 			component(Row, {
 				wrap: true,
 				gap: 8,
@@ -872,38 +872,56 @@ function Hosts() {
 						get children() {
 							return [
 								(() => {
-									const __nsh_hv12 = element("text");
-									bindProp(__nsh_hv12, "style", () => t.h1);
-									const __nsh_hv13 = text("Hosts 编辑器");
-									append(__nsh_hv12, __nsh_hv13);
-									return __nsh_hv12;
+									const __nsh_hv13 = element("text");
+									bindProp(__nsh_hv13, "style", () => t.h1);
+									const __nsh_hv14 = text("Hosts 编辑器");
+									append(__nsh_hv13, __nsh_hv14);
+									return __nsh_hv13;
 								})(),
 								component(Badge, { get text() {
 									return `${entries().length} 条条目`;
 								} }),
 								(() => {
-									const __nsh_hv14 = element("text");
-									bindProp(__nsh_hv14, "style", () => t.mono);
-									insert(__nsh_hv14, HOSTS_PATH);
-									return __nsh_hv14;
+									const __nsh_hv15 = element("text");
+									bindProp(__nsh_hv15, "style", () => t.mono);
+									insert(__nsh_hv15, HOSTS_PATH);
+									return __nsh_hv15;
 								})(),
 								() => dirty() ? component(Badge, {
 									text: "有未保存修改",
 									tone: "warn"
-								}) : null
+								}) : null,
+								component(SearchField, {
+									get value() {
+										return filter();
+									},
+									onChange: (value) => filter.set(value),
+									placeholder: "按 IP / 主机名过滤",
+									width: 220
+								})
 							];
 						}
-					}), component(Row, {
+					}), () => loading() || error() !== null ? component(Row, {
+						gap: 6,
+						get children() {
+							return [component(Button, {
+								label: "重新读取",
+								small: true,
+								disabled: true
+							}), component(Button, {
+								label: "保存",
+								small: true,
+								disabled: true
+							})];
+						}
+					}) : component(Row, {
 						gap: 6,
 						get children() {
 							return [
 								component(Button, {
 									label: "重新读取",
 									small: true,
-									onPress: () => void load(),
-									get disabled() {
-										return loading() || saving();
-									}
+									onPress: () => void load()
 								}),
 								component(Button, {
 									get label() {
@@ -918,10 +936,10 @@ function Hosts() {
 									},
 									tone: "primary",
 									small: true,
-									get disabled() {
-										return saving() || loading() || error() !== null;
-									},
-									onPress: () => pendingSave.set(true)
+									onPress: () => {
+										if (saving()) return;
+										pendingSave.set(true);
+									}
 								})
 							];
 						}
@@ -937,46 +955,46 @@ function Hosts() {
 				get children() {
 					return [
 						(() => {
-							const __nsh_hv15 = element("text");
-							bindProp(__nsh_hv15, "style", () => t.meta);
-							insert(__nsh_hv15, () => loadedAt().length === 0 ? "尚未读取" : `上次读取：${loadedAt()}`);
-							return __nsh_hv15;
-						})(),
-						(() => {
 							const __nsh_hv16 = element("text");
 							bindProp(__nsh_hv16, "style", () => t.meta);
-							const __nsh_hv17 = text("·");
-							append(__nsh_hv16, __nsh_hv17);
+							insert(__nsh_hv16, () => loadedAt().length === 0 ? "尚未读取" : `上次读取：${loadedAt()}`);
 							return __nsh_hv16;
 						})(),
 						(() => {
-							const __nsh_hv18 = element("text");
-							bindProp(__nsh_hv18, "style", () => t.meta);
-							const __nsh_hv19 = text("保存前会二次确认");
-							append(__nsh_hv18, __nsh_hv19);
-							return __nsh_hv18;
+							const __nsh_hv17 = element("text");
+							bindProp(__nsh_hv17, "style", () => t.meta);
+							const __nsh_hv18 = text("·");
+							append(__nsh_hv17, __nsh_hv18);
+							return __nsh_hv17;
+						})(),
+						(() => {
+							const __nsh_hv19 = element("text");
+							bindProp(__nsh_hv19, "style", () => t.meta);
+							const __nsh_hv20 = text("保存前会二次确认");
+							append(__nsh_hv19, __nsh_hv20);
+							return __nsh_hv19;
 						})()
 					];
 				}
 			}),
 			() => notice() === null ? null : (() => {
-				const __nsh_hv20 = element("view");
-				prop(__nsh_hv20, "style", {
-					paddingHorizontal: 14,
-					paddingBottom: 8
-				});
-				insert(__nsh_hv20, component(Notice, { get message() {
-					return notice() ?? "";
-				} }));
-				return __nsh_hv20;
-			})(),
-			() => !pendingSave() ? null : (() => {
 				const __nsh_hv21 = element("view");
 				prop(__nsh_hv21, "style", {
 					paddingHorizontal: 14,
 					paddingBottom: 8
 				});
-				insert(__nsh_hv21, component(ConfirmBar, {
+				insert(__nsh_hv21, component(Notice, { get message() {
+					return notice() ?? "";
+				} }));
+				return __nsh_hv21;
+			})(),
+			() => !pendingSave() ? null : (() => {
+				const __nsh_hv22 = element("view");
+				prop(__nsh_hv22, "style", {
+					paddingHorizontal: 14,
+					paddingBottom: 8
+				});
+				insert(__nsh_hv22, component(ConfirmBar, {
 					get message() {
 						return `把 ${entries().length} 条条目写回 ${HOSTS_PATH}？写错可能影响本机域名解析。`;
 					},
@@ -987,7 +1005,7 @@ function Hosts() {
 					onConfirm: () => void save(),
 					onCancel: () => pendingSave.set(false)
 				}));
-				return __nsh_hv21;
+				return __nsh_hv22;
 			})(),
 			() => loading() && lines().length === 0 && error() === null ? component(Loading, { label: "正在读取 /etc/hosts…" }) : null,
 			() => error() !== null && lines().length === 0 ? component(LoadError, {
@@ -998,7 +1016,7 @@ function Hosts() {
 			}) : null,
 			() => loading() && lines().length === 0 && error() === null ? null : error() !== null && lines().length === 0 ? null : content()
 		]);
-		return __nsh_hv11;
+		return __nsh_hv12;
 	})();
 }
 mount(Hosts);
