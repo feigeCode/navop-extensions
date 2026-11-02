@@ -1,0 +1,7 @@
+{
+  "name": "Docker Images",
+  "id": "com.navop.docker.images",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": { "host": ["navop.workbench.*"] }
+}

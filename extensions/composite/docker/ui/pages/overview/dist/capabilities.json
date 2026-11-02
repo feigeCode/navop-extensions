@@ -1,1 +1,1 @@
-{"network":{"hosts":[],"http":[]},"process":{"execute":[],"exit":false,"env":[]},"fs":{"read":[],"write":[]},"statusBar":false,"clipboard":false,"picker":false,"host":["navop.workbench.*","navop.log.*","navop.theme.*","navop.i18n.*"],"openUrl":false}
+{"network":{"hosts":[],"http":[]},"process":{"execute":[],"exit":false,"env":[]},"fs":{"read":[],"write":[]},"statusBar":false,"clipboard":false,"picker":false,"host":["navop.workbench.*"],"openUrl":false}

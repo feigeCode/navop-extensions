@@ -4,6 +4,8 @@
   "version": "0.6.3",
   "build": 1,
   "capabilities": {
-    "host": ["navop.workbench.*", "navop.log.*", "navop.theme.*", "navop.i18n.*"]
+    "host": [
+      "navop.workbench.*"
+    ]
   }
 }

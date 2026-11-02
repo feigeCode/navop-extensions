@@ -272,7 +272,7 @@
         "id": "images",
         "title": "Docker Images",
         "description": "Image list with filter, inline tag/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/images.js",
+        "entry": "ui/pages/images/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
