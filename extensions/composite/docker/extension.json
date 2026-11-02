@@ -166,7 +166,7 @@
         "id": "log-viewer",
         "title": "Docker Log Viewer",
         "description": "Container log reader with tail control, embedded in the native workbench.",
-        "entry": "ui/log-viewer.js",
+        "entry": "ui/pages/log-viewer/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -197,7 +197,7 @@
         "id": "processes",
         "title": "Container Processes",
         "description": "Process table of a running container.",
-        "entry": "ui/processes.js",
+        "entry": "ui/pages/processes/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -212,7 +212,7 @@
         "id": "changes",
         "title": "Container Filesystem Changes",
         "description": "Filesystem change list (A/C/D) of a container.",
-        "entry": "ui/changes.js",
+        "entry": "ui/pages/changes/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -227,7 +227,7 @@
         "id": "container-inspect",
         "title": "Docker Container Inspect",
         "description": "Distilled container inspect document: overview, state, resources, network, mounts, env and labels.",
-        "entry": "ui/container-inspect.js",
+        "entry": "ui/pages/container-inspect/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -242,7 +242,7 @@
         "id": "container-mounts",
         "title": "Docker Container Mounts",
         "description": "Mount table of a container: type, source, destination and access mode.",
-        "entry": "ui/container-mounts.js",
+        "entry": "ui/pages/container-mounts/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -257,7 +257,7 @@
         "id": "container-stats",
         "title": "Docker Container Stats",
         "description": "Live CPU and memory gauges for a container, refreshed on a timer.",
-        "entry": "ui/container-stats.js",
+        "entry": "ui/pages/container-stats/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -287,7 +287,7 @@
         "id": "volumes",
         "title": "Docker Volumes",
         "description": "Volume list with filter, inline create/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/volumes.js",
+        "entry": "ui/pages/volumes/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -302,7 +302,7 @@
         "id": "networks",
         "title": "Docker Networks",
         "description": "Network list with filter, inline create/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/networks.js",
+        "entry": "ui/pages/networks/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {

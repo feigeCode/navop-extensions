@@ -1,2 +1,3 @@
+# `nsh build` 的中间产物；发布用的 dist/ 要入库（宿主直接装载产物，不跑构建）。
 .nsh/
-dist/
+target/

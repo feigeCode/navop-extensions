@@ -1,0 +1,7 @@
+{
+  "name": "MQTT 概览",
+  "id": "com.navop.mqtt.overview",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": { "host": ["navop.workbench.*"] }
+}

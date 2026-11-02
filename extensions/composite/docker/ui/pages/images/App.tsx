@@ -270,9 +270,9 @@ export default function Images() {
           <Card title="新增标签" hint="例如 acme/api:1.4">
             <Row gap={8}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <SearchField value={tagRepo()} onChange={tagRepo.set} placeholder="仓库名，如 acme/api" width={260} />
+                <SearchField value={tagRepo()} onChange={(text) => tagRepo.set(text)} placeholder="仓库名，如 acme/api" width={260} />
               </View>
-              <SearchField value={tagName()} onChange={tagName.set} placeholder="标签，如 1.4" width={120} />
+              <SearchField value={tagName()} onChange={(text) => tagName.set(text)} placeholder="标签，如 1.4" width={120} />
               <Button label={busy() ? "写入中…" : "写入"} tone="primary" small onPress={() => void applyTag()} disabled={busy()} />
             </Row>
           </Card>
@@ -319,21 +319,23 @@ export default function Images() {
   }
 
   // ---- 页面 ---------------------------------------------------------
-
-  if (loading() && images().length === 0 && error() === null) {
-    return <Loading label="正在读取镜像列表…" />;
-  }
-  if (error() !== null && images().length === 0) {
-    return <LoadError message={error() ?? ""} onRetry={() => void load()} />;
-  }
-
-  return (
+  //
+  // 三态判断必须发生在 JSX 里：nsh 只在挂载时跑一次组件函数体
+  // （untracked），写在外面的早退分支会停在第一次的值上。
+  const body = () => {
+    if (loading() && images().length === 0 && error() === null) {
+      return <Loading label="正在读取镜像列表…" />;
+    }
+    if (error() !== null && images().length === 0) {
+      return <LoadError message={error() ?? ""} onRetry={() => void load()} />;
+    }
+    return (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
       <Row gap={8} style={{ paddingHorizontal: 14, paddingVertical: 10, justifyContent: "space-between" }}>
         <Row gap={8}>
           <Text style={t.h1}>镜像</Text>
           <Badge text={`${images().length} 个本地`} />
-          <SearchField value={filter()} onChange={filter.set} placeholder="按名称 / ID / 标签过滤" />
+          <SearchField value={filter()} onChange={(text) => filter.set(text)} placeholder="按名称 / ID / 标签过滤" />
         </Row>
         <Row gap={6}>
           <Button label="刷新" small onPress={() => void load()} />
@@ -374,7 +376,7 @@ export default function Images() {
 
       {!pullOpen() ? null : (
         <Row gap={8} style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
-          <SearchField value={pullRef()} onChange={pullRef.set} placeholder="repo/name:tag" width={280} />
+          <SearchField value={pullRef()} onChange={(text) => pullRef.set(text)} placeholder="repo/name:tag" width={280} />
           <Button label={busy() ? "拉取中…" : "拉取"} tone="primary" small onPress={() => void pull()} disabled={busy()} />
           <Text style={t.meta}>冷缓存的大镜像可能要几分钟。</Text>
         </Row>
@@ -400,7 +402,10 @@ export default function Images() {
         right={detailPane()}
       />
     </View>
-  );
+    );
+  };
+
+  return <View style={{ flex: 1, minHeight: 0 }}>{body()}</View>;
 }
 
 mount(Images);

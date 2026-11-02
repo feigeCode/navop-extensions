@@ -1,0 +1,7 @@
+{
+  "name": "MQTT 消息",
+  "id": "com.navop.mqtt.messages",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": { "host": ["navop.workbench.*"] }
+}

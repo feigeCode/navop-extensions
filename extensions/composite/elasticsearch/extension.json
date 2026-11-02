@@ -19,7 +19,8 @@
   ],
   "engines": {
     "onetcli": ">=0.15.2",
-    "gpui_shell": "0.6.4"
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
   },
   "api": {
     "extension": "1.0",

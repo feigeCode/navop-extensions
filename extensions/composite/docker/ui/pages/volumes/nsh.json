@@ -1,0 +1,11 @@
+{
+  "name": "Docker 存储卷",
+  "id": "com.navop.docker.volumes",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.workbench.*"
+    ]
+  }
+}

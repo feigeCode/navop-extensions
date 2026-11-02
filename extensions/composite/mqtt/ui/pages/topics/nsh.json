@@ -1,0 +1,7 @@
+{
+  "name": "MQTT 主题",
+  "id": "com.navop.mqtt.topics",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": { "host": ["navop.workbench.*"] }
+}

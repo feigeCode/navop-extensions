@@ -33,18 +33,31 @@ export const c = {
 /** 圆角。 */
 export const r = { card: 10, control: 6, pill: 999, chip: 4 };
 
-/** 排版。数字统一 tabular-nums，滚动时不抖。 */
+/** 排版。数字统一 tabular-nums，滚动时不抖。
+ *
+ * 用 getter 是必须的：对象字面量里的 `color: c.text()` 会在模块加载时
+ * 求值一次并冻住，用户切主题时页面不跟着变。写成 getter 之后每次读
+ * `t.meta` 都重新取 token，主题一变就重画。
+ */
 export const t = {
-  h1: { fontSize: 17, fontWeight: "600", color: c.text() } satisfies TextStyle,
-  h2: { fontSize: 14, fontWeight: "600", color: c.text() } satisfies TextStyle,
-  body: { fontSize: 13, color: c.text() } satisfies TextStyle,
-  label: { fontSize: 11, fontWeight: "500", color: c.muted(), letterSpacing: 0.3 } satisfies TextStyle,
-  meta: { fontSize: 11, color: c.muted() } satisfies TextStyle,
-  mono: {
-    fontSize: 12,
-    color: c.text(),
-    fontVariant: ["tabular-nums"],
-  } satisfies TextStyle,
+  get h1(): TextStyle {
+    return { fontSize: 17, fontWeight: "600", color: c.text() };
+  },
+  get h2(): TextStyle {
+    return { fontSize: 14, fontWeight: "600", color: c.text() };
+  },
+  get body(): TextStyle {
+    return { fontSize: 13, color: c.text() };
+  },
+  get label(): TextStyle {
+    return { fontSize: 11, fontWeight: "500", color: c.muted(), letterSpacing: 0.3 };
+  },
+  get meta(): TextStyle {
+    return { fontSize: 11, color: c.muted() };
+  },
+  get mono(): TextStyle {
+    return { fontSize: 12, color: c.text(), fontVariant: ["tabular-nums"] };
+  },
 };
 
 /** 一像素分割线。 */

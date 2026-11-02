@@ -1,0 +1,7 @@
+{
+  "name": "Docker 容器挂载",
+  "id": "com.navop.docker.container-mounts",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": { "host": ["navop.workbench.*"] }
+}
