@@ -946,10 +946,10 @@ function Topics() {
 						hint: `最多 ${DETAIL_ROWS} 条，来自本地缓冲快照（上限 ${SNAPSHOT_LIMIT} 条）`,
 						get children() {
 							return cond(() => latest.length === 0, () => (() => {
-								const __nsh_hv6 = element("text");
-								bindProp(__nsh_hv6, "style", () => t.meta);
-								insert(__nsh_hv6, () => snapshotError() !== null ? "本地缓冲读取失败，暂时无法展示消息。" : "本地缓冲里还没有匹配的消息：订阅后等一次发布，或检查过滤器是否真的匹配。");
-								return __nsh_hv6;
+								const __nsh_hv8 = element("text");
+								bindProp(__nsh_hv8, "style", () => t.meta);
+								insert(__nsh_hv8, () => snapshotError() !== null ? "本地缓冲读取失败，暂时无法展示消息。" : "本地缓冲里还没有匹配的消息：订阅后等一次发布，或检查过滤器是否真的匹配。");
+								return __nsh_hv8;
 							})(), () => (() => {
 								const __nsh_hv3 = element("view");
 								prop(__nsh_hv3, "style", {
@@ -957,49 +957,60 @@ function Topics() {
 									flexDirection: "column",
 									gap: 8
 								});
-								insert(__nsh_hv3, () => latest.map((message) => component(Row, {
-									gap: 8,
-									wrap: true,
-									get children() {
-										return [
-											component(Badge, { get text() {
-												return `QoS ${message.qos}`;
-											} }),
-											cond(() => message.retain, () => component(Badge, {
-												text: "retained",
-												tone: "warn"
-											})),
-											(() => {
-												const __nsh_hv4 = element("text");
-												bindProp(__nsh_hv4, "style", () => t.meta);
-												insert(__nsh_hv4, () => message.at > 0 ? shortTime(new Date(message.at).toISOString()) : "-");
-												return __nsh_hv4;
-											})(),
-											(() => {
-												const __nsh_hv5 = element("text");
-												prop(__nsh_hv5, "numberOfLines", 2);
-												bindProp(__nsh_hv5, "style", () => ({
-													flex: 1,
-													minWidth: 0,
-													fontSize: 12,
-													color: c.text()
-												}));
-												insert(__nsh_hv5, () => message.preview);
-												return __nsh_hv5;
-											})()
-										];
-									}
-								})));
+								insert(__nsh_hv3, () => latest.map((message) => (() => {
+									const __nsh_hv4 = element("view");
+									prop(__nsh_hv4, "style", {
+										display: "flex",
+										flexDirection: "column",
+										gap: 3
+									});
+									const __nsh_hv5 = element("text");
+									prop(__nsh_hv5, "numberOfLines", 1);
+									bindProp(__nsh_hv5, "style", () => t.mono);
+									insert(__nsh_hv5, () => message.topic);
+									const __nsh_hv7 = element("text");
+									prop(__nsh_hv7, "numberOfLines", 2);
+									bindProp(__nsh_hv7, "style", () => ({
+										fontSize: 12,
+										color: c.text(),
+										paddingLeft: 2
+									}));
+									insert(__nsh_hv7, () => message.preview);
+									append(__nsh_hv4, __nsh_hv5);
+									append(__nsh_hv4, __nsh_hv7);
+									insert(__nsh_hv4, component(Row, {
+										gap: 6,
+										wrap: true,
+										get children() {
+											return [
+												component(Badge, { get text() {
+													return `QoS ${message.qos}`;
+												} }),
+												cond(() => message.retain, () => component(Badge, {
+													text: "retained",
+													tone: "warn"
+												})),
+												(() => {
+													const __nsh_hv6 = element("text");
+													bindProp(__nsh_hv6, "style", () => t.meta);
+													insert(__nsh_hv6, () => message.at > 0 ? shortTime(new Date(message.at).toISOString()) : "-");
+													return __nsh_hv6;
+												})()
+											];
+										}
+									}), __nsh_hv7);
+									return __nsh_hv4;
+								})()));
 								return __nsh_hv3;
 							})());
 						}
 					}),
 					(() => {
-						const __nsh_hv7 = element("text");
-						bindProp(__nsh_hv7, "style", () => t.meta);
-						const __nsh_hv8 = text("MQTT 没有「列出 broker 全部主题」的接口，这里只列出本连接的订阅过滤器； 消息数由本地环形缓冲统计，不代表 broker 的历史总量。");
-						append(__nsh_hv7, __nsh_hv8);
-						return __nsh_hv7;
+						const __nsh_hv9 = element("text");
+						bindProp(__nsh_hv9, "style", () => t.meta);
+						const __nsh_hv10 = text("MQTT 没有「列出 broker 全部主题」的接口，这里只列出本连接的订阅过滤器； 消息数由本地环形缓冲统计，不代表 broker 的历史总量。");
+						append(__nsh_hv9, __nsh_hv10);
+						return __nsh_hv9;
 					})()
 				];
 			}
@@ -1008,14 +1019,14 @@ function Topics() {
 	/** 数据到手后的主界面。 */
 	function mainView() {
 		return (() => {
-			const __nsh_hv9 = element("view");
-			prop(__nsh_hv9, "style", {
+			const __nsh_hv11 = element("view");
+			prop(__nsh_hv11, "style", {
 				flex: 1,
 				minHeight: 0,
 				display: "flex",
 				flexDirection: "column"
 			});
-			insert(__nsh_hv9, [
+			insert(__nsh_hv11, [
 				component(Row, {
 					gap: 8,
 					wrap: true,
@@ -1035,21 +1046,21 @@ function Topics() {
 							get children() {
 								return [
 									(() => {
-										const __nsh_hv10 = element("text");
-										bindProp(__nsh_hv10, "style", () => t.h1);
-										const __nsh_hv11 = text("主题");
-										append(__nsh_hv10, __nsh_hv11);
-										return __nsh_hv10;
+										const __nsh_hv12 = element("text");
+										bindProp(__nsh_hv12, "style", () => t.h1);
+										const __nsh_hv13 = text("主题");
+										append(__nsh_hv12, __nsh_hv13);
+										return __nsh_hv12;
 									})(),
 									component(Badge, { get text() {
 										return `${topics().length} 个订阅`;
 									} }),
 									(() => {
-										const __nsh_hv12 = element("text");
-										bindProp(__nsh_hv12, "style", () => t.meta);
-										const __nsh_hv13 = text("消息数来自本地缓冲");
-										append(__nsh_hv12, __nsh_hv13);
-										return __nsh_hv12;
+										const __nsh_hv14 = element("text");
+										bindProp(__nsh_hv14, "style", () => t.meta);
+										const __nsh_hv15 = text("消息数来自本地缓冲");
+										append(__nsh_hv14, __nsh_hv15);
+										return __nsh_hv14;
 									})()
 								];
 							}
@@ -1113,23 +1124,23 @@ function Topics() {
 						paddingTop: 8
 					},
 					get children() {
-						return component(Notice, {
+						return cond(() => noticeError(), () => component(Notice, {
 							get message() {
 								return notice() ?? "";
 							},
-							get tone() {
-								return noticeError() ? "danger" : "neutral";
-							}
-						});
+							tone: "danger"
+						}), () => component(Notice, { get message() {
+							return notice() ?? "";
+						} }));
 					}
 				})),
 				cond(() => formOpen(), () => (() => {
-					const __nsh_hv14 = element("view");
-					prop(__nsh_hv14, "style", {
+					const __nsh_hv16 = element("view");
+					prop(__nsh_hv16, "style", {
 						paddingHorizontal: 16,
 						paddingTop: 10
 					});
-					insert(__nsh_hv14, component(Card, {
+					insert(__nsh_hv16, component(Card, {
 						title: "新增订阅",
 						hint: "主题可以是过滤器：+ 匹配一层，# 匹配剩余所有层级",
 						get children() {
@@ -1147,26 +1158,26 @@ function Topics() {
 											width: 300
 										}),
 										(() => {
-											const __nsh_hv15 = element("text");
-											bindProp(__nsh_hv15, "style", () => t.label);
-											const __nsh_hv16 = text("QoS");
-											append(__nsh_hv15, __nsh_hv16);
-											return __nsh_hv15;
+											const __nsh_hv17 = element("text");
+											bindProp(__nsh_hv17, "style", () => t.label);
+											const __nsh_hv18 = text("QoS");
+											append(__nsh_hv17, __nsh_hv18);
+											return __nsh_hv17;
 										})(),
 										() => [
 											0,
 											1,
 											2
-										].map((qos) => component(Button, {
-											get label() {
-												return String(qos);
-											},
+										].map((qos) => cond(() => draftQos() === qos, () => component(Button, {
+											label: `QoS ${qos}`,
 											small: true,
-											get tone() {
-												return draftQos() === qos ? "primary" : "ghost";
-											},
+											tone: "primary",
 											onPress: () => draftQos.set(qos)
-										})),
+										}), () => component(Button, {
+											label: `QoS ${qos}`,
+											small: true,
+											onPress: () => draftQos.set(qos)
+										}))),
 										component(Button, {
 											get label() {
 												return busy() ? "订阅中…" : "确认订阅";
@@ -1180,7 +1191,7 @@ function Topics() {
 							});
 						}
 					}));
-					return __nsh_hv14;
+					return __nsh_hv16;
 				})()),
 				cond(() => snapshotError() !== null, () => component(Row, {
 					style: {
@@ -1200,14 +1211,14 @@ function Topics() {
 					width: 320,
 					get left() {
 						return (() => {
-							const __nsh_hv17 = element("view");
-							prop(__nsh_hv17, "style", {
+							const __nsh_hv19 = element("view");
+							prop(__nsh_hv19, "style", {
 								flex: 1,
 								minHeight: 0,
 								display: "flex",
 								flexDirection: "column"
 							});
-							insert(__nsh_hv17, cond(() => visibleTopics().length === 0, () => component(Empty, {
+							insert(__nsh_hv19, cond(() => visibleTopics().length === 0, () => component(Empty, {
 								get title() {
 									return topics().length === 0 ? "还没有订阅任何主题" : "没有匹配的主题";
 								},
@@ -1226,9 +1237,9 @@ function Topics() {
 								render: (topic) => {
 									const name = str(topic, "name", "");
 									return (() => {
-										const __nsh_hv18 = element("view");
-										bindProp(__nsh_hv18, "style", () => ({ paddingLeft: depthOf(name) * 14 }));
-										insert(__nsh_hv18, component(ListRow, {
+										const __nsh_hv20 = element("view");
+										bindProp(__nsh_hv20, "style", () => ({ paddingLeft: depthOf(name) * 14 }));
+										insert(__nsh_hv20, component(ListRow, {
 											get title() {
 												return lastSegment(name);
 											},
@@ -1253,11 +1264,11 @@ function Topics() {
 												});
 											}
 										}));
-										return __nsh_hv18;
+										return __nsh_hv20;
 									})();
 								}
 							})));
-							return __nsh_hv17;
+							return __nsh_hv19;
 						})();
 					},
 					get right() {
@@ -1265,7 +1276,7 @@ function Topics() {
 					}
 				})
 			]);
-			return __nsh_hv9;
+			return __nsh_hv11;
 		})();
 	}
 	/** 首次加载完成前只显示 Loading；失败给重试，成功后进主界面。 */
@@ -1278,10 +1289,10 @@ function Topics() {
 		}), () => mainView());
 	}
 	return (() => {
-		const __nsh_hv19 = element("view");
-		prop(__nsh_hv19, "style", root);
-		insert(__nsh_hv19, cond(() => firstLoad(), () => component(Loading, { label: "正在读取订阅主题…" }), () => content()));
-		return __nsh_hv19;
+		const __nsh_hv21 = element("view");
+		prop(__nsh_hv21, "style", root);
+		insert(__nsh_hv21, cond(() => firstLoad(), () => component(Loading, { label: "正在读取订阅主题…" }), () => content()));
+		return __nsh_hv21;
 	})();
 }
 mount(Topics);

@@ -505,6 +505,12 @@ function duration(milliseconds) {
 	if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 	return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
+/** 本地时间 HH:MM:SS：不依赖 Intl，避免测试/英文环境下出现 AM/PM。 */
+function clockText() {
+	const now = /* @__PURE__ */ new Date();
+	const pad = (value) => String(value).padStart(2, "0");
+	return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
 function rateText(value) {
 	return value === void 0 ? "—" : `${value.toFixed(1)} /s`;
 }
@@ -641,7 +647,7 @@ function Overview() {
 			metrics.set(next);
 			client.set(first);
 			error.set(null);
-			updatedAt.set((/* @__PURE__ */ new Date()).toLocaleTimeString());
+			updatedAt.set(clockText());
 		} catch (failure) {
 			error.set(errorMessage(failure));
 		} finally {
@@ -716,14 +722,13 @@ function Overview() {
 										append(__nsh_hv5, __nsh_hv6);
 										return __nsh_hv5;
 									})(),
-									component(Badge, {
-										get text() {
-											return connected() ? "已连接" : "连接中断";
-										},
-										get tone() {
-											return connected() ? "ok" : "danger";
-										}
-									}),
+									cond(() => connected(), () => component(Badge, {
+										text: "已连接",
+										tone: "ok"
+									}), () => component(Badge, {
+										text: "连接中断",
+										tone: "danger"
+									})),
 									component(Row, {
 										gap: 4,
 										get children() {

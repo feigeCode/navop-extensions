@@ -1245,7 +1245,7 @@
         "id": "mapping",
         "title": "Elasticsearch Mapping",
         "description": "字段树、筛选、字段定义与只读原始 JSON。",
-        "entry": "ui/mapping.js",
+        "entry": "ui/pages/mapping/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {

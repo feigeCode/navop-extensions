@@ -33,7 +33,7 @@
         "title": "开发者工具",
         "description": "扩展工程调试工作台",
         "icon": "icons/dev-tools-color.svg",
-        "entry": "ui/workbench.js",
+        "entry": "ui/pages/workbench/dist/bundle.js",
         "surface": "tab",
         "singleton": true,
         "backends": {},

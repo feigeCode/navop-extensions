@@ -1,0 +1,10 @@
+{
+  "name": "Hosts 编辑器",
+  "id": "com.navop.examples.toolbox.hosts",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": ["navop.log.*"],
+    "fs": { "read": ["/etc"], "write": ["/etc"] }
+  }
+}

@@ -444,7 +444,12 @@ export default function Topics() {
 
         <If when={notice() !== null}>
           <Row style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Notice message={notice() ?? ""} tone={noticeError() ? "danger" : "neutral"} />
+            <If
+              when={noticeError()}
+              else={<Notice message={notice() ?? ""} />}
+            >
+              <Notice message={notice() ?? ""} tone="danger" />
+            </If>
           </Row>
         </If>
 
@@ -460,12 +465,19 @@ export default function Topics() {
                 />
                 <Text style={t.label}>QoS</Text>
                 {[0, 1, 2].map((qos) => (
-                  <Button
-                    label={String(qos)}
-                    small
-                    tone={draftQos() === qos ? "primary" : "ghost"}
-                    onPress={() => draftQos.set(qos)}
-                  />
+                  <If
+                    when={draftQos() === qos}
+                    else={
+                      <Button label={`QoS ${qos}`} small onPress={() => draftQos.set(qos)} />
+                    }
+                  >
+                    <Button
+                      label={`QoS ${qos}`}
+                      small
+                      tone="primary"
+                      onPress={() => draftQos.set(qos)}
+                    />
+                  </If>
                 ))}
                 <Button
                   label={busy() ? "订阅中…" : "确认订阅"}

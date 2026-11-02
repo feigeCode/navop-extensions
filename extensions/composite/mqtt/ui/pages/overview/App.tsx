@@ -239,7 +239,12 @@ export default function Overview() {
         >
           <Row gap={10} wrap>
             <Text style={t.h1}>MQTT 连接</Text>
-            <Badge text={connected() ? "已连接" : "连接中断"} tone={connected() ? "ok" : "danger"} />
+            <If
+              when={connected()}
+              else={<Badge text="连接中断" tone="danger" />}
+            >
+              <Badge text="已连接" tone="ok" />
+            </If>
             <Row gap={4}>
               <Text style={t.label}>Broker</Text>
               <Text numberOfLines={1} style={t.mono}>
