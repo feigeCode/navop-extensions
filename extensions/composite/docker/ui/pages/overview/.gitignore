@@ -1,0 +1,3 @@
+# `nsh build` 的中间产物；入库的是 dist/ 里发布用的那四个文件。
+.nsh/
+target/

@@ -19,7 +19,8 @@
   ],
   "engines": {
     "onetcli": ">=0.17.0",
-    "gpui_shell": "0.6.4"
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
   },
   "api": {
     "extension": "1.0"
@@ -181,7 +182,7 @@
         "title": "Docker Engine Overview",
         "description": "Engine usage dashboard: containers, images, disk and runtime resources.",
         "icon": "icons/docker-color.svg",
-        "entry": "ui/overview.js",
+        "entry": "ui/pages/overview/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {

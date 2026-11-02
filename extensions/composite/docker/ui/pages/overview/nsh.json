@@ -1,0 +1,9 @@
+{
+  "name": "Docker 引擎概览",
+  "id": "com.navop.docker.overview",
+  "version": "0.6.3",
+  "build": 1,
+  "capabilities": {
+    "host": ["navop.workbench.*", "navop.log.*", "navop.theme.*", "navop.i18n.*"]
+  }
+}
