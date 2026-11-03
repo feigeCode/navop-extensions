@@ -1,12 +1,5 @@
-// MQTT 连接概览页（资源工作台嵌入的 nsh 页面）。
-//
-// 数据只走 `navop.workbench.dispatch`：页面拿不到连接，工作台按当前连接的
-// 上下文分发 `metrics` / `listClients`。provider 不给时间序列，速率快照靠
-// 两次采样的累计计数求差（每 2 秒一次），不伪造趋势图。
-//
-// nsh 的组件体只跑一次，只有 JSX 位置的绑定会重算：三态用 `<If>` 切换，
-// 派生值写成访问器函数（`const x = () => …`），在 props/children 里调用，
-// 这样每次刷新都会落到各自的绑定上，而不是冻结在挂载那一刻。
+// 数据全走 `navop.resource.invoke`：句柄从 `navop.context.current` 拿，
+// 页面自己决定调哪个 provider 方法。
 import { cleanup, host, mount, signal, Text, View } from "nsh";
 import type { JSX, ViewStyle } from "nsh";
 import { arr, errorMessage, str } from "../../lib/format";

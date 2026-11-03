@@ -1,10 +1,5 @@
-// Docker 镜像页：左边列表、右边详情。
-//
-// 数据全走 `navop.workbench.dispatch`：页面拿不到连接，只有工作台知道
-// 当前连的是哪台 docker。破坏性操作必须显式 `confirmed: true`。
-//
-// 从 shell 页嵌入的页面没有 `selection` 绑定，所以所有调用都落在
-// `*ByRef` 这一组操作上（参数从 input 读，而不是从工作台选中行读）。
+// 数据全走 `navop.resource.invoke`：句柄从 `navop.context.current` 拿，
+// 页面自己决定调哪个 provider 方法。
 import { mount, signal, Text, View } from "nsh";
 import { host } from "nsh";
 import type { JSX } from "nsh";

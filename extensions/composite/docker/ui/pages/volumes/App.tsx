@@ -1,7 +1,5 @@
-// Docker 存储卷页：左边列表、右边详情。
-//
-// 数据全走 `navop.workbench.dispatch`：页面拿不到连接，只有工作台知道
-// 当前连的是哪台 docker。破坏性操作必须显式 `confirmed: true`。
+// 数据全走 `navop.resource.invoke`：句柄从 `navop.context.current` 拿，
+// 页面自己决定调哪个 provider 方法。
 import { computed, host, mount, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
