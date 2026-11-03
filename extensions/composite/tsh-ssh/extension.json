@@ -2,14 +2,14 @@
   "schema_version": 1,
   "id": "com.navop.tsh-ssh",
   "name": "Teleport SSH (tsh)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Navop",
   "license": "Apache-2.0",
   "description": "Static composite extension that opens a Teleport server terminal by running `tsh ssh <target>` as a local process. The saved connection only stores the target (user@server), and no provider process is needed. 静态复合扩展，通过 Teleport 的 tsh ssh 打开服务器终端：连接只保存目标（user@server），由宿主以本地进程运行 tsh ssh，无需 provider 进程。",
   "categories": ["developer-tools"],
   "keywords": ["teleport", "tsh", "ssh", "terminal"],
   "engines": {
-    "onetcli": ">=0.20.4"
+    "onetcli": ">=0.21.0"
   },
   "api": {
     "extension": "1.0"
@@ -35,6 +35,11 @@
               "id": "general",
               "label": "General",
               "fields": [
+                {
+                  "id": "icon",
+                  "label": "Icon",
+                  "fieldType": "Icon"
+                },
                 {
                   "id": "target",
                   "label": "Target",
