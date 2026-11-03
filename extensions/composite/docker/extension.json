@@ -329,6 +329,21 @@
           "context",
           "resource"
         ]
+      },
+      {
+        "id": "container-terminal",
+        "title": "Container Terminal",
+        "description": "Interactive shell inside a running container.",
+        "entry": "ui/pages/container-terminal/dist/bundle.js",
+        "surface": "tab",
+        "singleton": false,
+        "backends": {
+          "docker": "main"
+        },
+        "modules": [
+          "context",
+          "resource"
+        ]
       }
     ]
   }

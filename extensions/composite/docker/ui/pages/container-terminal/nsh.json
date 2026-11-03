@@ -1,0 +1,9 @@
+{
+  "name": "Docker 容器终端",
+  "id": "com.navop.docker.container-terminal",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": ["navop.context.*", "navop.resource.*"]
+  }
+}
