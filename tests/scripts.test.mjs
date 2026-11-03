@@ -2289,7 +2289,7 @@ test("package-composite-extension creates a native shell provider package", () =
     "fake elasticsearch provider\n",
   );
   assert.match(
-    fs.readFileSync(path.join(workdir, "unpacked/ui/explorer.js"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/ui/pages/explorer/dist/bundle.js"), "utf8"),
     /ElasticsearchExplorer/,
   );
   execFileSync(
@@ -2299,15 +2299,16 @@ test("package-composite-extension creates a native shell provider package", () =
   );
 });
 
-// 嵌入式工作台 shell 页（`renderer.kind = "shell"`）的宿主契约由
-// `universal-plugins::shell_page_host::ensure_embeddable` 在运行时强制：视图必须
-// 声明 `context` + `workbench` 模块，且不得声明 raw resource/job/event/blob/
-// runtime/dev（嵌入式页面拿不到这些模块，只能经工作台命名操作派发）。这里做静态
-// 复核，并额外守住「页面引用的视图必须存在」——入口被删/改名这类错误原本只在
-// 打开该页时才暴露（历史事故：连接级 JS 控制台被拆除后仍留在清单里）。
-test("workbench shell pages reference embeddable, existing shell views", () => {
-  const forbiddenModules = new Set(["resource", "job", "event", "blob", "runtime", "dev"]);
-  const forbiddenImports = ["navop.resource", "navop.job", "navop.event", "navop.blob"];
+// nsh 页面（原生工作台已删除）的宿主契约由 `universal-plugins::nsh_host::bundle`
+// 在装载时强制：视图模块必须是 `context` + `resource`，页面经
+// `navop.resource.invoke` 派发命名操作，产物是 nsh build 出的 `dist/bundle.js`。
+// 这里做静态复核，并额外守住「页面引用的视图必须存在」——入口被删/改名这类错误
+// 原本只在打开该页时才暴露（历史事故：连接级 JS 控制台被拆除后仍留在清单里）。
+test("nsh pages reference existing views and dispatch via navop.resource", () => {
+  // dev-tools 工作台页走 navop.dev.*/navop.log.*（能力面在 nsh.json 里声明），
+  // 不属于资源页面；其余复合扩展页面一律走 context + resource。
+  const allowedModules = new Set(["context", "resource", "dev", "log"]);
+  const forbiddenImports = ["navop.workbench", "navop.job", "navop.event", "navop.blob"];
   const ids = fs
     .readdirSync(path.join(repoRoot, "extensions/composite"))
     .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
@@ -2318,50 +2319,63 @@ test("workbench shell pages reference embeddable, existing shell views", () => {
     const extDir = path.join(repoRoot, "extensions/composite", id);
     const manifest = JSON.parse(fs.readFileSync(path.join(extDir, "extension.json"), "utf8"));
     const contributes = manifest.contributes ?? {};
-    const views = new Map((contributes.shellViews ?? []).map((view) => [view.id, view]));
 
-    for (const workbench of contributes.resourceWorkbenches ?? []) {
-      for (const page of workbench.pages ?? []) {
-        const renderer = page.renderer ?? {};
-        if (renderer.kind !== "shell") continue;
-        const label = `${id}:${workbench.id}/${page.id}`;
-        const view = views.get(renderer.viewId);
-        assert.ok(view, `${label} references undeclared shellViewId ${renderer.viewId}`);
-
-        const modules = view.modules ?? [];
-        assert.ok(modules.includes("context"), `${label} view must declare the context module`);
-        assert.ok(modules.includes("workbench"), `${label} view must declare the workbench module`);
-        for (const module of modules) {
-          assert.ok(
-            !forbiddenModules.has(module),
-            `${label} view must not declare the ${module} module (forbidden for embedded pages)`,
-          );
-        }
-
-        const entry = path.join(extDir, view.entry);
-        assert.ok(fs.existsSync(entry), `${label} view entry missing: ${view.entry}`);
-        const source = fs.readFileSync(entry, "utf8");
-        assert.match(source, /from "navop\.workbench"/, `${label} must dispatch via navop.workbench`);
-        for (const module of forbiddenImports) {
-          assert.doesNotMatch(
-            source,
-            new RegExp(`from "${module.replace(".", "\\.")}"`),
-            `${label} must not import ${module} (embedded pages only get context + workbench)`,
-          );
-        }
-        assert.doesNotMatch(source, /await open\(/, `${label} must not open the resource itself`);
-        assert.doesNotMatch(source, /credentialRefs/, `${label} must not read credential refs`);
+    for (const view of contributes.shellViews ?? []) {
+      const label = `${id}:${view.id}`;
+      if (view.native === true || typeof view.component === "string") {
+        // nativeComponent 视图（如容器终端）没有 JS 产物，只查组件名非空。
+        assert.ok(
+          typeof view.component === "string" && view.component.length > 0,
+          `${label} native component name must not be empty`,
+        );
         checked += 1;
+        continue;
       }
+
+      const modules = view.modules ?? [];
+      const isResourcePage = modules.includes("resource");
+      if (isResourcePage) {
+        assert.ok(modules.includes("context"), `${label} view must declare the context module`);
+      }
+      for (const module of modules) {
+        assert.ok(
+          allowedModules.has(module),
+          `${label} view must not declare the ${module} module (allowed: ${[...allowedModules].join(", ")})`,
+        );
+      }
+
+      const entry = path.join(extDir, view.entry);
+      assert.ok(fs.existsSync(entry), `${label} view entry missing: ${view.entry}`);
+      const source = fs.readFileSync(entry, "utf8");
+      assert.match(source, /from "nsh"/, `${label} must be an nsh page importing from "nsh"`);
+      if (isResourcePage) {
+        assert.match(
+          source,
+          /navop\.resource\.invoke/,
+          `${label} must dispatch via navop.resource.invoke`,
+        );
+      }
+      for (const module of forbiddenImports) {
+        assert.doesNotMatch(
+          source,
+          new RegExp(`from "${module.replace(".", "\\.")}"`),
+          `${label} must not import ${module} (pages only get context + resource)`,
+        );
+      }
+      assert.doesNotMatch(source, /await open\(/, `${label} must not open the resource itself`);
+      assert.doesNotMatch(source, /credentialRefs/, `${label} must not read credential refs`);
+      checked += 1;
     }
   }
-  assert.ok(checked > 0, "expected at least one workbench shell page to check");
+  assert.ok(checked > 0, "expected at least one nsh page to check");
 });
 
-// 扩展自己的 node 测试(<ext>/tests/**/*.test.mjs)在这里被**真正执行**,而不是
-// 只检查文件存在:CI 的 rust job 只跑 `cargo test`,没人会去执行扩展目录下的
-// `node --test`。若只断言"文件在",测试搬到别处或整段删掉都不会有人知道 ——
-// 那正是最容易发生的静默退化。
+// 旧世界:<ext>/tests/**/*.test.mjs 是扩展自己的 node 测试,由这条守卫真正
+// 执行。页面迁到 nsh 后纯模型(mapping-model.js / message-model.js)连同其
+// node 测试一起删除,页面语义改由各页的 App.test.tsx 承载 —— 那是 nsh test
+// 的领地,CI 的 "Test changed extensions" job 会跑,node 在这里既发现不了也
+// 执行不了。保留这条守卫只为防止 *.test.mjs 静默回流:一旦有人重新往
+// extensions/ 放 node 测试,它必须在这里被真正执行,而不是只当文件躺着。
 test("extension node tests are discovered and actually executed", () => {
   const collected = [];
   const extensionsRoot = path.join(repoRoot, "extensions");
@@ -2387,14 +2401,8 @@ test("extension node tests are discovered and actually executed", () => {
     }
   }
   const labels = collected.map((file) => path.relative(repoRoot, file)).sort();
-  assert.ok(labels.length > 0, "expected at least one extension node test to run");
-  // 具体点名 ES 的纯模型测试:它是 Mapping 页面的全部语义所在,被改名或移走
-  // 必须在这里响,而不是等到"Mapping 页看起来是对的"。
-  assert.ok(
-    labels.includes("extensions/composite/elasticsearch/tests/ui/mapping-model.test.mjs"),
-    `elasticsearch mapping model test is not discovered: ${labels.join(", ")}`,
-  );
-
+  // App.test.tsx 不是 node 测试(nsh test 才执行它),不该被这个扫描收进 labels;
+  // 当前扩展目录里应当一个 *.test.mjs 都没有 —— 有就必须真正执行。
   for (const file of collected.sort()) {
     const label = path.relative(repoRoot, file);
     // 必须剥掉 NODE_TEST_CONTEXT:外层 `node --test` 会把它注入子进程,内层
@@ -2421,846 +2429,27 @@ test("extension node tests are discovered and actually executed", () => {
 // stream is never subscribed), its load returns an event stream, and the load runs with
 // `confirmed=false`, so a non-read effect would fail with ConfirmationRequired instead
 // of ever showing an event.
-test("workbench stream pages load a read-only operation that returns an event stream", () => {
-  const ids = fs
-    .readdirSync(path.join(repoRoot, "extensions/composite"))
-    .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
-    .sort();
-
-  let checked = 0;
-  for (const id of ids) {
-    const manifest = JSON.parse(
-      fs.readFileSync(path.join(repoRoot, "extensions/composite", id, "extension.json"), "utf8"),
-    );
-    for (const workbench of manifest.contributes?.resourceWorkbenches ?? []) {
-      const operations = workbench.operations ?? {};
-      for (const page of workbench.pages ?? []) {
-        const primitives = page.stack ?? [];
-        if (!primitives.some((primitive) => primitive.kind === "stream")) continue;
-        const label = `${id}:${workbench.id}/${page.id}`;
-        checked += 1;
-
-        assert.equal(
-          page.renderer?.kind,
-          "native",
-          `${label} declares the stream primitive, so its renderer must be native`,
-        );
-        assert.ok(page.load?.operation, `${label} stream page must declare load.operation`);
-
-        const operation = operations[page.load.operation];
-        assert.ok(
-          operation,
-          `${label} load.operation ${page.load.operation} is not declared in workbench.operations`,
-        );
-        assert.equal(
-          operation.effect,
-          "read",
-          `${label} load runs with confirmed=false, so operation ${page.load.operation} must use the read effect`,
-        );
-        assert.ok(
-          (operation.requires ?? []).includes(operation.method),
-          `${label} operation ${page.load.operation} must gate on its own method (${operation.method}) so providers without the stream capability are rejected`,
-        );
-      }
-    }
-  }
-
-  assert.ok(checked > 0, "expected at least one workbench stream page to check");
-  const mqtt = JSON.parse(
-    fs.readFileSync(path.join(repoRoot, "extensions/composite", "mqtt", "extension.json"), "utf8"),
+test("mqtt keeps its live message stream wired to the standard stream method", () => {
+  // 原生工作台删除后,stream 页契约(operations.effect=read、requires 自门禁)
+  // 随 resourceWorkbenches 一起消失;页面自己在 App.tsx 的 OPERATIONS 里声明
+  // 方法名并经 navop.resource.invoke 派发。这条守卫退守到语义上仍要成立的
+  // 一点:mqtt 的实时消息页必须继续用标准流式方法 middleware/message/stream
+  // —— provider 侧(server/resource.rs::invoke)对该方法有特判,页面改用
+  // 别的方法名会让实时流静默退化成一次性拉取。
+  const page = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/composite/mqtt", "extension.json"), "utf8"),
   );
-  const workbench = mqtt.contributes.resourceWorkbenches[0];
-  const live = workbench.pages.find((page) => page.id === "live");
-  assert.ok(live, "mqtt must keep its live message stream page");
-  assert.equal(
-    workbench.operations[live.load.operation].method,
-    "middleware/message/stream",
-    "the mqtt live page must load the standard realtime stream method",
+  const view = (page.contributes?.shellViews ?? []).find((view) => view.id === "messages");
+  assert.ok(view, "mqtt must keep its messages view (the live message stream page)");
+  const source = fs.readFileSync(
+    path.join(repoRoot, "extensions/composite/mqtt", view.entry),
+    "utf8",
   );
-});
-
-// `.child()`/`.children()` take an element, a string, or an entity. Anything
-// else — `null` included — is a TypeError raised by the shell prelude's
-// `childId`, and it takes the whole view down ("This view could not be
-// rendered"), not just the node whose argument happened to be empty. So an
-// optional child has to be attached conditionally (`.when(condition, (el) =>
-// el.child(...))`) or filtered before the call (the middleware console's
-// `compact([...])`). This is checked statically because the runtime reports
-// only the first failing frame, and the branch that breaks is the one a manual
-// pass is least likely to render: `.child(pending ? button : null)` reads as
-// "no button yet" and throws on the very first paint.
-test("extension UI never passes null or undefined to child()/children()", () => {
-  // Blanked out in place, newlines kept, so a reported line is the real one.
-  const blankOutCommentsAndStrings = (source) => {
-    const out = [];
-    let index = 0;
-    while (index < source.length) {
-      const char = source[index];
-      const next = source[index + 1];
-      if (char === "/" && next === "/") {
-        const stop = source.indexOf("\n", index);
-        const end = stop === -1 ? source.length : stop;
-        out.push(" ".repeat(end - index));
-        index = end;
-        continue;
-      }
-      if (char === "/" && next === "*") {
-        const stop = source.indexOf("*/", index + 2);
-        const end = stop === -1 ? source.length : stop + 2;
-        out.push(source.slice(index, end).replace(/[^\n]/g, " "));
-        index = end;
-        continue;
-      }
-      if (char === '"' || char === "'" || char === "`") {
-        let stop = index + 1;
-        while (stop < source.length) {
-          if (source[stop] === "\\") stop += 2;
-          else if (source[stop] === char) {
-            stop += 1;
-            break;
-          } else stop += 1;
-        }
-        out.push(source.slice(index, stop).replace(/[^\n]/g, " "));
-        index = stop;
-        continue;
-      }
-      out.push(char);
-      index += 1;
-    }
-    return out.join("");
-  };
-
-  // The argument of the call whose `(` sits at `openIndex`.
-  const balancedArgument = (source, openIndex) => {
-    let depth = 0;
-    for (let index = openIndex; index < source.length; index += 1) {
-      const char = source[index];
-      if (char === "(" || char === "[" || char === "{") depth += 1;
-      else if (char === ")" || char === "]" || char === "}") {
-        depth -= 1;
-        if (depth === 0) return source.slice(openIndex + 1, index);
-      }
-    }
-    return source.slice(openIndex + 1);
-  };
-
-  // Cut `text` at the depth-zero `operators`, remembering which operator
-  // introduced each piece. Nesting is what keeps `compact([a ? b : null])` and
-  // `JSON.stringify(value, null, 2)` — both legitimate — out of the result.
-  const topLevelPieces = (text, operators) => {
-    const pieces = [];
-    let depth = 0;
-    let start = 0;
-    let operator = "";
-    for (let index = 0; index < text.length; index += 1) {
-      const char = text[index];
-      if (char === "(" || char === "[" || char === "{") depth += 1;
-      else if (char === ")" || char === "]" || char === "}") depth -= 1;
-      else if (depth === 0) {
-        const pair = text.slice(index, index + 2);
-        // `?:`/`??` are not ternaries, and `a?.b` is not one either.
-        const skip = char === "?" && (text[index + 1] === "." || text[index + 1] === "?");
-        const found = skip
-          ? ""
-          : operators.includes(pair)
-            ? pair
-            : operators.includes(char)
-              ? char
-              : "";
-        if (found) {
-          pieces.push({ operator, text: text.slice(start, index) });
-          operator = found;
-          start = index + found.length;
-          index = start - 1;
-        }
-      }
-    }
-    pieces.push({ operator, text: text.slice(start) });
-    return pieces;
-  };
-
-  const isBlank = (text) => {
-    const value = text.trim();
-    return value === "null" || value === "undefined" ? value : "";
-  };
-
-  const childViolation = (argument) => {
-    const passed = isBlank(argument);
-    if (passed) return `passes ${passed} straight to child()`;
-
-    const pieces = topLevelPieces(argument, ["&&", "||", "??", "?", ":"]);
-    if (pieces.length > 1) {
-      for (const [index, piece] of pieces.entries()) {
-        // The first piece is a lone value or the condition itself; only what
-        // the operator can hand on to `child()` counts.
-        if (index === 0) continue;
-        const value = isBlank(piece.text);
-        if (value) return `passes ${value} through a \`${piece.operator}\` branch`;
-      }
-    }
-
-    // `.children([a, b, null])` hands the array itself to `childId`, so a
-    // literal inside the array is the same mistake one level down.
-    const trimmed = argument.trim();
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      for (const piece of topLevelPieces(trimmed.slice(1, -1), [","])) {
-        const value = isBlank(piece.text);
-        if (value) return `passes ${value} inside a child array`;
-      }
-    }
-    return "";
-  };
-
-  const collectJsFiles = (dir) =>
-    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (entry.name === "target" || entry.name === "node_modules") return [];
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) return collectJsFiles(full);
-      return entry.name.endsWith(".js") ? [full] : [];
-    });
-
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  let callSites = 0;
-  for (const file of files) {
-    const source = blankOutCommentsAndStrings(fs.readFileSync(file, "utf8"));
-    for (const match of source.matchAll(/\.\s*(?:child|children)\s*\(/g)) {
-      callSites += 1;
-      const argument = balancedArgument(source, match.index + match[0].length - 1);
-      const violation = childViolation(argument);
-      if (!violation) continue;
-      const line = source.slice(0, match.index).split("\n").length;
-      violations.push(`${path.relative(repoRoot, file)}:${line} ${violation}`);
-    }
-  }
-
-  // A scan that stopped matching would pass vacuously, so it is pinned to a
-  // floor well below the current count.
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(callSites > 200, `expected to scan child() call sites, saw ${callSites}`);
-  assert.deepEqual(violations, []);
-});
-
-// Colors cross two different bridges, and neither takes a semantic token name
-// as a bare string.
-//
-// Element styles (`text_color`, `bg`, `border_color`, `text_bg`) go through
-// `Bridged::as_color`, which strips a leading `#` and rejects everything else:
-// the runtime answer is "`muted` is not a color value; pass a color from
-// `cx.theme().colors` or a #rgb, #rrggbb, or #rrggbbaa literal". Component
-// color props (`Badge.color`, `Icon.color`, `Spinner.color`, ...) go through
-// `try_parse_color`, which knows the Tailwind palette and hex literals but not
-// the theme's semantic names either.
-//
-// Both failures are total — the shell reports "This view could not be
-// rendered" and the page stays blank — and both surface only in the branch
-// that happens to run, so a page can ship with the error sitting in the empty
-// state or the error state nobody renders by hand. Checked statically for the
-// same reason the `child(null)` rule is: the one place the name was written is
-// the only clue the runtime gives.
-test("extension UI colors are literals or theme colors, never bare token names", () => {
-  // Comments blanked out, strings kept: a reported line is the real one, a
-  // `//` inside a string is not a comment, and `"muted"` still has to be
-  // readable when the scan reaches it.
-  const blankOutComments = (source) => {
-    const out = [];
-    let index = 0;
-    while (index < source.length) {
-      const char = source[index];
-      const next = source[index + 1];
-      if (char === "/" && next === "/") {
-        const stop = source.indexOf("\n", index);
-        const end = stop === -1 ? source.length : stop;
-        out.push(" ".repeat(end - index));
-        index = end;
-        continue;
-      }
-      if (char === "/" && next === "*") {
-        const stop = source.indexOf("*/", index + 2);
-        const end = stop === -1 ? source.length : stop + 2;
-        out.push(source.slice(index, end).replace(/[^\n]/g, " "));
-        index = end;
-        continue;
-      }
-      if (char === '"' || char === "'" || char === "`") {
-        const start = index;
-        index += 1;
-        while (index < source.length) {
-          if (source[index] === "\\") {
-            index += 2;
-            continue;
-          }
-          if (source[index] === char) {
-            index += 1;
-            break;
-          }
-          index += 1;
-        }
-        out.push(source.slice(start, index));
-        continue;
-      }
-      out.push(char);
-      index += 1;
-    }
-    return out.join("");
-  };
-
-  // `try_parse_color`: hex, `black`/`white`, or a Tailwind `name`, `name-scale`,
-  // `name/opacity`, `name-scale/opacity`. Semantic names such as `accent`,
-  // `muted` and `danger` are in neither list.
-  const TAILWIND_NAMES = [
-    "black", "white", "neutral", "gray", "red", "orange", "amber", "yellow",
-    "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo",
-    "violet", "purple", "fuchsia", "pink", "rose",
-  ];
-  const isComponentColor = (value) => {
-    if (value.startsWith("#")) return true;
-    const match = /^([a-z]+)(?:-(\d+))?(?:\/(\d+))?$/i.exec(value);
-    return Boolean(match) && TAILWIND_NAMES.includes(match[1].toLowerCase());
-  };
-  const isElementColor = (value) => value.startsWith("#");
-
-  const STYLE_SETTERS = ["text_color", "text_bg", "bg", "border_color"];
-  const ELEMENT_COLOR_SITE = new RegExp(
-    `\\.(?:${STYLE_SETTERS.join("|")})\\(\\s*(["'\`])([^"'\`]*)\\1`,
-    "g",
+  assert.match(
+    source,
+    /messageStream:\s*"middleware\/message\/stream"/,
+    "mqtt messages page must keep dispatching middleware/message/stream",
   );
-  const COMPONENT_COLOR_SITE = /\.color\(\s*(["'`])([^"'`]*)\1/g;
-  const collectJsFiles = (dir) =>
-    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (entry.name === "target" || entry.name === "node_modules") return [];
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) return collectJsFiles(full);
-      return entry.name.endsWith(".js") ? [full] : [];
-    });
-
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  const scan = (source, pattern, accepts, describe) => {
-    for (const match of source.matchAll(pattern)) {
-      const value = match[2];
-      if (accepts(value)) continue;
-      const line = source.slice(0, match.index).split("\n").length;
-      violations.push(describe(value, line));
-    }
-  };
-
-  for (const file of files) {
-    const source = blankOutComments(fs.readFileSync(file, "utf8"));
-    const relative = path.relative(repoRoot, file);
-    scan(
-      source,
-      ELEMENT_COLOR_SITE,
-      isElementColor,
-      (value, line) => `${relative}:${line} \`${value}\` is not a color value; pass a color from \`cx.theme().colors\` or a #rgb, #rrggbb, or #rrggbbaa literal`,
-    );
-    scan(
-      source,
-      COMPONENT_COLOR_SITE,
-      isComponentColor,
-      (value, line) => `${relative}:${line} \`${value}\` is not a component color; pass a Tailwind color name or a #rgb, #rrggbb, or #rrggbbaa literal`,
-    );
-  }
-
-  // Pinned so a scan that stopped matching cannot pass vacuously — and pinned
-  // on a synthetic sample rather than on the repository's own sources. The
-  // rule below is "pass a color from `cx.theme().colors`", so the extensions
-  // are meant to reach *zero* literal sites; a pin that read them would fail
-  // the very change that got there (as it did when the last hardcoded row
-  // highlight in `mqtt/ui/messages.js` became a theme token).
-  const selfCheck = [
-    '.text_color("#abc")',
-    ".bg(cx.theme().colors.muted)",
-    '.color("blue-500")',
-    '.color("accent")',
-  ].join("\n");
-  const elementSites = [...selfCheck.matchAll(ELEMENT_COLOR_SITE)];
-  const componentSites = [...selfCheck.matchAll(COMPONENT_COLOR_SITE)];
-  assert.equal(
-    elementSites.length,
-    1,
-    "the element color scan must still match a literal setter",
-  );
-  assert.equal(
-    componentSites.length,
-    2,
-    "the component color scan must still match literal `.color(...)` calls",
-  );
-  assert.ok(isElementColor(elementSites[0][2]), "a hex literal is an element color");
-  assert.ok(isComponentColor(componentSites[0][2]), "a Tailwind name is a component color");
-  assert.ok(
-    !isComponentColor(componentSites[1][2]),
-    "a semantic token name must not be accepted as a component color",
-  );
-
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.deepEqual(violations, []);
-});
-
-// `cx.theme()` in a shell view is `gpui-base`'s semantic palette, not the
-// component library's theme: `crates/shell/src/theme_tokens.rs` resolves the
-// names below and nothing else, and `Bridged::as_color` then fails the whole
-// page with "This view could not be rendered". A name from the component
-// library's own theme — `list_active`, `table_hover` — reads as plausible,
-// resolves to `undefined`, and blanks the page, so it is worth catching here
-// rather than by hand. The two name lists are duplicated from
-// `gpui-component` on purpose: they are a contract, not an import.
-test("extension UI theme tokens are names the shell palette resolves", () => {
-  const COLORS = [
-    "background", "foreground", "surface", "surface_foreground",
-    "primary", "primary_foreground", "secondary", "secondary_foreground",
-    "muted", "muted_foreground", "accent", "accent_foreground",
-    "destructive", "destructive_foreground", "border", "input", "ring",
-    "selection",
-  ];
-  const SPACING = ["xxs", "xs", "sm", "md", "lg", "xl", "xxl"];
-  const RADIUS = ["none", "sm", "md", "lg", "xl", "full"];
-  const TYPOGRAPHY = ["sans", "mono", "xs", "sm", "md", "lg", "xl", "mono_md"];
-  const GROUPS = new Set(["colors", "spacing", "radius", "typography", "appearance"]);
-
-  const collectJsFiles = (dir) =>
-    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (entry.name === "target" || entry.name === "node_modules") return [];
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) return collectJsFiles(full);
-      return entry.name.endsWith(".js") ? [full] : [];
-    });
-
-  const scans = [
-    { pattern: /\.colors\.([A-Za-z_]\w*)/g, allows: new Set(COLORS), where: "colors" },
-    { pattern: /\.spacing\.([A-Za-z_]\w*)/g, allows: new Set(SPACING), where: "spacing" },
-    { pattern: /\.radius\.([A-Za-z_]\w*)/g, allows: new Set(RADIUS), where: "radius" },
-    { pattern: /\.typography\.([A-Za-z_]\w*)/g, allows: new Set(TYPOGRAPHY), where: "typography" },
-  ];
-  const colors = new Set(COLORS);
-
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  let sites = 0;
-  for (const file of files) {
-    const source = blankOutCommentsAndStrings(fs.readFileSync(file, "utf8"));
-    const relative = path.relative(repoRoot, file);
-    const at = (index) => source.slice(0, index).split("\n").length;
-    for (const { pattern, allows, where } of scans) {
-      for (const match of source.matchAll(pattern)) {
-        sites += 1;
-        if (!allows.has(match[1])) {
-          violations.push(
-            `${relative}:${at(match.index)} \`.${where}.${match[1]}\` is not a shell theme token`,
-          );
-        }
-      }
-    }
-    // The flat form (`const theme = cx.theme(); theme.muted`) is only scanned
-    // in files that actually took `theme` from `cx.theme()`.
-    if (!/(?:const|let|var)\s+theme\s*=\s*cx\.theme\(\)/.test(source)) continue;
-    for (const match of source.matchAll(/(?:cx\.theme\(\)|\btheme)\.([A-Za-z_]\w*)/g)) {
-      if (GROUPS.has(match[1])) continue;
-      sites += 1;
-      if (!colors.has(match[1])) {
-        violations.push(
-          `${relative}:${at(match.index)} \`theme.${match[1]}\` is not a shell theme token`,
-        );
-      }
-    }
-  }
-
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(sites > 0, "expected to find theme token reads");
-  assert.deepEqual(violations, []);
-});
-
-// Shared by the two layout guards below. Both read `.child(...)` arguments out
-// of an extension UI source, which means knowing where the source's strings and
-// comments end and where a call's argument ends.
-//
-// `blankOutCommentsAndStrings` blanks comments and string bodies while keeping
-// the line count, so an offset into the result still points at the real line of
-// the file. `balancedArgument` reads from an opening paren to its match, and
-// `chainFrom` walks a builder chain collecting only *its own* `.child(...)`
-// arguments: a nested call lives inside an argument that is itself one of the
-// collected strings, so nesting never mixes a row's children with the children
-// of a child.
-const blankOutCommentsAndStrings = (source) => {
-  const out = [];
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index];
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      const stop = source.indexOf("\n", index);
-      const end = stop === -1 ? source.length : stop;
-      out.push(" ".repeat(end - index));
-      index = end;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      const stop = source.indexOf("*/", index + 2);
-      const end = stop === -1 ? source.length : stop + 2;
-      out.push(source.slice(index, end).replace(/[^\n]/g, " "));
-      index = end;
-      continue;
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      const start = index;
-      index += 1;
-      while (index < source.length) {
-        if (source[index] === "\\") {
-          index += 2;
-          continue;
-        }
-        if (source[index] === char) {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      // Keep the line count; the quotes themselves carry no structure.
-      out.push(source.slice(start, index).replace(/[^\n]/g, " "));
-      continue;
-    }
-    out.push(char);
-    index += 1;
-  }
-  return out.join("");
-};
-
-const balancedArgument = (source, openIndex) => {
-  let depth = 0;
-  for (let index = openIndex; index < source.length; index += 1) {
-    const char = source[index];
-    if (char === "(" || char === "[" || char === "{") depth += 1;
-    else if (char === ")" || char === "]" || char === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(openIndex + 1, index);
-    }
-  }
-  return source.slice(openIndex + 1);
-};
-
-// The chain that starts at `h_flex()`: walked with a paren depth so nesting
-// does not mix the row's own `.child(...)` calls with the ones inside them.
-// The walk stops at the enclosing call's `)` or at the statement's `;`.
-const chainFrom = (source, start) => {
-  const children = [];
-  let index = start;
-  let depth = 0;
-  while (index < source.length) {
-    const char = source[index];
-    if (char === "(" || char === "[" || char === "{") {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-    if (char === ")" || char === "]" || char === "}") {
-      depth -= 1;
-      if (depth < 0) break;
-      index += 1;
-      continue;
-    }
-    if (depth === 0) {
-      if (char === ";") break;
-      if (source.startsWith(".child(", index)) {
-        const open = index + ".child".length;
-        const argument = balancedArgument(source, open);
-        children.push(argument.trim());
-        index = open + argument.length + 2;
-        continue;
-      }
-    }
-    index += 1;
-  }
-  return { text: source.slice(start, index), children };
-};
-
-const collectJsFiles = (dir) =>
-  fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === "target" || entry.name === "node_modules") return [];
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return collectJsFiles(full);
-    return entry.name.endsWith(".js") ? [full] : [];
-  });
-
-// Only the chain up to a container's first `.child(...)` is that container's
-// own style; what a child declares (`div().min_h_0()`) belongs to the child.
-const styleHead = (text) => {
-  const firstChild = text.indexOf(".child(");
-  return firstChild === -1 ? text : text.slice(0, firstChild);
-};
-
-// Every `name(params) { ... }` body in the file, addressed by its range in the
-// source so a body can be walked and searched like the source itself. A helper
-// is often where the real layout lives (`this.renderProjectItem(cx)`), so the
-// guards below need to see inside them.
-const methodBodies = (source) => {
-  const bodies = new Map();
-  for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*\{/g)) {
-    const open = source.indexOf("{", match.index);
-    let depth = 0;
-    for (let index = open; index < source.length; index += 1) {
-      if (source[index] === "{") depth += 1;
-      else if (source[index] === "}") {
-        depth -= 1;
-        if (depth === 0) {
-          bodies.set(match[1], {
-            start: open + 1,
-            end: index,
-            text: source.slice(open + 1, index),
-          });
-          break;
-        }
-      }
-    }
-  }
-  return bodies;
-};
-
-// A column is often handed to the row by a helper (`this.renderProjectDetails(cx)`)
-// rather than written inline, and then the `.child(...)` argument says nothing
-// about it. Keep the chain each method returns; a method that does not return a
-// `v_flex()` chain is absent.
-const columnMethodChains = (source) => {
-  const chains = new Map();
-  for (const [name, body] of methodBodies(source)) {
-    for (const returned of body.text.matchAll(/\breturn\s+v_flex\(\)/g)) {
-      chains.set(name, chainFrom(body.text, body.text.indexOf("v_flex(", returned.index)).text);
-      break;
-    }
-  }
-  return chains;
-};
-
-// Every chain the file writes, in source order: a factory call (`div()`,
-// `v_flex()`, `h_flex()`) plus the `.method(...)` tail after it, with the range
-// it occupies so "what is written inside this element" is a range question.
-// Nested chains appear on their own too — an outer pane and its contents.
-const styleChains = (source) => {
-  const chains = [];
-  for (const match of source.matchAll(/\b(?:div|v_flex|h_flex)\(\)/g)) {
-    const chain = chainFrom(source, match.index);
-    chains.push({ index: match.index, end: match.index + chain.text.length, text: chain.text });
-  }
-  return chains;
-};
-
-const methodsCalledIn = (text) =>
-  [...text.matchAll(/this\.([A-Za-z_$][\w$]*)\s*\(/g)].map((match) => match[1]);
-
-// Everything written between `from` and `to`: the chains in that range plus the
-// chains inside every helper they call (`this.renderProjectItem(...)`), followed
-// transitively — bounded by the visited set and the depth so a helper that calls
-// itself cannot spin the guard.
-const chainsInside = (chains, methods, from, to, visited = new Set(), depth = 0) => {
-  if (depth > 4) return [];
-  const found = [];
-  for (const chain of chains) {
-    if (chain.index <= from || chain.index >= to) continue;
-    found.push(chain);
-    for (const name of methodsCalledIn(chain.text)) {
-      const body = methods.get(name);
-      if (body === undefined || visited.has(name)) continue;
-      visited.add(name);
-      found.push(...chainsInside(chains, methods, body.start, body.end, visited, depth + 1));
-    }
-  }
-  return found;
-};
-
-// `.child(cond ? this.renderA(cx) : v_flex()...)` hands the row one column per
-// branch, and reading the argument as a whole lets the `h_full()` of one branch
-// cover the missing one of the other. Split on the top-level ternary operators
-// (`?.` and `??` are not branches) so each side is judged on its own.
-const ternaryBranches = (argument) => {
-  const branches = [];
-  let start = 0;
-  let depth = 0;
-  for (let index = 0; index < argument.length; index += 1) {
-    const char = argument[index];
-    if (char === "(" || char === "[" || char === "{") depth += 1;
-    else if (char === ")" || char === "]" || char === "}") depth -= 1;
-    else if (depth === 0 && (char === "?" || char === ":")) {
-      if (char === "?" && (argument[index + 1] === "?" || argument[index + 1] === ".")) {
-        index += 1;
-        continue;
-      }
-      branches.push(argument.slice(start, index));
-      start = index + 1;
-    }
-  }
-  branches.push(argument.slice(start));
-  return branches;
-};
-
-// The columns a `.child(...)` argument contributes — usually one, two for a
-// ternary, none for anything that is not a column at all: a leaf `div()`, a
-// toolbar fragment, or a method that returns a row. Inline columns are
-// recognised by the head of their own chain, so a `div()` wrapping a
-// `v_flex()` is not mistaken for one.
-const columnTexts = (argument, methods) => {
-  const candidates = [];
-  for (const branch of ternaryBranches(argument)) {
-    const called = branch.trim().match(/^this\.([A-Za-z_$][\w$]*)\s*\(/);
-    if (called) {
-      const chain = methods.get(called[1]);
-      if (chain !== undefined) candidates.push(chain);
-      continue;
-    }
-    if (/(?:^|[\s?:])v_flex\(\)/.test(styleHead(branch))) candidates.push(branch);
-  }
-  return candidates;
-};
-
-// `h_flex` centres its children on the cross axis, and a column does not take
-// the row's height on its own: it is sized by its content and centred inside
-// the row. A page laid out as "sidebar + main" therefore collapses to one line
-// of text floating in the middle of the pane, and every `flex_1()` inside those
-// columns — the message list, the textarea, the scroll region — resolves
-// against a height that is the content's, not the pane's.
-//
-// The gpui-base docs on `h_flex` state the rule and its two remedies (`h_full`
-// on the column, or `items_stretch`/`items_start` on the row); this pins the
-// full-size rows to one of them so the next two-column page cannot ship
-// centred. Only `v_flex` children are checked: a leaf `div()` is not a column
-// and has no height to fill.
-//
-// Two shapes walked past the first version of this test and left the dev-tools
-// workbench centred: the row filled its pane with `flex_1()` + `min_h_0()`
-// instead of `size_full()` (so the row was never looked at), and the detail
-// column arrives as `this.renderProjectDetails(cx)` rather than as an inline
-// `v_flex()` (so the argument was skipped). Both are covered now.
-test("extension UI columns inside a full-size h_flex row declare h_full", () => {
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  let rows = 0;
-  let columns = 0;
-  for (const file of files) {
-    const raw = fs.readFileSync(file, "utf8");
-    const source = blankOutCommentsAndStrings(raw);
-    const methods = columnMethodChains(source);
-    for (const match of source.matchAll(/\bh_flex\(\)/g)) {
-      const chain = chainFrom(source, match.index);
-      const head = styleHead(chain.text);
-      // A row fills its pane either explicitly (`size_full()`) or by growing
-      // into the page column (`flex_1()` + `min_h_0()`); a row that merely
-      // wraps its content has no height to hand to a column.
-      if (!head.includes("size_full()") && !head.includes("min_h_0()")) continue;
-      rows += 1;
-      const stretched = head.includes("items_stretch()") || head.includes("items_start()");
-      for (const argument of chain.children) {
-        for (const text of columnTexts(argument, methods)) {
-          columns += 1;
-          if (stretched) continue;
-          if (text.includes("h_full()") || text.includes("size_full()")) continue;
-          const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
-          violations.push(
-            `${path.relative(repoRoot, file)}:${line} a v_flex column inside a pane-filling h_flex row needs h_full() (otherwise the row centres it at its content height)`,
-          );
-        }
-      }
-    }
-  }
-
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(rows > 0, "expected to find full-size h_flex rows");
-  assert.ok(columns > 0, "expected to find columns inside full-size h_flex rows");
-  assert.deepEqual(violations, []);
-});
-
-// A pane the page pins to a width (`.w(272)`) cannot grow, and the pane beside
-// it will never hide the spill: a gpui box defaults to `overflow: visible`, so
-// text written with `whitespace_nowrap()` is painted past its own bounds and
-// straight over the neighbouring pane — a project path in the dev-tools sidebar
-// ran across the divider and on top of the details column's buttons.
-//
-// A flexible pane (`.flex_1()`) does not need this: its text gets the pane's
-// width, and a pane that is too narrow for its content is a different problem.
-// Text that must not wrap inside a fixed-width pane therefore has to end in an
-// ellipsis (`text_ellipsis*`, or `truncate()` which also pins the nowrap) or be
-// clipped (`overflow_hidden()`); anything else is a silent spill.
-test("nowrap text inside a fixed-width pane ellipsizes instead of spilling", () => {
-  const escapes = [
-    "text_ellipsis()",
-    "text_ellipsis_start()",
-    "text_ellipsis_middle()",
-    "truncate()",
-    "overflow_hidden()",
-  ];
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  let panes = 0;
-  let nowrap = 0;
-  for (const file of files) {
-    const raw = fs.readFileSync(file, "utf8");
-    const source = blankOutCommentsAndStrings(raw);
-    const chains = styleChains(source);
-    const methods = methodBodies(source);
-    for (const pane of chains) {
-      // `.w(272)` and friends: a width the author chose, not `w_full()`/`flex_1()`.
-      if (!/\.w\(\s*\d/.test(styleHead(pane.text))) continue;
-      panes += 1;
-      for (const chain of chainsInside(chains, methods, pane.index, pane.end)) {
-        if (!chain.text.includes("whitespace_nowrap()")) continue;
-        nowrap += 1;
-        if (escapes.some((escape) => chain.text.includes(escape))) continue;
-        const line = raw.slice(0, chain.index).split("\n").length;
-        violations.push(
-          `${path.relative(repoRoot, file)}:${line} nowrap text inside a fixed-width pane needs text_ellipsis()/truncate()/overflow_hidden(); as written it is painted over the pane next to it`,
-        );
-      }
-    }
-  }
-
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(panes > 0, "expected to find fixed-width panes");
-  assert.ok(nowrap > 0, "expected to find nowrap text inside a fixed-width pane");
-  assert.deepEqual(violations, []);
-});
-
-// A `Select` (and its `Combobox` twin) does not size itself from the row it
-// sits in. The shell materialises both as a `RenderOnce` over a plain `div`
-// that only refines the style it was given, and the `gpui-component` wrapper
-// draws a full-width trigger inside it — so a `Select` written as a bare
-// `.child(new Select(...))` claims the whole line. Its neighbours are then laid
-// out against a row that is already full, and which failure you get depends on
-// whether they can shrink:
-//
-//   - `div().flex_1()`, the wrapper every input in these pages uses, has a zero
-//     flex base and no free space left to grow into. It resolves to 0 width:
-//     the input is gone — no border, no placeholder, nothing to click — and the
-//     selector's own placeholder is the only field left on the line.
-//   - A sibling that cannot shrink (a title, a button) keeps its width instead
-//     and the row overflows, sliding the far column off the edge of the pane.
-//
-// Both are silent. The page renders, nothing is logged, and the only clue is a
-// person looking at a form that has lost a field. The pages that work wrap the
-// selector in a container that sizes it (`div().w(200).flex_shrink_0()`), and
-// this pins that so the next page cannot ship without it.
-test("extension UI rows size every Select instead of letting it claim the line", () => {
-  const files = collectJsFiles(path.join(repoRoot, "extensions")).sort();
-  const violations = [];
-  let rows = 0;
-  let selectors = 0;
-  for (const file of files) {
-    const raw = fs.readFileSync(file, "utf8");
-    const source = blankOutCommentsAndStrings(raw);
-    selectors += [...source.matchAll(/\bnew (?:Select|Combobox)\(/g)].length;
-    for (const match of source.matchAll(/\b(?:h_flex|v_flex)\(\)/g)) {
-      const chain = chainFrom(source, match.index);
-      rows += 1;
-      for (const argument of chain.children) {
-        if (!/^new (?:Select|Combobox)\(/.test(argument)) continue;
-        const line = raw.slice(0, match.index + chain.text.indexOf(argument)).split("\n").length;
-        violations.push(
-          `${path.relative(repoRoot, file)}:${line} passes a Select straight to .child(...); it claims the whole row and zeroes out the flex_1 sibling beside it — wrap it in a container that sizes it (div().w(200).flex_shrink_0())`,
-        );
-      }
-    }
-  }
-
-  assert.ok(files.length > 5, `expected to scan extension UI sources, saw ${files.length}`);
-  assert.ok(rows > 0, "expected to find h_flex/v_flex rows");
-  assert.ok(selectors > 0, "expected to find Select constructors to check");
-  assert.deepEqual(violations, []);
 });
 
 test("package-composite-extension rewrites native Windows commands and permissions", () => {
@@ -5100,7 +4289,10 @@ test("upload-r2 workflow exports R2 credentials without AWS STS configuration", 
   const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/upload-r2.yml"), "utf8");
 
   assert.doesNotMatch(workflow, /aws-actions\/configure-aws-credentials/);
-  assert.match(workflow, /contents:\s+read/);
+  // b54bc07 起清单也发一份 Release 资产（固定 tag manifest），所以
+  // permissions 从只读升级为 actions:write + contents:write。
+  assert.match(workflow, /actions:\s+write/);
+  assert.match(workflow, /contents:\s+write/);
   // concurrency 组已被 c7bc5bd 移除：批量发版时多个 Release 排队会互相 cancel。
   assert.doesNotMatch(workflow, /concurrency:/);
   assert.doesNotMatch(workflow, /extension-marketplace-publish/);
@@ -5983,7 +5175,13 @@ test("R2 upload workflow keeps only the newest version of an extension", () => {
     pruneIndex > workflow.indexOf("Publish marketplace manifests"),
     "清理必须排在上传与清单发布之后",
   );
-  const pruneStep = workflow.slice(workflow.lastIndexOf("      - name:", pruneIndex));
+  // 步骤文本要止于下一个 "      - name:"（b54bc07 之后 prune 后面还有
+  // manifest release 步骤，不截断会把后面整个 run 块一起当 bash 跑）。
+  const pruneStart = workflow.lastIndexOf("      - name:", pruneIndex);
+  const pruneEnd = workflow.indexOf("\n      - name:", pruneStart + 1);
+  const pruneStep = pruneEnd === -1
+    ? workflow.slice(pruneStart)
+    : workflow.slice(pruneStart, pruneEnd);
   assert.doesNotMatch(pruneStep, /always\(\)/);
   assert.doesNotMatch(pruneStep, /continue-on-error/);
 
@@ -6405,16 +5603,20 @@ function createNativeCompositeFixture(workdir, options = {}) {
       shellViews: [{
         id: "explorer",
         title: "Elasticsearch",
-        entry: "ui/explorer.js",
+        entry: "ui/pages/explorer/dist/bundle.js",
         singleton: false,
         backends: { search: "main" },
         modules: ["context", "resource"],
       }],
     },
   });
-  fs.mkdirSync(path.join(workdir, "extensions/composite/elasticsearch/ui"), { recursive: true });
+  // nsh 页面布局：源码在 ui/pages/<page>/，打包产物取 ui/pages/<page>/dist/bundle.js。
+  fs.mkdirSync(
+    path.join(workdir, "extensions/composite/elasticsearch/ui/pages/explorer/dist"),
+    { recursive: true },
+  );
   fs.writeFileSync(
-    path.join(workdir, "extensions/composite/elasticsearch/ui/explorer.js"),
+    path.join(workdir, "extensions/composite/elasticsearch/ui/pages/explorer/dist/bundle.js"),
     "export default class ElasticsearchExplorer {}\n",
   );
   fs.mkdirSync(path.join(workdir, `target/${target}/release`), { recursive: true });
