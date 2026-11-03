@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const volume = {
   name: "app-data",
@@ -11,33 +12,22 @@ const volume = {
 };
 
 function handlers() {
-  return {
-    "navop.workbench.dispatch": (data: { operationId: string; input?: Record<string, unknown> }) => {
-      switch (data.operationId) {
-        case "listVolumes":
-          return { volumes: [volume] };
-        case "volumeInspectByName":
-          return {
-            Name: "app-data",
-            Driver: "local",
-            Mountpoint: "/var/lib/docker/volumes/app-data/_data",
-            CreatedAt: "2026-01-02T03:04:05Z",
-            Scope: "local",
-            Labels: { team: "infra" },
-            Options: {},
-            Status: null,
-          };
-        case "volumeCreate":
-          return { Name: String(data.input?.name ?? "") };
-        case "volumeRemoveByName":
-          return {};
-        case "volumePrune":
-          return { deleted: ["old"], space_reclaimed_bytes: 2048 };
-        default:
-          throw new Error(`unexpected ${data.operationId}`);
-      }
-    },
-  };
+  return hostHandlers({
+    "docker/volume/list": () => ({ volumes: [volume] }),
+    "docker/volume/inspect": (params) => ({
+      Name: String(params.name ?? ""),
+      Driver: "local",
+      Mountpoint: "/var/lib/docker/volumes/app-data/_data",
+      CreatedAt: "2026-01-02T03:04:05Z",
+      Scope: "local",
+      Labels: { team: "infra" },
+      Options: {},
+      Status: null,
+    }),
+    "docker/volume/create": (params) => ({ Name: String(params.name ?? "") }),
+    "docker/volume/remove": () => ({}),
+    "docker/volume/prune": () => ({ deleted: ["old"], space_reclaimed_bytes: 2048 }),
+  });
 }
 
 test("列表与详情", async () => {

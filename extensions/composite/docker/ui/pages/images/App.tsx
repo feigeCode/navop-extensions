@@ -33,13 +33,122 @@ import { c, t } from "../../lib/theme";
 type Image = Record<string, unknown>;
 type Detail = Record<string, unknown> | null;
 
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId: string, input?: unknown, confirmed?: boolean): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+
+
+/** inspect 的返回是 Docker 原始的 PascalCase 结构，别按小写字段读。 */
+function pascalRaw(
+  info: unknown,
+  key: string,
+  nested?: string,
+): unknown {
+  const root = (info ?? null) as Record<string, unknown> | null;
+  if (root === null) return null;
+  const target =
+    nested === undefined ? root : ((root[nested] ?? null) as Record<string, unknown> | null);
+  return target?.[key] ?? null;
+}
+
+/** PascalCase 字段转展示文本（缺省给 `-`）。 */
+function pascal(info: unknown, key: string, nested?: string): string {
+  const raw = pascalRaw(info, key, nested);
+  if (typeof raw === "string" && raw.length > 0) return raw;
+  if (typeof raw === "number" || typeof raw === "boolean") return String(raw);
+  return "-";
+}
+
+/** 镜像大小：provider 给的是 `"7.8 MB"` 这种字符串，能直接用就直接用。 */
+function sizeText(item: Record<string, unknown> | null): string {
+  if (item === null) return "-";
+  const size = item.size;
+  if (typeof size === "string" && size.trim().length > 0) return size;
+  return humanBytes(size);
+}
+
+const OPERATIONS: Record<string, string> = {
+  containerCreate: "docker/container/create",
+  containerDiff: "docker/container/diff",
+  containerFilesDelete: "docker/container/files/delete",
+  containerFilesList: "docker/container/files/list",
+  containerKill: "docker/container/kill",
+  containerLogs: "docker/container/logs",
+  containerLogsWithTail: "docker/container/logs",
+  containerMounts: "docker/container/mounts",
+  containerPause: "docker/container/pause",
+  containerRename: "docker/container/rename",
+  containerStats: "docker/container/stats",
+  containerTop: "docker/container/top",
+  containerUnpause: "docker/container/unpause",
+  containerUpdate: "docker/container/update",
+  imageHistory: "docker/image/history",
+  imageHistoryByRef: "docker/image/history",
+  imageInspect: "docker/image/inspect",
+  imageInspectByRef: "docker/image/inspect",
+  imagePrune: "docker/image/prune",
+  imageRemoveByRef: "docker/image/remove",
+  imageTag: "docker/image/tag",
+  imageTagByRef: "docker/image/tag",
+  inspectContainer: "docker/container/inspect",
+  inspectNetwork: "docker/network/inspect",
+  inspectVolume: "docker/volume/inspect",
+  listContainers: "docker/container/list",
+  listImages: "docker/image/list",
+  listNetworks: "docker/network/list",
+  listVolumes: "docker/volume/list",
+  networkConnect: "docker/network/connect",
+  networkCreate: "docker/network/create",
+  networkDisconnect: "docker/network/disconnect",
+  networkInspectById: "docker/network/inspect",
+  networkPrune: "docker/network/prune",
+  networkRemoveById: "docker/network/remove",
+  pullImage: "docker/image/pull",
+  removeContainer: "docker/container/remove",
+  removeImage: "docker/image/remove",
+  removeNetwork: "docker/network/remove",
+  removeVolume: "docker/volume/remove",
+  restartContainer: "docker/container/restart",
+  startContainer: "docker/container/start",
+  stopContainer: "docker/container/stop",
+  systemInfo: "docker/system/info",
+  systemPrune: "docker/system/prune",
+  systemUsage: "docker/system/usage",
+  volumeCreate: "docker/volume/create",
+  volumeInspectByName: "docker/volume/inspect",
+  volumePrune: "docker/volume/prune",
+  volumeRemoveByName: "docker/volume/remove",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", {
-      operationId,
-      input: input ?? {},
-      ...(confirmed === true ? { options: { confirmed: true } } : {}),
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -139,9 +248,9 @@ export default function Images() {
     busy.set(true);
     try {
       await dispatch("imageRemoveByRef", { name: target }, true);
+      await load();
       notice.set(`已删除 ${target}`);
       pendingRemove.set(null);
-      await load();
     } catch (failure) {
       notice.set(errorMessage(failure));
     } finally {
@@ -153,9 +262,9 @@ export default function Images() {
     busy.set(true);
     try {
       const result = await dispatch("imagePrune", { all: false }, true);
+      await load();
       notice.set(`已清理悬空镜像${result ? `（${str(result, "reclaimed", "")} 空间）` : ""}`);
       pendingPrune.set(false);
-      await load();
     } catch (failure) {
       notice.set(errorMessage(failure));
     } finally {
@@ -171,8 +280,8 @@ export default function Images() {
     try {
       const { image, tag } = splitImageRef(trimmed);
       await dispatch("pullImage", { image, tag }, true);
-      notice.set(`已拉取 ${trimmed}`);
       await load();
+      notice.set(`已拉取 ${trimmed}`);
     } catch (failure) {
       notice.set(errorMessage(failure));
     } finally {
@@ -191,7 +300,7 @@ export default function Images() {
     }
     busy.set(true);
     try {
-      await dispatch("imageTagByRef", { name: target, repository: repo, tag }, true);
+      await dispatch("imageTagByRef", { name: target, repo, tag }, true);
       notice.set(`已打标签 ${repo}:${tag}`);
       tagForm.set(false);
       await load();
@@ -213,7 +322,7 @@ export default function Images() {
     return entries.slice(0, 12).map((entry, index) => (
       <Row gap={10} style={{ paddingVertical: 5 }}>
         <Text style={{ ...t.mono, width: 78, color: c.muted() }}>{shortTime(str(entry, "created", ""))}</Text>
-        <Text style={{ ...t.mono, width: 70, color: c.muted() }}>{humanBytes(entry && (entry as Record<string, unknown>).size)}</Text>
+        <Text style={{ ...t.mono, width: 70, color: c.muted() }}>{sizeText(entry)}</Text>
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, fontSize: 12, color: c.text() }}>
           {str(entry, "created_by", "-")}
         </Text>
@@ -235,7 +344,7 @@ export default function Images() {
               {str(image, "name", "<untagged>")}
             </Text>
             <Text numberOfLines={1} style={t.meta}>
-              {`${str(image, "id", "-")} · ${humanBytes(image.size)} · ${tags.length} 个标签`}
+              {`${str(image, "id", "-")} · ${sizeText(image)} · ${tags.length} 个标签`}
             </Text>
           </View>
           <Row gap={6}>
@@ -282,7 +391,7 @@ export default function Images() {
           <KeyValue
             rows={[
               ["镜像 ID", str(image, "id", "-")],
-              ["大小", humanBytes(image.size)],
+              ["大小", sizeText(image)],
               ["创建时间", shortTime(str(image, "created", ""))],
               ["标签", tags.length > 0 ? tags.join(", ") : "<无>"],
               ["入口命令", joinCommand((detail()?.info as Record<string, unknown> | undefined)?.config ?? null)],
@@ -305,11 +414,11 @@ export default function Images() {
             <KeyValue
               columns={2}
               rows={[
-                ["架构", str((detail()?.info as Record<string, unknown>)?.architecture as unknown, "value", str((detail()?.info as Record<string, unknown>), "architecture", "-"))],
-                ["操作系统", str(detail()?.info as Record<string, unknown>, "os", "-")],
-                ["环境变量", `${arr((detail()?.info as Record<string, unknown>)?.config as unknown, "Env").length} 项`],
-                ["工作目录", str((detail()?.info as Record<string, unknown>)?.config as Record<string, unknown> | undefined, "WorkingDir", "-")],
-                ["暴露端口", `${Object.keys(((detail()?.info as Record<string, unknown>)?.config as Record<string, unknown> | undefined)?.ExposedPorts as Record<string, unknown> ?? {}).length} 个`],
+                ["架构", pascal(detail()?.info, "Architecture")],
+                ["操作系统", pascal(detail()?.info, "Os")],
+                ["环境变量", `${arr((detail()?.info as Record<string, unknown>)?.Config as unknown, "Env").length} 项`],
+                ["工作目录", pascal(detail()?.info, "WorkingDir", "Config")],
+                ["暴露端口", `${Object.keys(((pascalRaw(detail()?.info, "Config", "ExposedPorts") ?? {}) as Record<string, unknown>)) .length} 个`],
               ]}
             />
           </Card>
@@ -334,7 +443,13 @@ export default function Images() {
       <Row gap={8} style={{ paddingHorizontal: 14, paddingVertical: 10, justifyContent: "space-between" }}>
         <Row gap={8}>
           <Text style={t.h1}>镜像</Text>
-          <Badge text={`${images().length} 个本地`} />
+          <Badge
+            text={
+              filter().trim().length === 0
+                ? `${images().length} 个本地`
+                : `匹配 ${visible().length} / 共 ${images().length}`
+            }
+          />
           <SearchField value={filter()} onChange={(text) => filter.set(text)} placeholder="按名称 / ID / 标签过滤" />
         </Row>
         <Row gap={6}>
@@ -392,7 +507,7 @@ export default function Images() {
             render={(image) => (
               <ListRow
                 title={str(image, "name", "<untagged>")}
-                subtitle={`${arr(image, "tags").length} 个标签 · ${humanBytes(image.size)} · ${shortTime(str(image, "created", ""))}`}
+                subtitle={`${arr(image, "tags").length} 个标签 · ${sizeText(image)} · ${shortTime(str(image, "created", ""))}`}
                 trailing={image.dangling === true ? <Badge text="悬空" tone="danger" /> : undefined}
               />
             )}

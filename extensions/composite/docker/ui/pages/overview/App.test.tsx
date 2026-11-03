@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const usage = {
   engine: true,
@@ -16,14 +17,9 @@ const usage = {
 };
 
 function handlers() {
-  return {
-    "navop.workbench.dispatch": (data: { operationId: string }) => {
-      if (data.operationId !== "systemUsage") {
-        throw new Error(`unexpected ${data.operationId}`);
-      }
-      return usage;
-    },
-  };
+  return hostHandlers({
+    "docker/system/usage": () => usage,
+  });
 }
 
 test("引擎概览显示运行中容器与磁盘占用", async () => {
@@ -41,11 +37,11 @@ test("取数失败时给出重试", async () => {
     width: 1100,
     height: 800,
     host: {
-      handlers: {
-        "navop.workbench.dispatch": () => {
+      handlers: hostHandlers({
+        "docker/system/usage": () => {
           throw new Error("daemon 不可用");
         },
-      },
+      }),
     },
   });
   await app.waitFor("text:重试");

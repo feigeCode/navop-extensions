@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
 //#region ../../lib/format.ts
@@ -141,6 +141,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -150,37 +152,45 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
+/** 0..1 → 百分比宽度（Meter 用）。返回类型要写成模板字面量，否则 ViewStyle 的
+* `width` 不接受宽化后的 `string`。 */
+const meterWidth = (ratio) => `${Math.max(0, Math.round(Math.max(0, Math.min(1, ratio)) * 1e3) / 10)}%`;
 /** 纵向堆叠；`scroll` 打开纵向滚动（页面根节点用）。 */
 function Stack(props) {
-	const style = {
-		display: "flex",
-		flexDirection: "column",
-		gap: props.gap ?? 12,
-		...props.padding === void 0 ? {} : { padding: props.padding },
-		...props.scroll ? {
-			flex: 1,
-			minHeight: 0
-		} : {},
-		...props.style
-	};
-	if (props.scroll) return (() => {
-		const __nsh_hv0 = element("scroll");
-		prop(__nsh_hv0, "style", {
+	return cond(() => pick(props.scroll ?? false), () => (() => {
+		const __nsh_hv1 = element("scroll");
+		prop(__nsh_hv1, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv1 = element("view");
-		prop(__nsh_hv1, "style", style);
-		insert(__nsh_hv1, () => props.children);
-		append(__nsh_hv0, __nsh_hv1);
-		return __nsh_hv0;
-	})();
-	return (() => {
 		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "style", style);
+		bindProp(__nsh_hv2, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			flex: 1,
+			minHeight: 0,
+			...props.style
+		}));
 		insert(__nsh_hv2, () => props.children);
-		return __nsh_hv2;
-	})();
+		append(__nsh_hv1, __nsh_hv2);
+		return __nsh_hv1;
+	})(), () => (() => {
+		const __nsh_hv0 = element("view");
+		bindProp(__nsh_hv0, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			...props.style
+		}));
+		insert(__nsh_hv0, () => props.children);
+		return __nsh_hv0;
+	})());
 }
 /** 横向排列，垂直居中。 */
 function Row(props) {
@@ -249,7 +259,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -257,17 +266,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -275,14 +284,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -290,9 +294,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -302,7 +306,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -379,7 +383,7 @@ function Stat(props) {
 		bindProp(__nsh_hv32, "style", () => ({
 			fontSize: 22,
 			fontWeight: "600",
-			color: props.tone === void 0 ? c.text() : toneColor(props.tone),
+			color: props.tone === void 0 ? c.text() : toneColor(pick(props.tone)),
 			fontVariant: ["tabular-nums"]
 		}));
 		insert(__nsh_hv32, () => props.value);
@@ -396,7 +400,6 @@ function Stat(props) {
 }
 /** 占用条：0..1 的比例 + 两端说明。 */
 function Meter(props) {
-	const clamped = Math.max(0, Math.min(1, props.ratio));
 	return (() => {
 		const __nsh_hv34 = element("view");
 		prop(__nsh_hv34, "style", {
@@ -413,14 +416,14 @@ function Meter(props) {
 		}));
 		const __nsh_hv38 = element("view");
 		bindProp(__nsh_hv38, "style", () => ({
-			width: `${Math.max(0, Math.round(clamped * 1e3) / 10)}%`,
+			width: meterWidth(pick(props.ratio)),
 			height: 8,
 			borderRadius: r.pill,
-			backgroundColor: props.tone === void 0 ? c.accent() : toneColor(props.tone)
+			backgroundColor: props.tone === void 0 ? c.accent() : toneColor(pick(props.tone))
 		}));
 		append(__nsh_hv37, __nsh_hv38);
 		append(__nsh_hv34, __nsh_hv37);
-		insert(__nsh_hv34, () => props.label === void 0 && props.caption === void 0 ? null : component(Row, {
+		insert(__nsh_hv34, cond(() => props.label !== void 0 || props.caption !== void 0, () => component(Row, {
 			style: { justifyContent: "space-between" },
 			get children() {
 				return [(() => {
@@ -438,13 +441,85 @@ function Meter(props) {
 					return __nsh_hv36;
 				})()];
 			}
-		}), __nsh_hv37);
+		})), __nsh_hv37);
 		return __nsh_hv34;
 	})();
 }
 
 //#endregion
 //#region App.tsx
+/** operationId → provider 方法名（清单里的工作台声明已不参与运行）。 */
+const OPERATIONS = {
+	containerCreate: "docker/container/create",
+	containerDiff: "docker/container/diff",
+	containerFilesDelete: "docker/container/files/delete",
+	containerFilesList: "docker/container/files/list",
+	containerKill: "docker/container/kill",
+	containerLogs: "docker/container/logs",
+	containerLogsWithTail: "docker/container/logs",
+	containerMounts: "docker/container/mounts",
+	containerPause: "docker/container/pause",
+	containerRename: "docker/container/rename",
+	containerStats: "docker/container/stats",
+	containerTop: "docker/container/top",
+	containerUnpause: "docker/container/unpause",
+	containerUpdate: "docker/container/update",
+	imageHistory: "docker/image/history",
+	imageHistoryByRef: "docker/image/history",
+	imageInspect: "docker/image/inspect",
+	imageInspectByRef: "docker/image/inspect",
+	imagePrune: "docker/image/prune",
+	imageRemoveByRef: "docker/image/remove",
+	imageTag: "docker/image/tag",
+	imageTagByRef: "docker/image/tag",
+	inspectContainer: "docker/container/inspect",
+	inspectNetwork: "docker/network/inspect",
+	inspectVolume: "docker/volume/inspect",
+	listContainers: "docker/container/list",
+	listImages: "docker/image/list",
+	listNetworks: "docker/network/list",
+	listVolumes: "docker/volume/list",
+	networkConnect: "docker/network/connect",
+	networkCreate: "docker/network/create",
+	networkDisconnect: "docker/network/disconnect",
+	networkInspectById: "docker/network/inspect",
+	networkPrune: "docker/network/prune",
+	networkRemoveById: "docker/network/remove",
+	pullImage: "docker/image/pull",
+	removeContainer: "docker/container/remove",
+	removeImage: "docker/image/remove",
+	removeNetwork: "docker/network/remove",
+	removeVolume: "docker/volume/remove",
+	restartContainer: "docker/container/restart",
+	startContainer: "docker/container/start",
+	stopContainer: "docker/container/stop",
+	systemInfo: "docker/system/info",
+	systemPrune: "docker/system/prune",
+	systemUsage: "docker/system/usage",
+	volumeCreate: "docker/volume/create",
+	volumeInspectByName: "docker/volume/inspect",
+	volumePrune: "docker/volume/prune",
+	volumeRemoveByName: "docker/volume/remove"
+};
+let resourceHandle = null;
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle() {
+	if (resourceHandle) return resourceHandle;
+	const found = (await host.call("navop.context.current", {}))?.connection?.resourceHandle;
+	if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	resourceHandle = found;
+	return found;
+}
+/** 调一次 provider 方法。 */
+async function invoke(operationId, params = {}) {
+	const method = OPERATIONS[operationId];
+	if (!method) throw new Error(`未知的操作：${operationId}`);
+	return await host.call("navop.resource.invoke", {
+		handle: await handle(),
+		method,
+		params
+	});
+}
 function Overview() {
 	const usage = signal(null);
 	const loading = signal(true);
@@ -454,10 +529,7 @@ function Overview() {
 		loading.set(true);
 		error.set(null);
 		try {
-			const result = await host.call("navop.workbench.dispatch", {
-				operationId: "systemUsage",
-				input: {}
-			});
+			const result = await invoke("systemUsage", {});
 			usage.set(result ?? {});
 			refreshed.set((/* @__PURE__ */ new Date()).toLocaleTimeString());
 		} catch (failure) {

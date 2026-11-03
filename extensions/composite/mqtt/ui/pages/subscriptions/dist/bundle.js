@@ -120,6 +120,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../../../docker/ui/lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -129,6 +131,9 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 /** 横向排列，垂直居中。 */
 function Row(props) {
 	return (() => {
@@ -196,7 +201,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -204,17 +208,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -222,14 +226,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -237,9 +236,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -249,7 +248,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -397,7 +396,7 @@ function Notice(props) {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;
@@ -412,12 +411,41 @@ const QOS_OPTIONS = [
 	2
 ];
 const ACTIVE_WINDOW_MS = 3e5;
-async function dispatch(operationId, input, confirmed) {
+/** operationId → provider 方法名。
+*
+* 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+* 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+*/
+const OPERATIONS = {
+	listClients: "middleware/group/clients",
+	listTopics: "middleware/topic/list",
+	messageStream: "middleware/message/stream",
+	metrics: "middleware/metrics",
+	publish: "middleware/message/send",
+	queryById: "middleware/message/query",
+	queryByKey: "middleware/message/query",
+	queryByWindow: "middleware/message/query",
+	subscribe: "middleware/topic/create",
+	unsubscribe: "middleware/topic/delete"
+};
+let resourceHandle = null;
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle() {
+	if (resourceHandle) return resourceHandle;
+	const found = (await host.call("navop.context.current", {}))?.connection?.resourceHandle;
+	if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	resourceHandle = found;
+	return found;
+}
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(operationId, input, _confirmed) {
+	const method = OPERATIONS[operationId];
+	if (!method) throw new Error(`未知的操作：${operationId}`);
 	try {
-		return await host.call("navop.workbench.dispatch", {
-			operationId,
-			input: input ?? {},
-			...confirmed === true ? { options: { confirmed: true } } : {}
+		return await host.call("navop.resource.invoke", {
+			handle: await handle(),
+			method,
+			params: input ?? {}
 		});
 	} catch (error) {
 		throw new Error(errorMessage(error));

@@ -34,13 +34,91 @@ type Detail = Record<string, unknown> | null;
 /** Docker 自带的三个网络；它们删不掉。 */
 const BUILTIN_NAMES = new Set(["bridge", "host", "none"]);
 
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId: string, input?: unknown, confirmed?: boolean): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+const OPERATIONS: Record<string, string> = {
+  containerCreate: "docker/container/create",
+  containerDiff: "docker/container/diff",
+  containerFilesDelete: "docker/container/files/delete",
+  containerFilesList: "docker/container/files/list",
+  containerKill: "docker/container/kill",
+  containerLogs: "docker/container/logs",
+  containerLogsWithTail: "docker/container/logs",
+  containerMounts: "docker/container/mounts",
+  containerPause: "docker/container/pause",
+  containerRename: "docker/container/rename",
+  containerStats: "docker/container/stats",
+  containerTop: "docker/container/top",
+  containerUnpause: "docker/container/unpause",
+  containerUpdate: "docker/container/update",
+  imageHistory: "docker/image/history",
+  imageHistoryByRef: "docker/image/history",
+  imageInspect: "docker/image/inspect",
+  imageInspectByRef: "docker/image/inspect",
+  imagePrune: "docker/image/prune",
+  imageRemoveByRef: "docker/image/remove",
+  imageTag: "docker/image/tag",
+  imageTagByRef: "docker/image/tag",
+  inspectContainer: "docker/container/inspect",
+  inspectNetwork: "docker/network/inspect",
+  inspectVolume: "docker/volume/inspect",
+  listContainers: "docker/container/list",
+  listImages: "docker/image/list",
+  listNetworks: "docker/network/list",
+  listVolumes: "docker/volume/list",
+  networkConnect: "docker/network/connect",
+  networkCreate: "docker/network/create",
+  networkDisconnect: "docker/network/disconnect",
+  networkInspectById: "docker/network/inspect",
+  networkPrune: "docker/network/prune",
+  networkRemoveById: "docker/network/remove",
+  pullImage: "docker/image/pull",
+  removeContainer: "docker/container/remove",
+  removeImage: "docker/image/remove",
+  removeNetwork: "docker/network/remove",
+  removeVolume: "docker/volume/remove",
+  restartContainer: "docker/container/restart",
+  startContainer: "docker/container/start",
+  stopContainer: "docker/container/stop",
+  systemInfo: "docker/system/info",
+  systemPrune: "docker/system/prune",
+  systemUsage: "docker/system/usage",
+  volumeCreate: "docker/volume/create",
+  volumeInspectByName: "docker/volume/inspect",
+  volumePrune: "docker/volume/prune",
+  volumeRemoveByName: "docker/volume/remove",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", {
-      operationId,
-      input: input ?? {},
-      ...(confirmed === true ? { options: { confirmed: true } } : {}),
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
     });
   } catch (error) {
     throw new Error(errorMessage(error));

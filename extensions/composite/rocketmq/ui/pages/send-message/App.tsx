@@ -1,12 +1,52 @@
 // RocketMQ 发送消息页：左侧表单，右侧本页发送历史（最近 20 条，可回填）。
 //
 // 消息体按 UTF-8 编码成字节数组发送（SendMessageRequest.body 是 Vec<u8>）。
-// JSON 合法性只做即时提示，不阻止发送原文。发送是写操作，带 confirmed。
+// JSON 合法性只做即时提示，不阻止发送原文。发送是写操作，由宿主确认。
 import { host, mount, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import { errorMessage, humanBytes } from "../../lib/format";
 import { Badge, Button, Card, Empty, List, Notice, Row, SectionTitle, Stack } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
+
+/** operationId → provider 方法名（清单里的工作台声明已不参与运行）。 */
+const OPERATIONS: Record<string, string> = {
+  clusterOverview: "middleware/cluster/overview",
+  createTopic: "middleware/topic/create",
+  deleteTopic: "middleware/topic/delete",
+  groupClients: "middleware/group/clients",
+  groupDetail: "middleware/group/detail",
+  listGroups: "middleware/group/list",
+  listTopics: "middleware/topic/list",
+  metrics: "middleware/metrics",
+  queryById: "middleware/message/query",
+  queryByKey: "middleware/message/query",
+  queryByTimeWindow: "middleware/message/query",
+  resetConsumerOffset: "rocketmq/consumer/reset-offset",
+  sendMessage: "middleware/message/send",
+  topicDetail: "middleware/topic/detail",
+  updateTopic: "middleware/topic/update",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法。 */
+async function invoke(operationId: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
+  return await host.call("navop.resource.invoke", { handle: await handle(), method, params });
+}
 
 type JsonState = "empty" | "ok" | "bad";
 
@@ -78,6 +118,7 @@ function Field(props: {
   onChange: (text: string) => void;
   placeholder: string;
   required?: boolean;
+  testID?: string;
 }) {
   return (
     <View style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
@@ -100,6 +141,7 @@ function Field(props: {
         }}
       >
         <Input
+          testID={props.testID}
           value={props.value}
           placeholder={props.placeholder}
           onChange={(text) => props.onChange(text)}
@@ -165,12 +207,8 @@ export default function SendMessage() {
       if (tagText.length > 0) input.tag = tagText;
       if (keyText.length > 0) input.key = keyText;
       input.body = Array.from(new TextEncoder().encode(bodyText));
-      const raw = await host.call("navop.workbench.dispatch", {
-        operationId: "sendMessage",
-        input,
-        // 写操作：宿主会先弹确认。confirmed 走 payload.options（dispatch 的 ABI 约定）。
-        options: { confirmed: true },
-      });
+      // 写操作：确认由页面自己负责（ConfirmBar），直接发。
+      const raw = await invoke("sendMessage", input);
       const record = asRecord(raw);
       const messageId = record === null ? "" : textOf(record, "message_id");
       const status = record === null ? "" : textOf(record, "status");
@@ -235,7 +273,7 @@ export default function SendMessage() {
     return <Notice tone="danger" message={`${current.title}：${current.detail}`} />;
   };
 
-  const form = (
+  const form = () => (
     <Stack scroll padding={14} gap={12}>
       <Card title="消息目标" hint="Topic 必填，Tag / Key 可选">
         <Row gap={10} wrap>
@@ -245,9 +283,10 @@ export default function SendMessage() {
             value={topic()}
             onChange={(text) => topic.set(text)}
             placeholder="例如 order-topic"
+            testID="topic"
           />
-          <Field label="Tag" value={tag()} onChange={(text) => tag.set(text)} placeholder="可选，用于消费过滤" />
-          <Field label="Key" value={key()} onChange={(text) => key.set(text)} placeholder="可选，业务唯一键" />
+          <Field label="Tag" value={tag()} onChange={(text) => tag.set(text)} placeholder="可选，用于消费过滤" testID="tag" />
+          <Field label="Key" value={key()} onChange={(text) => key.set(text)} placeholder="可选，业务唯一键" testID="key" />
         </Row>
       </Card>
 
@@ -269,6 +308,7 @@ export default function SendMessage() {
           }}
         >
           <Input
+            testID="body"
             multiline
             value={body()}
             placeholder={'例如 {"orderId":"A1001","amount":99.5}'}
@@ -309,11 +349,11 @@ export default function SendMessage() {
               formError.set(null);
             }}
           />
+          {/* nsh 的 onPress 在挂载时绑定，所以不靠 disabled：守卫在 send() 里做。 */}
           <Button
             label={sending() ? "发送中…" : "发送"}
             tone="primary"
             small
-            disabled={sending() || topic().trim().length === 0}
             onPress={() => void send()}
           />
         </Row>
@@ -321,7 +361,7 @@ export default function SendMessage() {
     </Stack>
   );
 
-  const historyPanel = (
+  const historyPanel = () => (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <View style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.line() }}>
         <SectionTitle
@@ -332,49 +372,54 @@ export default function SendMessage() {
               label="清空"
               small
               tone="ghost"
-              disabled={history().length === 0}
-              onPress={() => history.set([])}
+              onPress={() => {
+                if (history().length === 0) return;
+                history.set([]);
+              }}
             />
           }
         />
       </View>
-      <List
-        items={history()}
-        keyOf={(entry) => entry.id}
-        onSelect={(id) => {
-          const entry = history().find((item) => item.id === id);
-          if (entry !== undefined) applyHistory(entry);
-        }}
-        empty={
+      {() =>
+        history().length === 0 ? (
           <Empty
             title="还没有发送记录"
             hint="发送成功或失败的消息都会留在本页，方便回填重发。"
           />
-        }
-        render={(entry) => (
-          <View style={{ display: "flex", flexDirection: "column", gap: 3, padding: 10 }}>
-            <Row gap={6}>
-              <Text numberOfLines={1} style={[t.mono, { flex: 1, minWidth: 0, color: c.text() }]}>
-                {entry.topic}
-              </Text>
-              <Badge text={entry.ok ? "成功" : "失败"} tone={entry.ok ? "ok" : "danger"} />
-              <Text style={t.meta}>{entry.at}</Text>
-            </Row>
-            <Text numberOfLines={1} style={t.meta}>
-              {entry.tag.length > 0 ? `tag=${entry.tag}` : "tag=-"} ·{" "}
-              {entry.key.length > 0 ? `key=${entry.key}` : "key=-"}
-            </Text>
-            <Text numberOfLines={2} style={{ fontSize: 11, color: c.muted(), lineHeight: 15 }}>
-              {entry.body.length === 0 ? "<空消息体>" : oneLine(entry.body)}
-            </Text>
-            {entry.detail.length === 0 ? null : (
-              <Text numberOfLines={1} style={{ fontSize: 11, color: entry.ok ? c.muted() : c.danger() }}>
-                {entry.detail}
-              </Text>
+        ) : (
+          <List
+            items={history()}
+            keyOf={(entry) => entry.id}
+            onSelect={(id) => {
+              const entry = history().find((item) => item.id === id);
+              if (entry !== undefined) applyHistory(entry);
+            }}
+            render={(entry) => (
+              <View style={{ display: "flex", flexDirection: "column", gap: 3, padding: 10 }}>
+                <Row gap={6}>
+                  <Text numberOfLines={1} style={[t.mono, { flex: 1, minWidth: 0, color: c.text() }]}>
+                    {entry.topic}
+                  </Text>
+                  <Badge text={entry.ok ? "成功" : "失败"} tone={entry.ok ? "ok" : "danger"} />
+                  <Text style={t.meta}>{entry.at}</Text>
+                </Row>
+                <Text numberOfLines={1} style={t.meta}>
+                  {entry.tag.length > 0 ? `tag=${entry.tag}` : "tag=-"} ·{" "}
+                  {entry.key.length > 0 ? `key=${entry.key}` : "key=-"}
+                </Text>
+                <Text numberOfLines={2} style={{ fontSize: 11, color: c.muted(), lineHeight: 15 }}>
+                  {entry.body.length === 0 ? "<空消息体>" : oneLine(entry.body)}
+                </Text>
+                {entry.detail.length === 0 ? null : (
+                  <Text numberOfLines={1} style={{ fontSize: 11, color: entry.ok ? c.muted() : c.danger() }}>
+                    {entry.detail}
+                  </Text>
+                )}
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
+        )
+      }
     </View>
   );
 
@@ -407,7 +452,7 @@ export default function SendMessage() {
       </Row>
       <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
         <View style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          {form}
+          {form()}
         </View>
         <View
           style={{
@@ -420,7 +465,7 @@ export default function SendMessage() {
             borderLeftColor: c.line(),
           }}
         >
-          {historyPanel}
+          {historyPanel()}
         </View>
       </View>
     </View>

@@ -3,5 +3,10 @@
   "id": "com.navop.docker.inspect",
   "version": "0.1.0",
   "build": 1,
-  "capabilities": { "host": ["navop.workbench.*"] }
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
+  }
 }

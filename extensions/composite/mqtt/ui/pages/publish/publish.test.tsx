@@ -1,20 +1,23 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const TOPIC = "devices/kitchen/light/set";
 const PAYLOAD = '{"a":1,"b":[2,3]}';
 
-test("publish 表单、JSON 提示、发送与历史回填", async () => {
-  const calls: Array<Record<string, unknown>> = [];
+type SendParams = { topic: string; body: number[]; properties: Array<[string, string]> };
 
-  function dispatch(data: unknown): unknown {
-    const request = data as Record<string, unknown>;
-    calls.push(request);
-    if (request.operationId === "publish") return { message_id: "mqtt-9" };
-    throw new Error(`unexpected operation ${String(request.operationId)}`);
-  }
+test("publish 表单、JSON 提示、发送与历史回填", async () => {
+  // 页面只用一个 provider 方法：`middleware/message/send`。
+  const calls: SendParams[] = [];
+  const handlers = hostHandlers({
+    "middleware/message/send": (params) => {
+      calls.push(params as SendParams);
+      return { message_id: "mqtt-9" };
+    },
+  });
 
   const app = await open("./App.tsx", {
-    host: { handlers: { "navop.workbench.dispatch": dispatch } },
+    host: { handlers },
     clock: {},
     width: 1280,
     height: 800,
@@ -30,14 +33,11 @@ test("publish 表单、JSON 提示、发送与历史回填", async () => {
     { timeout: 3000 },
   );
 
-  const first = calls.find((call) => call.operationId === "publish") as {
-    input: { topic: string; body: number[]; properties: Array<[string, string]> };
-    options?: { confirmed?: boolean };
-  };
-  expect(first.input.topic).toBe(TOPIC);
-  expect(first.options?.confirmed).toBe(true);
-  expect(String.fromCharCode(...first.input.body)).toBe(PAYLOAD);
-  expect(first.input.properties).toEqual([
+  // 发送参数就是 payload 本身：topic / body 字节 / properties。
+  const first = calls[0];
+  expect(first.topic).toBe(TOPIC);
+  expect(String.fromCharCode(...first.body)).toBe(PAYLOAD);
+  expect(first.properties).toEqual([
     ["qos", "1"],
     ["retain", "false"],
   ]);
@@ -58,8 +58,7 @@ test("publish 表单、JSON 提示、发送与历史回填", async () => {
   );
   await app.press("text:发送");
   await app.waitUntil(
-    () =>
-      calls.filter((call) => call.operationId === "publish").length >= 2,
+    () => calls.length >= 2,
     { timeout: 3000 },
   );
 

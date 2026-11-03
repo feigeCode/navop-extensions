@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
 //#region ../../../../../extensions/composite/docker/ui/lib/format.ts
@@ -105,6 +105,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../../../../extensions/composite/docker/ui/lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -114,37 +116,42 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 /** 纵向堆叠；`scroll` 打开纵向滚动（页面根节点用）。 */
 function Stack(props) {
-	const style = {
-		display: "flex",
-		flexDirection: "column",
-		gap: props.gap ?? 12,
-		...props.padding === void 0 ? {} : { padding: props.padding },
-		...props.scroll ? {
-			flex: 1,
-			minHeight: 0
-		} : {},
-		...props.style
-	};
-	if (props.scroll) return (() => {
-		const __nsh_hv0 = element("scroll");
-		prop(__nsh_hv0, "style", {
+	return cond(() => pick(props.scroll ?? false), () => (() => {
+		const __nsh_hv1 = element("scroll");
+		prop(__nsh_hv1, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv1 = element("view");
-		prop(__nsh_hv1, "style", style);
-		insert(__nsh_hv1, () => props.children);
-		append(__nsh_hv0, __nsh_hv1);
-		return __nsh_hv0;
-	})();
-	return (() => {
 		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "style", style);
+		bindProp(__nsh_hv2, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			flex: 1,
+			minHeight: 0,
+			...props.style
+		}));
 		insert(__nsh_hv2, () => props.children);
-		return __nsh_hv2;
-	})();
+		append(__nsh_hv1, __nsh_hv2);
+		return __nsh_hv1;
+	})(), () => (() => {
+		const __nsh_hv0 = element("view");
+		bindProp(__nsh_hv0, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			...props.style
+		}));
+		insert(__nsh_hv0, () => props.children);
+		return __nsh_hv0;
+	})());
 }
 /** 横向排列，垂直居中。 */
 function Row(props) {
@@ -213,7 +220,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -221,17 +227,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -239,14 +245,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -254,9 +255,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -266,7 +267,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -360,21 +361,22 @@ function LoadError(props) {
 }
 /** 键值对表：inspect 类页面的主体。 */
 function KeyValue(props) {
-	const columns = props.columns ?? 1;
 	return (() => {
 		const __nsh_hv39 = element("view");
-		prop(__nsh_hv39, "style", {
+		bindProp(__nsh_hv39, "style", () => ({
 			display: "flex",
-			flexDirection: columns === 2 ? "row" : "column",
+			flexDirection: pick(props.columns ?? 1) === 2 ? "row" : "column",
 			flexWrap: "wrap",
-			gap: columns === 2 ? 12 : 0
-		});
-		insert(__nsh_hv39, () => props.rows.map(([key, value]) => component(Row, {
-			style: {
-				justifyContent: "space-between",
-				paddingVertical: 5,
-				width: columns === 2 ? "48%" : "100%",
-				gap: 12
+			gap: pick(props.columns ?? 1) === 2 ? 12 : 0
+		}));
+		insert(__nsh_hv39, () => pick(props.rows).map(([key, value]) => component(Row, {
+			get style() {
+				return {
+					justifyContent: "space-between",
+					paddingVertical: 5,
+					width: pick(props.columns ?? 1) === 2 ? "48%" : "100%",
+					gap: 12
+				};
 			},
 			get children() {
 				return [(() => {
@@ -406,7 +408,7 @@ function Notice(props) {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;

@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
 //#region ../../lib/format.ts
@@ -44,6 +44,42 @@ function errorMessage(error) {
 		if (typeof message === "string") return message;
 	}
 	return String(error);
+}
+/** 取对象上的字符串字段（provider 的 JSON 不保证形状）。 */
+function str(source, key, fallback = "-") {
+	if (!source || typeof source !== "object") return fallback;
+	const value = source[key];
+	if (typeof value === "string" && value.length > 0) return value;
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	if (typeof value === "boolean") return value ? "yes" : "no";
+	return fallback;
+}
+/** 取数组字段；不是数组就是空数组。 */
+function arr(source, key) {
+	if (!source || typeof source !== "object") return [];
+	const value = source[key];
+	return Array.isArray(value) ? value : [];
+}
+
+//#endregion
+//#region ../../lib/host.ts
+let cached = null;
+/** 当前页面所属的连接。没有连接（例如工具箱里单独打开的页面）时抛错。 */
+async function connection() {
+	if (cached) return cached;
+	const found = (await host.call("navop.context.current", {}))?.connection;
+	if (!found?.resourceHandle) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	cached = found;
+	return found;
+}
+/** 调 provider 的方法。等价于旧方言的 `dispatch(operationId, input)`，但方法名是真的。 */
+async function call(method, params = {}) {
+	const conn = await connection();
+	return await host.call("navop.resource.invoke", {
+		handle: conn.resourceHandle,
+		method,
+		params
+	});
 }
 
 //#endregion
@@ -149,6 +185,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -158,6 +196,12 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
+/** 0..1 → 百分比宽度（Meter 用）。返回类型要写成模板字面量，否则 ViewStyle 的
+* `width` 不接受宽化后的 `string`。 */
+const meterWidth = (ratio) => `${Math.max(0, Math.round(Math.max(0, Math.min(1, ratio)) * 1e3) / 10)}%`;
 /** 横向排列，垂直居中。 */
 function Row(props) {
 	return (() => {
@@ -225,7 +269,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -233,17 +276,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -251,14 +294,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -266,9 +304,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -278,11 +316,50 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
 		return __nsh_hv11;
+	})();
+}
+/** 搜索框。`onChange` 拿到的是整串新值。 */
+function SearchField(props) {
+	return (() => {
+		const __nsh_hv13 = element("view");
+		bindProp(__nsh_hv13, "style", () => ({
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			height: 28,
+			width: props.width ?? 220,
+			paddingHorizontal: 9,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: c.line(),
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv14 = element("text");
+		bindProp(__nsh_hv14, "style", () => ({
+			fontSize: 12,
+			color: c.muted()
+		}));
+		const __nsh_hv15 = text("⌕");
+		append(__nsh_hv14, __nsh_hv15);
+		const __nsh_hv16 = element("input");
+		bindProp(__nsh_hv16, "value", () => props.value);
+		bindProp(__nsh_hv16, "placeholder", () => props.placeholder ?? "Filter…");
+		prop(__nsh_hv16, "onChange", (text) => props.onChange(text));
+		prop(__nsh_hv16, "style", {
+			flex: 1,
+			fontSize: 12,
+			paddingHorizontal: 0,
+			borderWidth: 0,
+			backgroundColor: "transparent"
+		});
+		append(__nsh_hv13, __nsh_hv14);
+		append(__nsh_hv13, __nsh_hv16);
+		return __nsh_hv13;
 	})();
 }
 /** 空状态：一句解释 + 可选的下一步提示。 */
@@ -389,7 +466,7 @@ function Stat(props) {
 		bindProp(__nsh_hv32, "style", () => ({
 			fontSize: 22,
 			fontWeight: "600",
-			color: props.tone === void 0 ? c.text() : toneColor(props.tone),
+			color: props.tone === void 0 ? c.text() : toneColor(pick(props.tone)),
 			fontVariant: ["tabular-nums"]
 		}));
 		insert(__nsh_hv32, () => props.value);
@@ -406,7 +483,6 @@ function Stat(props) {
 }
 /** 占用条：0..1 的比例 + 两端说明。 */
 function Meter(props) {
-	const clamped = Math.max(0, Math.min(1, props.ratio));
 	return (() => {
 		const __nsh_hv34 = element("view");
 		prop(__nsh_hv34, "style", {
@@ -423,14 +499,14 @@ function Meter(props) {
 		}));
 		const __nsh_hv38 = element("view");
 		bindProp(__nsh_hv38, "style", () => ({
-			width: `${Math.max(0, Math.round(clamped * 1e3) / 10)}%`,
+			width: meterWidth(pick(props.ratio)),
 			height: 8,
 			borderRadius: r.pill,
-			backgroundColor: props.tone === void 0 ? c.accent() : toneColor(props.tone)
+			backgroundColor: props.tone === void 0 ? c.accent() : toneColor(pick(props.tone))
 		}));
 		append(__nsh_hv37, __nsh_hv38);
 		append(__nsh_hv34, __nsh_hv37);
-		insert(__nsh_hv34, () => props.label === void 0 && props.caption === void 0 ? null : component(Row, {
+		insert(__nsh_hv34, cond(() => props.label !== void 0 || props.caption !== void 0, () => component(Row, {
 			style: { justifyContent: "space-between" },
 			get children() {
 				return [(() => {
@@ -448,7 +524,7 @@ function Meter(props) {
 					return __nsh_hv36;
 				})()];
 			}
-		}), __nsh_hv37);
+		})), __nsh_hv37);
 		return __nsh_hv34;
 	})();
 }
@@ -458,7 +534,7 @@ function Notice(props) {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;
@@ -476,23 +552,33 @@ function clockText(date) {
 	const two = (value) => String(value).padStart(2, "0");
 	return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
 }
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId, input) {
-	try {
-		return await host.call("navop.workbench.dispatch", {
-			operationId,
-			input: input ?? {}
-		});
-	} catch (error) {
-		throw new Error(errorMessage(error));
-	}
+const containerId = (row) => str(row, "id", "");
+const containerName = (row) => str(row, "name", "");
+const containerImage = (row) => str(row, "image", "");
+const containerState = (row) => str(row, "state", "");
+function stateTone(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
 }
+const AUTO_REFRESH_MS = 2e3;
 function ContainerStats() {
 	const sample = signal(null);
 	const sampledAt = signal("-");
 	const loading = signal(true);
 	const error = signal(null);
 	const busy = signal(false);
+	const autoRefresh = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	const selectedId = signal(null);
+	const selectedName = signal("");
+	const pickerOpen = signal(true);
+	let seq = 0;
+	let timer = null;
 	const cpu = () => numberField(sample(), "cpu_percent");
 	const cores = () => numberField(sample(), "online_cpus");
 	const usage = () => numberField(sample(), "memory_usage_bytes");
@@ -518,23 +604,326 @@ function ContainerStats() {
 		if (used === null || total === null) return "-";
 		return humanBytes(Math.max(0, total - used));
 	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName(row)} ${containerImage(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId(item) === id);
+		return row === void 0 ? selectedName() : `${containerName(row)} · ${containerImage(row)}`;
+	}
+	function resetData() {
+		sample.set(null);
+		sampledAt.set("-");
+		error.set(null);
+	}
+	function stopTimer() {
+		if (timer !== null) {
+			clearInterval(timer);
+			timer = null;
+		}
+	}
+	function setAutoRefresh(on) {
+		autoRefresh.set(on);
+		stopTimer();
+		if (on) timer = setInterval(() => {
+			if (selectedId() !== null) load();
+		}, AUTO_REFRESH_MS);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await call("docker/container/list", {});
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
 	async function load() {
+		const id = selectedId();
+		if (id === null) return;
 		if (busy()) return;
+		const mine = ++seq;
 		busy.set(true);
 		if (sample() === null) loading.set(true);
 		try {
-			const next = await dispatch("containerStats") ?? null;
-			sample.set(next);
+			const result = await call("docker/container/stats", { id });
+			if (mine !== seq) return;
+			sample.set(result ?? null);
 			sampledAt.set(clockText(/* @__PURE__ */ new Date()));
 			error.set(null);
 		} catch (failure) {
+			if (mine !== seq) return;
 			error.set(errorMessage(failure));
 		} finally {
-			loading.set(false);
-			busy.set(false);
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
 		}
 	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId(row);
+		const state = containerState(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function autoRefreshToggle() {
+		return component(Button, {
+			get label() {
+				return autoRefresh() ? `自动刷新 · ${AUTO_REFRESH_MS / 1e3}s` : "自动刷新";
+			},
+			small: true,
+			get tone() {
+				return autoRefresh() ? "primary" : "ghost";
+			},
+			onPress: () => setAutoRefresh(!autoRefresh())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会采样它的资源占用。`;
+			}
+		});
+	}
 	function content() {
+		if (selectedId() === null) return selectionGate();
 		if (loading() && sample() === null) return component(Loading, { label: "正在采样容器资源占用…" });
 		if (error() !== null && sample() === null) return component(LoadError, {
 			get message() {
@@ -554,19 +943,19 @@ function ContainerStats() {
 			}
 		});
 		return (() => {
-			const __nsh_hv0 = element("scroll");
-			prop(__nsh_hv0, "style", {
+			const __nsh_hv16 = element("scroll");
+			prop(__nsh_hv16, "style", {
 				flex: 1,
 				minHeight: 0
 			});
-			const __nsh_hv1 = element("view");
-			prop(__nsh_hv1, "style", {
+			const __nsh_hv17 = element("view");
+			prop(__nsh_hv17, "style", {
 				padding: 14,
 				display: "flex",
 				flexDirection: "column",
 				gap: 12
 			});
-			insert(__nsh_hv1, [
+			insert(__nsh_hv17, [
 				() => error() === null ? null : component(Notice, { get message() {
 					return `刷新失败：${error() ?? ""}`;
 				} }),
@@ -626,28 +1015,27 @@ function ContainerStats() {
 								style: { justifyContent: "space-between" },
 								get children() {
 									return [(() => {
-										const __nsh_hv2 = element("text");
-										bindProp(__nsh_hv2, "style", () => t.label);
-										const __nsh_hv3 = text("采样时间");
-										append(__nsh_hv2, __nsh_hv3);
-										return __nsh_hv2;
+										const __nsh_hv18 = element("text");
+										bindProp(__nsh_hv18, "style", () => t.label);
+										const __nsh_hv19 = text("采样时间");
+										append(__nsh_hv18, __nsh_hv19);
+										return __nsh_hv18;
 									})(), (() => {
-										const __nsh_hv4 = element("text");
-										bindProp(__nsh_hv4, "style", () => ({
+										const __nsh_hv20 = element("text");
+										bindProp(__nsh_hv20, "style", () => ({
 											...t.mono,
 											color: c.muted()
 										}));
-										insert(__nsh_hv4, () => sampledAt());
-										return __nsh_hv4;
+										insert(__nsh_hv20, () => sampledAt());
+										return __nsh_hv20;
 									})()];
 								}
 							}),
 							(() => {
-								const __nsh_hv5 = element("text");
-								bindProp(__nsh_hv5, "style", () => t.meta);
-								const __nsh_hv6 = text("采样时间取本次请求返回时的本地时间；页面不会自动轮询，需要手动刷新。");
-								append(__nsh_hv5, __nsh_hv6);
-								return __nsh_hv5;
+								const __nsh_hv21 = element("text");
+								bindProp(__nsh_hv21, "style", () => t.meta);
+								insert(__nsh_hv21, () => autoRefresh() ? `采样时间取本次请求返回时的本地时间；自动刷新每 ${AUTO_REFRESH_MS / 1e3} 秒采样一次。` : "采样时间取本次请求返回时的本地时间；默认只手动刷新，可以打开自动刷新。");
+								return __nsh_hv21;
 							})()
 						];
 					}
@@ -671,11 +1059,11 @@ function ContainerStats() {
 								})];
 							}
 						}), (() => {
-							const __nsh_hv7 = element("text");
-							bindProp(__nsh_hv7, "style", () => t.meta);
-							const __nsh_hv8 = text("provider 的 summarize_stats 只汇总 CPU 与内存，Docker 的 networks（rx / tx 字节与包数）没有被解析。");
-							append(__nsh_hv7, __nsh_hv8);
-							return __nsh_hv7;
+							const __nsh_hv22 = element("text");
+							bindProp(__nsh_hv22, "style", () => t.meta);
+							const __nsh_hv23 = text("provider 的 summarize_stats 只汇总 CPU 与内存，Docker 的 networks（rx / tx 字节与包数）没有被解析。");
+							append(__nsh_hv22, __nsh_hv23);
+							return __nsh_hv22;
 						})()];
 					}
 				}),
@@ -698,33 +1086,21 @@ function ContainerStats() {
 								})];
 							}
 						}), (() => {
-							const __nsh_hv9 = element("text");
-							bindProp(__nsh_hv9, "style", () => t.meta);
-							const __nsh_hv10 = text("同样，blkio_stats（read / write 字节数）不在 operation 的返回结构里；补上后这两组指标可以直接填进来。");
-							append(__nsh_hv9, __nsh_hv10);
-							return __nsh_hv9;
+							const __nsh_hv24 = element("text");
+							bindProp(__nsh_hv24, "style", () => t.meta);
+							const __nsh_hv25 = text("同样，blkio_stats（read / write 字节数）不在 operation 的返回结构里；补上后这两组指标可以直接填进来。");
+							append(__nsh_hv24, __nsh_hv25);
+							return __nsh_hv24;
 						})()];
 					}
 				})
 			]);
-			append(__nsh_hv0, __nsh_hv1);
-			return __nsh_hv0;
+			append(__nsh_hv16, __nsh_hv17);
+			return __nsh_hv16;
 		})();
 	}
-	load();
-	return (() => {
-		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv17 = element("view");
-		bindProp(__nsh_hv17, "style", () => hairline());
-		append(__nsh_hv11, __nsh_hv17);
-		insert(__nsh_hv11, component(Row, {
+	function toolbar() {
+		return component(Row, {
 			gap: 8,
 			style: {
 				paddingHorizontal: 14,
@@ -736,48 +1112,69 @@ function ContainerStats() {
 				return [component(Row, {
 					gap: 8,
 					get children() {
-						return [
-							(() => {
-								const __nsh_hv12 = element("text");
-								bindProp(__nsh_hv12, "style", () => t.h1);
-								const __nsh_hv13 = text("资源占用");
-								append(__nsh_hv12, __nsh_hv13);
-								return __nsh_hv12;
-							})(),
-							component(Badge, {
-								get text() {
-									return `采样 ${sampledAt()}`;
-								},
-								tone: "info"
-							}),
-							(() => {
-								const __nsh_hv14 = element("text");
-								bindProp(__nsh_hv14, "style", () => t.meta);
-								insert(__nsh_hv14, () => cores() === null ? "" : `${cores()} 个核`);
-								return __nsh_hv14;
-							})()
-						];
+						return [(() => {
+							const __nsh_hv26 = element("text");
+							bindProp(__nsh_hv26, "style", () => t.h1);
+							const __nsh_hv27 = text("资源占用");
+							append(__nsh_hv26, __nsh_hv27);
+							return __nsh_hv26;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv28 = element("text");
+							bindProp(__nsh_hv28, "style", () => t.meta);
+							const __nsh_hv29 = text("未选择容器");
+							append(__nsh_hv28, __nsh_hv29);
+							return __nsh_hv28;
+						})() : [component(Badge, {
+							get text() {
+								return `采样 ${sampledAt()}`;
+							},
+							tone: "info"
+						}), (() => {
+							const __nsh_hv30 = element("text");
+							bindProp(__nsh_hv30, "style", () => t.meta);
+							insert(__nsh_hv30, () => cores() === null ? "" : `${cores()} 个核`);
+							return __nsh_hv30;
+						})()]];
 					}
 				}), component(Row, {
 					gap: 6,
 					get children() {
-						return [() => busy() ? (() => {
-							const __nsh_hv15 = element("text");
-							bindProp(__nsh_hv15, "style", () => t.meta);
-							const __nsh_hv16 = text("正在采样…");
-							append(__nsh_hv15, __nsh_hv16);
-							return __nsh_hv15;
-						})() : null, component(Button, {
-							label: "刷新",
-							small: true,
-							onPress: () => void load()
-						})];
+						return [
+							() => busy() ? (() => {
+								const __nsh_hv31 = element("text");
+								bindProp(__nsh_hv31, "style", () => t.meta);
+								const __nsh_hv32 = text("正在采样…");
+								append(__nsh_hv31, __nsh_hv32);
+								return __nsh_hv31;
+							})() : null,
+							() => selectedId() === null ? null : autoRefreshToggle(),
+							component(Button, {
+								label: "刷新",
+								small: true,
+								onPress: () => refresh()
+							})
+						];
 					}
 				})];
 			}
-		}), __nsh_hv17);
-		insert(__nsh_hv11, () => content());
-		return __nsh_hv11;
+		});
+	}
+	loadContainers();
+	return (() => {
+		const __nsh_hv33 = element("view");
+		bindProp(__nsh_hv33, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv34 = element("view");
+		bindProp(__nsh_hv34, "style", () => hairline());
+		append(__nsh_hv33, __nsh_hv34);
+		insert(__nsh_hv33, () => toolbar(), __nsh_hv34);
+		insert(__nsh_hv33, [() => containerBar(), () => content()]);
+		return __nsh_hv33;
 	})();
 }
 mount(ContainerStats);

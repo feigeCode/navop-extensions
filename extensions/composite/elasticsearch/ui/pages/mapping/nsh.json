@@ -5,7 +5,8 @@
   "build": 1,
   "capabilities": {
     "host": [
-      "navop.workbench.*"
+      "navop.context.*",
+      "navop.resource.*"
     ],
     "clipboard": true
   }

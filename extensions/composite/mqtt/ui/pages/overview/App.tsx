@@ -36,10 +36,52 @@ type Sample = { at: number; received: number; sent: number };
 type Rate = { inbound: number; outbound: number };
 type Direction = "in" | "out";
 
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId: string): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+const OPERATIONS: Record<string, string> = {
+  listClients: "middleware/group/clients",
+  listTopics: "middleware/topic/list",
+  messageStream: "middleware/message/stream",
+  metrics: "middleware/metrics",
+  publish: "middleware/message/send",
+  queryById: "middleware/message/query",
+  queryByKey: "middleware/message/query",
+  queryByWindow: "middleware/message/query",
+  subscribe: "middleware/topic/create",
+  unsubscribe: "middleware/topic/delete",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", { operationId, input: {} });
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
+    });
   } catch (error) {
     throw new Error(errorMessage(error));
   }

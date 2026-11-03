@@ -1,54 +1,45 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const bridge = { id: "0d3b9a1c7e2f", name: "bridge", driver: "bridge", scope: "local", internal: false };
 const appNet = { id: "9f8e7d6c5b4a", name: "app-net", driver: "bridge", scope: "local", internal: true };
 
 function handlers() {
   const networks = [bridge, appNet];
-  return {
-    "navop.workbench.dispatch": (data: { operationId: string; input?: Record<string, unknown> }) => {
-      const input = (data.input ?? {}) as Record<string, string>;
-      switch (data.operationId) {
-        case "listNetworks":
-          return { networks };
-        case "networkInspectById": {
-          const builtin = input.id === bridge.id;
-          return {
-            Name: builtin ? "bridge" : "app-net",
-            Id: input.id,
-            Created: "2026-01-02T03:04:05Z",
-            Scope: "local",
-            Driver: "bridge",
-            Internal: !builtin,
-            Attachable: false,
-            IPAM: {
-              Driver: "default",
-              Config: builtin
-                ? []
-                : [{ Subnet: "172.18.0.0/16", Gateway: "172.18.0.1", IPRange: "", AuxiliaryAddresses: {} }],
-            },
-            Containers: builtin
-              ? {}
-              : { abc123: { Name: "web", IPv4Address: "172.18.0.2/16", MacAddress: "02:42:ac:12:00:02" } },
-            Labels: { team: "infra" },
-            Options: {},
-          };
-        }
-        case "networkCreate": {
-          const name = input.name ?? "new-net";
-          networks.push({ id: "aaaaaaaabbbb", name, driver: input.driver ?? "bridge", scope: "local", internal: false });
-          // 真 provider 返回完整 64 位 id；列表里是 12 位短 id。
-          return { id: "f".repeat(64), warning: "", action: "created" };
-        }
-        case "networkRemoveById":
-          return {};
-        case "networkPrune":
-          return { deleted: ["x"] };
-        default:
-          throw new Error(`unexpected ${data.operationId}`);
-      }
+  return hostHandlers({
+    "docker/network/list": () => ({ networks }),
+    "docker/network/inspect": (params) => {
+      const builtin = params.id === bridge.id;
+      return {
+        Name: builtin ? "bridge" : "app-net",
+        Id: params.id,
+        Created: "2026-01-02T03:04:05Z",
+        Scope: "local",
+        Driver: "bridge",
+        Internal: !builtin,
+        Attachable: false,
+        IPAM: {
+          Driver: "default",
+          Config: builtin
+            ? []
+            : [{ Subnet: "172.18.0.0/16", Gateway: "172.18.0.1", IPRange: "", AuxiliaryAddresses: {} }],
+        },
+        Containers: builtin
+          ? {}
+          : { abc123: { Name: "web", IPv4Address: "172.18.0.2/16", MacAddress: "02:42:ac:12:00:02" } },
+        Labels: { team: "infra" },
+        Options: {},
+      };
     },
-  };
+    "docker/network/create": (params) => {
+      const name = String(params.name ?? "new-net");
+      networks.push({ id: "aaaaaaaabbbb", name, driver: String(params.driver ?? "bridge"), scope: "local", internal: false });
+      // 真 provider 返回完整 64 位 id；列表里是 12 位短 id。
+      return { id: "f".repeat(64), warning: "", action: "created" };
+    },
+    "docker/network/remove": () => ({}),
+    "docker/network/prune": () => ({ deleted: ["x"] }),
+  });
 }
 
 test("列表与详情", async () => {

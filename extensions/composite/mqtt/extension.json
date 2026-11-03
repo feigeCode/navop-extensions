@@ -213,312 +213,8 @@
             }
           ]
         },
-        "icon": "icons/mqtt-color.svg"
-      }
-    ],
-    "resourceWorkbenches": [
-      {
-        "schemaVersion": 3,
-        "id": "mqtt",
-        "title": "MQTT",
-        "connectionIds": [
-          "mqtt"
-        ],
-        "runtimeId": "main",
-        "resourceType": "middleware",
-        "defaultPage": "messages",
-        "operations": {
-          "metrics": {
-            "mode": "invoke",
-            "method": "middleware/metrics",
-            "requires": [
-              "middleware/metrics"
-            ],
-            "effect": "read"
-          },
-          "listTopics": {
-            "mode": "invoke",
-            "method": "middleware/topic/list",
-            "requires": [
-              "middleware/topic/list"
-            ],
-            "effect": "read"
-          },
-          "listClients": {
-            "mode": "invoke",
-            "method": "middleware/group/clients",
-            "requires": [
-              "middleware/group/clients"
-            ],
-            "effect": "read",
-            "params": {
-              "group": {
-                "source": "literal",
-                "path": "/group",
-                "type": "string",
-                "value": "local"
-              }
-            }
-          },
-          "subscribe": {
-            "mode": "invoke",
-            "method": "middleware/topic/create",
-            "requires": [
-              "middleware/topic/create"
-            ],
-            "effect": "write",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              },
-              "queue_count": {
-                "source": "input",
-                "path": "/qos",
-                "type": "number"
-              }
-            }
-          },
-          "unsubscribe": {
-            "mode": "invoke",
-            "method": "middleware/topic/delete",
-            "requires": [
-              "middleware/topic/delete"
-            ],
-            "effect": "destructive",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              }
-            }
-          },
-          "publish": {
-            "mode": "invoke",
-            "method": "middleware/message/send",
-            "requires": [
-              "middleware/message/send"
-            ],
-            "effect": "write",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              },
-              "body": {
-                "source": "input",
-                "path": "/body",
-                "type": "json"
-              },
-              "properties": {
-                "source": "input",
-                "path": "/properties",
-                "type": "json"
-              }
-            }
-          },
-          "queryByWindow": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ByTimeWindow": {
-                "source": "input",
-                "path": "/ByTimeWindow",
-                "type": "json"
-              }
-            }
-          },
-          "queryByKey": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ByKey": {
-                "source": "input",
-                "path": "/ByKey",
-                "type": "json"
-              }
-            }
-          },
-          "queryById": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ById": {
-                "source": "input",
-                "path": "/ById",
-                "type": "json"
-              }
-            }
-          },
-          "messageStream": {
-            "mode": "invoke",
-            "method": "middleware/message/stream",
-            "requires": [
-              "middleware/message/stream"
-            ],
-            "effect": "read"
-          }
-        },
-        "pages": [
-          {
-            "id": "overview",
-            "title": "概览",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "overview",
-              "fallback": "native"
-            },
-            "load": {
-              "operation": "metrics"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "subscriptions",
-            "title": "订阅",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "subscriptions",
-              "fallback": "native"
-            },
-            "load": {
-              "operation": "listTopics"
-            },
-            "stack": [
-              {
-                "kind": "table",
-                "itemsPath": "/topics",
-                "keyPaths": [
-                  "/name"
-                ],
-                "pagination": {
-                  "kind": "none"
-                },
-                "columns": [
-                  {
-                    "id": "name",
-                    "title": "Topic Filter",
-                    "path": "/name",
-                    "type": "string"
-                  },
-                  {
-                    "id": "qos",
-                    "title": "QoS",
-                    "path": "/queue_count",
-                    "type": "display"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "messages",
-            "title": "消息",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "messages"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "topics",
-            "title": "主题树",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "topics"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "live",
-            "title": "实时消息",
-            "renderer": {
-              "kind": "native"
-            },
-            "load": {
-              "operation": "messageStream"
-            },
-            "stack": [
-              {
-                "kind": "stream"
-              }
-            ]
-          },
-          {
-            "id": "publish",
-            "title": "发布",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "publish"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          }
-        ],
-        "layout": {
-          "left": {
-            "width": 180,
-            "source": {
-              "kind": "list",
-              "items": [
-                {
-                  "pageId": "overview"
-                },
-                {
-                  "pageId": "subscriptions"
-                },
-                {
-                  "pageId": "messages"
-                },
-                {
-                  "pageId": "live"
-                },
-                {
-                  "pageId": "publish"
-                }
-              ]
-            }
-          },
-          "center": {
-            "source": {
-              "kind": "pages"
-            }
-          }
-        }
+        "icon": "icons/mqtt-color.svg",
+        "shellViewId": "messages"
       }
     ],
     "shellViews": [
@@ -534,7 +230,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
@@ -549,7 +245,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
@@ -564,7 +260,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
@@ -579,7 +275,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
@@ -594,7 +290,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       }
     ]

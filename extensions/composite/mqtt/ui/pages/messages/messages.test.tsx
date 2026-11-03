@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const MESSAGES = [
   {
@@ -29,22 +30,24 @@ const MESSAGES = [
   },
 ];
 
-function dispatch(data: unknown): unknown {
-  const request = data as { operationId: string; input?: Record<string, unknown> };
-  if (request.operationId === "queryByWindow") {
-    return { messages: MESSAGES, total: 2, has_more: false };
-  }
-  if (request.operationId === "queryById") {
-    const input = request.input as { ById: { message_id: string } };
-    const found = MESSAGES.find((message) => message.message_id === input.ById.message_id);
+/** provider 方法名 → 返回值：窗口查询给摘要，按 ID 查询给单条详情。 */
+const handlers = hostHandlers({
+  "middleware/message/query": (params) => {
+    const input = params as {
+      ByTimeWindow?: { begin_unix_ms: number };
+      ById?: { message_id: string };
+    };
+    if (input.ByTimeWindow !== undefined) {
+      return { messages: MESSAGES, total: 2, has_more: false };
+    }
+    const found = MESSAGES.find((message) => message.message_id === input.ById?.message_id);
     return { messages: found === undefined ? [] : [found] };
-  }
-  throw new Error(`unexpected operation ${request.operationId}`);
-}
+  },
+});
 
 test("messages 列表、窗口与详情", async () => {
   const app = await open("./App.tsx", {
-    host: { handlers: { "navop.workbench.dispatch": dispatch } },
+    host: { handlers },
     clock: {},
     width: 1200,
     height: 800,
@@ -62,17 +65,19 @@ test("messages 列表、窗口与详情", async () => {
   await app.press("text:全部");
   await app.waitFor("text:消息");
 
-  const calls = app.host.calls();
-  const windows = calls.filter(
-    (call) =>
-      call.name === "navop.workbench.dispatch" &&
-      (call.data as { operationId: string }).operationId === "queryByWindow",
-  );
+  // 窗口查询走 `middleware/message/query`，参数是 `{ ByTimeWindow: … }`。
+  const windows = app.host.calls().filter((call) => {
+    if (call.name !== "navop.resource.invoke") return false;
+    const data = call.data as { method?: string; params?: { ByTimeWindow?: unknown } };
+    return data.method === "middleware/message/query" && data.params?.ByTimeWindow !== undefined;
+  });
   expect(windows.length).toBeGreaterThan(0);
-  const last = windows[windows.length - 1].data as {
-    input: { ByTimeWindow: { begin_unix_ms: number } };
+  const last = windows[windows.length - 1]!.data as {
+    handle: string;
+    params: { ByTimeWindow: { begin_unix_ms: number } };
   };
-  expect(last.input.ByTimeWindow.begin_unix_ms).toBe(0);
+  expect(last.handle).toBe("r-1");
+  expect(last.params.ByTimeWindow.begin_unix_ms).toBe(0);
 
   app.dispose();
 });

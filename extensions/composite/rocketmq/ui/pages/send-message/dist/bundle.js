@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
 //#region ../../../../docker/ui/lib/format.ts
@@ -125,6 +125,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../../../docker/ui/lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -134,37 +136,42 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 /** 纵向堆叠；`scroll` 打开纵向滚动（页面根节点用）。 */
 function Stack(props) {
-	const style = {
-		display: "flex",
-		flexDirection: "column",
-		gap: props.gap ?? 12,
-		...props.padding === void 0 ? {} : { padding: props.padding },
-		...props.scroll ? {
-			flex: 1,
-			minHeight: 0
-		} : {},
-		...props.style
-	};
-	if (props.scroll) return (() => {
-		const __nsh_hv0 = element("scroll");
-		prop(__nsh_hv0, "style", {
+	return cond(() => pick(props.scroll ?? false), () => (() => {
+		const __nsh_hv1 = element("scroll");
+		prop(__nsh_hv1, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv1 = element("view");
-		prop(__nsh_hv1, "style", style);
-		insert(__nsh_hv1, () => props.children);
-		append(__nsh_hv0, __nsh_hv1);
-		return __nsh_hv0;
-	})();
-	return (() => {
 		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "style", style);
+		bindProp(__nsh_hv2, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			flex: 1,
+			minHeight: 0,
+			...props.style
+		}));
 		insert(__nsh_hv2, () => props.children);
-		return __nsh_hv2;
-	})();
+		append(__nsh_hv1, __nsh_hv2);
+		return __nsh_hv1;
+	})(), () => (() => {
+		const __nsh_hv0 = element("view");
+		bindProp(__nsh_hv0, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			...props.style
+		}));
+		insert(__nsh_hv0, () => props.children);
+		return __nsh_hv0;
+	})());
 }
 /** 横向排列，垂直居中。 */
 function Row(props) {
@@ -233,7 +240,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -241,17 +247,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -259,14 +265,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -274,9 +275,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -286,7 +287,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -295,8 +296,7 @@ function Button(props) {
 }
 /** 可滚动的行列表：单选、悬停底色、按 key 高亮。 */
 function List(props) {
-	if (props.items.length === 0 && props.empty !== void 0) return props.empty;
-	return (() => {
+	return cond(() => pick(props.items).length === 0 && props.empty !== void 0, () => () => props.empty, () => (() => {
 		const __nsh_hv17 = element("scroll");
 		prop(__nsh_hv17, "style", {
 			flex: 1,
@@ -307,15 +307,15 @@ function List(props) {
 			display: "flex",
 			flexDirection: "column"
 		});
-		insert(__nsh_hv18, () => props.items.map((item, index) => {
+		insert(__nsh_hv18, () => pick(props.items).map((item, index) => {
 			const key = props.keyOf(item);
-			const active = props.selected === key;
+			const active = pick(props.selected ?? null) === key;
 			return (() => {
 				const __nsh_hv19 = element("view");
 				bindProp(__nsh_hv19, "onPress", () => props.onSelect === void 0 ? void 0 : () => props.onSelect?.(key));
 				bindProp(__nsh_hv19, "style", () => ({
 					backgroundColor: active ? c.hover() : "transparent",
-					borderBottomWidth: index === props.items.length - 1 ? 0 : 1,
+					borderBottomWidth: index === pick(props.items).length - 1 ? 0 : 1,
 					borderBottomColor: c.line()
 				}));
 				insert(__nsh_hv19, () => props.render(item, index));
@@ -324,7 +324,7 @@ function List(props) {
 		}));
 		append(__nsh_hv17, __nsh_hv18);
 		return __nsh_hv17;
-	})();
+	})());
 }
 /** 空状态：一句解释 + 可选的下一步提示。 */
 function Empty(props) {
@@ -393,7 +393,7 @@ function Notice(props) {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;
@@ -402,6 +402,43 @@ function Notice(props) {
 
 //#endregion
 //#region App.tsx
+/** operationId → provider 方法名（清单里的工作台声明已不参与运行）。 */
+const OPERATIONS = {
+	clusterOverview: "middleware/cluster/overview",
+	createTopic: "middleware/topic/create",
+	deleteTopic: "middleware/topic/delete",
+	groupClients: "middleware/group/clients",
+	groupDetail: "middleware/group/detail",
+	listGroups: "middleware/group/list",
+	listTopics: "middleware/topic/list",
+	metrics: "middleware/metrics",
+	queryById: "middleware/message/query",
+	queryByKey: "middleware/message/query",
+	queryByTimeWindow: "middleware/message/query",
+	resetConsumerOffset: "rocketmq/consumer/reset-offset",
+	sendMessage: "middleware/message/send",
+	topicDetail: "middleware/topic/detail",
+	updateTopic: "middleware/topic/update"
+};
+let resourceHandle = null;
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle() {
+	if (resourceHandle) return resourceHandle;
+	const found = (await host.call("navop.context.current", {}))?.connection?.resourceHandle;
+	if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	resourceHandle = found;
+	return found;
+}
+/** 调一次 provider 方法。 */
+async function invoke(operationId, params = {}) {
+	const method = OPERATIONS[operationId];
+	if (!method) throw new Error(`未知的操作：${operationId}`);
+	return await host.call("navop.resource.invoke", {
+		handle: await handle(),
+		method,
+		params
+	});
+}
 const HISTORY_LIMIT = 20;
 function jsonState(text) {
 	const trimmed = text.trim();
@@ -460,6 +497,7 @@ function Field(props) {
 			alignItems: "center"
 		}));
 		const __nsh_hv6 = element("input");
+		bindProp(__nsh_hv6, "testID", () => props.testID);
 		bindProp(__nsh_hv6, "value", () => props.value);
 		bindProp(__nsh_hv6, "placeholder", () => props.placeholder);
 		prop(__nsh_hv6, "onChange", (text) => props.onChange(text));
@@ -552,11 +590,7 @@ function SendMessage() {
 			if (tagText.length > 0) input.tag = tagText;
 			if (keyText.length > 0) input.key = keyText;
 			input.body = Array.from(new TextEncoder().encode(bodyText));
-			const record = asRecord(await host.call("navop.workbench.dispatch", {
-				operationId: "sendMessage",
-				input,
-				options: { confirmed: true }
-			}));
+			const record = asRecord(await invoke("sendMessage", input));
 			const messageId = record === null ? "" : textOf(record, "message_id");
 			const status = record === null ? "" : textOf(record, "status");
 			outcome.set({
@@ -631,7 +665,7 @@ function SendMessage() {
 			}
 		});
 	};
-	const form = component(Stack, {
+	const form = () => component(Stack, {
 		scroll: true,
 		padding: 14,
 		gap: 12,
@@ -653,7 +687,8 @@ function SendMessage() {
 											return topic();
 										},
 										onChange: (text) => topic.set(text),
-										placeholder: "例如 order-topic"
+										placeholder: "例如 order-topic",
+										testID: "topic"
 									}),
 									component(Field, {
 										label: "Tag",
@@ -661,7 +696,8 @@ function SendMessage() {
 											return tag();
 										},
 										onChange: (text) => tag.set(text),
-										placeholder: "可选，用于消费过滤"
+										placeholder: "可选，用于消费过滤",
+										testID: "tag"
 									}),
 									component(Field, {
 										label: "Key",
@@ -669,7 +705,8 @@ function SendMessage() {
 											return key();
 										},
 										onChange: (text) => key.set(text),
-										placeholder: "可选，业务唯一键"
+										placeholder: "可选，业务唯一键",
+										testID: "key"
 									})
 								];
 							}
@@ -698,6 +735,7 @@ function SendMessage() {
 								flexDirection: "column"
 							}));
 							const __nsh_hv8 = element("input");
+							prop(__nsh_hv8, "testID", "body");
 							prop(__nsh_hv8, "multiline", true);
 							bindProp(__nsh_hv8, "value", () => body());
 							prop(__nsh_hv8, "placeholder", "例如 {\"orderId\":\"A1001\",\"amount\":99.5}");
@@ -764,9 +802,6 @@ function SendMessage() {
 									},
 									tone: "primary",
 									small: true,
-									get disabled() {
-										return sending() || topic().trim().length === 0;
-									},
 									onPress: () => void send()
 								})];
 							}
@@ -776,7 +811,7 @@ function SendMessage() {
 			];
 		}
 	});
-	const historyPanel = (() => {
+	const historyPanel = () => (() => {
 		const __nsh_hv12 = element("view");
 		prop(__nsh_hv12, "style", {
 			flex: 1,
@@ -799,15 +834,18 @@ function SendMessage() {
 					label: "清空",
 					small: true,
 					tone: "ghost",
-					get disabled() {
-						return history().length === 0;
-					},
-					onPress: () => history.set([])
+					onPress: () => {
+						if (history().length === 0) return;
+						history.set([]);
+					}
 				});
 			}
 		}));
 		append(__nsh_hv12, __nsh_hv13);
-		insert(__nsh_hv12, component(List, {
+		insert(__nsh_hv12, () => history().length === 0 ? component(Empty, {
+			title: "还没有发送记录",
+			hint: "发送成功或失败的消息都会留在本页，方便回填重发。"
+		}) : component(List, {
 			get items() {
 				return history();
 			},
@@ -815,12 +853,6 @@ function SendMessage() {
 			onSelect: (id) => {
 				const entry = history().find((item) => item.id === id);
 				if (entry !== void 0) applyHistory(entry);
-			},
-			get empty() {
-				return component(Empty, {
-					title: "还没有发送记录",
-					hint: "发送成功或失败的消息都会留在本页，方便回填重发。"
-				});
 			},
 			render: (entry) => (() => {
 				const __nsh_hv14 = element("view");
@@ -918,7 +950,7 @@ function SendMessage() {
 			display: "flex",
 			flexDirection: "column"
 		});
-		insert(__nsh_hv30, form);
+		insert(__nsh_hv30, () => form());
 		const __nsh_hv31 = element("view");
 		bindProp(__nsh_hv31, "style", () => ({
 			width: 320,
@@ -929,7 +961,7 @@ function SendMessage() {
 			borderLeftWidth: 1,
 			borderLeftColor: c.line()
 		}));
-		insert(__nsh_hv31, historyPanel);
+		insert(__nsh_hv31, () => historyPanel());
 		append(__nsh_hv29, __nsh_hv30);
 		append(__nsh_hv29, __nsh_hv31);
 		append(__nsh_hv21, __nsh_hv29);

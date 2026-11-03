@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 const INDICES = [
   { name: "orders-2026", health: "green", status: "open", pri: 1, rep: 1, docs: 123456, docs_deleted: 0, size_bytes: 2457600, created: "2026-01-02 03:04" },
@@ -45,8 +46,6 @@ const USERS_MAPPING = {
 
 const MAPPINGS: Record<string, unknown> = { "orders-2026": ORDERS_MAPPING, users: USERS_MAPPING, logs: {} };
 
-type Request = { operationId: string; input?: { name?: string } };
-
 let listFailure: string | null = null;
 let mappingFailure: string | null = null;
 let mappingCalls: string[] = [];
@@ -57,30 +56,27 @@ function reset(): void {
   mappingCalls = [];
 }
 
-function dispatch(data: unknown): unknown {
-  const request = data as Request;
-  if (request.operationId === "listIndices") {
-    if (listFailure !== null) throw new Error(listFailure);
-    return { indices: INDICES };
-  }
-  if (request.operationId === "indexMapping") {
-    if (mappingFailure !== null) throw new Error(mappingFailure);
-    const name = request.input?.name ?? "";
-    mappingCalls.push(name);
-    return MAPPINGS[name] ?? {};
-  }
-  throw new Error(`unexpected operation ${request.operationId}`);
+/** 方法名从 App.tsx 的 OPERATIONS 抄：listIndices / indexMapping。 */
+function handlers() {
+  return hostHandlers({
+    "elasticsearch/index/list": () => {
+      if (listFailure !== null) throw new Error(listFailure);
+      return { indices: INDICES };
+    },
+    "elasticsearch/index/mapping": (params) => {
+      if (mappingFailure !== null) throw new Error(mappingFailure);
+      const name = typeof params.name === "string" ? params.name : "";
+      mappingCalls.push(name);
+      return MAPPINGS[name] ?? {};
+    },
+  });
 }
 
-function current(route: { name: string }): unknown {
-  return { pageId: "index-mapping", route, connection: null, capabilities: [] };
-}
-
-function openPage(handlers: Record<string, unknown> = {}): ReturnType<typeof open> {
+function openPage(): ReturnType<typeof open> {
   return open("./App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: { "navop.workbench.dispatch": dispatch, ...handlers } },
+    host: { handlers: handlers() },
     clock: {},
   });
 }
@@ -106,18 +102,31 @@ test("列表渲染：健康状态、文档数与大小，默认选中第一个�
   expect(app.shows("text:day_of_week")).toBe(true);
   expect(app.texts().join("\n")).toContain("上次更新");
   expect(app.texts().join("\n")).toContain("共 12 个字段");
-  expect(mappingCalls).toContain("orders-2026");
+  // 没有路由注入时，默认选中就是列表第一个。
+  expect(mappingCalls[0]).toBe("orders-2026");
 
   app.dispose();
 });
 
-test("路由里的索引名：打开页面就定位到那个索引", async () => {
+test("宿主通道：只用 context.current + resource.invoke，不再碰已删除的 workbench", async () => {
   reset();
-  const app = await openPage({ "navop.workbench.current": () => current({ name: "users" }) });
+  const app = await openPage();
 
-  await app.waitFor("text:user_id");
+  await app.waitFor("text:customer.name");
   expect(app.shows("text:orders-2026")).toBe(true);
-  expect(mappingCalls[0]).toBe("users");
+  expect(mappingCalls[0]).toBe("orders-2026");
+
+  const calls = app.host.calls();
+  const names = calls.map((call) => call.name);
+  expect(names).toContain("navop.context.current");
+  expect(names).toContain("navop.resource.invoke");
+  expect(names.every((name) => name === "navop.context.current" || name === "navop.resource.invoke")).toBe(true);
+
+  const invoke = calls.find((call) => call.name === "navop.resource.invoke");
+  expect(invoke === undefined).toBe(false);
+  const data = (invoke?.data ?? {}) as { handle?: string; method?: string };
+  expect(data.handle).toBe("r-1");
+  expect(data.method).toBe("elasticsearch/index/list");
 
   app.dispose();
 });

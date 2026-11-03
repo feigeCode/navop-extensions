@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { Clipboard, computed, host, mount, signal, token } from "nsh";
 
 //#region ../../../../docker/ui/lib/format.ts
@@ -126,6 +126,8 @@ const t = {
 
 //#endregion
 //#region ../../../../docker/ui/lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -135,6 +137,9 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 /** 横向排列，垂直居中。 */
 function Row(props) {
 	return (() => {
@@ -157,14 +162,9 @@ function Row(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -172,9 +172,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -184,7 +184,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -193,8 +193,7 @@ function Button(props) {
 }
 /** 可滚动的行列表：单选、悬停底色、按 key 高亮。 */
 function List(props) {
-	if (props.items.length === 0 && props.empty !== void 0) return props.empty;
-	return (() => {
+	return cond(() => pick(props.items).length === 0 && props.empty !== void 0, () => () => props.empty, () => (() => {
 		const __nsh_hv17 = element("scroll");
 		prop(__nsh_hv17, "style", {
 			flex: 1,
@@ -205,15 +204,15 @@ function List(props) {
 			display: "flex",
 			flexDirection: "column"
 		});
-		insert(__nsh_hv18, () => props.items.map((item, index) => {
+		insert(__nsh_hv18, () => pick(props.items).map((item, index) => {
 			const key = props.keyOf(item);
-			const active = props.selected === key;
+			const active = pick(props.selected ?? null) === key;
 			return (() => {
 				const __nsh_hv19 = element("view");
 				bindProp(__nsh_hv19, "onPress", () => props.onSelect === void 0 ? void 0 : () => props.onSelect?.(key));
 				bindProp(__nsh_hv19, "style", () => ({
 					backgroundColor: active ? c.hover() : "transparent",
-					borderBottomWidth: index === props.items.length - 1 ? 0 : 1,
+					borderBottomWidth: index === pick(props.items).length - 1 ? 0 : 1,
 					borderBottomColor: c.line()
 				}));
 				insert(__nsh_hv19, () => props.render(item, index));
@@ -222,7 +221,7 @@ function List(props) {
 		}));
 		append(__nsh_hv17, __nsh_hv18);
 		return __nsh_hv17;
-	})();
+	})());
 }
 /** 列表里的两行一行式条目：主标题 + 次要信息 + 右侧自由内容。 */
 function ListRow(props) {
@@ -397,7 +396,7 @@ function Notice(props) {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;
@@ -410,13 +409,55 @@ function Notice(props) {
 const RENDER_LIMIT = 500;
 /** 最多解析多少字段：动态 mapping 的索引能有十万级字段，先截断再展示。 */
 const MAX_FIELDS = 2e4;
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId, input) {
+/** operationId → provider 方法名。
+*
+* 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+* 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+*/
+const OPERATIONS = {
+	clusterHealth: "elasticsearch/cluster/health",
+	clusterInfo: "elasticsearch/cluster/info",
+	clusterStats: "elasticsearch/cluster/stats",
+	count: "elasticsearch/count",
+	documentDelete: "elasticsearch/document/delete",
+	documentGet: "elasticsearch/document/get",
+	documentIndex: "elasticsearch/document/index",
+	indexAliasUpdate: "elasticsearch/index/alias/update",
+	indexAliases: "elasticsearch/index/aliases",
+	indexClose: "elasticsearch/index/close",
+	indexCreate: "elasticsearch/index/create",
+	indexDelete: "elasticsearch/index/delete",
+	indexDocuments: "elasticsearch/search",
+	indexGet: "elasticsearch/index/get",
+	indexMapping: "elasticsearch/index/mapping",
+	indexOpen: "elasticsearch/index/open",
+	indexRefresh: "elasticsearch/index/refresh",
+	indexSearch: "elasticsearch/search",
+	indexSettings: "elasticsearch/index/settings",
+	indexShards: "elasticsearch/index/shards",
+	indexStats: "elasticsearch/index/stats",
+	listIndices: "elasticsearch/index/list",
+	listNodes: "elasticsearch/nodes/list",
+	search: "elasticsearch/search/async"
+};
+let resourceHandle = null;
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle() {
+	if (resourceHandle) return resourceHandle;
+	const found = (await host.call("navop.context.current", {}))?.connection?.resourceHandle;
+	if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	resourceHandle = found;
+	return found;
+}
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(operationId, input, _confirmed) {
+	const method = OPERATIONS[operationId];
+	if (!method) throw new Error(`未知的操作：${operationId}`);
 	try {
-		return await host.call("navop.workbench.dispatch", {
-			operationId,
-			input: input ?? {},
-			options: { confirmed: true }
+		return await host.call("navop.resource.invoke", {
+			handle: await handle(),
+			method,
+			params: input ?? {}
 		});
 	} catch (error) {
 		throw new Error(errorMessage(error));
@@ -430,21 +471,6 @@ function numberOrNull(value) {
 }
 function boolOrNull(value) {
 	return typeof value === "boolean" ? value : null;
-}
-/**
-* 工作台页面上下文里的 `route.name`：从索引行打开 mapping 页时，宿主会把
-* 索引名放进 route，用它做初始选中项。直接开标签页或没有工作台上下文时
-* 这个调用会失败，退回列表第一项即可。
-*/
-async function routeIndex() {
-	try {
-		const current = await host.call("navop.workbench.current");
-		if (!isObject(current) || !isObject(current.route)) return null;
-		const name = str(current.route, "name", "");
-		return name === "" ? null : name;
-	} catch {
-		return null;
-	}
 }
 function toIndexRow(value) {
 	return {
@@ -1242,9 +1268,7 @@ function MappingPage() {
 			return __nsh_hv42;
 		})();
 	}
-	(async () => {
-		await loadIndices(await routeIndex(), false);
-	})();
+	loadIndices(null, false);
 	return (() => {
 		const __nsh_hv44 = element("view");
 		bindProp(__nsh_hv44, "style", () => ({

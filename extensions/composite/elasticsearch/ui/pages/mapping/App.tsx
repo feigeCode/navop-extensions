@@ -1,8 +1,8 @@
 // Elasticsearch Mapping 页：左侧索引列表，右侧选中索引的字段定义。
 //
-// 数据只走 `navop.workbench.dispatch`：页面拿不到连接，只有工作台知道当前
-// 连的是哪个集群，索引名由用户在这里选。只读操作也统一带 `confirmed`，
-// 免得宿主按 effect 分类再弹一次确认。
+// 数据分两层：`navop.context.current` 拿到宿主借给这个页面的资源句柄，
+// 再用 `navop.resource.invoke` 按方法名调 provider。页面拿不到连接，
+// 索引也完全由页面自己选：默认选中列表第一个，用户点列表切换。
 import { Clipboard, computed, host, mount, signal, Scroll, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { Input } from "nsh/base";
@@ -44,13 +44,65 @@ type MappingSnapshot = { index: string; fields: FieldRow[]; truncated: boolean }
 
 // ---- 数据 -----------------------------------------------------------
 
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId: string, input?: unknown): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+const OPERATIONS: Record<string, string> = {
+  clusterHealth: "elasticsearch/cluster/health",
+  clusterInfo: "elasticsearch/cluster/info",
+  clusterStats: "elasticsearch/cluster/stats",
+  count: "elasticsearch/count",
+  documentDelete: "elasticsearch/document/delete",
+  documentGet: "elasticsearch/document/get",
+  documentIndex: "elasticsearch/document/index",
+  indexAliasUpdate: "elasticsearch/index/alias/update",
+  indexAliases: "elasticsearch/index/aliases",
+  indexClose: "elasticsearch/index/close",
+  indexCreate: "elasticsearch/index/create",
+  indexDelete: "elasticsearch/index/delete",
+  indexDocuments: "elasticsearch/search",
+  indexGet: "elasticsearch/index/get",
+  indexMapping: "elasticsearch/index/mapping",
+  indexOpen: "elasticsearch/index/open",
+  indexRefresh: "elasticsearch/index/refresh",
+  indexSearch: "elasticsearch/search",
+  indexSettings: "elasticsearch/index/settings",
+  indexShards: "elasticsearch/index/shards",
+  indexStats: "elasticsearch/index/stats",
+  listIndices: "elasticsearch/index/list",
+  listNodes: "elasticsearch/nodes/list",
+  search: "elasticsearch/search/async",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", {
-      operationId,
-      input: input ?? {},
-      options: { confirmed: true },
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -67,22 +119,6 @@ function numberOrNull(value: unknown): number | null {
 
 function boolOrNull(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
-}
-
-/**
- * 工作台页面上下文里的 `route.name`：从索引行打开 mapping 页时，宿主会把
- * 索引名放进 route，用它做初始选中项。直接开标签页或没有工作台上下文时
- * 这个调用会失败，退回列表第一项即可。
- */
-async function routeIndex(): Promise<string | null> {
-  try {
-    const current = await host.call("navop.workbench.current");
-    if (!isObject(current) || !isObject(current.route)) return null;
-    const name = str(current.route, "name", "");
-    return name === "" ? null : name;
-  } catch {
-    return null;
-  }
 }
 
 function toIndexRow(value: unknown): IndexRow {
@@ -723,10 +759,8 @@ export default function MappingPage() {
 
   // ---- 页面 ---------------------------------------------------------
 
-  void (async () => {
-    const preferred = await routeIndex();
-    await loadIndices(preferred, false);
-  })();
+  // 不依赖任何路由注入：keep 传 null，loadIndices 自己回退到列表第一个索引。
+  void loadIndices(null, false);
 
   return (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>

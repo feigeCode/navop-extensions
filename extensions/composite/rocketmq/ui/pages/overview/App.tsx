@@ -1,6 +1,6 @@
 // RocketMQ 概览页：集群状态条 → 指标卡组 → 节点拓扑表。
 //
-// 数据全走 `navop.workbench.dispatch`：页面从 RocketMQ 连接工作台嵌入，
+// 数据全走 `navop.context.current` + `navop.resource.invoke`：页面从 RocketMQ 连接嵌入，
 // 连接由宿主注入，所以这里不传任何连接参数。
 //
 // provider 各版本返回的字段并不一致（例如没有消费组数、没有磁盘使用率），
@@ -44,10 +44,57 @@ interface MetricCard {
 /** 自动刷新间隔（与旧 shell 页保持一致）。 */
 const REFRESH_MS = 5000;
 
-/** 调一次工作台操作；失败折成一句人话。 */
-async function dispatch(operationId: string): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+const OPERATIONS: Record<string, string> = {
+  clusterOverview: "middleware/cluster/overview",
+  createTopic: "middleware/topic/create",
+  deleteTopic: "middleware/topic/delete",
+  groupClients: "middleware/group/clients",
+  groupDetail: "middleware/group/detail",
+  listGroups: "middleware/group/list",
+  listTopics: "middleware/topic/list",
+  metrics: "middleware/metrics",
+  queryById: "middleware/message/query",
+  queryByKey: "middleware/message/query",
+  queryByTimeWindow: "middleware/message/query",
+  resetConsumerOffset: "rocketmq/consumer/reset-offset",
+  sendMessage: "middleware/message/send",
+  topicDetail: "middleware/topic/detail",
+  updateTopic: "middleware/topic/update",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", { operationId, input: {} });
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
+    });
   } catch (error) {
     throw new Error(errorMessage(error));
   }
@@ -353,11 +400,13 @@ export default function Overview() {
           {auto() ? <Text style={t.meta}>· 每 5 秒自动刷新</Text> : null}
         </Row>
         <Row gap={6}>
+          {/* nsh 的 onPress 在挂载时绑定，禁用态靠 handler 内部守卫，不用 disabled 属性。 */}
           <Button
             label={busy() ? "刷新中…" : "刷新"}
             small
-            disabled={busy()}
-            onPress={() => void load()}
+            onPress={() => {
+              if (!busy()) void load();
+            }}
           />
           <Button
             label={auto() ? "自动刷新：开" : "自动刷新：关"}

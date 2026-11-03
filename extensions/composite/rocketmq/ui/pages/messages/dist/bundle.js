@@ -1,4 +1,4 @@
-import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
 //#region ../../../../docker/ui/lib/format.ts
@@ -131,6 +131,8 @@ const panel = (padding = 14) => ({
 
 //#endregion
 //#region ../../../../docker/ui/lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
 	switch (tone) {
 		case "ok": return c.chart(1);
@@ -140,37 +142,42 @@ const toneColor = (tone) => {
 		default: return c.muted();
 	}
 };
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 /** 纵向堆叠；`scroll` 打开纵向滚动（页面根节点用）。 */
 function Stack(props) {
-	const style = {
-		display: "flex",
-		flexDirection: "column",
-		gap: props.gap ?? 12,
-		...props.padding === void 0 ? {} : { padding: props.padding },
-		...props.scroll ? {
-			flex: 1,
-			minHeight: 0
-		} : {},
-		...props.style
-	};
-	if (props.scroll) return (() => {
-		const __nsh_hv0 = element("scroll");
-		prop(__nsh_hv0, "style", {
+	return cond(() => pick(props.scroll ?? false), () => (() => {
+		const __nsh_hv1 = element("scroll");
+		prop(__nsh_hv1, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv1 = element("view");
-		prop(__nsh_hv1, "style", style);
-		insert(__nsh_hv1, () => props.children);
-		append(__nsh_hv0, __nsh_hv1);
-		return __nsh_hv0;
-	})();
-	return (() => {
 		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "style", style);
+		bindProp(__nsh_hv2, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			flex: 1,
+			minHeight: 0,
+			...props.style
+		}));
 		insert(__nsh_hv2, () => props.children);
-		return __nsh_hv2;
-	})();
+		append(__nsh_hv1, __nsh_hv2);
+		return __nsh_hv1;
+	})(), () => (() => {
+		const __nsh_hv0 = element("view");
+		bindProp(__nsh_hv0, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 12,
+			...props.padding === void 0 ? {} : { padding: props.padding },
+			...props.style
+		}));
+		insert(__nsh_hv0, () => props.children);
+		return __nsh_hv0;
+	})());
 }
 /** 横向排列，垂直居中。 */
 function Row(props) {
@@ -239,7 +246,6 @@ function Card(props) {
 }
 /** 状态胶囊。 */
 function Badge(props) {
-	const color = toneColor(props.tone ?? "neutral");
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
@@ -247,17 +253,17 @@ function Badge(props) {
 			paddingVertical: 2,
 			borderRadius: r.pill,
 			borderWidth: 1,
-			borderColor: color,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center"
 		}));
 		const __nsh_hv10 = element("text");
-		prop(__nsh_hv10, "style", {
+		bindProp(__nsh_hv10, "style", () => ({
 			fontSize: 11,
 			fontWeight: "600",
-			color
-		});
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
 		return __nsh_hv9;
@@ -265,14 +271,9 @@ function Badge(props) {
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
-	const tone = props.tone ?? "ghost";
-	const disabled = props.disabled === true;
-	const fill = tone === "primary" ? c.accent() : tone === "danger" ? "transparent" : "transparent";
-	const border = tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
-	const label = disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
 	return (() => {
 		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => disabled ? void 0 : props.onPress);
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
 		prop(__nsh_hv11, "role", "button");
 		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
 		bindProp(__nsh_hv11, "style", () => ({
@@ -280,9 +281,9 @@ function Button(props) {
 			paddingHorizontal: props.small ? 9 : 12,
 			borderRadius: r.control,
 			borderWidth: 1,
-			borderColor: border,
-			backgroundColor: fill,
-			opacity: disabled ? .5 : 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
@@ -292,7 +293,7 @@ function Button(props) {
 		bindProp(__nsh_hv12, "style", () => ({
 			fontSize: props.small ? 12 : 13,
 			fontWeight: "500",
-			color: label
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
 		insert(__nsh_hv12, () => props.label);
 		append(__nsh_hv11, __nsh_hv12);
@@ -386,21 +387,22 @@ function LoadError(props) {
 }
 /** 键值对表：inspect 类页面的主体。 */
 function KeyValue(props) {
-	const columns = props.columns ?? 1;
 	return (() => {
 		const __nsh_hv39 = element("view");
-		prop(__nsh_hv39, "style", {
+		bindProp(__nsh_hv39, "style", () => ({
 			display: "flex",
-			flexDirection: columns === 2 ? "row" : "column",
+			flexDirection: pick(props.columns ?? 1) === 2 ? "row" : "column",
 			flexWrap: "wrap",
-			gap: columns === 2 ? 12 : 0
-		});
-		insert(__nsh_hv39, () => props.rows.map(([key, value]) => component(Row, {
-			style: {
-				justifyContent: "space-between",
-				paddingVertical: 5,
-				width: columns === 2 ? "48%" : "100%",
-				gap: 12
+			gap: pick(props.columns ?? 1) === 2 ? 12 : 0
+		}));
+		insert(__nsh_hv39, () => pick(props.rows).map(([key, value]) => component(Row, {
+			get style() {
+				return {
+					justifyContent: "space-between",
+					paddingVertical: 5,
+					width: pick(props.columns ?? 1) === 2 ? "48%" : "100%",
+					gap: 12
+				};
 			},
 			get children() {
 				return [(() => {
@@ -426,13 +428,40 @@ function KeyValue(props) {
 		return __nsh_hv39;
 	})();
 }
+/** 分区标题（列表上方的分组名）。 */
+function SectionTitle(props) {
+	return component(Row, {
+		style: {
+			justifyContent: "space-between",
+			paddingBottom: 2
+		},
+		get children() {
+			return [component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv42 = element("text");
+						bindProp(__nsh_hv42, "style", () => t.label);
+						insert(__nsh_hv42, () => props.title);
+						return __nsh_hv42;
+					})(), () => props.hint === void 0 ? null : (() => {
+						const __nsh_hv43 = element("text");
+						bindProp(__nsh_hv43, "style", () => t.meta);
+						insert(__nsh_hv43, () => props.hint);
+						return __nsh_hv43;
+					})()];
+				}
+			}), () => props.right];
+		}
+	});
+}
 /** 一行提示（操作结果/错误），`tone` 决定颜色。 */
 function Notice(props) {
 	return (() => {
 		const __nsh_hv48 = element("text");
 		bindProp(__nsh_hv48, "style", () => ({
 			fontSize: 12,
-			color: props.tone === void 0 ? c.muted() : toneColor(props.tone)
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
 		insert(__nsh_hv48, () => props.message);
 		return __nsh_hv48;
@@ -470,11 +499,46 @@ const PAGE_SIZE = 100;
 const MAX_ROWS = 500;
 /** 单条消息体最多渲染这么多字符，超出的截断并提示。 */
 const MAX_BODY_CHARS = 2e4;
-async function dispatch(operationId, input) {
+/** operationId → provider 方法名。
+*
+* 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+* 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+*/
+const OPERATIONS = {
+	clusterOverview: "middleware/cluster/overview",
+	createTopic: "middleware/topic/create",
+	deleteTopic: "middleware/topic/delete",
+	groupClients: "middleware/group/clients",
+	groupDetail: "middleware/group/detail",
+	listGroups: "middleware/group/list",
+	listTopics: "middleware/topic/list",
+	metrics: "middleware/metrics",
+	queryById: "middleware/message/query",
+	queryByKey: "middleware/message/query",
+	queryByTimeWindow: "middleware/message/query",
+	resetConsumerOffset: "rocketmq/consumer/reset-offset",
+	sendMessage: "middleware/message/send",
+	topicDetail: "middleware/topic/detail",
+	updateTopic: "middleware/topic/update"
+};
+let resourceHandle = null;
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle() {
+	if (resourceHandle) return resourceHandle;
+	const found = (await host.call("navop.context.current", {}))?.connection?.resourceHandle;
+	if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	resourceHandle = found;
+	return found;
+}
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(operationId, input, _confirmed) {
+	const method = OPERATIONS[operationId];
+	if (!method) throw new Error(`未知的操作：${operationId}`);
 	try {
-		return await host.call("navop.workbench.dispatch", {
-			operationId,
-			input
+		return await host.call("navop.resource.invoke", {
+			handle: await handle(),
+			method,
+			params: input ?? {}
 		});
 	} catch (error) {
 		throw new Error(errorMessage(error));
@@ -483,6 +547,15 @@ async function dispatch(operationId, input) {
 function asRecord(value) {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 	return value;
+}
+/** 数字字段：非数字或非有限值都给 null（provider 各版本字段不一致）。 */
+function asNumber(value) {
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string" && value.trim().length > 0) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
 }
 function strOf(source, key) {
 	const value = source[key];
@@ -508,6 +581,17 @@ function bodySize(message) {
 	if (Array.isArray(raw)) return raw.length;
 	const text = typeof message.body_text === "string" ? message.body_text : "";
 	return text.length === 0 ? 0 : new TextEncoder().encode(text).length;
+}
+/** 消息属性：provider 给的是 [[k, v], ...]，只保留成对的两项。 */
+function propRows(message) {
+	const raw = message["properties"];
+	if (!Array.isArray(raw)) return [];
+	const rows = [];
+	for (const item of raw) {
+		if (!Array.isArray(item) || item.length < 2) continue;
+		rows.push([String(item[0] ?? ""), String(item[1] ?? "")]);
+	}
+	return rows;
 }
 /** 消息体：优先 body_text，否则把字节按严格 UTF-8 解码；解不出就是二进制。 */
 function bodyOf(message) {
@@ -620,6 +704,7 @@ function Messages() {
 	const rows = signal([]);
 	const hasMore = signal(false);
 	const pageNo = signal(1);
+	const pageTotal = signal(null);
 	const active = signal(null);
 	const selected = signal(null);
 	const bodyMode = signal("pretty");
@@ -673,7 +758,8 @@ function Messages() {
 		const record = asRecord(raw);
 		return {
 			messages: arr(raw, "messages").map((item) => asRecord(item)).filter((item) => item !== null),
-			more: query.mode === "time" && record !== null && record.has_more === true
+			more: query.mode === "time" && record !== null && record.has_more === true,
+			reported: record === null ? null : asNumber(record["total"])
 		};
 	}
 	async function search() {
@@ -688,6 +774,7 @@ function Messages() {
 			active.set(query);
 			pageNo.set(1);
 			hasMore.set(result.more && result.messages.length < MAX_ROWS);
+			pageTotal.set(result.reported);
 			rows.set(mergeRows([], result.messages));
 			selected.set(null);
 			bodyMode.set("pretty");
@@ -704,6 +791,7 @@ function Messages() {
 	async function loadMore() {
 		const query = active();
 		if (query === null || loadingMore() || querying()) return;
+		if (!hasMore()) return;
 		if (rows().length >= MAX_ROWS) return;
 		loadingMore.set(true);
 		error.set(null);
@@ -714,6 +802,7 @@ function Messages() {
 			const merged = mergeRows(rows(), result.messages);
 			rows.set(merged);
 			hasMore.set(result.more && merged.length < MAX_ROWS);
+			pageTotal.set(result.reported);
 		} catch (failure) {
 			error.set(errorMessage(failure));
 		} finally {
@@ -828,10 +917,29 @@ function Messages() {
 				message: "消息体不是合法 UTF-8 文本，按字节十六进制预览。",
 				tone: "warn"
 			}) : body.json ? null : component(Notice, { message: "内容不是合法 JSON，按原文显示。" })], __nsh_hv11);
-			insert(__nsh_hv4, component(KeyValue, {
+			insert(__nsh_hv4, [component(KeyValue, {
 				columns: 2,
 				rows: meta
-			}));
+			}), () => propRows(message).length === 0 ? null : (() => {
+				const __nsh_hv13 = element("view");
+				prop(__nsh_hv13, "style", {
+					display: "flex",
+					flexDirection: "column",
+					gap: 6
+				});
+				insert(__nsh_hv13, [component(SectionTitle, {
+					title: "消息属性",
+					get hint() {
+						return `${propRows(message).length} 项`;
+					}
+				}), component(KeyValue, {
+					columns: 2,
+					get rows() {
+						return propRows(message);
+					}
+				})]);
+				return __nsh_hv13;
+			})()]);
 			return __nsh_hv4;
 		})();
 	}
@@ -848,66 +956,66 @@ function Messages() {
 		get children() {
 			return [
 				(() => {
-					const __nsh_hv13 = element("text");
-					prop(__nsh_hv13, "numberOfLines", 1);
-					bindProp(__nsh_hv13, "style", () => [t.label, { width: 140 }]);
-					const __nsh_hv14 = text("时间");
-					append(__nsh_hv13, __nsh_hv14);
-					return __nsh_hv13;
+					const __nsh_hv14 = element("text");
+					prop(__nsh_hv14, "numberOfLines", 1);
+					bindProp(__nsh_hv14, "style", () => [t.label, { width: 140 }]);
+					const __nsh_hv15 = text("时间");
+					append(__nsh_hv14, __nsh_hv15);
+					return __nsh_hv14;
 				})(),
 				(() => {
-					const __nsh_hv15 = element("text");
-					prop(__nsh_hv15, "numberOfLines", 1);
-					bindProp(__nsh_hv15, "style", () => [t.label, {
+					const __nsh_hv16 = element("text");
+					prop(__nsh_hv16, "numberOfLines", 1);
+					bindProp(__nsh_hv16, "style", () => [t.label, {
 						flex: 1,
 						minWidth: 0
 					}]);
-					const __nsh_hv16 = text("Topic");
-					append(__nsh_hv15, __nsh_hv16);
-					return __nsh_hv15;
+					const __nsh_hv17 = text("Topic");
+					append(__nsh_hv16, __nsh_hv17);
+					return __nsh_hv16;
 				})(),
 				(() => {
-					const __nsh_hv17 = element("text");
-					prop(__nsh_hv17, "numberOfLines", 1);
-					bindProp(__nsh_hv17, "style", () => [t.label, { width: 130 }]);
-					const __nsh_hv18 = text("Key");
-					append(__nsh_hv17, __nsh_hv18);
-					return __nsh_hv17;
+					const __nsh_hv18 = element("text");
+					prop(__nsh_hv18, "numberOfLines", 1);
+					bindProp(__nsh_hv18, "style", () => [t.label, { width: 130 }]);
+					const __nsh_hv19 = text("Key");
+					append(__nsh_hv18, __nsh_hv19);
+					return __nsh_hv18;
 				})(),
 				(() => {
-					const __nsh_hv19 = element("text");
-					prop(__nsh_hv19, "numberOfLines", 1);
-					bindProp(__nsh_hv19, "style", () => [t.label, { width: 100 }]);
-					const __nsh_hv20 = text("Tag");
-					append(__nsh_hv19, __nsh_hv20);
-					return __nsh_hv19;
+					const __nsh_hv20 = element("text");
+					prop(__nsh_hv20, "numberOfLines", 1);
+					bindProp(__nsh_hv20, "style", () => [t.label, { width: 100 }]);
+					const __nsh_hv21 = text("Tag");
+					append(__nsh_hv20, __nsh_hv21);
+					return __nsh_hv20;
 				})(),
 				(() => {
-					const __nsh_hv21 = element("text");
-					prop(__nsh_hv21, "numberOfLines", 1);
-					bindProp(__nsh_hv21, "style", () => [t.label, {
+					const __nsh_hv22 = element("text");
+					prop(__nsh_hv22, "numberOfLines", 1);
+					bindProp(__nsh_hv22, "style", () => [t.label, {
 						width: 90,
 						textAlign: "right"
 					}]);
-					const __nsh_hv22 = text("存储大小");
-					append(__nsh_hv21, __nsh_hv22);
-					return __nsh_hv21;
+					const __nsh_hv23 = text("存储大小");
+					append(__nsh_hv22, __nsh_hv23);
+					return __nsh_hv22;
 				})(),
 				(() => {
-					const __nsh_hv23 = element("text");
-					prop(__nsh_hv23, "numberOfLines", 1);
-					bindProp(__nsh_hv23, "style", () => [t.label, {
+					const __nsh_hv24 = element("text");
+					prop(__nsh_hv24, "numberOfLines", 1);
+					bindProp(__nsh_hv24, "style", () => [t.label, {
 						width: 60,
 						textAlign: "right"
 					}]);
-					const __nsh_hv24 = text("重试");
-					append(__nsh_hv23, __nsh_hv24);
-					return __nsh_hv23;
+					const __nsh_hv25 = text("重试");
+					append(__nsh_hv24, __nsh_hv25);
+					return __nsh_hv24;
 				})(),
 				(() => {
-					const __nsh_hv25 = element("view");
-					prop(__nsh_hv25, "style", { width: 18 });
-					return __nsh_hv25;
+					const __nsh_hv26 = element("view");
+					prop(__nsh_hv26, "style", { width: 18 });
+					return __nsh_hv26;
 				})()
 			];
 		}
@@ -929,26 +1037,26 @@ function Messages() {
 			}
 		});
 		return (() => {
-			const __nsh_hv26 = element("view");
-			prop(__nsh_hv26, "style", {
+			const __nsh_hv27 = element("view");
+			prop(__nsh_hv27, "style", {
 				display: "flex",
 				flexDirection: "column"
 			});
-			insert(__nsh_hv26, [() => headerCells(), () => rows().map((message) => (() => {
-				const __nsh_hv27 = element("view");
-				prop(__nsh_hv27, "style", {
+			insert(__nsh_hv27, [() => headerCells(), () => rows().map((message) => (() => {
+				const __nsh_hv28 = element("view");
+				prop(__nsh_hv28, "style", {
 					display: "flex",
 					flexDirection: "column"
 				});
-				const __nsh_hv28 = element("view");
-				prop(__nsh_hv28, "onPress", () => toggle(message));
-				bindProp(__nsh_hv28, "style", () => ({
+				const __nsh_hv29 = element("view");
+				prop(__nsh_hv29, "onPress", () => toggle(message));
+				bindProp(__nsh_hv29, "style", () => ({
 					cursor: "pointer",
 					backgroundColor: selected() === messageKey(message) ? c.hover() : "transparent",
 					borderBottomWidth: 1,
 					borderBottomColor: c.line()
 				}));
-				insert(__nsh_hv28, component(Row, {
+				insert(__nsh_hv29, component(Row, {
 					gap: 10,
 					style: {
 						paddingVertical: 8,
@@ -957,80 +1065,80 @@ function Messages() {
 					get children() {
 						return [
 							(() => {
-								const __nsh_hv29 = element("text");
-								prop(__nsh_hv29, "numberOfLines", 1);
-								bindProp(__nsh_hv29, "style", () => [t.mono, { width: 140 }]);
-								insert(__nsh_hv29, () => timeText(message));
-								return __nsh_hv29;
-							})(),
-							(() => {
 								const __nsh_hv30 = element("text");
 								prop(__nsh_hv30, "numberOfLines", 1);
-								bindProp(__nsh_hv30, "style", () => [{
-									flex: 1,
-									minWidth: 0,
-									fontSize: 12,
-									color: c.text()
-								}]);
-								insert(__nsh_hv30, () => strOf(message, "topic") || "-");
+								bindProp(__nsh_hv30, "style", () => [t.mono, { width: 140 }]);
+								insert(__nsh_hv30, () => timeText(message));
 								return __nsh_hv30;
 							})(),
 							(() => {
 								const __nsh_hv31 = element("text");
 								prop(__nsh_hv31, "numberOfLines", 1);
-								bindProp(__nsh_hv31, "style", () => [t.mono, { width: 130 }]);
-								insert(__nsh_hv31, () => strOf(message, "key") || "-");
+								bindProp(__nsh_hv31, "style", () => [{
+									flex: 1,
+									minWidth: 0,
+									fontSize: 12,
+									color: c.text()
+								}]);
+								insert(__nsh_hv31, () => strOf(message, "topic") || "-");
 								return __nsh_hv31;
 							})(),
 							(() => {
 								const __nsh_hv32 = element("text");
 								prop(__nsh_hv32, "numberOfLines", 1);
-								bindProp(__nsh_hv32, "style", () => [t.mono, {
-									width: 100,
-									color: c.muted()
-								}]);
-								insert(__nsh_hv32, () => strOf(message, "tag") || "-");
+								bindProp(__nsh_hv32, "style", () => [t.mono, { width: 130 }]);
+								insert(__nsh_hv32, () => strOf(message, "key") || "-");
 								return __nsh_hv32;
 							})(),
 							(() => {
 								const __nsh_hv33 = element("text");
 								prop(__nsh_hv33, "numberOfLines", 1);
 								bindProp(__nsh_hv33, "style", () => [t.mono, {
-									width: 90,
-									textAlign: "right"
+									width: 100,
+									color: c.muted()
 								}]);
-								insert(__nsh_hv33, () => humanBytes(bodySize(message)));
+								insert(__nsh_hv33, () => strOf(message, "tag") || "-");
 								return __nsh_hv33;
 							})(),
 							(() => {
 								const __nsh_hv34 = element("text");
 								prop(__nsh_hv34, "numberOfLines", 1);
 								bindProp(__nsh_hv34, "style", () => [t.mono, {
-									width: 60,
+									width: 90,
 									textAlign: "right"
 								}]);
-								insert(__nsh_hv34, () => strOf(message, "retry_times") || "0");
+								insert(__nsh_hv34, () => humanBytes(bodySize(message)));
 								return __nsh_hv34;
 							})(),
 							(() => {
 								const __nsh_hv35 = element("text");
-								bindProp(__nsh_hv35, "style", () => ({
+								prop(__nsh_hv35, "numberOfLines", 1);
+								bindProp(__nsh_hv35, "style", () => [t.mono, {
+									width: 60,
+									textAlign: "right"
+								}]);
+								insert(__nsh_hv35, () => strOf(message, "retry_times") || "0");
+								return __nsh_hv35;
+							})(),
+							(() => {
+								const __nsh_hv36 = element("text");
+								bindProp(__nsh_hv36, "style", () => ({
 									width: 18,
 									fontSize: 11,
 									color: c.muted(),
 									textAlign: "right"
 								}));
-								insert(__nsh_hv35, () => selected() === messageKey(message) ? "▾" : "▸");
-								return __nsh_hv35;
+								insert(__nsh_hv36, () => selected() === messageKey(message) ? "▾" : "▸");
+								return __nsh_hv36;
 							})()
 						];
 					}
 				}));
-				append(__nsh_hv27, __nsh_hv28);
-				insert(__nsh_hv27, () => selected() === messageKey(message) ? bodyView(message) : null);
-				return __nsh_hv27;
+				append(__nsh_hv28, __nsh_hv29);
+				insert(__nsh_hv28, () => selected() === messageKey(message) ? bodyView(message) : null);
+				return __nsh_hv28;
 			})())]);
-			return __nsh_hv26;
+			return __nsh_hv27;
 		})();
 	};
 	const windowButtons = WINDOWS.map((item) => component(Button, {
@@ -1044,15 +1152,15 @@ function Messages() {
 		onPress: () => windowId.set(item.id)
 	}));
 	return (() => {
-		const __nsh_hv36 = element("view");
-		bindProp(__nsh_hv36, "style", () => ({
+		const __nsh_hv37 = element("view");
+		bindProp(__nsh_hv37, "style", () => ({
 			flex: 1,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column",
 			backgroundColor: c.bg()
 		}));
-		insert(__nsh_hv36, [component(Row, {
+		insert(__nsh_hv37, [component(Row, {
 			gap: 8,
 			get style() {
 				return {
@@ -1069,20 +1177,20 @@ function Messages() {
 					get children() {
 						return [
 							(() => {
-								const __nsh_hv37 = element("text");
-								bindProp(__nsh_hv37, "style", () => t.h1);
-								const __nsh_hv38 = text("消息查询");
-								append(__nsh_hv37, __nsh_hv38);
-								return __nsh_hv37;
+								const __nsh_hv38 = element("text");
+								bindProp(__nsh_hv38, "style", () => t.h1);
+								const __nsh_hv39 = text("消息查询");
+								append(__nsh_hv38, __nsh_hv39);
+								return __nsh_hv38;
 							})(),
 							component(Badge, { get text() {
 								return modeLabel();
 							} }),
 							(() => {
-								const __nsh_hv39 = element("text");
-								bindProp(__nsh_hv39, "style", () => t.meta);
-								insert(__nsh_hv39, () => rows().length === 0 ? "按时间窗口或 Key / ID 检索" : `已显示 ${rows().length} 条`);
-								return __nsh_hv39;
+								const __nsh_hv40 = element("text");
+								bindProp(__nsh_hv40, "style", () => t.meta);
+								insert(__nsh_hv40, () => rows().length === 0 ? "按时间窗口或 Key / ID 检索" : `已显示 ${rows().length} 条`);
+								return __nsh_hv40;
 							})()
 						];
 					}
@@ -1090,10 +1198,10 @@ function Messages() {
 					gap: 8,
 					get children() {
 						return (() => {
-							const __nsh_hv40 = element("text");
-							bindProp(__nsh_hv40, "style", () => t.meta);
-							insert(__nsh_hv40, () => querying() ? "查询中…" : rows().length > 0 ? `结果 ${rows().length} 条` : "未查询");
-							return __nsh_hv40;
+							const __nsh_hv41 = element("text");
+							bindProp(__nsh_hv41, "style", () => t.meta);
+							insert(__nsh_hv41, () => querying() ? "查询中…" : rows().length > 0 ? `结果 ${rows().length} 条` : "未查询");
+							return __nsh_hv41;
 						})();
 					}
 				})];
@@ -1153,19 +1261,19 @@ function Messages() {
 								get children() {
 									return [
 										(() => {
-											const __nsh_hv41 = element("text");
-											bindProp(__nsh_hv41, "style", () => t.label);
-											const __nsh_hv42 = text("时间窗口");
-											append(__nsh_hv41, __nsh_hv42);
-											return __nsh_hv41;
+											const __nsh_hv42 = element("text");
+											bindProp(__nsh_hv42, "style", () => t.label);
+											const __nsh_hv43 = text("时间窗口");
+											append(__nsh_hv42, __nsh_hv43);
+											return __nsh_hv42;
 										})(),
 										windowButtons,
 										(() => {
-											const __nsh_hv43 = element("text");
-											bindProp(__nsh_hv43, "style", () => t.meta);
-											const __nsh_hv44 = text("仅按 Topic 的窗口查询生效；按 Key / ID 查询时忽略时间窗口。");
-											append(__nsh_hv43, __nsh_hv44);
-											return __nsh_hv43;
+											const __nsh_hv44 = element("text");
+											bindProp(__nsh_hv44, "style", () => t.meta);
+											const __nsh_hv45 = text("仅按 Topic 的窗口查询生效；按 Key / ID 查询时忽略时间窗口。");
+											append(__nsh_hv44, __nsh_hv45);
+											return __nsh_hv44;
 										})()
 									];
 								}
@@ -1175,27 +1283,26 @@ function Messages() {
 								style: { justifyContent: "space-between" },
 								get children() {
 									return [(() => {
-										const __nsh_hv45 = element("text");
-										bindProp(__nsh_hv45, "style", () => t.meta);
-										const __nsh_hv46 = text("单页 ");
-										const __nsh_hv47 = text(" 条，最多累计 ");
-										const __nsh_hv48 = text(" 条，按存储时间倒序；provider 的 total 只是本页条数，故不展示「总数」。");
-										append(__nsh_hv45, __nsh_hv46);
-										append(__nsh_hv45, __nsh_hv47);
-										append(__nsh_hv45, __nsh_hv48);
-										insert(__nsh_hv45, PAGE_SIZE, __nsh_hv47);
-										insert(__nsh_hv45, MAX_ROWS, __nsh_hv48);
-										return __nsh_hv45;
+										const __nsh_hv46 = element("text");
+										bindProp(__nsh_hv46, "style", () => t.meta);
+										const __nsh_hv47 = text("单页 ");
+										const __nsh_hv48 = text(" 条，最多累计 ");
+										const __nsh_hv49 = text(" 条，按存储时间倒序；provider 的 total 只是本页条数，不是全量总数，所以按「本页 total」标注。");
+										append(__nsh_hv46, __nsh_hv47);
+										append(__nsh_hv46, __nsh_hv48);
+										append(__nsh_hv46, __nsh_hv49);
+										insert(__nsh_hv46, PAGE_SIZE, __nsh_hv48);
+										insert(__nsh_hv46, MAX_ROWS, __nsh_hv49);
+										return __nsh_hv46;
 									})(), component(Button, {
 										get label() {
 											return querying() ? "查询中…" : "查询";
 										},
 										tone: "primary",
 										small: true,
-										get disabled() {
-											return querying();
-										},
-										onPress: () => void search()
+										onPress: () => {
+											if (!querying()) search();
+										}
 									})];
 								}
 							}),
@@ -1210,30 +1317,29 @@ function Messages() {
 				}), component(Card, {
 					title: "查询结果",
 					get hint() {
-						return rows().length === 0 ? "尚未查询" : `已显示 ${rows().length} / 最多 ${MAX_ROWS} 条${hasMore() ? " · 还有更多" : ""}`;
+						return rows().length === 0 ? "尚未查询" : `已显示 ${rows().length} / 最多 ${MAX_ROWS} 条${pageTotal() === null ? "" : ` · 本页 total ${pageTotal() ?? 0}`}${hasMore() ? " · 还有更多" : ""}`;
 					},
 					get right() {
 						return component(Row, {
 							gap: 6,
 							get children() {
 								return [() => error() === null ? null : (() => {
-									const __nsh_hv49 = element("text");
-									bindProp(__nsh_hv49, "style", () => ({
+									const __nsh_hv50 = element("text");
+									bindProp(__nsh_hv50, "style", () => ({
 										fontSize: 12,
 										color: c.danger()
 									}));
-									insert(__nsh_hv49, () => error() ?? "");
-									return __nsh_hv49;
-								})(), component(Button, {
+									insert(__nsh_hv50, () => error() ?? "");
+									return __nsh_hv50;
+								})(), () => hasMore() && rows().length < MAX_ROWS ? component(Button, {
 									get label() {
 										return loadingMore() ? "加载中…" : "加载更多";
 									},
 									small: true,
-									get disabled() {
-										return !hasMore() || loadingMore() || rows().length >= MAX_ROWS;
-									},
-									onPress: () => void loadMore()
-								})];
+									onPress: () => {
+										if (!loadingMore()) loadMore();
+									}
+								}) : null];
 							}
 						});
 					},
@@ -1243,7 +1349,7 @@ function Messages() {
 				})];
 			}
 		})]);
-		return __nsh_hv36;
+		return __nsh_hv37;
 	})();
 }
 mount(Messages);

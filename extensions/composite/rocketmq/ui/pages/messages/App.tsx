@@ -3,7 +3,7 @@
 // 三个操作各有分工：messageId 优先（queryById）、其次 key（queryByKey）、
 // 都没有时按时间窗口翻页（queryByTimeWindow）。时间窗口只对第三种生效。
 //
-// 数据全走 `navop.workbench.dispatch`，连接由宿主注入。
+// 数据全走 `navop.context.current` + `navop.resource.invoke`，连接由宿主注入。
 import { host, mount, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import { arr, errorMessage, humanBytes, str } from "../../lib/format";
@@ -17,6 +17,7 @@ import {
   Loading,
   Notice,
   Row,
+  SectionTitle,
   Stack,
 } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
@@ -56,9 +57,57 @@ interface Query {
   end: number;
 }
 
-async function dispatch(operationId: string, input: unknown): Promise<unknown> {
+/** operationId → provider 方法名。
+ *
+ * 清单里的 `resourceWorkbenches` 已经不参与运行，这一层映射留在页面里：
+ * 页面自己决定"要哪份数据"，宿主只负责把方法名和参数发给 provider。
+ */
+const OPERATIONS: Record<string, string> = {
+  clusterOverview: "middleware/cluster/overview",
+  createTopic: "middleware/topic/create",
+  deleteTopic: "middleware/topic/delete",
+  groupClients: "middleware/group/clients",
+  groupDetail: "middleware/group/detail",
+  listGroups: "middleware/group/list",
+  listTopics: "middleware/topic/list",
+  metrics: "middleware/metrics",
+  queryById: "middleware/message/query",
+  queryByKey: "middleware/message/query",
+  queryByTimeWindow: "middleware/message/query",
+  resetConsumerOffset: "rocketmq/consumer/reset-offset",
+  sendMessage: "middleware/message/send",
+  topicDetail: "middleware/topic/detail",
+  updateTopic: "middleware/topic/update",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
+async function dispatch(
+  operationId: string,
+  input?: unknown,
+  _confirmed?: boolean,
+): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.workbench.dispatch", { operationId, input });
+    return await host.call("navop.resource.invoke", {
+      handle: await handle(),
+      method,
+      params: (input as Record<string, unknown>) ?? {},
+    });
   } catch (error) {
     throw new Error(errorMessage(error));
   }
@@ -67,6 +116,16 @@ async function dispatch(operationId: string, input: unknown): Promise<unknown> {
 function asRecord(value: unknown): Json | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Json;
+}
+
+/** 数字字段：非数字或非有限值都给 null（provider 各版本字段不一致）。 */
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function strOf(source: Json, key: string): string {
@@ -96,6 +155,18 @@ function bodySize(message: Json): number {
   if (Array.isArray(raw)) return raw.length;
   const text = typeof message.body_text === "string" ? message.body_text : "";
   return text.length === 0 ? 0 : new TextEncoder().encode(text).length;
+}
+
+/** 消息属性：provider 给的是 [[k, v], ...]，只保留成对的两项。 */
+function propRows(message: Json): Array<[string, string]> {
+  const raw = message["properties"];
+  if (!Array.isArray(raw)) return [];
+  const rows: Array<[string, string]> = [];
+  for (const item of raw) {
+    if (!Array.isArray(item) || item.length < 2) continue;
+    rows.push([String(item[0] ?? ""), String(item[1] ?? "")]);
+  }
+  return rows;
 }
 
 interface BodyInfo {
@@ -228,6 +299,8 @@ export default function Messages() {
   const rows = signal<Json[]>([]);
   const hasMore = signal(false);
   const pageNo = signal(1);
+  // provider 回传的 total 只是本页条数，展示时如实标注，不当作全量总数。
+  const pageTotal = signal<number | null>(null);
   const active = signal<Query | null>(null);
   const selected = signal<string | null>(null);
   const bodyMode = signal<BodyMode>("pretty");
@@ -265,7 +338,10 @@ export default function Messages() {
     };
   }
 
-  async function fetchPage(query: Query, page: number): Promise<{ messages: Json[]; more: boolean }> {
+  async function fetchPage(
+    query: Query,
+    page: number,
+  ): Promise<{ messages: Json[]; more: boolean; reported: number | null }> {
     let raw: unknown;
     if (query.mode === "id") {
       raw = await dispatch("queryById", {
@@ -289,7 +365,8 @@ export default function Messages() {
       .map((item) => asRecord(item))
       .filter((item): item is Json => item !== null);
     const more = query.mode === "time" && record !== null && record.has_more === true;
-    return { messages, more };
+    const reported = record === null ? null : asNumber(record["total"]);
+    return { messages, more, reported };
   }
 
   async function search() {
@@ -304,6 +381,7 @@ export default function Messages() {
       active.set(query);
       pageNo.set(1);
       hasMore.set(result.more && result.messages.length < MAX_ROWS);
+      pageTotal.set(result.reported);
       rows.set(mergeRows([], result.messages));
       selected.set(null);
       bodyMode.set("pretty");
@@ -321,6 +399,7 @@ export default function Messages() {
   async function loadMore() {
     const query = active();
     if (query === null || loadingMore() || querying()) return;
+    if (!hasMore()) return;
     if (rows().length >= MAX_ROWS) return;
     loadingMore.set(true);
     error.set(null);
@@ -331,6 +410,7 @@ export default function Messages() {
       const merged = mergeRows(rows(), result.messages);
       rows.set(merged);
       hasMore.set(result.more && merged.length < MAX_ROWS);
+      pageTotal.set(result.reported);
     } catch (failure) {
       error.set(errorMessage(failure));
     } finally {
@@ -424,6 +504,12 @@ export default function Messages() {
           </Text>
         </View>
         <KeyValue columns={2} rows={meta} />
+        {propRows(message).length === 0 ? null : (
+          <View style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <SectionTitle title="消息属性" hint={`${propRows(message).length} 项`} />
+            <KeyValue columns={2} rows={propRows(message)} />
+          </View>
+        )}
       </View>
     );
   }
@@ -605,14 +691,15 @@ export default function Messages() {
           <Row gap={8} style={{ justifyContent: "space-between" }}>
             <Text style={t.meta}>
               单页 {PAGE_SIZE} 条，最多累计 {MAX_ROWS} 条，按存储时间倒序；provider 的 total
-              只是本页条数，故不展示「总数」。
+              只是本页条数，不是全量总数，所以按「本页 total」标注。
             </Text>
             <Button
               label={querying() ? "查询中…" : "查询"}
               tone="primary"
               small
-              disabled={querying()}
-              onPress={() => void search()}
+              onPress={() => {
+                if (!querying()) void search();
+              }}
             />
           </Row>
 
@@ -624,17 +711,25 @@ export default function Messages() {
           hint={
             rows().length === 0
               ? "尚未查询"
-              : `已显示 ${rows().length} / 最多 ${MAX_ROWS} 条${hasMore() ? " · 还有更多" : ""}`
+              : `已显示 ${rows().length} / 最多 ${MAX_ROWS} 条${
+                  pageTotal() === null ? "" : ` · 本页 total ${pageTotal() ?? 0}`
+                }${hasMore() ? " · 还有更多" : ""}`
           }
           right={
             <Row gap={6}>
               {error() === null ? null : <Text style={{ fontSize: 12, color: c.danger() }}>{error() ?? ""}</Text>}
-              <Button
-                label={loadingMore() ? "加载中…" : "加载更多"}
-                small
-                disabled={!hasMore() || loadingMore() || rows().length >= MAX_ROWS}
-                onPress={() => void loadMore()}
-              />
+              {/* 用 render 函数条件渲染：nsh 的 onPress 在挂载时绑定，disabled 会被快照。 */}
+              {() =>
+                hasMore() && rows().length < MAX_ROWS ? (
+                  <Button
+                    label={loadingMore() ? "加载中…" : "加载更多"}
+                    small
+                    onPress={() => {
+                      if (!loadingMore()) void loadMore();
+                    }}
+                  />
+                ) : null
+              }
             </Row>
           }
         >

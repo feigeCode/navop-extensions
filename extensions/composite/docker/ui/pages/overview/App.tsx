@@ -11,6 +11,81 @@ import { errorMessage, humanBytes, percent, str } from "../../lib/format";
 import { Badge, Button, Card, LoadError, Loading, Meter, Row, Stack, Stat } from "../../lib/ui";
 import { c, t } from "../../lib/theme";
 
+/** operationId → provider 方法名（清单里的工作台声明已不参与运行）。 */
+const OPERATIONS: Record<string, string> = {
+  containerCreate: "docker/container/create",
+  containerDiff: "docker/container/diff",
+  containerFilesDelete: "docker/container/files/delete",
+  containerFilesList: "docker/container/files/list",
+  containerKill: "docker/container/kill",
+  containerLogs: "docker/container/logs",
+  containerLogsWithTail: "docker/container/logs",
+  containerMounts: "docker/container/mounts",
+  containerPause: "docker/container/pause",
+  containerRename: "docker/container/rename",
+  containerStats: "docker/container/stats",
+  containerTop: "docker/container/top",
+  containerUnpause: "docker/container/unpause",
+  containerUpdate: "docker/container/update",
+  imageHistory: "docker/image/history",
+  imageHistoryByRef: "docker/image/history",
+  imageInspect: "docker/image/inspect",
+  imageInspectByRef: "docker/image/inspect",
+  imagePrune: "docker/image/prune",
+  imageRemoveByRef: "docker/image/remove",
+  imageTag: "docker/image/tag",
+  imageTagByRef: "docker/image/tag",
+  inspectContainer: "docker/container/inspect",
+  inspectNetwork: "docker/network/inspect",
+  inspectVolume: "docker/volume/inspect",
+  listContainers: "docker/container/list",
+  listImages: "docker/image/list",
+  listNetworks: "docker/network/list",
+  listVolumes: "docker/volume/list",
+  networkConnect: "docker/network/connect",
+  networkCreate: "docker/network/create",
+  networkDisconnect: "docker/network/disconnect",
+  networkInspectById: "docker/network/inspect",
+  networkPrune: "docker/network/prune",
+  networkRemoveById: "docker/network/remove",
+  pullImage: "docker/image/pull",
+  removeContainer: "docker/container/remove",
+  removeImage: "docker/image/remove",
+  removeNetwork: "docker/network/remove",
+  removeVolume: "docker/volume/remove",
+  restartContainer: "docker/container/restart",
+  startContainer: "docker/container/start",
+  stopContainer: "docker/container/stop",
+  systemInfo: "docker/system/info",
+  systemPrune: "docker/system/prune",
+  systemUsage: "docker/system/usage",
+  volumeCreate: "docker/volume/create",
+  volumeInspectByName: "docker/volume/inspect",
+  volumePrune: "docker/volume/prune",
+  volumeRemoveByName: "docker/volume/remove",
+};
+
+let resourceHandle: string | null = null;
+
+/** 借来的资源句柄：页面所属连接的那一个。 */
+async function handle(): Promise<string> {
+  if (resourceHandle) return resourceHandle;
+  const context = (await host.call("navop.context.current", {})) as {
+    connection?: { resourceHandle?: string } | null;
+  };
+  const found = context?.connection?.resourceHandle;
+  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+  resourceHandle = found;
+  return found;
+}
+
+/** 调一次 provider 方法。 */
+async function invoke(operationId: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const method = OPERATIONS[operationId];
+  if (!method) throw new Error(`未知的操作：${operationId}`);
+  return await host.call("navop.resource.invoke", { handle: await handle(), method, params });
+}
+
 type Usage = Record<string, unknown>;
 
 export default function Overview() {
@@ -23,10 +98,7 @@ export default function Overview() {
     loading.set(true);
     error.set(null);
     try {
-      const result = (await host.call("navop.workbench.dispatch", {
-        operationId: "systemUsage",
-        input: {},
-      })) as Usage | null;
+      const result = (await invoke("systemUsage", {})) as Usage | null;
       usage.set(result ?? {});
       refreshed.set(new Date().toLocaleTimeString());
     } catch (failure) {

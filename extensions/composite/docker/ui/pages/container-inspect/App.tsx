@@ -7,11 +7,12 @@
 // 「查看原始 JSON」开关：分组便于扫读，原始 JSON 用于核对 provider 没展开的
 // 字段；原始视图只渲染前 RAW_MAX_LINES 行。
 
-import { host, mount, signal, Scroll, Text, View } from "nsh";
+import { mount, Scroll, signal, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
-import { errorMessage, humanBytes, joinCommand, shortTime } from "../../lib/format";
-import { Badge, Button, Empty, LoadError, Loading, Notice } from "../../lib/ui";
-import { c, panel, r, t } from "../../lib/theme";
+import { arr, errorMessage, humanBytes, joinCommand, shortTime, str } from "../../lib/format";
+import { call } from "../../lib/host";
+import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
+import { c, hairline, panel, r, t } from "../../lib/theme";
 
 /** 原始 JSON 最多渲染的行数（超出部分不交给布局）。 */
 const RAW_MAX_LINES = 800;
@@ -234,6 +235,8 @@ function PortLines(props: { ports: unknown }) {
   );
 }
 
+type ContainerRow = Record<string, unknown>;
+
 export default function ContainerInspect() {
   const data = signal<Doc | null>(null);
   const loading = signal(true);
@@ -248,17 +251,119 @@ export default function ContainerInspect() {
   const openEnv = signal(false);
   const openLimits = signal(false);
 
+  const containers = signal<ContainerRow[]>([]);
+  const containerQuery = signal("");
+  const containersLoading = signal(true);
+  const containersError = signal<string | null>(null);
+  const selectedId = signal<string | null>(null);
+  const selectedName = signal("");
+  const pickerOpen = signal(true);
+
+  // last-wins：切容器时旧请求的响应直接丢弃。
   let seq = 0;
 
+  const status = () => text(pick(data() ?? {}, "State", "Status"), "unknown");
+  const health = () => text(pick(data() ?? {}, "State", "Health", "Status"), "");
+
+  // ---- 容器列表 -----------------------------------------------------
+
+  function rowId(row: ContainerRow): string {
+    return str(row, "id", "");
+  }
+
+  function rowName(row: ContainerRow): string {
+    return str(row, "name", "");
+  }
+
+  function rowImage(row: ContainerRow): string {
+    return str(row, "image", "");
+  }
+
+  function rowState(row: ContainerRow): string {
+    return str(row, "state", "");
+  }
+
+  function containerTone(state: string): "ok" | "warn" | "danger" | "neutral" {
+    if (state === "running") return "ok";
+    if (state === "paused" || state === "restarting") return "warn";
+    if (state === "exited" || state === "dead") return "danger";
+    return "neutral";
+  }
+
+  function visibleContainers(): ContainerRow[] {
+    const needle = containerQuery().trim().toLowerCase();
+    if (needle.length === 0) return containers();
+    return containers().filter((row) =>
+      `${rowName(row)} ${rowImage(row)}`.toLowerCase().includes(needle),
+    );
+  }
+
+  function selectedSummary(): string {
+    const id = selectedId();
+    if (id === null) return "";
+    const row = containers().find((item) => rowId(item) === id);
+    return row === undefined ? selectedName() : `${rowName(row)} · ${rowImage(row)}`;
+  }
+
+  function resetData() {
+    data.set(null);
+    error.set(null);
+    updatedAt.set("");
+    showRaw.set(false);
+  }
+
+  function clearSelection() {
+    selectedId.set(null);
+    selectedName.set("");
+    resetData();
+    loading.set(false);
+    pickerOpen.set(true);
+  }
+
+  function selectContainer(row: ContainerRow) {
+    const id = rowId(row);
+    if (id.length === 0) return;
+    if (selectedId() === id) {
+      pickerOpen.set(false);
+      return;
+    }
+    selectedId.set(id);
+    selectedName.set(rowName(row));
+    pickerOpen.set(false);
+    resetData();
+    loading.set(true);
+    void load();
+  }
+
+  function refresh() {
+    if (selectedId() === null) void loadContainers();
+    else void load();
+  }
+
+  async function loadContainers() {
+    containersLoading.set(true);
+    try {
+      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
+      containers.set(list);
+      containersError.set(null);
+      const current = selectedId();
+      if (current !== null && !list.some((row) => rowId(row) === current)) clearSelection();
+    } catch (failure) {
+      containersError.set(errorMessage(failure));
+    } finally {
+      containersLoading.set(false);
+    }
+  }
+
   async function load() {
+    const id = selectedId();
+    if (id === null) return;
     const mine = ++seq;
     busy.set(true);
     if (data() === null) loading.set(true);
     try {
-      const result = await host.call("navop.workbench.dispatch", {
-        operationId: "inspectContainer",
-        input: {},
-      });
+      const result = await call<unknown>("docker/container/inspect", { id });
       if (mine !== seq) return;
       data.set(result && typeof result === "object" && !Array.isArray(result) ? (result as Doc) : null);
       updatedAt.set(clock());
@@ -273,11 +378,6 @@ export default function ContainerInspect() {
       }
     }
   }
-
-  void load();
-
-  const status = () => text(pick(data() ?? {}, "State", "Status"), "unknown");
-  const health = () => text(pick(data() ?? {}, "State", "Health", "Status"), "");
 
   function basicBody(): JSX.Element {
     const doc = data() ?? {};
@@ -525,6 +625,207 @@ export default function ContainerInspect() {
     );
   }
 
+  // ---- 容器选择区 ---------------------------------------------------
+
+  function pickerList(): JSX.Element | null {
+    if (!pickerOpen()) return null;
+    return (
+      <View
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          marginHorizontal: 14,
+          marginBottom: 8,
+          padding: 6,
+          borderWidth: 1,
+          borderColor: c.line(),
+          borderRadius: r.card,
+          backgroundColor: c.panel(),
+        }}
+      >
+        {containersLoading() && containers().length === 0 ? (
+          <Text style={t.meta}>正在读取容器列表…</Text>
+        ) : containersError() !== null && containers().length === 0 ? (
+          <Row gap={8}>
+            <Text style={{ ...t.meta, color: c.danger() }}>{`容器列表读取失败：${containersError()}`}</Text>
+            <Button label="重试" small onPress={() => void loadContainers()} />
+          </Row>
+        ) : visibleContainers().length === 0 ? (
+          <Text style={t.meta}>
+            {containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。"}
+          </Text>
+        ) : (
+          <Scroll style={{ maxHeight: 168 }}>
+            <View style={{ display: "flex", flexDirection: "column" }}>
+              {visibleContainers().map((row) => containerOption(row))}
+            </View>
+          </Scroll>
+        )}
+      </View>
+    );
+  }
+
+  function containerOption(row: ContainerRow): JSX.Element {
+    const id = rowId(row);
+    const state = rowState(row);
+    return (
+      <View
+        onPress={() => selectContainer(row)}
+        role="button"
+        accessibilityLabel={`容器 ${rowName(row)}`}
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 8,
+          paddingVertical: 6,
+          borderRadius: r.control,
+          backgroundColor: selectedId() === id ? c.hover() : "transparent",
+        }}
+      >
+        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: c.text(), width: 180 }}>
+          {rowName(row)}
+        </Text>
+        <Text numberOfLines={1} style={{ ...t.mono, fontSize: 11, color: c.muted(), flex: 1, minWidth: 0 }}>
+          {rowImage(row)}
+        </Text>
+        <Badge text={state.length === 0 ? "unknown" : state} tone={containerTone(state)} />
+      </View>
+    );
+  }
+
+  function pickerToggle(): JSX.Element {
+    return (
+      <Button
+        label={pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器"}
+        small
+        onPress={() => pickerOpen.set(!pickerOpen())}
+      />
+    );
+  }
+
+  function containerBar(): JSX.Element {
+    return (
+      <View style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <Row wrap gap={8} style={{ paddingHorizontal: 14, paddingBottom: pickerOpen() ? 6 : 10 }}>
+          <SearchField
+            value={containerQuery()}
+            onChange={(text) => {
+              containerQuery.set(text);
+              if (!pickerOpen()) pickerOpen.set(true);
+            }}
+            placeholder="按名称 / 镜像过滤容器"
+            width={280}
+          />
+          <Text style={t.meta}>{`${visibleContainers().length} / ${containers().length} 个容器`}</Text>
+          {selectedId() === null ? (
+            <Text style={t.meta}>未选择容器</Text>
+          ) : (
+            <Text numberOfLines={1} style={{ ...t.meta, color: c.text(), maxWidth: 360 }}>
+              {selectedSummary()}
+            </Text>
+          )}
+          <View style={{ flex: 1 }} />
+          <Button label="刷新列表" small onPress={() => void loadContainers()} />
+          {pickerToggle()}
+        </Row>
+        {pickerList()}
+      </View>
+    );
+  }
+
+  function toolbar(): JSX.Element {
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          flexShrink: 0,
+        }}
+      >
+        <Text style={{ ...t.h1, color: c.text() }}>容器详情</Text>
+        {selectedId() === null ? (
+          <Text style={{ ...t.meta, color: c.muted() }}>未选择容器</Text>
+        ) : data() === null ? null : (
+          <>
+            <Badge text={status()} tone={statusTone(status())} />
+            <Text style={{ ...t.meta, color: c.muted() }}>{containerName(data() ?? {})}</Text>
+          </>
+        )}
+        <View style={{ flex: 1 }} />
+        {selectedId() === null ? null : (
+          <Text style={{ ...t.meta, color: c.muted() }}>
+            {loading() ? "读取中…" : busy() ? "刷新中…" : updatedAt() === "" ? "" : `更新于 ${updatedAt()}`}
+          </Text>
+        )}
+        <Button label="刷新" small onPress={() => refresh()} />
+        {selectedId() === null ? null : chip(
+          showRaw() ? "查看分组" : "查看原始 JSON",
+          showRaw,
+          () => showRaw.set(!showRaw()),
+          "原始 JSON",
+        )}
+      </View>
+    );
+  }
+
+  function selectionGate(): JSX.Element {
+    if (containersError() !== null && containers().length === 0) {
+      return <LoadError message={containersError() ?? ""} onRetry={() => void loadContainers()} />;
+    }
+    if (containersLoading() && containers().length === 0) {
+      return <Loading label="正在读取容器列表…" />;
+    }
+    if (containers().length === 0) {
+      return (
+        <Empty
+          title="这个连接里没有容器"
+          hint="docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。"
+          action={<Button label="重新读取容器列表" small onPress={() => void loadContainers()} />}
+        />
+      );
+    }
+    return (
+      <Empty
+        title="先选择一个容器"
+        hint={`连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的 inspect 详情。`}
+      />
+    );
+  }
+
+  function body(): JSX.Element {
+    if (selectedId() === null) return selectionGate();
+    if (data() === null && error() !== null) {
+      return <LoadError message={error() ?? ""} onRetry={() => void load()} />;
+    }
+    if (data() === null && loading()) return <Loading label="正在读取容器详情…" />;
+    if (data() === null) {
+      return (
+        <Empty
+          title="没有容器数据"
+          hint="docker/container/inspect 没有返回文档：容器可能刚被删除，或者这次采样的结果为空。"
+          action={<Button label="重新读取" small onPress={() => void load()} />}
+        />
+      );
+    }
+    return (
+      <Scroll style={{ flex: 1, minHeight: 0 }}>
+        <View style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {error() === null ? null : <Notice message={`刷新失败：${error()}`} tone="danger" />}
+          {showRaw() ? rawBlock() : sectionsBlock()}
+        </View>
+      </Scroll>
+    );
+  }
+
+  void loadContainers();
+
   return (
     <View
       style={{
@@ -535,56 +836,10 @@ export default function ContainerInspect() {
         backgroundColor: c.bg(),
       }}
     >
-      {/* 工具条：标题 / 状态 / 刷新 / 原始 JSON 开关 */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 8,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          borderBottomWidth: 1,
-          borderColor: c.line(),
-        }}
-      >
-        <Text style={{ ...t.h1, color: c.text() }}>容器详情</Text>
-        {data() === null ? null : <Badge text={status()} tone={statusTone(status())} />}
-        {data() === null ? null : (
-          <Text style={{ ...t.meta, color: c.muted() }}>{containerName(data() ?? {})}</Text>
-        )}
-        <View style={{ flex: 1 }} />
-        <Text style={{ ...t.meta, color: c.muted() }}>
-          {loading() ? "读取中…" : busy() ? "刷新中…" : updatedAt() === "" ? "" : `更新于 ${updatedAt()}`}
-        </Text>
-        <Button label="刷新" small onPress={() => void load()} />
-        {chip(
-          showRaw() ? "查看分组" : "查看原始 JSON",
-          showRaw,
-          () => showRaw.set(!showRaw()),
-          "原始 JSON",
-        )}
-      </View>
-
-      {/* 主体：三态 + 内容 */}
-      <View style={{ flex: 1, minHeight: 0 }}>
-        {data() === null && error() !== null ? (
-          <LoadError message={error() ?? ""} onRetry={() => void load()} />
-        ) : data() === null && loading() ? (
-          <Loading label="正在读取容器详情…" />
-        ) : data() === null ? (
-          <Empty title="没有容器数据" hint="宿主没有返回 inspect 文档，试试刷新。" />
-        ) : (
-          <Scroll style={{ flex: 1, minHeight: 0 }}>
-            <View style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-              {error() === null ? null : (
-                <Notice message={`刷新失败：${error()}`} tone="danger" />
-              )}
-              {showRaw() ? rawBlock() : sectionsBlock()}
-            </View>
-          </Scroll>
-        )}
-      </View>
+      {toolbar()}
+      <View style={hairline()} />
+      {containerBar()}
+      {body()}
     </View>
   );
 }

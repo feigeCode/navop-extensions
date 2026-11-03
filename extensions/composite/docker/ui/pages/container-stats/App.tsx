@@ -1,17 +1,22 @@
-// Docker 容器资源占用页：从容器工作台的「资源」shell 视图嵌入。
-// 容器由宿主按 route 选中，页面不传容器 id；数据只走 dispatch。
+// Docker 容器资源占用页。
 //
-// 主数据源 `containerStats`（provider 的 docker/container/stats）是一次性采样，
-// 只返回 `{ id, cpu_percent, memory_usage_bytes, memory_limit_bytes, online_cpus }`。
-// 网络收发与块 IO 目前不在返回结构里（provider 的 summarize_stats 没取
-// networks / blkio_stats），页面如实留出位置并标注“宿主未提供”，不伪造数据。
-import { host, mount, Scroll, signal, Text, View } from "nsh";
+// 宿主已经删掉「原生资源工作台」，页面拿不到 selection 里的容器 id 了：
+// 进页面先用 `docker/container/list` 拉容器列表，顶部搜索/列表选一个容器，
+// 再用 `docker/container/stats` 采一次样。没选中容器时只给引导空态。
+//
+// provider 返回 `{ id, cpu_percent, memory_usage_bytes, memory_limit_bytes, online_cpus }`。
+// 网络收发与块 IO 目前不在返回结构里（summarize_stats 没取 networks /
+// blkio_stats），页面如实留出位置并标注「宿主未提供」，不伪造数据。
+// 自动刷新只对选中的容器生效，切走/取消选中后不再采样。
+import { mount, Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
-import { errorMessage, humanBytes, percent, ratio } from "../../lib/format";
-import { Badge, Button, Card, Empty, LoadError, Loading, Meter, Notice, Row, Stat } from "../../lib/ui";
-import { c, hairline, t } from "../../lib/theme";
+import { arr, errorMessage, humanBytes, percent, ratio, str } from "../../lib/format";
+import { call } from "../../lib/host";
+import { Badge, Button, Card, Empty, LoadError, Loading, Meter, Notice, Row, SearchField, Stat } from "../../lib/ui";
+import { c, hairline, r, t } from "../../lib/theme";
 
 type Sample = Record<string, unknown>;
+type ContainerRow = Record<string, unknown>;
 
 function numberField(source: Sample | null, key: string): number | null {
   if (source === null) return null;
@@ -24,14 +29,21 @@ function clockText(date: Date): string {
   return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
 }
 
-/** 调一次工作台操作；把 provider 的失败折成一句人话。 */
-async function dispatch(operationId: string, input?: unknown): Promise<unknown> {
-  try {
-    return await host.call("navop.workbench.dispatch", { operationId, input: input ?? {} });
-  } catch (error) {
-    throw new Error(errorMessage(error));
-  }
+// ---- 容器列表 -------------------------------------------------------
+
+const containerId = (row: ContainerRow): string => str(row, "id", "");
+const containerName = (row: ContainerRow): string => str(row, "name", "");
+const containerImage = (row: ContainerRow): string => str(row, "image", "");
+const containerState = (row: ContainerRow): string => str(row, "state", "");
+
+function stateTone(state: string): "ok" | "warn" | "danger" | "neutral" {
+  if (state === "running") return "ok";
+  if (state === "paused" || state === "restarting") return "warn";
+  if (state === "exited" || state === "dead") return "danger";
+  return "neutral";
 }
+
+const AUTO_REFRESH_MS = 2000;
 
 export default function ContainerStats() {
   const sample = signal<Sample | null>(null);
@@ -39,6 +51,19 @@ export default function ContainerStats() {
   const loading = signal(true);
   const error = signal<string | null>(null);
   const busy = signal(false);
+  const autoRefresh = signal(false);
+
+  const containers = signal<ContainerRow[]>([]);
+  const containerQuery = signal("");
+  const containersLoading = signal(true);
+  const containersError = signal<string | null>(null);
+  const selectedId = signal<string | null>(null);
+  const selectedName = signal("");
+  const pickerOpen = signal(true);
+
+  // last-wins：切容器时旧请求的响应直接丢弃。
+  let seq = 0;
+  let timer: number | null = null;
 
   const cpu = () => numberField(sample(), "cpu_percent");
   const cores = () => numberField(sample(), "online_cpus");
@@ -71,25 +96,260 @@ export default function ContainerStats() {
     return humanBytes(Math.max(0, total - used));
   }
 
-  async function load() {
-    if (busy()) return;
-    busy.set(true);
-    if (sample() === null) loading.set(true);
-    try {
-      const result = await dispatch("containerStats");
-      const next = (result as Sample | null) ?? null;
-      sample.set(next);
-      sampledAt.set(clockText(new Date()));
-      error.set(null);
-    } catch (failure) {
-      error.set(errorMessage(failure));
-    } finally {
-      loading.set(false);
-      busy.set(false);
+  function visibleContainers(): ContainerRow[] {
+    const needle = containerQuery().trim().toLowerCase();
+    if (needle.length === 0) return containers();
+    return containers().filter((row) =>
+      `${containerName(row)} ${containerImage(row)}`.toLowerCase().includes(needle),
+    );
+  }
+
+  function selectedSummary(): string {
+    const id = selectedId();
+    if (id === null) return "";
+    const row = containers().find((item) => containerId(item) === id);
+    return row === undefined ? selectedName() : `${containerName(row)} · ${containerImage(row)}`;
+  }
+
+  function resetData() {
+    sample.set(null);
+    sampledAt.set("-");
+    error.set(null);
+  }
+
+  function stopTimer() {
+    if (timer !== null) {
+      clearInterval(timer);
+      timer = null;
     }
   }
 
+  function setAutoRefresh(on: boolean) {
+    autoRefresh.set(on);
+    stopTimer();
+    if (on) {
+      timer = setInterval(() => {
+        if (selectedId() !== null) void load();
+      }, AUTO_REFRESH_MS);
+    }
+  }
+
+  function clearSelection() {
+    selectedId.set(null);
+    selectedName.set("");
+    resetData();
+    loading.set(false);
+    pickerOpen.set(true);
+  }
+
+  function selectContainer(row: ContainerRow) {
+    const id = containerId(row);
+    if (id.length === 0) return;
+    if (selectedId() === id) {
+      pickerOpen.set(false);
+      return;
+    }
+    selectedId.set(id);
+    selectedName.set(containerName(row));
+    pickerOpen.set(false);
+    resetData();
+    loading.set(true);
+    void load();
+  }
+
+  function refresh() {
+    if (selectedId() === null) void loadContainers();
+    else void load();
+  }
+
+  async function loadContainers() {
+    containersLoading.set(true);
+    try {
+      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
+      containers.set(list);
+      containersError.set(null);
+      const current = selectedId();
+      if (current !== null && !list.some((row) => containerId(row) === current)) clearSelection();
+    } catch (failure) {
+      containersError.set(errorMessage(failure));
+    } finally {
+      containersLoading.set(false);
+    }
+  }
+
+  async function load() {
+    const id = selectedId();
+    if (id === null) return;
+    if (busy()) return;
+    const mine = ++seq;
+    busy.set(true);
+    if (sample() === null) loading.set(true);
+    try {
+      const result = await call<Sample | null>("docker/container/stats", { id });
+      if (mine !== seq) return;
+      sample.set(result ?? null);
+      sampledAt.set(clockText(new Date()));
+      error.set(null);
+    } catch (failure) {
+      if (mine !== seq) return;
+      error.set(errorMessage(failure));
+    } finally {
+      if (mine === seq) {
+        loading.set(false);
+        busy.set(false);
+      }
+    }
+  }
+
+  // ---- 容器选择区 ---------------------------------------------------
+
+  function pickerList(): JSX.Element | null {
+    if (!pickerOpen()) return null;
+    return (
+      <View
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          marginHorizontal: 14,
+          marginBottom: 8,
+          padding: 6,
+          borderWidth: 1,
+          borderColor: c.line(),
+          borderRadius: r.card,
+          backgroundColor: c.panel(),
+        }}
+      >
+        {containersLoading() && containers().length === 0 ? (
+          <Text style={t.meta}>正在读取容器列表…</Text>
+        ) : containersError() !== null && containers().length === 0 ? (
+          <Row gap={8}>
+            <Text style={{ ...t.meta, color: c.danger() }}>{`容器列表读取失败：${containersError()}`}</Text>
+            <Button label="重试" small onPress={() => void loadContainers()} />
+          </Row>
+        ) : visibleContainers().length === 0 ? (
+          <Text style={t.meta}>
+            {containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。"}
+          </Text>
+        ) : (
+          <Scroll style={{ maxHeight: 168 }}>
+            <View style={{ display: "flex", flexDirection: "column" }}>
+              {visibleContainers().map((row) => containerOption(row))}
+            </View>
+          </Scroll>
+        )}
+      </View>
+    );
+  }
+
+  function containerOption(row: ContainerRow): JSX.Element {
+    const id = containerId(row);
+    const state = containerState(row);
+    return (
+      <View
+        onPress={() => selectContainer(row)}
+        role="button"
+        accessibilityLabel={`容器 ${containerName(row)}`}
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 8,
+          paddingVertical: 6,
+          borderRadius: r.control,
+          backgroundColor: selectedId() === id ? c.hover() : "transparent",
+        }}
+      >
+        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: c.text(), width: 180 }}>
+          {containerName(row)}
+        </Text>
+        <Text numberOfLines={1} style={{ ...t.mono, fontSize: 11, color: c.muted(), flex: 1, minWidth: 0 }}>
+          {containerImage(row)}
+        </Text>
+        <Badge text={state.length === 0 ? "unknown" : state} tone={stateTone(state)} />
+      </View>
+    );
+  }
+
+  function pickerToggle(): JSX.Element {
+    return (
+      <Button
+        label={pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器"}
+        small
+        onPress={() => pickerOpen.set(!pickerOpen())}
+      />
+    );
+  }
+
+  function autoRefreshToggle(): JSX.Element {
+    return (
+      <Button
+        label={autoRefresh() ? `自动刷新 · ${AUTO_REFRESH_MS / 1000}s` : "自动刷新"}
+        small
+        tone={autoRefresh() ? "primary" : "ghost"}
+        onPress={() => setAutoRefresh(!autoRefresh())}
+      />
+    );
+  }
+
+  function containerBar(): JSX.Element {
+    return (
+      <View style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <Row wrap gap={8} style={{ paddingHorizontal: 14, paddingBottom: pickerOpen() ? 6 : 10 }}>
+          <SearchField
+            value={containerQuery()}
+            onChange={(text) => {
+              containerQuery.set(text);
+              if (!pickerOpen()) pickerOpen.set(true);
+            }}
+            placeholder="按名称 / 镜像过滤容器"
+            width={280}
+          />
+          <Text style={t.meta}>{`${visibleContainers().length} / ${containers().length} 个容器`}</Text>
+          {selectedId() === null ? (
+            <Text style={t.meta}>未选择容器</Text>
+          ) : (
+            <Text numberOfLines={1} style={{ ...t.meta, color: c.text(), maxWidth: 360 }}>
+              {selectedSummary()}
+            </Text>
+          )}
+          <View style={{ flex: 1 }} />
+          <Button label="刷新列表" small onPress={() => void loadContainers()} />
+          {pickerToggle()}
+        </Row>
+        {pickerList()}
+      </View>
+    );
+  }
+
+  function selectionGate(): JSX.Element {
+    if (containersError() !== null && containers().length === 0) {
+      return <LoadError message={containersError() ?? ""} onRetry={() => void loadContainers()} />;
+    }
+    if (containersLoading() && containers().length === 0) {
+      return <Loading label="正在读取容器列表…" />;
+    }
+    if (containers().length === 0) {
+      return (
+        <Empty
+          title="这个连接里没有容器"
+          hint="docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。"
+          action={<Button label="重新读取容器列表" small onPress={() => void loadContainers()} />}
+        />
+      );
+    }
+    return (
+      <Empty
+        title="先选择一个容器"
+        hint={`连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会采样它的资源占用。`}
+      />
+    );
+  }
+
   function content(): JSX.Element {
+    if (selectedId() === null) return selectionGate();
     if (loading() && sample() === null) {
       return <Loading label="正在采样容器资源占用…" />;
     }
@@ -127,7 +387,9 @@ export default function ContainerStats() {
               <Text style={{ ...t.mono, color: c.muted() }}>{sampledAt()}</Text>
             </Row>
             <Text style={t.meta}>
-              采样时间取本次请求返回时的本地时间；页面不会自动轮询，需要手动刷新。
+              {autoRefresh()
+                ? `采样时间取本次请求返回时的本地时间；自动刷新每 ${AUTO_REFRESH_MS / 1000} 秒采样一次。`
+                : "采样时间取本次请求返回时的本地时间；默认只手动刷新，可以打开自动刷新。"}
             </Text>
           </Card>
 
@@ -155,10 +417,8 @@ export default function ContainerStats() {
     );
   }
 
-  void load();
-
-  return (
-    <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
+  function toolbar(): JSX.Element {
+    return (
       <Row
         gap={8}
         style={{
@@ -170,15 +430,31 @@ export default function ContainerStats() {
       >
         <Row gap={8}>
           <Text style={t.h1}>资源占用</Text>
-          <Badge text={`采样 ${sampledAt()}`} tone="info" />
-          <Text style={t.meta}>{cores() === null ? "" : `${cores()} 个核`}</Text>
+          {selectedId() === null ? (
+            <Text style={t.meta}>未选择容器</Text>
+          ) : (
+            <>
+              <Badge text={`采样 ${sampledAt()}`} tone="info" />
+              <Text style={t.meta}>{cores() === null ? "" : `${cores()} 个核`}</Text>
+            </>
+          )}
         </Row>
         <Row gap={6}>
           {busy() ? <Text style={t.meta}>正在采样…</Text> : null}
-          <Button label="刷新" small onPress={() => void load()} />
+          {selectedId() === null ? null : autoRefreshToggle()}
+          <Button label="刷新" small onPress={() => refresh()} />
         </Row>
       </Row>
+    );
+  }
+
+  void loadContainers();
+
+  return (
+    <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
+      {toolbar()}
       <View style={hairline()} />
+      {containerBar()}
       {content()}
     </View>
   );

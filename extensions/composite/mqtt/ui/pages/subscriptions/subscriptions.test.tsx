@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+import { hostHandlers } from "../../lib/test-host";
 
 type Entry = {
   name: string;
@@ -36,37 +37,29 @@ test("subscriptions 列表、新增与取消", async () => {
     },
   ];
 
-  function dispatch(data: unknown): unknown {
-    const request = data as {
-      operationId: string;
-      input?: Record<string, unknown>;
-      options?: { confirmed?: boolean };
-    };
-    if (request.operationId === "listTopics") return { topics: subscriptions };
-    if (request.operationId === "queryByWindow") return { messages, total: messages.length };
-    if (request.operationId === "subscribe") {
-      const input = request.input as { topic: string; qos: number };
-      expect(request.options?.confirmed).toBe(true);
+  const handlers = hostHandlers({
+    "middleware/topic/list": () => ({ topics: subscriptions }),
+    "middleware/message/query": () => ({ messages, total: messages.length }),
+    "middleware/topic/create": (params) => {
+      const input = params as { topic: string; qos: number };
       subscriptions.push({
         name: input.topic,
         queue_count: input.qos,
         topic_type: "USER",
         description: "",
       });
-      return {};
-    }
-    if (request.operationId === "unsubscribe") {
-      const input = request.input as { topic: string };
-      expect(request.options?.confirmed).toBe(true);
+      return { queue_count: input.qos };
+    },
+    "middleware/topic/delete": (params) => {
+      const input = params as { topic: string };
       const index = subscriptions.findIndex((entry) => entry.name === input.topic);
       if (index >= 0) subscriptions.splice(index, 1);
       return {};
-    }
-    throw new Error(`unexpected operation ${request.operationId}`);
-  }
+    },
+  });
 
   const app = await open("./App.tsx", {
-    host: { handlers: { "navop.workbench.dispatch": dispatch } },
+    host: { handlers },
     clock: {},
     width: 1280,
     height: 800,
@@ -81,10 +74,15 @@ test("subscriptions 列表、新增与取消", async () => {
   await app.press("text:2");
   await app.press("text:确认订阅");
   await app.waitFor("text:devices/+/status");
+  // 订阅走 `middleware/topic/create`，参数是 `{ topic, qos }`。
   expect(
     app.host.calls().some((call) => {
-      const data = call.data as { operationId?: string; input?: { qos?: number } };
-      return data.operationId === "subscribe" && data.input?.qos === 2;
+      const data = call.data as { method?: string; params?: { topic?: string; qos?: number } };
+      return (
+        call.name === "navop.resource.invoke" &&
+        data.method === "middleware/topic/create" &&
+        data.params?.qos === 2
+      );
     }),
   ).toBe(true);
 
@@ -94,8 +92,12 @@ test("subscriptions 列表、新增与取消", async () => {
   await app.waitUntil(
     () =>
       app.host.calls().some((call) => {
-        const data = call.data as { operationId?: string };
-        return data.operationId === "unsubscribe";
+        const data = call.data as { method?: string; params?: { topic?: string } };
+        return (
+          call.name === "navop.resource.invoke" &&
+          data.method === "middleware/topic/delete" &&
+          data.params?.topic === "alerts/+/critical"
+        );
       }),
     { timeout: 3000 },
   );

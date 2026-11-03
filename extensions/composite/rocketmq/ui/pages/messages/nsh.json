@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "build": 1,
   "capabilities": {
-    "host": ["navop.workbench.*"]
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
   }
 }
