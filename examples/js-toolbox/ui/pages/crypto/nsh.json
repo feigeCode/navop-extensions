@@ -1,0 +1,10 @@
+{
+  "name": "Crypto 工具箱",
+  "id": "com.navop.examples.toolbox.crypto",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [],
+    "clipboard": true
+  }
+}

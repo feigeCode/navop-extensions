@@ -1,0 +1,12 @@
+{
+  "name": "Docker 网络",
+  "id": "com.navop.docker.networks",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
+  }
+}

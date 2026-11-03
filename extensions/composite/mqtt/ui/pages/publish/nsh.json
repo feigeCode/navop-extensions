@@ -1,0 +1,12 @@
+{
+  "name": "MQTT 发布",
+  "id": "com.navop.mqtt.publish",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
+  }
+}

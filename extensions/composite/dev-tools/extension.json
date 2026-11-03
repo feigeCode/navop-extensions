@@ -6,17 +6,26 @@
   "publisher": "Navop",
   "license": "Apache-2.0",
   "description": "Navop 扩展开发工作台（Static 静态复合扩展，无原生二进制）：加载本地工程目录、打开或重载扩展视图、查看 manifest 校验错误。 Navop extension development workbench, a Static composite extension with no native binary: load local extension projects, open or reload extension views, and inspect manifest validation errors.",
-  "categories": ["developer-tools"],
-  "keywords": ["devtools", "extension", "debug"],
+  "categories": [
+    "developer-tools"
+  ],
+  "keywords": [
+    "devtools",
+    "extension",
+    "debug"
+  ],
   "engines": {
     "onetcli": ">=0.16.1",
-    "gpui_shell": "0.6.4"
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
   },
   "api": {
     "extension": "1.0",
     "shell": "1.0"
   },
-  "permissions": ["shell:exec"],
+  "permissions": [
+    "shell:exec"
+  ],
   "contributes": {
     "shellViews": [
       {
@@ -24,11 +33,14 @@
         "title": "开发者工具",
         "description": "扩展工程调试工作台",
         "icon": "icons/dev-tools-color.svg",
-        "entry": "ui/workbench.js",
+        "entry": "ui/pages/workbench/dist/bundle.js",
         "surface": "tab",
         "singleton": true,
         "backends": {},
-        "modules": ["dev", "log"]
+        "modules": [
+          "dev",
+          "log"
+        ]
       }
     ]
   }

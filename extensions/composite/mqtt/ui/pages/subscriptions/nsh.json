@@ -1,0 +1,12 @@
+{
+  "name": "MQTT 订阅",
+  "id": "com.navop.mqtt.subscriptions",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
+  }
+}

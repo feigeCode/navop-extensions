@@ -1,0 +1,4 @@
+.nsh/
+target/
+
+# dist/ 要入库：宿主按 extension.json 的 entry 直接加载构建产物。

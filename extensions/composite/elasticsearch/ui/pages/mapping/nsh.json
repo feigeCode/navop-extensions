@@ -1,0 +1,13 @@
+{
+  "name": "Elasticsearch Mapping",
+  "id": "com.navop.elasticsearch.mapping",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ],
+    "clipboard": true
+  }
+}

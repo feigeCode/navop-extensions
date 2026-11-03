@@ -8,7 +8,8 @@
   "description": "纯 JS 工具扩展示例：本机 hosts 编辑器与加解密/hash 工具，演示 shell 视图权限 → 运行时 capability 装配。",
   "engines": {
     "onetcli": ">=0.16.1",
-    "gpui_shell": "0.6.4"
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
   },
   "api": {
     "extension": "1.0",
@@ -27,7 +28,7 @@
         "id": "hosts-editor",
         "title": "Hosts Editor",
         "description": "查看并编辑本机 hosts 文件。",
-        "entry": "ui/hosts.js",
+        "entry": "ui/pages/hosts/dist/bundle.js",
         "surface": "toolbox",
         "singleton": true,
         "category": "system",
@@ -39,7 +40,7 @@
         "id": "crypto-tools",
         "title": "Crypto Tools",
         "description": "Hash / Base64 / UUID 常用加解密小工具。",
-        "entry": "ui/crypto.js",
+        "entry": "ui/pages/crypto/dist/bundle.js",
         "surface": "toolbox",
         "singleton": true,
         "category": "text",
@@ -51,7 +52,7 @@
         "id": "json-tools",
         "title": "JSON Tools",
         "description": "JSON 格式化 / 压缩 / 转义 / 反转义。",
-        "entry": "ui/json.js",
+        "entry": "ui/pages/json/dist/bundle.js",
         "surface": "toolbox",
         "singleton": true,
         "category": "text",

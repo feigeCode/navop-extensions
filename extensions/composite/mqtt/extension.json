@@ -21,7 +21,8 @@
   ],
   "engines": {
     "onetcli": ">=0.17.0",
-    "gpui_shell": "0.6.4"
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
   },
   "api": {
     "extension": "1.0",
@@ -212,312 +213,8 @@
             }
           ]
         },
-        "icon": "icons/mqtt-color.svg"
-      }
-    ],
-    "resourceWorkbenches": [
-      {
-        "schemaVersion": 3,
-        "id": "mqtt",
-        "title": "MQTT",
-        "connectionIds": [
-          "mqtt"
-        ],
-        "runtimeId": "main",
-        "resourceType": "middleware",
-        "defaultPage": "messages",
-        "operations": {
-          "metrics": {
-            "mode": "invoke",
-            "method": "middleware/metrics",
-            "requires": [
-              "middleware/metrics"
-            ],
-            "effect": "read"
-          },
-          "listTopics": {
-            "mode": "invoke",
-            "method": "middleware/topic/list",
-            "requires": [
-              "middleware/topic/list"
-            ],
-            "effect": "read"
-          },
-          "listClients": {
-            "mode": "invoke",
-            "method": "middleware/group/clients",
-            "requires": [
-              "middleware/group/clients"
-            ],
-            "effect": "read",
-            "params": {
-              "group": {
-                "source": "literal",
-                "path": "/group",
-                "type": "string",
-                "value": "local"
-              }
-            }
-          },
-          "subscribe": {
-            "mode": "invoke",
-            "method": "middleware/topic/create",
-            "requires": [
-              "middleware/topic/create"
-            ],
-            "effect": "write",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              },
-              "queue_count": {
-                "source": "input",
-                "path": "/qos",
-                "type": "number"
-              }
-            }
-          },
-          "unsubscribe": {
-            "mode": "invoke",
-            "method": "middleware/topic/delete",
-            "requires": [
-              "middleware/topic/delete"
-            ],
-            "effect": "destructive",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              }
-            }
-          },
-          "publish": {
-            "mode": "invoke",
-            "method": "middleware/message/send",
-            "requires": [
-              "middleware/message/send"
-            ],
-            "effect": "write",
-            "params": {
-              "topic": {
-                "source": "input",
-                "path": "/topic",
-                "type": "string"
-              },
-              "body": {
-                "source": "input",
-                "path": "/body",
-                "type": "json"
-              },
-              "properties": {
-                "source": "input",
-                "path": "/properties",
-                "type": "json"
-              }
-            }
-          },
-          "queryByWindow": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ByTimeWindow": {
-                "source": "input",
-                "path": "/ByTimeWindow",
-                "type": "json"
-              }
-            }
-          },
-          "queryByKey": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ByKey": {
-                "source": "input",
-                "path": "/ByKey",
-                "type": "json"
-              }
-            }
-          },
-          "queryById": {
-            "mode": "invoke",
-            "method": "middleware/message/query",
-            "requires": [
-              "middleware/message/query"
-            ],
-            "effect": "read",
-            "params": {
-              "ById": {
-                "source": "input",
-                "path": "/ById",
-                "type": "json"
-              }
-            }
-          },
-          "messageStream": {
-            "mode": "invoke",
-            "method": "middleware/message/stream",
-            "requires": [
-              "middleware/message/stream"
-            ],
-            "effect": "read"
-          }
-        },
-        "pages": [
-          {
-            "id": "overview",
-            "title": "概览",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "overview",
-              "fallback": "native"
-            },
-            "load": {
-              "operation": "metrics"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "subscriptions",
-            "title": "订阅",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "subscriptions",
-              "fallback": "native"
-            },
-            "load": {
-              "operation": "listTopics"
-            },
-            "stack": [
-              {
-                "kind": "table",
-                "itemsPath": "/topics",
-                "keyPaths": [
-                  "/name"
-                ],
-                "pagination": {
-                  "kind": "none"
-                },
-                "columns": [
-                  {
-                    "id": "name",
-                    "title": "Topic Filter",
-                    "path": "/name",
-                    "type": "string"
-                  },
-                  {
-                    "id": "qos",
-                    "title": "QoS",
-                    "path": "/queue_count",
-                    "type": "display"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "messages",
-            "title": "消息",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "messages"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "topics",
-            "title": "主题树",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "topics"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          },
-          {
-            "id": "live",
-            "title": "实时消息",
-            "renderer": {
-              "kind": "native"
-            },
-            "load": {
-              "operation": "messageStream"
-            },
-            "stack": [
-              {
-                "kind": "stream"
-              }
-            ]
-          },
-          {
-            "id": "publish",
-            "title": "发布",
-            "renderer": {
-              "kind": "shell",
-              "viewId": "publish"
-            },
-            "stack": [
-              {
-                "kind": "viewer",
-                "format": "json"
-              }
-            ]
-          }
-        ],
-        "layout": {
-          "left": {
-            "width": 180,
-            "source": {
-              "kind": "list",
-              "items": [
-                {
-                  "pageId": "overview"
-                },
-                {
-                  "pageId": "subscriptions"
-                },
-                {
-                  "pageId": "messages"
-                },
-                {
-                  "pageId": "live"
-                },
-                {
-                  "pageId": "publish"
-                }
-              ]
-            }
-          },
-          "center": {
-            "source": {
-              "kind": "pages"
-            }
-          }
-        }
+        "icon": "icons/mqtt-color.svg",
+        "shellViewId": "messages"
       }
     ],
     "shellViews": [
@@ -525,7 +222,7 @@
         "id": "overview",
         "title": "MQTT 连接概览",
         "description": "连接信息、订阅数与收发速率指标。",
-        "entry": "ui/overview.js",
+        "entry": "ui/pages/overview/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -533,14 +230,14 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
         "id": "subscriptions",
         "title": "MQTT 订阅管理",
         "description": "查看、新增、取消订阅主题过滤器。",
-        "entry": "ui/subscriptions.js",
+        "entry": "ui/pages/subscriptions/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -548,14 +245,14 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
         "id": "messages",
         "title": "MQTT 消息浏览",
-        "description": "实时刷新的收发消息时间线，支持主题过滤、关键字搜索、暂停与多格式查看。",
-        "entry": "ui/messages.js",
+        "description": "按时间窗口与 topic 过滤查看消息时间线，支持暂停、JSON 格式化与原文切换。",
+        "entry": "ui/pages/messages/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -563,14 +260,14 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
         "id": "publish",
         "title": "MQTT 消息发布",
-        "description": "按 QoS/Retain 发布文本、JSON、Hex 或 Base64 消息，支持重发历史。",
-        "entry": "ui/publish.js",
+        "description": "按 QoS / Retain 发布消息，JSON 即时校验（非法仍按原文发送），附发送历史回填。",
+        "entry": "ui/pages/publish/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -578,14 +275,14 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       },
       {
         "id": "topics",
         "title": "MQTT 主题树",
         "description": "按层级聚合观测到的主题（含 retained 标记），可订阅分支、查看分支最新消息并清除 retained。",
-        "entry": "ui/topics.js",
+        "entry": "ui/pages/topics/dist/bundle.js",
         "surface": "tab",
         "singleton": false,
         "backends": {
@@ -593,7 +290,7 @@
         },
         "modules": [
           "context",
-          "workbench"
+          "resource"
         ]
       }
     ]

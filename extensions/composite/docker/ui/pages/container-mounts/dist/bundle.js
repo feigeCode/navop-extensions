@@ -1,0 +1,970 @@
+import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
+import { host, mount, signal, token } from "nsh";
+
+//#region ../../lib/format.ts
+/** provider 抛出来的错误可能是 Error、字符串或 `{message}`；统一成一句话。 */
+function errorMessage(error) {
+	if (typeof error === "string") return error;
+	if (error && typeof error === "object") {
+		const message = error.message;
+		if (typeof message === "string") return message;
+	}
+	return String(error);
+}
+/** 取对象上的字符串字段（provider 的 JSON 不保证形状）。 */
+function str(source, key, fallback = "-") {
+	if (!source || typeof source !== "object") return fallback;
+	const value = source[key];
+	if (typeof value === "string" && value.length > 0) return value;
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	if (typeof value === "boolean") return value ? "yes" : "no";
+	return fallback;
+}
+/** 取数组字段；不是数组就是空数组。 */
+function arr(source, key) {
+	if (!source || typeof source !== "object") return [];
+	const value = source[key];
+	return Array.isArray(value) ? value : [];
+}
+
+//#endregion
+//#region ../../lib/host.ts
+let cached = null;
+/** 当前页面所属的连接。没有连接（例如工具箱里单独打开的页面）时抛错。 */
+async function connection() {
+	if (cached) return cached;
+	const found = (await host.call("navop.context.current", {}))?.connection;
+	if (!found?.resourceHandle) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
+	cached = found;
+	return found;
+}
+/** 调 provider 的方法。等价于旧方言的 `dispatch(operationId, input)`，但方法名是真的。 */
+async function call(method, params = {}) {
+	const conn = await connection();
+	return await host.call("navop.resource.invoke", {
+		handle: conn.resourceHandle,
+		method,
+		params
+	});
+}
+
+//#endregion
+//#region ../../lib/theme.ts
+/** 语义色角色。取值是函数：token 是响应式的，每次重渲染取最新值。 */
+const c = {
+	/** 页面底色 */
+	bg: () => token("background"),
+	/** 卡片/面板底色 */
+	panel: () => token("card"),
+	/** 面板上的文字 */
+	panelText: () => token("card-foreground"),
+	/** 正文 */
+	text: () => token("foreground"),
+	/** 次要信息（版本号、时间、说明） */
+	muted: () => token("muted-foreground"),
+	/** 分割线、卡片描边 */
+	line: () => token("border"),
+	/** 强调色（选中的行、主按钮） */
+	accent: () => token("primary"),
+	accentText: () => token("primary-foreground"),
+	/** 危险操作（删除、清理） */
+	danger: () => token("destructive"),
+	/** 行悬停/选中底色 */
+	hover: () => token("muted"),
+	/** 图表色板，用于分类着色 */
+	chart: (index) => token(`chart-${index % 5 + 1}`)
+};
+/** 圆角。 */
+const r = {
+	card: 10,
+	control: 6,
+	pill: 999,
+	chip: 4
+};
+/** 排版。数字统一 tabular-nums，滚动时不抖。
+*
+* 用 getter 是必须的：对象字面量里的 `color: c.text()` 会在模块加载时
+* 求值一次并冻住，用户切主题时页面不跟着变。写成 getter 之后每次读
+* `t.meta` 都重新取 token，主题一变就重画。
+*/
+const t = {
+	get h1() {
+		return {
+			fontSize: 17,
+			fontWeight: "600",
+			color: c.text()
+		};
+	},
+	get h2() {
+		return {
+			fontSize: 14,
+			fontWeight: "600",
+			color: c.text()
+		};
+	},
+	get body() {
+		return {
+			fontSize: 13,
+			color: c.text()
+		};
+	},
+	get label() {
+		return {
+			fontSize: 11,
+			fontWeight: "500",
+			color: c.muted(),
+			letterSpacing: .3
+		};
+	},
+	get meta() {
+		return {
+			fontSize: 11,
+			color: c.muted()
+		};
+	},
+	get mono() {
+		return {
+			fontSize: 12,
+			color: c.text(),
+			fontVariant: ["tabular-nums"]
+		};
+	}
+};
+/** 一像素分割线。 */
+const hairline = (vertical = false) => vertical ? {
+	width: 1,
+	backgroundColor: c.line(),
+	alignSelf: "stretch"
+} : {
+	height: 1,
+	backgroundColor: c.line(),
+	width: "100%"
+};
+
+//#endregion
+//#region ../../lib/ui.tsx
+/** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
+const pick = (value) => typeof value === "function" ? value() : value;
+const toneColor = (tone) => {
+	switch (tone) {
+		case "ok": return c.chart(1);
+		case "warn": return c.chart(4);
+		case "danger": return c.danger();
+		case "info": return c.chart(0);
+		default: return c.muted();
+	}
+};
+const buttonFill = (tone) => tone === "primary" ? c.accent() : "transparent";
+const buttonBorder = (tone) => tone === "primary" ? c.accent() : tone === "danger" ? c.danger() : c.line();
+const buttonLabel = (tone, disabled) => disabled ? c.muted() : tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : c.text();
+/** 横向排列，垂直居中。 */
+function Row(props) {
+	return (() => {
+		const __nsh_hv3 = element("view");
+		bindProp(__nsh_hv3, "style", () => ({
+			display: "flex",
+			flexDirection: "row",
+			alignItems: props.align ?? "center",
+			flexWrap: props.wrap ? "wrap" : "nowrap",
+			gap: props.gap ?? 8,
+			...props.grow ? {
+				flex: 1,
+				minWidth: 0
+			} : {},
+			...props.style
+		}));
+		insert(__nsh_hv3, () => props.children);
+		return __nsh_hv3;
+	})();
+}
+/** 状态胶囊。 */
+function Badge(props) {
+	return (() => {
+		const __nsh_hv9 = element("view");
+		bindProp(__nsh_hv9, "style", () => ({
+			paddingHorizontal: 8,
+			paddingVertical: 2,
+			borderRadius: r.pill,
+			borderWidth: 1,
+			borderColor: toneColor(pick(props.tone ?? "neutral")),
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center"
+		}));
+		const __nsh_hv10 = element("text");
+		bindProp(__nsh_hv10, "style", () => ({
+			fontSize: 11,
+			fontWeight: "600",
+			color: toneColor(pick(props.tone ?? "neutral"))
+		}));
+		insert(__nsh_hv10, () => props.text);
+		append(__nsh_hv9, __nsh_hv10);
+		return __nsh_hv9;
+	})();
+}
+/** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
+function Button(props) {
+	return (() => {
+		const __nsh_hv11 = element("view");
+		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
+		prop(__nsh_hv11, "role", "button");
+		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
+		bindProp(__nsh_hv11, "style", () => ({
+			height: props.small ? 24 : 28,
+			paddingHorizontal: props.small ? 9 : 12,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
+			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
+			opacity: pick(props.disabled ?? false) ? .5 : 1,
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center"
+		}));
+		const __nsh_hv12 = element("text");
+		bindProp(__nsh_hv12, "style", () => ({
+			fontSize: props.small ? 12 : 13,
+			fontWeight: "500",
+			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
+		}));
+		insert(__nsh_hv12, () => props.label);
+		append(__nsh_hv11, __nsh_hv12);
+		return __nsh_hv11;
+	})();
+}
+/** 搜索框。`onChange` 拿到的是整串新值。 */
+function SearchField(props) {
+	return (() => {
+		const __nsh_hv13 = element("view");
+		bindProp(__nsh_hv13, "style", () => ({
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			height: 28,
+			width: props.width ?? 220,
+			paddingHorizontal: 9,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: c.line(),
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv14 = element("text");
+		bindProp(__nsh_hv14, "style", () => ({
+			fontSize: 12,
+			color: c.muted()
+		}));
+		const __nsh_hv15 = text("⌕");
+		append(__nsh_hv14, __nsh_hv15);
+		const __nsh_hv16 = element("input");
+		bindProp(__nsh_hv16, "value", () => props.value);
+		bindProp(__nsh_hv16, "placeholder", () => props.placeholder ?? "Filter…");
+		prop(__nsh_hv16, "onChange", (text) => props.onChange(text));
+		prop(__nsh_hv16, "style", {
+			flex: 1,
+			fontSize: 12,
+			paddingHorizontal: 0,
+			borderWidth: 0,
+			backgroundColor: "transparent"
+		});
+		append(__nsh_hv13, __nsh_hv14);
+		append(__nsh_hv13, __nsh_hv16);
+		return __nsh_hv13;
+	})();
+}
+/** 空状态：一句解释 + 可选的下一步提示。 */
+function Empty(props) {
+	return (() => {
+		const __nsh_hv23 = element("view");
+		prop(__nsh_hv23, "style", {
+			flex: 1,
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 6,
+			padding: 24
+		});
+		const __nsh_hv24 = element("text");
+		bindProp(__nsh_hv24, "style", () => ({
+			fontSize: 13,
+			fontWeight: "500",
+			color: c.text()
+		}));
+		insert(__nsh_hv24, () => props.title);
+		append(__nsh_hv23, __nsh_hv24);
+		insert(__nsh_hv23, [() => props.hint === void 0 ? null : (() => {
+			const __nsh_hv25 = element("text");
+			bindProp(__nsh_hv25, "style", () => ({
+				fontSize: 12,
+				color: c.muted(),
+				textAlign: "center"
+			}));
+			insert(__nsh_hv25, () => props.hint);
+			return __nsh_hv25;
+		})(), () => props.action]);
+		return __nsh_hv23;
+	})();
+}
+/** 加载中：一行说明（列表为空时占满可用高度）。 */
+function Loading(props) {
+	return (() => {
+		const __nsh_hv26 = element("view");
+		prop(__nsh_hv26, "style", {
+			flex: 1,
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 8,
+			padding: 24
+		});
+		const __nsh_hv27 = element("text");
+		bindProp(__nsh_hv27, "style", () => ({
+			fontSize: 12,
+			color: c.muted()
+		}));
+		insert(__nsh_hv27, () => props.label ?? "Loading…");
+		append(__nsh_hv26, __nsh_hv27);
+		return __nsh_hv26;
+	})();
+}
+/** 失败态：原因 + 重试。错误文案保留原文，便于用户搜索。 */
+function LoadError(props) {
+	return (() => {
+		const __nsh_hv28 = element("view");
+		prop(__nsh_hv28, "style", {
+			display: "flex",
+			flexDirection: "column",
+			gap: 8,
+			padding: 16
+		});
+		const __nsh_hv29 = element("text");
+		bindProp(__nsh_hv29, "style", () => ({
+			fontSize: 13,
+			color: c.danger()
+		}));
+		insert(__nsh_hv29, () => `加载失败：${props.message}`);
+		append(__nsh_hv28, __nsh_hv29);
+		insert(__nsh_hv28, () => props.onRetry === void 0 ? null : component(Row, { get children() {
+			return component(Button, {
+				label: "重试",
+				get onPress() {
+					return props.onRetry;
+				}
+			});
+		} }));
+		return __nsh_hv28;
+	})();
+}
+/** 一行提示（操作结果/错误），`tone` 决定颜色。 */
+function Notice(props) {
+	return (() => {
+		const __nsh_hv48 = element("text");
+		bindProp(__nsh_hv48, "style", () => ({
+			fontSize: 12,
+			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
+		}));
+		insert(__nsh_hv48, () => props.message);
+		return __nsh_hv48;
+	})();
+}
+
+//#endregion
+//#region App.tsx
+/** 挂载类型 → 胶囊配色；未知类型保持中性。 */
+function typeTone(type) {
+	const text = type.toLowerCase();
+	if (text === "bind") return "info";
+	if (text === "volume") return "ok";
+	if (text === "tmpfs") return "warn";
+	return "neutral";
+}
+function typeOf(entry) {
+	const type = str(entry, "Type", "").toLowerCase();
+	return type.length > 0 ? type : "bind";
+}
+function modeOf(entry) {
+	return str(entry, "Mode", "默认");
+}
+function isReadOnly(entry) {
+	if (entry.RW === false) return true;
+	return /^ro\b/.test(str(entry, "Mode", ""));
+}
+const containerId = (row) => str(row, "id", "");
+const containerName = (row) => str(row, "name", "");
+const containerImage = (row) => str(row, "image", "");
+const containerState = (row) => str(row, "state", "");
+function stateTone(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+function ContainerMounts() {
+	const mounts = signal([]);
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	const selectedId = signal(null);
+	const selectedName = signal("");
+	const pickerOpen = signal(true);
+	let seq = 0;
+	function readOnlyCount() {
+		return mounts().filter((entry) => isReadOnly(entry)).length;
+	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName(row)} ${containerImage(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId(item) === id);
+		return row === void 0 ? selectedName() : `${containerName(row)} · ${containerImage(row)}`;
+	}
+	function resetData() {
+		mounts.set([]);
+		error.set(null);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await call("docker/container/list", {});
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (mounts().length === 0) loading.set(true);
+		try {
+			const result = await call("docker/container/mounts", { id });
+			if (mine !== seq) return;
+			const list = Array.isArray(result) ? result : arr(result, "mounts");
+			mounts.set(list);
+			error.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId(row);
+		const state = containerState(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function mountRow(entry) {
+		const type = typeOf(entry);
+		const readOnly = isReadOnly(entry);
+		const name = str(entry, "Name", "");
+		return (() => {
+			const __nsh_hv16 = element("view");
+			bindProp(__nsh_hv16, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				paddingHorizontal: 12,
+				paddingVertical: 9,
+				borderBottomWidth: 1,
+				borderBottomColor: c.line()
+			}));
+			insert(__nsh_hv16, [
+				component(Row, {
+					gap: 8,
+					get children() {
+						return [
+							component(Badge, {
+								text: type,
+								get tone() {
+									return typeTone(type);
+								}
+							}),
+							() => readOnly ? component(Badge, {
+								text: "只读",
+								tone: "warn"
+							}) : component(Badge, {
+								text: "可写",
+								tone: "neutral"
+							}),
+							(() => {
+								const __nsh_hv17 = element("text");
+								prop(__nsh_hv17, "numberOfLines", 1);
+								bindProp(__nsh_hv17, "style", () => t.meta);
+								insert(__nsh_hv17, () => `模式 ${modeOf(entry)}`);
+								return __nsh_hv17;
+							})(),
+							(() => {
+								const __nsh_hv18 = element("text");
+								prop(__nsh_hv18, "numberOfLines", 1);
+								bindProp(__nsh_hv18, "style", () => ({
+									...t.meta,
+									flex: 1,
+									minWidth: 0,
+									textAlign: "right"
+								}));
+								insert(__nsh_hv18, () => name.length > 0 ? `名称 ${name}` : "");
+								return __nsh_hv18;
+							})()
+						];
+					}
+				}),
+				component(Row, {
+					gap: 6,
+					align: "flex-start",
+					get children() {
+						return [(() => {
+							const __nsh_hv19 = element("text");
+							bindProp(__nsh_hv19, "style", () => ({
+								...t.label,
+								width: 26,
+								flexShrink: 0
+							}));
+							const __nsh_hv20 = text("源");
+							append(__nsh_hv19, __nsh_hv20);
+							return __nsh_hv19;
+						})(), (() => {
+							const __nsh_hv21 = element("text");
+							bindProp(__nsh_hv21, "style", () => ({
+								...t.mono,
+								flex: 1,
+								minWidth: 0
+							}));
+							insert(__nsh_hv21, () => str(entry, "Source", "-"));
+							return __nsh_hv21;
+						})()];
+					}
+				}),
+				component(Row, {
+					gap: 6,
+					align: "flex-start",
+					get children() {
+						return [(() => {
+							const __nsh_hv22 = element("text");
+							bindProp(__nsh_hv22, "style", () => ({
+								...t.label,
+								width: 26,
+								flexShrink: 0
+							}));
+							const __nsh_hv23 = text("目标");
+							append(__nsh_hv22, __nsh_hv23);
+							return __nsh_hv22;
+						})(), (() => {
+							const __nsh_hv24 = element("text");
+							bindProp(__nsh_hv24, "style", () => ({
+								...t.mono,
+								flex: 1,
+								minWidth: 0
+							}));
+							insert(__nsh_hv24, () => str(entry, "Destination", "-"));
+							return __nsh_hv24;
+						})()];
+					}
+				})
+			]);
+			return __nsh_hv16;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的挂载。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && mounts().length === 0) return component(Loading, { label: "正在读取容器挂载…" });
+		if (error() !== null && mounts().length === 0) return component(LoadError, {
+			get message() {
+				return error() ?? "";
+			},
+			onRetry: () => void load()
+		});
+		if (mounts().length === 0) return component(Empty, {
+			title: "容器没有挂载",
+			hint: "容器启动时没有声明 bind / volume / tmpfs 挂载，因此没有宿主机路径映射进来。",
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv25 = element("view");
+			prop(__nsh_hv25, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv27 = element("scroll");
+			prop(__nsh_hv27, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv28 = element("view");
+			prop(__nsh_hv28, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv28, () => mounts().map((entry) => mountRow(entry)));
+			append(__nsh_hv27, __nsh_hv28);
+			const __nsh_hv29 = element("view");
+			bindProp(__nsh_hv29, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				flexShrink: 0
+			}));
+			const __nsh_hv30 = element("text");
+			prop(__nsh_hv30, "numberOfLines", 1);
+			bindProp(__nsh_hv30, "style", () => t.meta);
+			const __nsh_hv31 = text("数据来自容器 Mounts 字段；RW=false 或 Mode 以 ro 开头的挂载按只读显示。");
+			append(__nsh_hv30, __nsh_hv31);
+			append(__nsh_hv29, __nsh_hv30);
+			append(__nsh_hv25, __nsh_hv27);
+			append(__nsh_hv25, __nsh_hv29);
+			insert(__nsh_hv25, () => error() === null ? null : (() => {
+				const __nsh_hv26 = element("view");
+				prop(__nsh_hv26, "style", {
+					paddingHorizontal: 12,
+					paddingTop: 8
+				});
+				insert(__nsh_hv26, component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }));
+				return __nsh_hv26;
+			})(), __nsh_hv27);
+			return __nsh_hv25;
+		})();
+	}
+	function toolbar() {
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [(() => {
+							const __nsh_hv32 = element("text");
+							bindProp(__nsh_hv32, "style", () => t.h1);
+							const __nsh_hv33 = text("挂载");
+							append(__nsh_hv32, __nsh_hv33);
+							return __nsh_hv32;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv34 = element("text");
+							bindProp(__nsh_hv34, "style", () => t.meta);
+							const __nsh_hv35 = text("未选择容器");
+							append(__nsh_hv34, __nsh_hv35);
+							return __nsh_hv34;
+						})() : [(() => {
+							const __nsh_hv36 = element("text");
+							bindProp(__nsh_hv36, "style", () => t.meta);
+							insert(__nsh_hv36, () => `${mounts().length} 个挂载`);
+							return __nsh_hv36;
+						})(), component(Badge, {
+							get text() {
+								return `只读 ${readOnlyCount()}`;
+							},
+							tone: "warn"
+						})]];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [() => busy() ? (() => {
+							const __nsh_hv37 = element("text");
+							bindProp(__nsh_hv37, "style", () => t.meta);
+							const __nsh_hv38 = text("正在读取…");
+							append(__nsh_hv37, __nsh_hv38);
+							return __nsh_hv37;
+						})() : null, component(Button, {
+							label: "刷新",
+							small: true,
+							onPress: () => refresh()
+						})];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	return (() => {
+		const __nsh_hv39 = element("view");
+		bindProp(__nsh_hv39, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv40 = element("view");
+		bindProp(__nsh_hv40, "style", () => hairline());
+		append(__nsh_hv39, __nsh_hv40);
+		insert(__nsh_hv39, () => toolbar(), __nsh_hv40);
+		insert(__nsh_hv39, [() => containerBar(), () => body()]);
+		return __nsh_hv39;
+	})();
+}
+mount(ContainerMounts);
+
+//#endregion
+export { ContainerMounts as default };

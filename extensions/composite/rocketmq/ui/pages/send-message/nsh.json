@@ -1,0 +1,12 @@
+{
+  "name": "RocketMQ Send Message",
+  "id": "com.navop.rocketmq.sendmessage",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": [
+      "navop.context.*",
+      "navop.resource.*"
+    ]
+  }
+}
