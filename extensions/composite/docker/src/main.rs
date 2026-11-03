@@ -1975,43 +1975,72 @@ mod tests {
     }
 
     #[test]
-    fn capabilities_cover_all_resource_methods() {
-        // 能力位必须覆盖 manifest 与 provider 实现的每一个方法,宿主据此校验。
-        // 期望集直接从 manifest 派生(而非手抄一份子集):漏补能力位时,宿主只会在
-        // 运行时抛 MissingCapability,单测必须提前拦住。
-        let manifest: serde_json::Value = serde_json::from_str(include_str!("../extension.json"))
-            .expect("extension.json 必须是合法 JSON");
-
-        fn collect_requires(value: &serde_json::Value, out: &mut Vec<String>) {
-            match value {
-                serde_json::Value::Object(map) => {
-                    for (key, child) in map {
-                        if key == "requires" {
-                            if let Some(items) = child.as_array() {
-                                out.extend(
-                                    items
-                                        .iter()
-                                        .filter_map(|item| item.as_str().map(str::to_string)),
-                                );
-                            }
+    fn capabilities_cover_all_dispatched_methods() {
+        // 能力位是页面经 navop.resource.invoke 派发的方法全集:页面 App.tsx 的
+        // OPERATIONS 里出现过的每个方法都必须能被宿主接受,漏补时页面会在运行时
+        // 才报 MissingCapability,单测要提前拦住。期望集从页面的 dist 产物派生
+        // (bundle.js 里 "docker/..." 字符串字面量),而不是手抄一份子集。
+        fn collect_method_literals(dir: &std::path::Path, out: &mut Vec<String>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    collect_method_literals(&path, out);
+                } else if path.extension().is_some_and(|ext| ext == "js") {
+                    let Ok(source) = std::fs::read_to_string(&path) else {
+                        continue;
+                    };
+                    for literal in source.match_words() {
+                        // 只收形如 docker/<group>/<verb> 的方法名字面量；提示文案
+                        // 里嵌着方法名（“docker/container/list 返回了空列表…”），
+                        // 中文前缀不是合法标识符，靠词法边界排除。
+                        if is_method_literal(literal) {
+                            out.push(literal.to_string());
                         }
-                        collect_requires(child, out);
                     }
                 }
-                serde_json::Value::Array(items) => {
-                    for item in items {
-                        collect_requires(item, out);
-                    }
-                }
-                _ => {}
             }
         }
 
+        // 方法名字面量形如 docker/<group>/<verb>，每段都是小写字母/下划线。
+        fn is_method_literal(word: &str) -> bool {
+            let segments: Vec<&str> = word.split('/').collect();
+            segments.len() >= 3
+                && segments[0] == "docker"
+                && segments[1..].iter().all(|seg| {
+                    !seg.is_empty() && seg.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                })
+        }
+
+        // 简易字面量扫描:bundle 里的方法名都是 "docker/..." 形式的双引号字符串。
+        trait MatchWords {
+            fn match_words(&self) -> Vec<&str>;
+        }
+        impl MatchWords for str {
+            fn match_words(&self) -> Vec<&str> {
+                let mut words = Vec::new();
+                let mut rest = self;
+                while let Some(start) = rest.find('"') {
+                    rest = &rest[start + 1..];
+                    if let Some(end) = rest.find('"') {
+                        words.push(&rest[..end]);
+                        rest = &rest[end + 1..];
+                    } else {
+                        break;
+                    }
+                }
+                words
+            }
+        }
+
+        let ui_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/pages");
         let mut expected = Vec::new();
-        collect_requires(&manifest, &mut expected);
+        collect_method_literals(&ui_dir, &mut expected);
         assert!(
             !expected.is_empty(),
-            "manifest 里没有解析到任何 requires,检查 collect_requires"
+            "ui/pages 的 bundle 产物里没有解析到任何 docker/ 方法字面量,先跑 nsh build"
         );
 
         for method in &expected {
