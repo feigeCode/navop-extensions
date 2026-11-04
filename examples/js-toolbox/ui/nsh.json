@@ -1,0 +1,14 @@
+{
+  "name": "JS Toolbox",
+  "id": "com.navop.tools.js-toolbox",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": true,
+    "clipboard": true,
+    "fs": {
+      "read": ["/etc"],
+      "write": ["/etc"]
+    }
+  }
+}

@@ -5,11 +5,12 @@
 //  2. `queryByWindow` 返回的是摘要（body 被去掉，只有截断的 body_text），
 //     完整字节只在 `queryById` 的详情里返回；
 //  3. 实时流用 1s 轮询 `queryByWindow` 实现（旧页同样不用 messageStream，
-//     因为嵌入页拿不到 navop.event），暂停时只是停掉轮询；
+//     因为页面没声明 event 模块），暂停时只是停掉轮询；
 //  4. 每次刷新最多读 1000 条，页面只渲染按时间倒序的前 500 条。
-import { cleanup, host, mount, Scroll, signal, Text, View } from "nsh";
+import { cleanup, Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { arr, errorMessage, humanBytes, str } from "../../lib/format";
 import {
   Badge,
@@ -77,20 +78,6 @@ const OPERATIONS: Record<string, string> = {
   unsubscribe: "middleware/topic/delete",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -100,10 +87,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -768,5 +754,3 @@ export default function Messages() {
     </View>
   );
 }
-
-mount(Messages);

@@ -1,11 +1,12 @@
 // RocketMQ 概览页：集群状态条 → 指标卡组 → 节点拓扑表。
 //
-// 数据全走 `navop.context.current` + `navop.resource.invoke`：页面从 RocketMQ 连接嵌入，
+// 数据全走 `navop.resource.invoke`：页面从 RocketMQ 连接嵌入（句柄来自 `host.params.connection`），
 // 连接由宿主注入，所以这里不传任何连接参数。
 //
 // provider 各版本返回的字段并不一致（例如没有消费组数、没有磁盘使用率），
 // 所以指标卡是「有字段才有卡」：缺失的指标直接不渲染，不做空卡占位。
-import { cleanup, host, mount, signal, Text, View } from "nsh";
+import { cleanup, signal, Text, View } from "nsh";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { errorMessage, humanBytes, str } from "../../lib/format";
 import {
   Badge,
@@ -67,20 +68,6 @@ const OPERATIONS: Record<string, string> = {
   updateTopic: "middleware/topic/update",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -90,10 +77,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -565,5 +551,3 @@ export default function Overview() {
     </View>
   );
 }
-
-mount(Overview);

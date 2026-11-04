@@ -1,8 +1,8 @@
-// 页面测试用的宿主桩。
+// 页面测试用的宿主桩（ABI v2）。
 //
-// 页面现在只走两条通道：`navop.context.current`（拿借来的资源句柄）和
-// `navop.resource.invoke`（按方法名调 provider）。测试只要按方法名给返回值，
-// 不必再模拟旧的工作台 operation。
+// 页面只从 `host.params` 读启动事实，所以测试把「一条连接」塞进 params；
+// 命令走 handlers 按方法名分派。日志是 `host.post("navop.log")`：列出它是为了
+// 让 `app.host.posts()` 能记到，页面不等应答。
 
 type Handler = (params: Record<string, unknown>) => unknown;
 
@@ -17,15 +17,29 @@ export const TEST_CONNECTION = {
   config: {},
 };
 
-/** 把「方法名 → 返回值/抛错」映射成 `open(..., { host: { handlers } })` 要的 handlers。 */
+/** 启动事实：和宿主首帧前写进 `host.params` 的形状一致。 */
+export const TEST_PARAMS: Record<string, unknown> = {
+  apiVersion: 2,
+  extension: {
+    id: "com.navop.docker",
+    title: "Docker",
+  },
+  route: "containers",
+  backends: ["docker"],
+  connection: TEST_CONNECTION,
+};
+
+/** 把「方法名 → 返回值/抛错」映射成 `open(..., { host: { params, handlers } })` 要的 handlers。 */
 export function hostHandlers(byMethod: Record<string, Handler>) {
   return {
-    "navop.context.current": () => ({ connection: TEST_CONNECTION }),
     "navop.resource.invoke": (data: { method?: string; params?: Record<string, unknown> }) => {
       const method = data?.method ?? "";
       const handler = byMethod[method];
       if (!handler) throw new Error(`测试没有为 \`${method}\` 配置返回值`);
       return handler(data?.params ?? {});
     },
+    "navop.resource.ping": () => ({ ok: true }),
+    "navop.resource.close": () => null,
+    "navop.log": () => null,
   };
 }

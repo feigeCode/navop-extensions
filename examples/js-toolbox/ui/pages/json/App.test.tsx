@@ -1,6 +1,13 @@
 import { expect, open, test } from "nsh/test";
 
-const page = { width: 1100, height: 800, host: { handlers: {} } };
+const params = {
+  apiVersion: 2,
+  extension: { id: "com.navop.tools.js-toolbox", title: "JS Toolbox" },
+  route: "json",
+  backends: [] as string[],
+  connection: null,
+};
+const page = { width: 1100, height: 800, host: { params, handlers: {} } };
 const PLACEHOLDER = '例如 {"name":"navop","tags":["nsh","tsx"]}';
 
 function screen(app: Awaited<ReturnType<typeof open>>): string {
@@ -8,7 +15,7 @@ function screen(app: Awaited<ReturnType<typeof open>>): string {
 }
 
 test("格式化 JSON 输出两空格缩进", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '{"b":1,"a":[1,2]}');
   await app.press("格式化");
@@ -19,7 +26,7 @@ test("格式化 JSON 输出两空格缩进", async () => {
 });
 
 test("切换 4 空格后缩进跟着变", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '{"b":1}');
   await app.press("4 空格");
@@ -29,7 +36,7 @@ test("切换 4 空格后缩进跟着变", async () => {
 });
 
 test("压缩后结果只有一行", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '{"b": 1, "a": [1, 2]}');
   await app.press("压缩");
@@ -38,7 +45,7 @@ test("压缩后结果只有一行", async () => {
 });
 
 test("非法 JSON 立即给出错误位置", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '{"a": }');
   await app.press("格式化");
@@ -48,7 +55,7 @@ test("非法 JSON 立即给出错误位置", async () => {
 });
 
 test("转义后得到 JSON 字符串字面量", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, 'a"b');
   await app.press("转义");
@@ -57,7 +64,7 @@ test("转义后得到 JSON 字符串字面量", async () => {
 });
 
 test("反转义还原成纯文本", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '"a\\"b"');
   await app.press("反转义");
@@ -66,7 +73,7 @@ test("反转义还原成纯文本", async () => {
 });
 
 test("反转义非字符串时提示需要字符串字面量", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, "123");
   await app.press("反转义");
@@ -74,7 +81,7 @@ test("反转义非字符串时提示需要字符串字面量", async () => {
 });
 
 test("清空后回到空态", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:输入");
   await app.type(PLACEHOLDER, '{"a":1}');
   await app.press("格式化");

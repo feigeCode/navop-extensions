@@ -1,14 +1,15 @@
-// 开发者工具页：把 Dev Tools 从 gpui-shell 迁到 nsh/TSX。
+// 开发者工具页（app 内路由 `workbench`）：扩展工程调试工作台。
 //
-// 这一页是「开发工具」而不是资源工作台：shellView 的 modules 是 dev + log，
-// 宿主只放行 navop.dev.* 与 navop.log.*（见 nsh.json 的 capabilities），所以
-// 数据全部经 host.call(name, payload) 取，不存在 route 上的容器 id 之类的上下文。
+// 一个插件一个 nsh app 之后，页面不再自己 mount：app 外壳见 ui/App.tsx，
+// 这里只 export default 组件。模块仍是 dev + log，宿主只放行 navop.dev.*
+// 与 navop.log（见 extension.json），数据全部经 host.call(name, payload) 取。
 //
 // 响应式约定（nsh 0.3）：组件函数体只在挂载时跑一次，所以根节点只搭骨架；
 // 三态与各面板都拆成 body()/headerBar()/listPane()/detailPane()/logSection()
 // 这样的普通函数，写成 `{fn()}` 子表达式（各领一个 effect、各自响应）。
 // 不要把动态面板当组件 prop 传（props 在挂载时求值一次，会冻住）。
-import { host, mount, Scroll, signal, Text, View } from "nsh";
+import { host, Scroll, signal, Text, View } from "nsh";
+import { log } from "../../lib/navop";
 import type { JSX } from "nsh";
 import { arr, errorMessage, str } from "../../lib/format";
 import {
@@ -25,7 +26,7 @@ import {
 } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
-/** `navop.dev.list` 的一项；宿主字段可能有缺省（未加载的工程 id/name/views 都是空的）。 */
+/** `navop.dev.list` 的一项；宿主字段可能有缺省（未加载的工程 id/name/app 都是空的）。 */
 type Project = Record<string, unknown>;
 
 /** 日志面板的行数档位。 */
@@ -38,7 +39,13 @@ const projectName = (project: Project): string => {
   return name.length > 0 ? name : "未命名工程";
 };
 
-const projectViews = (project: Project): unknown[] => arr(project, "views");
+/** `navop.dev.list` 的一项里 app 的面貌；`null` 表示这个工程的 extension.json 没有 shellApp。 */
+const projectApp = (project: Project): { title: string } | null => {
+  const app = project["app"];
+  if (app === null || app === undefined || typeof app !== "object" || Array.isArray(app)) return null;
+  const title = str(app as Record<string, unknown>, "title", "");
+  return { title: title.length > 0 ? title : "未命名应用" };
+};
 
 const projectWatching = (project: Project): boolean => project.watching === true;
 
@@ -57,13 +64,9 @@ async function callHost(name: string, payload?: unknown): Promise<unknown> {
   }
 }
 
-/** 宿主日志通道是「尽力而为」：写失败不影响页面。 */
-async function logInfo(message: string): Promise<void> {
-  try {
-    await host.call("navop.log.info", { message });
-  } catch {
-    // ignore：日志面板里已经有同样的事实
-  }
+/** 宿主日志通道是单向通知：不等应答，也不会因为写不进去而拖住页面。 */
+function logInfo(message: string): void {
+  log("info", message);
 }
 
 function delay(ms: number): Promise<void> {
@@ -83,7 +86,7 @@ export default function DevWorkbench() {
   const picking = signal(false);
   const busy = signal(false);
   const confirmRemove = signal(false);
-  const openingView = signal<string | null>(null);
+  const openingApp = signal<string | null>(null);
   const logRoot = signal<string | null>(null);
   const logLines = signal<string[]>([]);
   const logTail = signal(200);
@@ -269,28 +272,30 @@ export default function DevWorkbench() {
   }
 
   /**
-   * 打开 shellView。注意 ABI 的坑：宿主把 `root` 优先当第一个参数，
-   * 但 dev::open_view 要的是 **extensionId**（它会自己补 dev 前缀），
-   * 所以这里必须按字段名传 extensionId，而不是 root。
+   * 打开工程的 nsh app。新契约里一个工程只有一个 app，没有视图 id：
+   * `navop.dev.openApp` 只收 extensionId（route 由 app 自己解释，这里不指定）。
+   * 注意 ABI 的坑：宿主把 `root` 优先当第一个参数，但 dev::open_app 要的是
+   * **extensionId**（它会自己补 dev 前缀），所以必须按字段名传 extensionId。
    */
-  async function openViewOf(project: Project, viewId: string) {
+  async function openAppOf(project: Project) {
     const extensionId = str(project, "id", "");
     if (extensionId.length === 0) {
-      error.set("这个工程还没有加载成功，先点「重新加载」再打开视图。");
+      error.set("这个工程还没有加载成功，先点「重新加载」再打开应用。");
       return;
     }
-    const key = `${extensionId}/${viewId}`;
-    openingView.set(key);
+    const app = projectApp(project);
+    const title = app === null ? extensionId : app.title;
+    openingApp.set(extensionId);
     status.set(null);
     try {
-      await callHost("navop.dev.openView", { extensionId, viewId });
+      await callHost("navop.dev.openApp", { extensionId });
       error.set(null);
-      status.set(`已请求打开视图 ${viewId}`);
-      void logInfo(`dev view opened: ${extensionId}/${viewId}`);
+      status.set(`已请求打开应用 ${title}`);
+      void logInfo(`dev app opened: ${extensionId}`);
     } catch (failure) {
       error.set(errorMessage(failure));
     } finally {
-      openingView.set(null);
+      openingApp.set(null);
     }
   }
 
@@ -444,7 +449,7 @@ export default function DevWorkbench() {
   function projectRow(project: Project): JSX.Element {
     const root = projectRoot(project);
     const failed = failureOf(project) !== null;
-    const views = projectViews(project).length;
+    const app = projectApp(project);
     return (
       <View
         onPress={() => selectProject(root)}
@@ -467,7 +472,7 @@ export default function DevWorkbench() {
           </Text>
           {failed ? <Badge text="加载失败" tone="danger" /> : null}
           {projectWatching(project) ? <Badge text="监听中" tone="ok" /> : null}
-          <Badge text={`${views} 视图`} />
+          {app === null ? <Badge text="无 nsh app" /> : <Badge text="nsh app" />}
         </Row>
         <Text numberOfLines={1} ellipsizeMode="middle" style={{ ...t.mono, fontSize: 11, color: c.muted() }}>
           {root.length > 0 ? root : "（未加载）"}
@@ -503,30 +508,27 @@ export default function DevWorkbench() {
     );
   }
 
-  function viewsSection(project: Project): JSX.Element {
-    const views = projectViews(project);
+  function appSection(project: Project): JSX.Element {
+    const app = projectApp(project);
     return (
       <View style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SectionTitle title="扩展视图" hint={`${views.length} 个`} />
-        {views.length === 0 ? (
+        <SectionTitle title="nsh 应用" hint={app === null ? "未声明" : "1 个"} />
+        {app === null ? (
           <Text style={t.meta}>
             {failureOf(project) === null
-              ? "这个工程的 extension.json 里没有声明 shellViews。"
-              : "工程还没加载成功：先点「重新加载」，再打开视图。"}
+              ? "这个工程的 extension.json 里没有声明 shellApp。"
+              : "工程还没加载成功：先点「重新加载」，再打开应用。"}
           </Text>
         ) : (
-          views.map((view) => viewRow(project, view))
+          appRow(project, app)
         )}
       </View>
     );
   }
 
-  function viewRow(project: Project, view: unknown): JSX.Element {
+  function appRow(project: Project, app: { title: string }): JSX.Element {
     const extensionId = str(project, "id", "");
-    const viewId = str(view, "id", "");
-    const title = str(view, "title", viewId);
-    const surface = str(view, "surface", "tab");
-    const opening = openingView() === `${extensionId}/${viewId}`;
+    const opening = openingApp() === extensionId;
     return (
       <Row
         gap={10}
@@ -534,10 +536,10 @@ export default function DevWorkbench() {
       >
         <View style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
           <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "500", color: c.text() }}>
-            {title}
+            {app.title}
           </Text>
           <Text numberOfLines={1} style={{ ...t.mono, fontSize: 11, color: c.muted() }}>
-            {`${viewId} · ${surface}`}
+            {`${extensionId} · 单应用，route 由 app 自己解释`}
           </Text>
         </View>
         <Button
@@ -545,7 +547,7 @@ export default function DevWorkbench() {
           tone="primary"
           small
           disabled={opening || extensionId.length === 0}
-          onPress={() => void openViewOf(project, viewId)}
+          onPress={() => void openAppOf(project)}
         />
       </Row>
     );
@@ -557,7 +559,7 @@ export default function DevWorkbench() {
       return (
         <Empty
           title="从左侧选择一个开发工程"
-          hint="选中后可以查看扩展视图、重新加载、监听文件变化，并查看宿主的操作日志。"
+          hint="选中后可以查看 nsh 应用、重新加载、监听文件变化，并查看宿主的操作日志。"
         />
       );
     }
@@ -593,7 +595,7 @@ export default function DevWorkbench() {
             />
           ) : null}
           <View style={hairline()} />
-          {viewsSection(project)}
+          {appSection(project)}
           {logRoot() === root ? logSection(project) : null}
         </View>
       </Scroll>
@@ -755,5 +757,3 @@ export default function DevWorkbench() {
     </View>
   );
 }
-
-mount(DevWorkbench);

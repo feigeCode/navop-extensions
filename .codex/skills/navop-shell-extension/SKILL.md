@@ -1,6 +1,6 @@
 ---
 name: navop-shell-extension
-description: 'Use when writing, reviewing, or debugging Navop extension shell pages and examples; reusing gpui-shell/gpui-component-shell in navop-extensions; choosing gpui-base vs styled script components; extension.json contributions (connections, resourceWorkbenches, shellViews); navop.* host modules; View lifecycle, theme constraints, rendering failures, and local verification.'
+description: 'Use when writing, reviewing, or debugging Navop extension shell pages and examples; reusing gpui-shell/gpui-component-shell in navop-extensions; choosing gpui-base vs styled script components; extension.json contributions (connections, shellApp); navop.* host modules; View lifecycle, theme constraints, rendering failures, and local verification.'
 ---
 
 # navop 复合扩展 shell 页面开发
@@ -23,12 +23,10 @@ Navop 扩展沿用 `extension.json`；UI 使用 `ui/*.js`，需要后端时再�
 
 ```
 extension.json
-├── contributes.connections[]          连接类型 + 表单（fields/tabs）
-├── contributes.resourceWorkbenches[]  工作台：operations{} + pages[]
-│     ├── operations.<id>: { mode: invoke|job, method, requires[], effect, params }
-│     └── pages[]: { id, title, renderer: shell(viewId)|native, load, stack }
-└── contributes.shellViews[]           独立/内嵌脚本视图：entry=ui/*.js
-      renderer.kind="shell" 的页面 → materialize ui/<viewId>.js 的 default export View
+├── contributes.connections[]          连接类型 + 表单（fields/tabs）+ route（打开时的初始路由）
+└── contributes.shellApp               一个扩展一个 nsh app：entry=ui/dist/bundle.js
+      { title, description?, icon?, entry, backends, modules, category?, keywords? }
+      页面是 app 内 ui/pages/<page>/ 的 TSX 组件，路由由 ui/App.tsx 解释
 ```
 
 工作台内嵌页面的数据面：`dispatch("操作id", input, { confirmed })` → provider method → Promise。这条限制不应扩展到连接级控制台和独立工具；它们走各自获准的 `navop.*` 模块。
@@ -87,8 +85,8 @@ bash scripts/install-local-composite-extensions.sh   # 构建并装到 ~/.config
 
 - operations 的 `requires` 填 provider method URI 清单（capabilities 按它校验）；新增有能力的操作就把 method 填进去。
 - 一个 page 只允许一个 stack 原语（多原语安装期被拒）；table 只有行级 actions，没有页面级 toolbar。
-- `shellViews[].modules` 决定可用宿主模块：`workbench` 仅工作台挂载会话可用（独立打开必报错，且这类视图不进工具箱）。
-- 文案跟随界面语言用 `navop.i18n`（`modules: ["i18n"]`），组件库那套主题名（`list_active`/`table_hover`）用 `navop.theme`（`modules: ["theme"]`）。两个都**不碰资源**：不需要 `backends`，嵌入式工作台页面也能用 —— 纯界面页可以只声明这两个。⚠️ 切语言时宿主重建的是 `render()`、**不重跑 `init()`**，所以 `locale()` 必须在 `render()` 里读；细节见 `references/script-api.md` §6.2/§6.3。
+- `shellApp.modules` 决定可用宿主模块（v2 只剩 `resource`/`job`/`event`/`blob`/`runtime`/`log`/`dev`）；`context`/`theme`/`i18n`/`workbench` 已随 ABI v2 删除。
+- 文案跟随界面语言走 nsh 原生 i18n（ABI v2 没有 `navop.i18n`/`navop.theme`）；宿主切语言时会重建 app。
 - 改动 languages/i18n key 时同步 locales（守卫测试 1338/1414 行那组）。
 
 ## 参考

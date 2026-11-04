@@ -1,11 +1,13 @@
-// Elasticsearch Mapping 页：左侧索引列表，右侧选中索引的字段定义。
+// Elasticsearch Mapping 页（app 内路由 `mapping`）：左侧索引列表，右侧选中索引的字段定义。
 //
-// 数据分两层：`navop.context.current` 拿到宿主借给这个页面的资源句柄，
-// 再用 `navop.resource.invoke` 按方法名调 provider。页面拿不到连接，
-// 索引也完全由页面自己选：默认选中列表第一个，用户点列表切换。
-import { Clipboard, computed, host, mount, signal, Scroll, Text, View } from "nsh";
+// 数据分两层：`host.params.connection` 里有宿主借给这个页面的资源句柄，
+// 再接 `navop.resource.invoke` 按方法名调 provider。页面拿不到连接时由
+// ui/App.tsx 的外壳给空态，根本不会挂载到这里；索引由页面自己选：
+// 默认选中列表第一个，用户点列表切换。
+import { Clipboard, computed, signal, Scroll, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { errorMessage, humanBytes, str } from "../../lib/format";
 import { Empty, List, ListRow, LoadError, Loading, Notice, Row, SplitPane } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
@@ -76,20 +78,6 @@ const OPERATIONS: Record<string, string> = {
   search: "elasticsearch/search/async",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -99,10 +87,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -800,5 +787,3 @@ export default function MappingPage() {
     </View>
   );
 }
-
-mount(MappingPage);

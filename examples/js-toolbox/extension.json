@@ -8,7 +8,6 @@
   "description": "纯 JS 工具扩展示例：本机 hosts 编辑器与加解密/hash 工具，演示 shell 视图权限 → 运行时 capability 装配。",
   "engines": {
     "onetcli": ">=0.16.1",
-    "gpui_shell": "0.6.4",
     "nsh": "0.3.0"
   },
   "api": {
@@ -23,43 +22,23 @@
     "net:tcp:api.ipify.org:443"
   ],
   "contributes": {
-    "shellViews": [
-      {
-        "id": "hosts-editor",
-        "title": "Hosts Editor",
-        "description": "查看并编辑本机 hosts 文件。",
-        "entry": "ui/pages/hosts/dist/bundle.js",
-        "surface": "toolbox",
-        "singleton": true,
-        "category": "system",
-        "keywords": ["hosts", "dns"],
-        "backends": {},
-        "modules": ["log"]
-      },
-      {
-        "id": "crypto-tools",
-        "title": "Crypto Tools",
-        "description": "Hash / Base64 / UUID 常用加解密小工具。",
-        "entry": "ui/pages/crypto/dist/bundle.js",
-        "surface": "toolbox",
-        "singleton": true,
-        "category": "text",
-        "keywords": ["hash", "base64", "uuid", "md5", "sha256"],
-        "backends": {},
-        "modules": []
-      },
-      {
-        "id": "json-tools",
-        "title": "JSON Tools",
-        "description": "JSON 格式化 / 压缩 / 转义 / 反转义。",
-        "entry": "ui/pages/json/dist/bundle.js",
-        "surface": "toolbox",
-        "singleton": true,
-        "category": "text",
-        "keywords": ["json", "format", "minify", "escape"],
-        "backends": {},
-        "modules": ["log"]
-      }
-    ]
+    "shellApp": {
+      "title": "JS Toolbox",
+      "description": "纯 JS 工具集：JSON 格式化、加解密/hash、本机 hosts 编辑。",
+      "entry": "ui/dist/bundle.js",
+      "backends": {},
+      "modules": [
+        "log"
+      ],
+      "category": "text",
+      "keywords": [
+        "json",
+        "hash",
+        "base64",
+        "uuid",
+        "hosts",
+        "dns"
+      ]
+    }
   }
 }

@@ -2,7 +2,7 @@
 //
 // 全部运算都在页面进程内完成（llrt 的 crypto / buffer 模块），不需要
 // 任何 network / host 能力；复制结果用系统剪贴板。
-import { Clipboard, mount, signal, Text, View } from "nsh";
+import { Clipboard, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
 import { createHash, randomUUID } from "crypto";
@@ -247,4 +247,3 @@ export default function Crypto() {
   );
 }
 
-mount(Crypto);

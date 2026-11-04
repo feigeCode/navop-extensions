@@ -5,8 +5,9 @@
 //
 // 三态判断写在 `body()` 里而不是组件体里直接早退：nsh 只在挂载时跑一次
 // 组件函数体，写在外面的 if 会停在第一次的取值上。
-import { host, mount, signal, Text, View } from "nsh";
+import { signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
+import { invoke as hostInvoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { errorMessage, humanBytes, percent, str } from "../../lib/format";
 import { Badge, Button, Card, LoadError, Loading, Meter, Row, Stack, Stat } from "../../lib/ui";
 import { c, t } from "../../lib/theme";
@@ -65,25 +66,12 @@ const OPERATIONS: Record<string, string> = {
   volumeRemoveByName: "docker/volume/remove",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法。 */
 async function invoke(operationId: string, params: Record<string, unknown> = {}): Promise<unknown> {
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
-  return await host.call("navop.resource.invoke", { handle: await handle(), method, params });
+  // provider 可能要等 daemon / broker 回话，给慢档超时。
+  return await hostInvoke(method, params, { timeout: SLOW_TIMEOUT_MS });
 }
 
 type Usage = Record<string, unknown>;
@@ -198,5 +186,3 @@ export default function Overview() {
     </View>
   );
 }
-
-mount(Overview);

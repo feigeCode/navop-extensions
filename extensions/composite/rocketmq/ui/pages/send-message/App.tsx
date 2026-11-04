@@ -2,8 +2,9 @@
 //
 // 消息体按 UTF-8 编码成字节数组发送（SendMessageRequest.body 是 Vec<u8>）。
 // JSON 合法性只做即时提示，不阻止发送原文。发送是写操作，由宿主确认。
-import { host, mount, signal, Text, View } from "nsh";
+import { signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
+import { invoke as hostInvoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { errorMessage, humanBytes } from "../../lib/format";
 import { Badge, Button, Card, Empty, List, Notice, Row, SectionTitle, Stack } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
@@ -27,25 +28,12 @@ const OPERATIONS: Record<string, string> = {
   updateTopic: "middleware/topic/update",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法。 */
 async function invoke(operationId: string, params: Record<string, unknown> = {}): Promise<unknown> {
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
-  return await host.call("navop.resource.invoke", { handle: await handle(), method, params });
+  // provider 可能要等 daemon / broker 回话，给慢档超时。
+  return await hostInvoke(method, params, { timeout: SLOW_TIMEOUT_MS });
 }
 
 type JsonState = "empty" | "ok" | "bad";
@@ -471,5 +459,3 @@ export default function SendMessage() {
     </View>
   );
 }
-
-mount(SendMessage);

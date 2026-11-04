@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const MESSAGES = [
   {
@@ -46,8 +46,8 @@ const handlers = hostHandlers({
 });
 
 test("messages 列表、窗口与详情", async () => {
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "messages", backends: ["resource"] }, handlers },
     clock: {},
     width: 1200,
     height: 800,

@@ -2,7 +2,7 @@
 //
 // 这个页面替代了被删掉的原生资源工作台表格页：数据不再经过工作台的
 // `dispatch(operationId)`，也没有「宿主按 selection 挑容器」这一层 —— 页面
-// 自己拿连接借来的资源句柄，直接按 provider 方法名要数据（`lib/host.ts`）。
+// 自己拿连接借来的资源句柄，直接按 provider 方法名要数据（`lib/navop.ts`）。
 //
 //   docker/container/list    {}            → { containers: [...] }
 //   docker/container/inspect { id }        → docker inspect 原始文档
@@ -11,11 +11,11 @@
 //
 // 删除是唯一破坏性操作：走页内 ConfirmBar 二次确认，`remove` 在 provider 侧
 // 强制 `force: true` + `v: true`（匿名卷一并删除），文案里写清楚。
-import { computed, mount, signal, Text, View } from "nsh";
+import { computed, signal, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { Input } from "nsh/base";
 import { arr, errorMessage, humanBytes, joinCommand, percent, shortTime, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import {
   Badge,
   Card,
@@ -419,7 +419,7 @@ export default function Containers() {
     const mine = ++listSeq;
     loading.set(true);
     try {
-      const result = await call<{ containers?: unknown }>("docker/container/list", {});
+      const result = await invoke<{ containers?: unknown }>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== listSeq) return;
       const list = arr(result, "containers").map(toContainer);
       rows.set(list);
@@ -463,7 +463,7 @@ export default function Containers() {
     detailLoading.set(true);
     detailError.set(null);
     try {
-      const raw = await call("docker/container/inspect", { id });
+      const raw = await invoke("docker/container/inspect", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== detailSeq || selected() !== id) return;
       detail.set(isObject(raw) ? raw : null);
     } catch (failure) {
@@ -481,7 +481,7 @@ export default function Containers() {
     const mine = ++statsSeq;
     stats.set(null);
     try {
-      const raw = await call("docker/container/stats", { id });
+      const raw = await invoke("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== statsSeq || selected() !== id) return;
       stats.set(toStats(raw));
     } catch {
@@ -494,7 +494,7 @@ export default function Containers() {
     busy.set(true);
     pendingRemove.set(null);
     try {
-      await call(`docker/container/${action}`, { id: row.id });
+      await invoke(`docker/container/${action}`, { id: row.id });
       say(`${ACTION_PAST[action]}容器 ${row.name.length > 0 ? row.name : row.id.slice(0, 12)}`);
       await load();
       if (selected() === row.id) await loadDetail(row.id);
@@ -509,7 +509,7 @@ export default function Containers() {
     if (busy()) return;
     busy.set(true);
     try {
-      await call("docker/container/remove", { id: row.id });
+      await invoke("docker/container/remove", { id: row.id });
       pendingRemove.set(null);
       if (selected() === row.id) {
         selected.set(null);
@@ -855,5 +855,3 @@ export default function Containers() {
     </View>
   );
 }
-
-mount(Containers);

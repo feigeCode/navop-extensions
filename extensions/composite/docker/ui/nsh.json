@@ -1,0 +1,9 @@
+{
+  "name": "Docker",
+  "id": "com.navop.docker",
+  "version": "0.6.3",
+  "build": 1,
+  "capabilities": {
+    "host": true
+  }
+}

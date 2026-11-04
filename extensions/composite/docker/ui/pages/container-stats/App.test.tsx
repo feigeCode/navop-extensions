@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "container-stats" };
 
 /** docker/container/list 的返回形状（provider 的 all(true) 列表）。 */
 function containerList() {
@@ -50,8 +53,11 @@ function invokeCalls(app: Awaited<ReturnType<typeof open>>, method: string) {
 }
 
 test("进页面先列容器，未选中时给引导空态且不采样", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/stats": (params) => statsResult(String(params.id)),
@@ -65,8 +71,11 @@ test("进页面先列容器，未选中时给引导空态且不采样", async ()
 });
 
 test("选中容器后按 id 采样，展示 CPU、内存与 Meter", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/stats": (params) => statsResult(String(params.id)),
@@ -92,8 +101,11 @@ test("选中容器后按 id 采样，展示 CPU、内存与 Meter", async () => 
 });
 
 test("自动刷新开着时按选中容器周期采样", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/stats": (params) => statsResult(String(params.id)),
@@ -112,8 +124,11 @@ test("自动刷新开着时按选中容器周期采样", async () => {
 });
 
 test("采样为空时说明可能原因", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/stats": (params) => ({ id: String(params.id) }),
@@ -127,8 +142,11 @@ test("采样为空时说明可能原因", async () => {
 
 test("采样失败显示错误并可重试", async () => {
   let fail = true;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/stats": (params) => {

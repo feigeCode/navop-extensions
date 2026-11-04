@@ -185,15 +185,13 @@ declare module 'navop.log' {
 }
 
 /**
- * 开发者工具（`navop.dev`）。仅 `modules: ["dev"]` 的 shell view 可用；
- * 操作 main 层 DevExtensionRegistry（本地工程目录加载/卸载/视图打开）。
+ * 开发者工具（`navop.dev`）。仅 `modules: ["dev"]` 的 nsh app 可用；
+ * 操作 main 层 DevExtensionRegistry（本地工程目录加载/卸载/app 打开）。
  */
 declare module 'navop.dev' {
-  export interface DevViewInfo {
-    id: string;
+  /** 工程声明的 nsh app；没有声明 `shellApp` 时是 null。 */
+  export interface DevAppInfo {
     title: string;
-    surface: string;
-    category?: string;
   }
 
   export interface DevProjectInfo {
@@ -203,7 +201,7 @@ declare module 'navop.dev' {
     version: string;
     error?: string;
     watching: boolean;
-    views: DevViewInfo[];
+    app: DevAppInfo | null;
   }
 
   export function list(): DevProjectInfo[];
@@ -228,7 +226,8 @@ declare module 'navop.dev' {
 
   export function remove(rootDir: string): DevProjectResult;
 
-  export function openView(extensionId: string, viewId: string): void;
+  /** 打开工程的 nsh app；route 由 app 自己解释，缺省走 app 的默认路由。 */
+  export function openApp(extensionId: string, route?: string): void;
 
   export function logs(rootDir: string, tail?: number): string[];
 }

@@ -258,8 +258,8 @@ bash scripts/install-local-composite-extensions.sh elasticsearch
 ```
 
 Native 复合扩展按 target 分别发布归档。根 `extension.json` 可以同时声明
-`runtime.ipc` 与 `contributes.shellViews`；平台 provider 位于 `bin/`，gpui-shell
-脚本位于 `ui/`。
+`runtime.ipc` 与 `contributes.shellApp`（一个扩展一个 nsh app，入口
+`ui/dist/bundle.js`）；平台 provider 位于 `bin/`，nsh app 源码位于 `ui/`。
 
 默认会跟随 Navop 的配置目录迁移状态：Unix 上使用 `$HOME/.config`，Windows 上使用
 `%APPDATA%`。在该配置根目录中，通常安装到

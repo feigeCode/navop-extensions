@@ -7,10 +7,10 @@
 // 「查看原始 JSON」开关：分组便于扫读，原始 JSON 用于核对 provider 没展开的
 // 字段；原始视图只渲染前 RAW_MAX_LINES 行。
 
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { arr, errorMessage, humanBytes, joinCommand, shortTime, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, panel, r, t } from "../../lib/theme";
 
@@ -343,7 +343,7 @@ export default function ContainerInspect() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -363,7 +363,7 @@ export default function ContainerInspect() {
     busy.set(true);
     if (data() === null) loading.set(true);
     try {
-      const result = await call<unknown>("docker/container/inspect", { id });
+      const result = await invoke<unknown>("docker/container/inspect", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       data.set(result && typeof result === "object" && !Array.isArray(result) ? (result as Doc) : null);
       updatedAt.set(clock());
@@ -850,5 +850,3 @@ function clock(): string {
   const two = (value: number) => String(value).padStart(2, "0");
   return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
 }
-
-mount(ContainerInspect);

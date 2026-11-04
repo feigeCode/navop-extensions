@@ -51,6 +51,18 @@
     ]
   },
   "contributes": {
+    "shellApp": {
+      "title": "Elasticsearch 9",
+      "description": "索引的字段定义表：类型、index/doc_values、分析器与嵌套路径，可搜索与只看可聚合字段。",
+      "icon": "icons/elasticsearch-color.svg",
+      "entry": "ui/dist/bundle.js",
+      "category": "database",
+      "keywords": ["elasticsearch", "mapping", "index"],
+      "backends": {
+        "resource": "main"
+      },
+      "modules": ["resource"]
+    },
     "connections": [
       {
         "id": "elasticsearch9",
@@ -153,24 +165,7 @@
             }
           ]
         },
-        "shellViewId": "mapping"
-      }
-    ],
-    "shellViews": [
-      {
-        "id": "mapping",
-        "title": "Elasticsearch Mapping",
-        "description": "索引的字段定义表：类型、index/doc_values、分析器与嵌套路径，可搜索与只看可聚合字段。",
-        "entry": "ui/pages/mapping/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "resource": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
+        "route": "mapping"
       }
     ]
   }

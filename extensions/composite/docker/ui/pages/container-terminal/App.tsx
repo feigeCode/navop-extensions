@@ -8,10 +8,10 @@
 // 容器」这层了（见迁移方案 §15），容器身份是页面状态。
 //
 // 数据：`docker/container/list` {} → { containers: [{id,name,image,state,...}] }
-import { mount, nativeComponent, signal, Text, View } from "nsh";
+import { nativeComponent, signal, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { errorMessage } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Empty, List, LoadError, Loading, SearchField, SplitPane } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
 
@@ -62,7 +62,7 @@ function toContainers(payload: unknown): Container[] {
   return list.filter((item) => typeof item?.id === "string" && item.id.length > 0);
 }
 
-function App(): JSX.Element {
+export default function App(): JSX.Element {
   const loading = signal(true);
   const error = signal("");
   const containers = signal<Container[]>([]);
@@ -77,7 +77,7 @@ function App(): JSX.Element {
     loading.set(true);
     error.set("");
     try {
-      const payload = await call("docker/container/list", {});
+      const payload = await invoke("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       containers.set(toContainers(payload));
       const current = selected();
       if (current !== null) {
@@ -256,5 +256,3 @@ function App(): JSX.Element {
     <View style={{ flex: 1, minHeight: 0, padding: 12, backgroundColor: c.bg() }}>{body()}</View>
   );
 }
-
-mount(App);

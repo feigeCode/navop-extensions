@@ -26,7 +26,8 @@
       "additionalProperties": false,
       "properties": {
         "onetcli": { "type": "string" },
-        "gpui_shell": { "type": "string" }
+        "gpui_shell": { "type": "string" },
+        "nsh": { "type": "string" }
       }
     },
     "api": {
@@ -129,10 +130,7 @@
           "type": "array",
           "items": { "$ref": "#/definitions/resourceConnection" }
         },
-        "shellViews": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/shellView" }
-        },
+        "shellApp": { "$ref": "#/definitions/shellApp" },
         "commands": {
           "type": "array",
           "items": {
@@ -237,18 +235,15 @@
         }
       }
     },
-    "shellView": {
+    "shellApp": {
       "type": "object",
-      "required": ["id", "title", "entry"],
+      "required": ["entry"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "icon": { "type": "string" },
-        "entry": { "type": "string" },
-        "surface": { "enum": ["tab", "toolbox"] },
-        "singleton": { "type": "boolean" },
+        "entry": { "type": "string", "minLength": 1 },
         "category": { "type": "string" },
         "keywords": { "type": "array", "items": { "type": "string" } },
         "backends": {
@@ -258,7 +253,7 @@
         "modules": {
           "type": "array",
           "items": {
-            "enum": ["context", "resource", "job", "event", "blob", "log", "runtime", "dev", "workbench"]
+            "enum": ["resource", "job", "event", "blob", "log", "runtime", "dev"]
           }
         }
       }
@@ -274,7 +269,7 @@
         "icon": { "type": "string" },
         "runtimeId": { "type": "string" },
         "resourceType": { "type": "string" },
-        "shellViewId": { "type": "string" },
+        "route": { "type": "string", "minLength": 1 },
         "form": {
           "type": "object",
           "additionalProperties": false,

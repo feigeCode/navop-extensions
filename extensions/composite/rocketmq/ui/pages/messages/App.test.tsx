@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const NOW = new Date("2026-11-03T10:00:00Z").getTime();
 
@@ -70,10 +70,10 @@ function handlers() {
 }
 
 function openPage() {
-  return open("./App.tsx", {
+  return open("../../App.tsx", {
     width: 1280,
     height: 900,
-    host: { handlers: handlers() },
+    host: { params: { ...TEST_PARAMS, route: "messages", backends: ["resource"] }, handlers: handlers() },
     clock: { time: NOW },
   });
 }

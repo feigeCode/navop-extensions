@@ -134,55 +134,20 @@
           ]
         },
         "icon": "icons/rocketmq-color.svg",
-        "shellViewId": "messages"
+        "route": "messages"
       }
     ],
-    "shellViews": [
-      {
-        "id": "overview",
-        "title": "RocketMQ 集群概览",
-        "description": "集群与 Broker 拓扑、TPS、消息量与连接数指标卡片，可自动刷新。",
-        "entry": "ui/pages/overview/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "resource": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
+    "shellApp": {
+      "title": "RocketMQ",
+      "description": "集群概览、消息查询、消息发送。",
+      "icon": "icons/rocketmq-color.svg",
+      "entry": "ui/dist/bundle.js",
+      "backends": {
+        "resource": "main"
       },
-      {
-        "id": "messages",
-        "title": "RocketMQ 消息查询",
-        "description": "按 Topic + 时间窗口 / Key / Message ID 查询消息，结果表格与消息详情。",
-        "entry": "ui/pages/messages/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "resource": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "send-message",
-        "title": "RocketMQ 消息发送",
-        "description": "选择 Topic 发送带 Tag/Key 的消息，支持 JSON/文本消息体与发送历史。",
-        "entry": "ui/pages/send-message/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "resource": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      }
-    ]
+      "modules": [
+        "resource"
+      ]
+    }
   }
 }

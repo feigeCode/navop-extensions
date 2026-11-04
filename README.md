@@ -290,8 +290,9 @@ bash scripts/install-local-composite-extensions.sh elasticsearch
 ```
 
 Native composites publish one archive per target. Their root `extension.json`
-may combine `runtime.ipc` with `contributes.shellViews`; packages contain the
-platform provider under `bin/` and gpui-shell sources under `ui/`.
+may combine `runtime.ipc` with `contributes.shellApp` (one nsh app per
+extension, entry `ui/dist/bundle.js`); packages contain the platform provider
+under `bin/` and the nsh app sources under `ui/`.
 
 By default this follows Navop's config-directory migration state. On Unix it
 uses `$HOME/.config`; on Windows it uses `%APPDATA%`. Within that config root it

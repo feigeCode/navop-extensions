@@ -1,10 +1,17 @@
 import { expect, open, test } from "nsh/test";
 
-const page = { width: 1100, height: 800, host: { handlers: {} } };
+const params = {
+  apiVersion: 2,
+  extension: { id: "com.navop.tools.js-toolbox", title: "JS Toolbox" },
+  route: "crypto",
+  backends: [] as string[],
+  connection: null,
+};
+const page = { width: 1100, height: 800, host: { params, handlers: {} } };
 const PLACEHOLDER = "例如 hello，或粘贴一段 Base64";
 
 test("计算 SHA-256 摘要", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.type(PLACEHOLDER, "hello");
   await app.press("计算摘要");
@@ -13,7 +20,7 @@ test("计算 SHA-256 摘要", async () => {
 });
 
 test("切换算法后摘要跟着变", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.type(PLACEHOLDER, "hello");
   await app.press("md5");
@@ -22,7 +29,7 @@ test("切换算法后摘要跟着变", async () => {
 });
 
 test("Base64 编码", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.type(PLACEHOLDER, "hello");
   await app.press("Base64 编码");
@@ -30,7 +37,7 @@ test("Base64 编码", async () => {
 });
 
 test("Base64 解码非 ASCII 文本", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.type(PLACEHOLDER, "aMOp");
   await app.press("Base64 解码");
@@ -38,7 +45,7 @@ test("Base64 解码非 ASCII 文本", async () => {
 });
 
 test("非法 Base64 立即报错", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.type(PLACEHOLDER, "not base64!!");
   await app.press("Base64 解码");
@@ -46,7 +53,7 @@ test("非法 Base64 立即报错", async () => {
 });
 
 test("生成 UUID 并显示 v4 格式", async () => {
-  const app = await open("./App.tsx", page);
+  const app = await open("../../App.tsx", page);
   await app.waitFor("text:操作");
   await app.press("生成 UUID");
   await app.waitFor("text:随机 UUID（v4）");

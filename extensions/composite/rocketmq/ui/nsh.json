@@ -1,0 +1,9 @@
+{
+  "name": "RocketMQ",
+  "id": "com.navop.middleware.rocketmq",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": true
+  }
+}

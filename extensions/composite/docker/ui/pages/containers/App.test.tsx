@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "containers" };
 
 type Row = {
   id: string;
@@ -173,10 +176,10 @@ function methodCalls(
 
 test("列表渲染：名称、镜像、状态、文档数", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -201,10 +204,10 @@ test("列表渲染：名称、镜像、状态、文档数", async () => {
 
 test("搜索过滤：名称 / 镜像子串", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -226,10 +229,10 @@ test("搜索过滤：名称 / 镜像子串", async () => {
 
 test("状态过滤：运行中 / 已停止 / 全部", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -255,10 +258,10 @@ test("状态过滤：运行中 / 已停止 / 全部", async () => {
 
 test("选中后的详情：状态、网络、挂载、环境变量", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -278,10 +281,10 @@ test("选中后的详情：状态、网络、挂载、环境变量", async () =>
 
 test("启动按钮：调用带容器 id，刷新后状态变化", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -305,10 +308,10 @@ test("启动按钮：调用带容器 id，刷新后状态变化", async () => {
 
 test("删除走页内二次确认", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -336,10 +339,10 @@ test("删除走页内二次确认", async () => {
 test("列表失败：显示错误 + 重试", async () => {
   const w = world();
   w.failList(true);
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:加载失败：connection refused");
@@ -354,10 +357,10 @@ test("列表失败：显示错误 + 重试", async () => {
 test("没有选中容器时显示引导空态", async () => {
   const w = world();
   w.containers.splice(0, w.containers.length);
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:还没有容器");
@@ -368,10 +371,10 @@ test("没有选中容器时显示引导空态", async () => {
 
 test("暂停与恢复：按钮随状态切换", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -392,10 +395,10 @@ test("暂停与恢复：按钮随状态切换", async () => {
 
 test("停止：详情按钮回落为启动", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -410,10 +413,10 @@ test("停止：详情按钮回落为启动", async () => {
 
 test("刷新按钮重新拉列表", async () => {
   const w = world();
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: w.handlers },
+    host: { params: TEST_PARAMS, handlers: w.handlers },
     clock: {},
   });
   await app.waitFor("text:web");
@@ -424,20 +427,19 @@ test("刷新按钮重新拉列表", async () => {
   app.dispose();
 });
 
-test("没有连接时显示可读错误", async () => {
-  const handlers = {
-    "navop.context.current": () => {
-      throw new Error("当前窗口没有扩展连接");
-    },
-    "navop.resource.invoke": () => ({}),
-  };
-  const app = await open("./App.tsx", {
+test("没有连接时显示外壳空态，不渲染页面", async () => {
+  // v2 下连接只在 params 里：把 connection 置空就是「没连上」，外壳应拦住页面。
+  const app = await open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers },
+    host: {
+      params: { ...TEST_PARAMS, connection: null },
+      handlers: { "navop.resource.invoke": () => ({}) },
+    },
     clock: {},
   });
-  await app.waitFor("text:加载失败：当前窗口没有扩展连接");
-  expect(app.shows("text:重试")).toBe(true);
+  await app.waitFor("text:请先打开一个 Docker 连接");
+  expect(app.shows("text:重试")).toBe(false);
+  expect(app.shows("text:刷新")).toBe(false);
   app.dispose();
 });

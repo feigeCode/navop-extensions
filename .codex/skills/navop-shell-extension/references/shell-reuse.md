@@ -52,7 +52,7 @@ JS 视图 -> navop.* -> 宿主服务 / 既有 headless provider
 | 新宿主原生组件尚无 JS 绑定 | 先核验 adapter；确需添加时改 adapter/HostModule 边界，不假设 Rust API 自动出现在 JS |
 
 `gpui-component-shell` 由 **Navop Rust 宿主开发者**使用；扩展作者消费它注册的
-`gpui-component` JS 模块。`shellViews[].modules` 里写 `context/workbench/log` 等
+`gpui-component` JS 模块。`shellApp.modules` 里写 `resource/job/event/blob/runtime/log/dev` 等
 Navop host module 标识，**不写** `gpui-base` 或 `gpui-component-shell`。
 UI-only 扩展不需要虚构 backend/provider，参照 dev-tools 的 manifest。
 
@@ -60,8 +60,8 @@ UI-only 扩展不需要虚构 backend/provider，参照 dev-tools 的 manifest�
 
 | 入口 | 数据访问/生命周期 |
 | --- | --- |
-| 工作台 `pages[].renderer = {kind:"shell", viewId}` | 借用已存在的 resource session，必需 `context` + `workbench`；用命名 operation 的 `dispatch` |
-| 连接 `connections[].shellViewId` | 宿主打开连接，按声明授予 resource 等模块；从 `navop.context` 取当前连接的 opaque handle |
+| 连接 `connections[].route` | 宿主打开连接并把 `route` 放进 `host.params`，按 `shellApp.modules` 授予能力；`host.params.connection.resourceHandle` 就是当前连接的资源句柄 |
+| 独立工具（工具箱卡片） | 无连接打开，`host.params.connection` 为 `null`，`route` 为 `null`，由 app 回落默认路由 |
 | 独立工具（如 dev-tools） | 使用该视图获准模块；没有借用工作台会话，不能仅加 `workbench` 就调用 dispatch |
 
 当前 `ensure_embeddable` 禁止工作台页请求原始
@@ -76,7 +76,8 @@ catalog 的工具箱筛选；dev-tools 的独立工具也是 `surface:"tab"`。
 ## 4. 安全与宿主边界
 
 - `extension.json` 是 Navop 安装、权限、贡献和后端关系的真相来源。
-  `shellViews` 必需字段/允许值以宿主 serde schema 为准，不能抄历史设计稿字段。
+  `shellApp` / `connections[].route` 的必需字段与允许值以宿主 serde schema 与
+  `docs/extension-resource-plugins/plugin-app.md` 为准，不能抄历史设计稿字段。
 - 声明模块与权限不是同一件事。`policy.rs` 按 modules 注入 API，另把可支持的
   permissions 映射为 capabilities；不能抄独立 CLI 示例的全开授权。
 - entry 要在扩展根目录内，通过 canonical path 校验；不依赖路径逃逸加载项目文件。
@@ -89,13 +90,13 @@ catalog 的工具箱筛选；dev-tools 的独立工具也是 `surface:"tab"`。
 
 ## 5. 示例按用途取材，不整份照抄
 
-1. `examples/shell-view-example/{extension.json,ui/tool.js,jsconfig.json}`：
-   小型连接级视图，base 布局 + `navop.context/resource/log`，展示 opaque handle。
-   这是连接 API 示例，不是工作台 dispatch 模板。
-2. `extensions/composite/mqtt/ui/`：工作台页、base 输入状态 + styled 控件，
-   配套 manifest 的命名 operation。
-3. `extensions/composite/dev-tools/extension.json` 和 `ui/workbench.js`：
-   无原生二进制的 UI 扩展、styled catalog 与 `navop.dev`。只取相关 API 模式；
+1. `examples/shell-view-example/{extension.json, ui/App.tsx, ui/pages/tool/App.tsx}`：
+   单路由 nsh app 示例，读 `host.params.route`，直接调 `navop.resource` / `navop.log`，
+   展示 opaque handle。这是连接 API 示例，不是工作台 dispatch 模板。
+2. `extensions/composite/mqtt/ui/`：一个 app 内多路由 + 208px 侧栏、base 输入状态 +
+   styled 控件，配套 manifest 的命名 operation。
+3. `extensions/composite/dev-tools/{extension.json, ui/}`：
+   无原生二进制的 UI 扩展、app 内 `workbench` 路由与 `navop.dev`。只取相关 API 模式；
    既有代码不自动证明所有 lifecycle 写法都符合通用 skill。
 4. 兄弟仓库 `examples/js_story/app.js`：base 输入；`js_todolist`：状态与异步。
    不复制它们的独立 app manifest、窗口/overlay 假设、授权范围。

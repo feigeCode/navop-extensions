@@ -8,10 +8,10 @@
 // 网络收发与块 IO 目前不在返回结构里（summarize_stats 没取 networks /
 // blkio_stats），页面如实留出位置并标注「宿主未提供」，不伪造数据。
 // 自动刷新只对选中的容器生效，切走/取消选中后不再采样。
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { arr, errorMessage, humanBytes, percent, ratio, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Card, Empty, LoadError, Loading, Meter, Notice, Row, SearchField, Stat } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
@@ -165,7 +165,7 @@ export default function ContainerStats() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -186,7 +186,7 @@ export default function ContainerStats() {
     busy.set(true);
     if (sample() === null) loading.set(true);
     try {
-      const result = await call<Sample | null>("docker/container/stats", { id });
+      const result = await invoke<Sample | null>("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       sample.set(result ?? null);
       sampledAt.set(clockText(new Date()));
@@ -459,5 +459,3 @@ export default function ContainerStats() {
     </View>
   );
 }
-
-mount(ContainerStats);

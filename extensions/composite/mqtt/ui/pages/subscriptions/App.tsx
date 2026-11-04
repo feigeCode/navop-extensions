@@ -6,9 +6,10 @@
 //  2. provider 没有“每个订阅收到多少条”的累计计数，所以“消息数”用本地环形缓冲里
 //     该过滤器命中的条数表示，并明确标注为缓冲内条数；
 //  3. “活跃”用缓冲里最近 5 分钟内是否有命中消息判断，同样只是本地观测。
-import { host, mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { arr, errorMessage, str } from "../../lib/format";
 import {
   Badge,
@@ -56,20 +57,6 @@ const OPERATIONS: Record<string, string> = {
   unsubscribe: "middleware/topic/delete",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -79,10 +66,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -594,5 +580,3 @@ export default function Subscriptions() {
     </View>
   );
 }
-
-mount(Subscriptions);

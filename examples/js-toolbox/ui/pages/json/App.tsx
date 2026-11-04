@@ -2,7 +2,7 @@
 //
 // 解析全部在页面内完成。解析失败时尽量把错误位置换算成「第几行第几列」，
 // 让用户能直接定位到出问题的字符。
-import { Clipboard, mount, signal, Text, View } from "nsh";
+import { Clipboard, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
 import { errorMessage } from "../../lib/format";
@@ -250,4 +250,3 @@ export default function Json() {
   );
 }
 
-mount(Json);

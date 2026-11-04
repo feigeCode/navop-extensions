@@ -8,10 +8,10 @@
 // 列名随 ps 参数变化，所以表头按返回的 titles 动态生成，数字列等宽右对齐。
 // `ps -ef` 不含单进程 CPU / 内存，副数据源 `docker/container/stats` 只用来在
 // 工具条显示容器整体占用；它失败时静默降级，不影响进程表。
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX, TextStyle } from "nsh";
 import { arr, errorMessage, humanBytes, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
@@ -130,7 +130,7 @@ export default function Processes() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -189,7 +189,7 @@ export default function Processes() {
     busy.set(true);
     if (rows().length === 0) loading.set(true);
     try {
-      const result = await call<unknown>("docker/container/top", { id });
+      const result = await invoke<unknown>("docker/container/top", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       const list = Array.isArray(result) ? (result as ProcessRow[]) : (arr(result, "processes") as ProcessRow[]);
       const names = Array.isArray(result) ? [] : arr(result, "titles").map(String);
@@ -212,7 +212,7 @@ export default function Processes() {
   /** 顺带取一次容器整体占用，失败不影响进程表。 */
   async function loadStats(id: string, mine: number) {
     try {
-      const result = await call<Record<string, unknown> | null>("docker/container/stats", { id });
+      const result = await invoke<Record<string, unknown> | null>("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       stats.set(result ?? null);
     } catch {
@@ -534,5 +534,3 @@ export default function Processes() {
     </View>
   );
 }
-
-mount(Processes);

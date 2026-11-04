@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "processes" };
 
 /** docker/container/list 的返回形状（provider 的 all(true) 列表）。 */
 function containerList() {
@@ -67,8 +70,11 @@ function invokeCalls(app: Awaited<ReturnType<typeof open>>, method: string) {
 }
 
 test("进页面先列容器，未选中时给引导空态且不请求进程", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => topResult(String(params.id)),
@@ -86,8 +92,11 @@ test("进页面先列容器，未选中时给引导空态且不请求进程", as
 });
 
 test("选中容器后按 id 读进程，并显示容器整体占用", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => topResult(String(params.id)),
@@ -109,8 +118,11 @@ test("选中容器后按 id 读进程，并显示容器整体占用", async () =
 });
 
 test("切换容器会重新请求，且只请求新容器", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => topResult(String(params.id)),
@@ -132,8 +144,11 @@ test("切换容器会重新请求，且只请求新容器", async () => {
 });
 
 test("按名称过滤容器列表", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => topResult(String(params.id)),
@@ -150,8 +165,11 @@ test("按名称过滤容器列表", async () => {
 });
 
 test("进程为空时说明原因", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => ({ id: String(params.id), titles: [], processes: [] }),
@@ -166,8 +184,11 @@ test("进程为空时说明原因", async () => {
 
 test("进程读取失败显示错误并可重试", async () => {
   let fail = true;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/top": (params) => {

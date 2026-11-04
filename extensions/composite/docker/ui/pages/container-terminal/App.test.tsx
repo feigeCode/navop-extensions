@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "container-terminal" };
 
 const nginx = {
   id: "aaa111",
@@ -26,7 +29,7 @@ function handlers(containers: unknown[] = [nginx, worker]) {
 }
 
 test("列表渲染容器与状态", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:web");
   expect(app.texts()).toContain("worker");
   expect(app.texts()).toContain("运行中");
@@ -34,7 +37,7 @@ test("列表渲染容器与状态", async () => {
 });
 
 test("选中容器后出现终端区域", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:web");
   await app.press("text:web");
   await app.waitFor("text:重新连接");
@@ -42,7 +45,7 @@ test("选中容器后出现终端区域", async () => {
 });
 
 test("未运行的容器给出提示而不是空终端", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:worker");
   await app.press("text:worker");
   await app.waitFor("text:容器未运行");
@@ -50,20 +53,21 @@ test("未运行的容器给出提示而不是空终端", async () => {
 });
 
 test("空列表提示", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
-    host: { handlers: handlers([]) },
+    host: { params: TEST_PARAMS, handlers: handlers([]) },
   });
   await app.waitFor("text:没有匹配的容器");
   expect(app.texts()).toContain("共 0 个容器");
 });
 
 test("拉取失败显示重试", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": () => {
           throw new Error("daemon 未运行");

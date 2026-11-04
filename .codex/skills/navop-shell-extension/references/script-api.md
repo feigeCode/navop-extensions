@@ -183,8 +183,8 @@ render(_cx) { return div().child(t("connect")); }   // ← 必须在 render 里�
 
 - 宿主**没有** `t(key)` 给扩展用：扩展的文案不在宿主自己的 `locales/` 里，宿主替扩展解析会把两边的键空间搅在一起（宿主的 `common.connect` 与扩展的同名键撞上时谁都说不清谁赢）。分工是「宿主给事实、扩展带词条」——与驱动扩展的 `locales/*.yml` 是同一套思路。
 - ⚠️ **切语言时宿主重建的是页面的 `render()`，`init()` 不会再跑一遍**（`ScriptView::refresh` → `rebuild` → 已有实例的 `render`）。所以**别在 `init` 里把词条表选好存起来**：那样切语言后页面仍显示旧语言，而且不报任何错。要么每次 `render` 读 `locale()`，要么在 `render` 里比对 `revision()` 再重选表。
-- `shellViews[].title` / 工具箱卡片文案写在 manifest 里，是**单语言**的：页面内文案能跟随语言，标题不行（除非按语言发不同扩展）。
-- manifest 里要声明 `modules: ["i18n"]`；它不碰资源，**纯界面页可以只声明这一个**（不需要 `backends`，嵌入式工作台页面也可用）。`navop.theme` 同理。
+- `shellApp.title` / 工具箱卡片文案写在 manifest 里，是**单语言**的：app 内文案能跟随语言，标题不行（除非按语言发不同扩展）。
+- ABI v2 里 `i18n` / `theme` 模块已删除：语言与主题走 nsh 原生能力，manifest 不用声明。
 
 ## 7. 实时数据：轮询（嵌入式页面唯一选择）
 

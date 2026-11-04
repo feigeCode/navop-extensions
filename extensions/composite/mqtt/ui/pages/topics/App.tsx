@@ -12,8 +12,9 @@
 //
 // nsh 的组件体只跑一次，只有 JSX 位置的绑定会重算：三态用 `<If>` 切换，
 // 派生值写成访问器，列表的空态也用 `<If>` 包住（`List` 自己的空态早退是冻结的）。
-import { cleanup, host, mount, signal, Text, View } from "nsh";
+import { cleanup, signal, Text, View } from "nsh";
 import type { JSX, ViewStyle } from "nsh";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { arr, errorMessage, shortTime, str } from "../../lib/format";
 import {
   Badge,
@@ -63,20 +64,6 @@ const OPERATIONS: Record<string, string> = {
   unsubscribe: "middleware/topic/delete",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -86,10 +73,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -603,5 +589,3 @@ export default function Topics() {
     </View>
   );
 }
-
-mount(Topics);

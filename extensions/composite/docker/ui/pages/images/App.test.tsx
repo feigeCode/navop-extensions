@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "images" };
 
 const alpine = {
   name: "alpine:3.20",
@@ -61,7 +64,7 @@ function handlers(byMethod: Record<string, (params: Record<string, unknown>) => 
 }
 
 test("列表与详情", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:alpine:3.20");
   expect(app.texts()).toContain("镜像");
   expect(app.texts()).toContain("2 个本地");
@@ -74,10 +77,11 @@ test("列表与详情", async () => {
 
 test("删除走二次确认", async () => {
   let removed: unknown = null;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: handlers({
         "docker/image/remove": (params) => {
           removed = params.name;
@@ -97,10 +101,11 @@ test("删除走二次确认", async () => {
 test("清理悬空镜像", async () => {
   let pruned = false;
   let pruneParams: Record<string, unknown> | null = null;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: handlers({
         "docker/image/prune": (params) => {
           pruned = true;
@@ -121,10 +126,11 @@ test("清理悬空镜像", async () => {
 
 test("拉取镜像按 repo:tag 拆分参数", async () => {
   const pulls: unknown[] = [];
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: handlers({
         "docker/image/pull": (params) => {
           pulls.push(params);
@@ -142,7 +148,7 @@ test("拉取镜像按 repo:tag 拆分参数", async () => {
 });
 
 test("搜索过滤", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:alpine:3.20");
   await app.type("按名称 / ID / 标签过滤", "deadbeef");
   await app.wait(200);

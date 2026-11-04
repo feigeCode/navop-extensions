@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 type Entry = {
   name: string;
@@ -58,8 +58,8 @@ test("subscriptions 列表、新增与取消", async () => {
     },
   });
 
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "subscriptions", backends: ["resource"] }, handlers },
     clock: {},
     width: 1280,
     height: 800,

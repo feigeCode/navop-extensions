@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "log-viewer" };
 
 /** docker/container/list 的返回形状（provider 的 all(true) 列表）。 */
 function containerList() {
@@ -47,8 +50,11 @@ function invokeCalls(app: Awaited<ReturnType<typeof open>>, method: string) {
 }
 
 test("进页面先列容器，未选中时给引导空态且不请求日志", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/logs": (params) => logsResult(String(params.id)),
@@ -62,8 +68,11 @@ test("进页面先列容器，未选中时给引导空态且不请求日志", as
 });
 
 test("选中容器后按 id 读日志，tail 传字符串", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/logs": (params) => logsResult(String(params.id)),
@@ -82,8 +91,11 @@ test("选中容器后按 id 读日志，tail 传字符串", async () => {
 });
 
 test("切换行数档位会重新请求，并带上新的 tail", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/logs": (params) => logsResult(String(params.id)),
@@ -101,8 +113,11 @@ test("切换行数档位会重新请求，并带上新的 tail", async () => {
 });
 
 test("没有日志时说明可能原因", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/logs": (params) => ({ id: String(params.id), logs: "" }),
@@ -116,8 +131,11 @@ test("没有日志时说明可能原因", async () => {
 
 test("日志读取失败显示错误并可重试", async () => {
   let fail = true;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/logs": (params) => {

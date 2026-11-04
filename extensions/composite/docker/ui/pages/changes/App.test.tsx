@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "changes" };
 
 /** docker/container/list 的返回形状（provider 的 all(true) 列表）。 */
 function containerList() {
@@ -51,8 +54,11 @@ function invokeCalls(app: Awaited<ReturnType<typeof open>>, method: string) {
 }
 
 test("进页面先列容器，未选中时给引导空态且不请求变更", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/diff": diffResult,
@@ -68,8 +74,11 @@ test("进页面先列容器，未选中时给引导空态且不请求变更", as
 });
 
 test("选中容器后按 id 读变更，并显示三类计数", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/diff": diffResult,
@@ -92,8 +101,11 @@ test("选中容器后按 id 读变更，并显示三类计数", async () => {
 });
 
 test("点击变更行后在底部展示完整路径与类型", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/diff": diffResult,
@@ -114,8 +126,11 @@ test("点击变更行后在底部展示完整路径与类型", async () => {
 });
 
 test("没有变更时说明可写层为空", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/diff": () => ({ id: "c-web", changes: [] }),
@@ -129,8 +144,11 @@ test("没有变更时说明可写层为空", async () => {
 
 test("变更读取失败显示错误并可重试", async () => {
   let fail = true;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/diff": () => {

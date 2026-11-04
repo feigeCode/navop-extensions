@@ -159,192 +159,28 @@
             }
           ]
         },
-        "shellViewId": "containers"
+        "route": "containers"
       }
     ],
-    "shellViews": [
-      {
-        "id": "containers",
-        "title": "容器",
-        "description": "容器列表与操作：启停、重启、暂停、删除，以及进入日志/进程/统计等单点视图。",
-        "icon": "icons/docker-color.svg",
-        "entry": "ui/pages/containers/dist/bundle.js",
-        "surface": "tab",
-        "singleton": true,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
+    "shellApp": {
+      "title": "Docker",
+      "description": "Docker 容器管理：容器、镜像、卷、网络，以及日志、进程、挂载、统计与终端等单点视图。",
+      "icon": "icons/docker-color.svg",
+      "entry": "ui/dist/bundle.js",
+      "category": "container",
+      "keywords": [
+        "docker",
+        "container",
+        "image",
+        "volume",
+        "network"
+      ],
+      "backends": {
+        "docker": "main"
       },
-      {
-        "id": "log-viewer",
-        "title": "Docker Log Viewer",
-        "description": "Container log reader with tail control, embedded in the native workbench.",
-        "entry": "ui/pages/log-viewer/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "overview",
-        "title": "Docker Engine Overview",
-        "description": "Engine usage dashboard: containers, images, disk and runtime resources.",
-        "icon": "icons/docker-color.svg",
-        "entry": "ui/pages/overview/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "processes",
-        "title": "Container Processes",
-        "description": "Process table of a running container.",
-        "entry": "ui/pages/processes/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "changes",
-        "title": "Container Filesystem Changes",
-        "description": "Filesystem change list (A/C/D) of a container.",
-        "entry": "ui/pages/changes/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "container-inspect",
-        "title": "Docker Container Inspect",
-        "description": "Distilled container inspect document: overview, state, resources, network, mounts, env and labels.",
-        "entry": "ui/pages/container-inspect/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "container-mounts",
-        "title": "Docker Container Mounts",
-        "description": "Mount table of a container: type, source, destination and access mode.",
-        "entry": "ui/pages/container-mounts/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "container-stats",
-        "title": "Docker Container Stats",
-        "description": "Live CPU and memory gauges for a container, refreshed on a timer.",
-        "entry": "ui/pages/container-stats/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "images",
-        "title": "Docker Images",
-        "description": "Image list with filter, inline tag/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/pages/images/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "volumes",
-        "title": "Docker Volumes",
-        "description": "Volume list with filter, inline create/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/pages/volumes/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "networks",
-        "title": "Docker Networks",
-        "description": "Network list with filter, inline create/remove actions, prune and a distilled detail pane.",
-        "entry": "ui/pages/networks/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      },
-      {
-        "id": "container-terminal",
-        "title": "Container Terminal",
-        "description": "Interactive shell inside a running container.",
-        "entry": "ui/pages/container-terminal/dist/bundle.js",
-        "surface": "tab",
-        "singleton": false,
-        "backends": {
-          "docker": "main"
-        },
-        "modules": [
-          "context",
-          "resource"
-        ]
-      }
-    ]
+      "modules": [
+        "resource"
+      ]
+    }
   }
 }

@@ -1,8 +1,9 @@
-// 数据全走 `navop.resource.invoke`：句柄从 `navop.context.current` 拿，
+// 数据全走 `navop.resource.invoke`：句柄由宿主写在 `host.params.connection` 里，
 // 页面自己决定调哪个 provider 方法。
-import { computed, host, mount, signal, Text, View } from "nsh";
+import { computed, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { arr, errorMessage, humanBytes, shortTime, str } from "../../lib/format";
 import {
   Badge,
@@ -87,20 +88,6 @@ const OPERATIONS: Record<string, string> = {
   volumeRemoveByName: "docker/volume/remove",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -110,10 +97,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -573,5 +559,3 @@ export default function Networks() {
     </View>
   );
 }
-
-mount(Networks);

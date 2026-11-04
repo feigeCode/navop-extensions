@@ -7,10 +7,10 @@
 // provider 返回 `{ id, changes: [{ Path, Kind }] }`。bollard 的 ChangeType 经
 // serde 序列化成数字：0 = Modified / 1 = Added / 2 = Deleted；旧 gpui-shell 页
 // 拿到的则是 `kind: "A" | "C" | "D"`。这里两种形状都兼容。
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { arr, errorMessage, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
@@ -150,7 +150,7 @@ export default function Changes() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -170,7 +170,7 @@ export default function Changes() {
     busy.set(true);
     if (changes().length === 0) loading.set(true);
     try {
-      const result = await call<unknown>("docker/container/diff", { id });
+      const result = await invoke<unknown>("docker/container/diff", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       const list = Array.isArray(result) ? (result as Change[]) : (arr(result, "changes") as Change[]);
       changes.set(list);
@@ -505,5 +505,3 @@ export default function Changes() {
     </View>
   );
 }
-
-mount(Changes);

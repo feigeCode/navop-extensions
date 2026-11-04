@@ -1,7 +1,7 @@
 // MQTT 概览页的行为测试：宿主只提供两个 provider 方法
 // （`middleware/metrics` 与 `middleware/group/clients`），页面自己算速率。
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const state = { received: 1333, sent: 2008, fail: false };
 
@@ -43,8 +43,8 @@ test("概览：状态条、指标、速率快照与自动刷新", async () => {
   state.sent = 2008;
   state.fail = false;
 
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "overview", backends: ["resource"] }, handlers },
     clock: {},
     width: 1280,
     height: 900,
@@ -89,8 +89,8 @@ test("概览：状态条、指标、速率快照与自动刷新", async () => {
 
 test("概览：首载失败展示错误并可重试", async () => {
   state.fail = true;
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "overview", backends: ["resource"] }, handlers },
     clock: {},
     width: 1280,
     height: 900,

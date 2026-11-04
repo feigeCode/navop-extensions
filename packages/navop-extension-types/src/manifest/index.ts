@@ -3,7 +3,7 @@
  *
  * 字段与 `navop/crates/extension-runtime/src/extension/manifest/` 的 Rust
  * 反序列化结构一一对应；Rust 侧未标 `deny_unknown_fields` 的 section 宽松，
- * 标了 `deny_unknown_fields` 的（shellViews、connections）严格。
+ * 标了 `deny_unknown_fields` 的（shellApp、connections）严格。
  */
 
 /** manifest 顶层。 */
@@ -37,6 +37,8 @@ export interface Engines {
   onetcli: string;
   /** gpui-shell 兼容版本，如 `0.2.0`。 */
   gpui_shell?: string;
+  /** nsh 运行时版本，如 `0.3.0`；声明了 shellApp 的扩展必须有。 */
+  nsh?: string;
 }
 
 export interface ApiVersions {
@@ -115,7 +117,8 @@ export interface ContributesManifest {
   documentRenderers?: DocumentRendererContrib[];
   documentExporters?: DocumentExporterContrib[];
   remoteFileEditors?: RemoteFileEditorContrib[];
-  shellViews?: ShellViewContrib[];
+  /** 一个扩展最多一个 nsh app；有 `engines.nsh` 就必须有。 */
+  shellApp?: ShellAppContrib;
   views?: unknown[];
   tasks?: unknown[];
   data_types?: unknown[];
@@ -128,40 +131,36 @@ export interface ContributesManifest {
   icons?: unknown[];
 }
 
-// -- shell 视图（deny_unknown_fields：多余字段会被 parser 拒绝） --
+// -- nsh app（deny_unknown_fields：多余字段会被 parser 拒绝） --
 
-/** `tab`：普通 tab 视图；`toolbox`：工具箱页聚合的小工具卡片。 */
-export type ShellSurface = 'tab' | 'toolbox';
+/** 声明注入的 navop.* host 模块；`shell:exec` 权限仍是硬要求。 */
 export type ShellHostModule =
-  | 'context'
   | 'resource'
   | 'job'
   | 'event'
   | 'blob'
   | 'log'
   | 'runtime'
-  | 'dev'
-  | 'workbench';
+  | 'dev';
 
-export interface ShellViewContrib {
-  id: string;
-  title: string;
+/**
+ * 一个扩展的 nsh app：一份 `ui/dist/bundle.js`、一个版本。
+ * 没有 id/surface/singleton：app 内路由由 app 自己解释，连接入口由
+ * `connections[].route` 指定。
+ */
+export interface ShellAppContrib {
+  /** 缺省用 manifest.name。 */
+  title?: string;
   description?: string;
   icon?: string;
-  /** 入口脚本路径，如 `ui/explorer.js`。 */
+  /** 入口脚本路径，如 `ui/dist/bundle.js`。 */
   entry: string;
-  /** 默认 `tab`。 */
-  surface?: ShellSurface;
-  /** 独立工具页建议 true；连接关联视图必须 false。 */
-  singleton?: boolean;
-  /** alias → runtimeId 映射；toolbox 视图也可声明后端（工具自建资源）。 */
+  category?: string;
+  keywords?: string[];
+  /** alias → runtimeId 映射，引用 `runtime.ipc[].id`。 */
   backends?: Record<string, string>;
   /** 声明注入的 navop.* host 模块。 */
   modules?: ShellHostModule[];
-  /** toolbox 专用：卡片分类（如 `text`、`network`、`system`）。 */
-  category?: string;
-  /** toolbox 专用：搜索关键词，补充 title/description 匹配。 */
-  keywords?: string[];
 }
 
 // -- 连接（deny_unknown_fields） --
@@ -175,8 +174,8 @@ export interface ResourceConnectionContrib {
   runtimeId: string;
   /** 传给 provider resource/open 的资源类型。 */
   resourceType: string;
-  /** 关联 shellView id；无 UI 连接省略。 */
-  shellViewId?: string;
+  /** app 内路由：可选、非空字符串，由 app 自己解释；缺省时宿主给 null。 */
+  route?: string;
   form?: ResourceConnectionForm;
 }
 

@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "networks" };
 
 const bridge = { id: "0d3b9a1c7e2f", name: "bridge", driver: "bridge", scope: "local", internal: false };
 const appNet = { id: "9f8e7d6c5b4a", name: "app-net", driver: "bridge", scope: "local", internal: true };
@@ -43,7 +46,7 @@ function handlers() {
 }
 
 test("列表与详情", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   expect(app.texts()).toContain("网络");
   expect(app.texts()).toContain("内建");
@@ -57,7 +60,7 @@ test("列表与详情", async () => {
 });
 
 test("内建网络不可删除", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   await app.press("text:bridge");
   await app.waitFor("text:内建网络不可删除");
@@ -65,7 +68,7 @@ test("内建网络不可删除", async () => {
 });
 
 test("新建后按短 id 选中", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   await app.press("新建网络");
   await app.type("text:网络名称，如 app-net", "new-net");
@@ -76,7 +79,7 @@ test("新建后按短 id 选中", async () => {
 });
 
 test("删除走二次确认", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   await app.press("text:app-net");
   await app.waitFor("text:子网");
@@ -87,7 +90,7 @@ test("删除走二次确认", async () => {
 });
 
 test("清理未使用", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   await app.press("清理未使用");
   await app.waitFor("text:清理所有未被容器使用的网络？");
@@ -96,7 +99,7 @@ test("清理未使用", async () => {
 });
 
 test("搜索过滤", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-net");
   await app.type("按名称 / ID / 驱动过滤", "zzz");
   await app.waitFor("text:没有匹配的网络");

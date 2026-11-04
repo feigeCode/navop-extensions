@@ -1736,13 +1736,15 @@ test("composite extension contributes icon paths reference packaged files", () =
     const contributes = manifest.contributes ?? {};
     const entries = [
       ...(contributes.connections ?? []),
-      ...(contributes.shellViews ?? []),
-      ...(contributes.resourceWorkbenches ?? []),
+      ...(contributes.shellApp ? [contributes.shellApp] : []),
     ];
     for (const entry of entries) {
       const icon = entry?.icon;
       if (typeof icon !== "string" || !isRelativeAssetPath(icon)) continue;
-      assert.ok(fs.existsSync(path.join(extDir, icon)), `${id} ${entry.id} icon missing ${icon}`);
+      assert.ok(
+        fs.existsSync(path.join(extDir, icon)),
+        `${id} ${entry.id ?? entry.title ?? "shellApp"} icon missing ${icon}`,
+      );
     }
   }
 });
@@ -2282,16 +2284,20 @@ test("package-composite-extension creates a native shell provider package", () =
   assert.equal(manifest.version, "1.2.3");
   assert.equal(manifest.runtime.ipc[0].entry.command, "./bin/elasticsearch-provider");
   assert.equal(manifest.contributes.connections[0].id, "elasticsearch");
-  assert.equal(manifest.contributes.connections[0].shellViewId, "explorer");
+  assert.equal(manifest.contributes.connections[0].route, "explorer");
+  assert.equal(manifest.contributes.connections[0].shellViewId, undefined);
+  assert.equal(manifest.contributes.shellApp.entry, "ui/dist/bundle.js");
   assert.ok(manifest.permissions.includes("spawn:./bin/elasticsearch-provider"));
   assert.equal(
     fs.readFileSync(path.join(workdir, "unpacked/bin/elasticsearch-provider"), "utf8"),
     "fake elasticsearch provider\n",
   );
   assert.match(
-    fs.readFileSync(path.join(workdir, "unpacked/ui/pages/explorer/dist/bundle.js"), "utf8"),
+    fs.readFileSync(path.join(workdir, "unpacked/ui/dist/bundle.js"), "utf8"),
     /ElasticsearchExplorer/,
   );
+  // 旧的一页一个 app 的产物目录不应该再被打进包里。
+  assert.ok(!fs.existsSync(path.join(workdir, "unpacked/ui/pages/explorer/dist")));
   execFileSync(
     "bash",
     [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
@@ -2299,16 +2305,100 @@ test("package-composite-extension creates a native shell provider package", () =
   );
 });
 
-// nsh 页面（原生工作台已删除）的宿主契约由 `universal-plugins::nsh_host::bundle`
-// 在装载时强制：视图模块必须是 `context` + `resource`，页面经
-// `navop.resource.invoke` 派发命名操作，产物是 nsh build 出的 `dist/bundle.js`。
-// 这里做静态复核，并额外守住「页面引用的视图必须存在」——入口被删/改名这类错误
-// 原本只在打开该页时才暴露（历史事故：连接级 JS 控制台被拆除后仍留在清单里）。
-test("nsh pages reference existing views and dispatch via navop.resource", () => {
-  // dev-tools 工作台页走 navop.dev.*/navop.log.*（能力面在 nsh.json 里声明），
-  // 不属于资源页面；其余复合扩展页面一律走 context + resource。
-  const allowedModules = new Set(["context", "resource", "dev", "log"]);
-  const forbiddenImports = ["navop.workbench", "navop.job", "navop.event", "navop.blob"];
+test("verify-composite-package rejects the removed shellViews contract", () => {
+  const workdir = makeTempDir();
+  createNativeCompositeFixture(workdir);
+  const manifestPath = path.join(workdir, "extensions/composite/elasticsearch/extension.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.contributes.shellViews = [{
+    id: "explorer",
+    title: "Elasticsearch",
+    entry: "ui/dist/bundle.js",
+  }];
+  writeJson(manifestPath, manifest);
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-composite-extension.sh"),
+      "elasticsearch",
+      "x86_64-unknown-linux-gnu",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  let failure = null;
+  try {
+    execFileSync(
+      "bash",
+      [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
+      { cwd: workdir, encoding: "utf8", stdio: "pipe" },
+    );
+  } catch (error) {
+    failure = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+  }
+  assert.match(
+    failure ?? "",
+    /contributes\.shellViews was removed/,
+    "旧 shellViews 清单必须在打包校验时被拒，并提示迁移到 shellApp",
+  );
+});
+
+test("verify-composite-package rejects routes on terminal connections", () => {
+  const workdir = makeTempDir();
+  copyScript("package-composite-extension.sh", workdir);
+  copyScript("verify-composite-package.sh", workdir);
+  fs.cpSync(
+    path.join(repoRoot, "extensions/composite/tsh-ssh"),
+    path.join(workdir, "extensions/composite/tsh-ssh"),
+    { recursive: true },
+  );
+  const manifestPath = path.join(workdir, "extensions/composite/tsh-ssh/extension.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.contributes.connections[0].route = "shell";
+  writeJson(manifestPath, manifest);
+
+  const archivePath = execFileSync(
+    "bash",
+    [
+      path.join(workdir, "scripts/package-composite-extension.sh"),
+      "tsh-ssh",
+      "universal",
+      path.join(workdir, "artifacts"),
+      "1.2.3",
+    ],
+    { cwd: workdir, encoding: "utf8" },
+  ).trim();
+
+  let failure = null;
+  try {
+    execFileSync(
+      "bash",
+      [path.join(workdir, "scripts/verify-composite-package.sh"), archivePath],
+      { cwd: workdir, encoding: "utf8", stdio: "pipe" },
+    );
+  } catch (error) {
+    failure = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+  }
+  assert.match(
+    failure ?? "",
+    /terminal connection .* must not declare runtimeId, resourceType or route/,
+    "terminal 连接不允许 route（由宿主直接起进程，没有 app 可路由）",
+  );
+});
+
+// ABI v2：一个扩展 = 一个 nsh app = 一个包。清单用 contributes.shellApp 声明
+// 唯一的 app（entry 固定 ui/dist/bundle.js），页面是 app 里的路由组件，
+// 不再有 per-page 的 shellViews / dist。这里做静态复核：入口存在、只产出一个
+// bundle、modules 都在宿主支持面内、每个页面目录都被构建进 bundle 且不再
+// 携带自己的 nsh.json/tsconfig/dist/.nsh。
+test("nsh apps ship a single bundle and register every ui/pages route", () => {
+  // dev-tools 工作台页走 navop.dev.*（日志是 host.post("navop.log") 的 log 模块），
+  // 不属于资源页面；其余复合扩展页面一律声明 resource。模块是宿主能力的唯一真相来源。
+  const allowedModules = new Set(["resource", "job", "event", "blob", "runtime", "log", "dev"]);
+  const removedModules = ["context", "theme", "i18n", "workbench"];
   const ids = fs
     .readdirSync(path.join(repoRoot, "extensions/composite"))
     .filter((id) => fs.existsSync(path.join(repoRoot, "extensions/composite", id, "extension.json")))
@@ -2319,55 +2409,115 @@ test("nsh pages reference existing views and dispatch via navop.resource", () =>
     const extDir = path.join(repoRoot, "extensions/composite", id);
     const manifest = JSON.parse(fs.readFileSync(path.join(extDir, "extension.json"), "utf8"));
     const contributes = manifest.contributes ?? {};
-
-    for (const view of contributes.shellViews ?? []) {
-      const label = `${id}:${view.id}`;
-      if (view.native === true || typeof view.component === "string") {
-        // nativeComponent 视图（如容器终端）没有 JS 产物，只查组件名非空。
-        assert.ok(
-          typeof view.component === "string" && view.component.length > 0,
-          `${label} native component name must not be empty`,
-        );
-        checked += 1;
-        continue;
-      }
-
-      const modules = view.modules ?? [];
-      const isResourcePage = modules.includes("resource");
-      if (isResourcePage) {
-        assert.ok(modules.includes("context"), `${label} view must declare the context module`);
-      }
-      for (const module of modules) {
-        assert.ok(
-          allowedModules.has(module),
-          `${label} view must not declare the ${module} module (allowed: ${[...allowedModules].join(", ")})`,
-        );
-      }
-
-      const entry = path.join(extDir, view.entry);
-      assert.ok(fs.existsSync(entry), `${label} view entry missing: ${view.entry}`);
-      const source = fs.readFileSync(entry, "utf8");
-      assert.match(source, /from "nsh"/, `${label} must be an nsh page importing from "nsh"`);
-      if (isResourcePage) {
-        assert.match(
-          source,
-          /navop\.resource\.invoke/,
-          `${label} must dispatch via navop.resource.invoke`,
-        );
-      }
-      for (const module of forbiddenImports) {
-        assert.doesNotMatch(
-          source,
-          new RegExp(`from "${module.replace(".", "\\.")}"`),
-          `${label} must not import ${module} (pages only get context + resource)`,
-        );
-      }
-      assert.doesNotMatch(source, /await open\(/, `${label} must not open the resource itself`);
-      assert.doesNotMatch(source, /credentialRefs/, `${label} must not read credential refs`);
-      checked += 1;
+    const app = contributes.shellApp;
+    if (!app) {
+      assert.ok(
+        !manifest.engines?.nsh,
+        `${id} declares engines.nsh but no contributes.shellApp (every nsh extension has exactly one app)`,
+      );
+      continue;
     }
+
+    const label = `${id}:shellApp`;
+    assert.equal(
+      app.entry,
+      "ui/dist/bundle.js",
+      `${label} entry must be the single app bundle (ui/dist/bundle.js)`,
+    );
+    assert.ok(manifest.engines?.nsh, `${label} must declare engines.nsh`);
+    const modules = app.modules ?? [];
+    assert.ok(Array.isArray(modules), `${label} modules must be an array`);
+    for (const module of modules) {
+      assert.ok(
+        allowedModules.has(module),
+        `${label} must not declare the ${module} module (allowed: ${[...allowedModules].join(", ")})`,
+      );
+    }
+    for (const module of removedModules) {
+      assert.ok(
+        !modules.includes(module),
+        `${label} must not declare the removed ${module} module`,
+      );
+    }
+    if (modules.includes("resource")) {
+      assert.ok(
+        Object.keys(app.backends ?? {}).length > 0,
+        `${label} resource module requires at least one backend`,
+      );
+    }
+
+    const entry = path.join(extDir, app.entry);
+    assert.ok(fs.existsSync(entry), `${label} bundle missing: ${app.entry}`);
+    const source = fs.readFileSync(entry, "utf8");
+    assert.match(source, /from "nsh"/, `${label} bundle must import from "nsh"`);
+    if (modules.includes("resource")) {
+      assert.match(source, /navop\.resource\.invoke/, `${label} must dispatch via navop.resource.invoke`);
+    }
+
+    // 一个包只有一个 build 产物：ui/dist 下只有 bundle.js 一个 .js，页面目录
+    // 不再各自产出 bundle。
+    const distFiles = fs.readdirSync(path.join(extDir, "ui/dist"));
+    assert.deepEqual(
+      distFiles.filter((file) => file.endsWith(".js")),
+      ["bundle.js"],
+      `${label} must build exactly one ui/dist/bundle.js`,
+    );
+
+    // 页面目录只有源码（+ 测试），不再有自己的 app 身份与产物。
+    const pagesDir = path.join(extDir, "ui/pages");
+    if (fs.existsSync(pagesDir)) {
+      for (const page of fs.readdirSync(pagesDir).sort()) {
+        const pageDir = path.join(pagesDir, page);
+        if (!fs.statSync(pageDir).isDirectory()) continue;
+        const pageLabel = `${label}/pages/${page}`;
+        assert.ok(fs.existsSync(path.join(pageDir, "App.tsx")), `${pageLabel} missing App.tsx`);
+        for (const stale of ["nsh.json", "tsconfig.json", "dist", ".nsh"]) {
+          assert.ok(
+            !fs.existsSync(path.join(pageDir, stale)),
+            `${pageLabel} must not contain ${stale} (single app bundle lives in ui/dist)`,
+          );
+        }
+        // 路由表把每个页面都 import 进 app，bundle 里应出现 route id。
+        assert.ok(
+          source.includes(page),
+          `${pageLabel} is not registered in the app bundle (route id missing)`,
+        );
+      }
+    }
+
+    for (const module of ["workbench", "job", "event", "blob"]) {
+      if (modules.includes(module)) continue;
+      assert.doesNotMatch(
+        source,
+        new RegExp(`from "navop\\.${module}"`),
+        `${label} must not import navop.${module} without the ${module} module`,
+      );
+    }
+    assert.doesNotMatch(source, /await open\(/, `${label} must not open the resource itself`);
+    assert.doesNotMatch(source, /credentialRefs/, `${label} must not read credential refs`);
+    for (const connection of contributes.connections ?? []) {
+      if (connection.terminal === undefined) {
+        assert.equal(
+          connection.shellViewId,
+          undefined,
+          `${id}:${connection.id} must use route instead of shellViewId`,
+        );
+        if (connection.route !== undefined) {
+          assert.equal(
+            typeof connection.route,
+            "string",
+            `${id}:${connection.id} route must be a string`,
+          );
+          assert.ok(
+            connection.route.trim() !== "",
+            `${id}:${connection.id} route must not be empty`,
+          );
+        }
+      }
+    }
+    checked += 1;
   }
-  assert.ok(checked > 0, "expected at least one nsh page to check");
+  assert.ok(checked > 0, "expected at least one nsh app to check");
 });
 
 // 旧世界:<ext>/tests/**/*.test.mjs 是扩展自己的 node 测试,由这条守卫真正
@@ -2439,10 +2589,10 @@ test("mqtt keeps its live message stream wired to the standard stream method", (
   const page = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "extensions/composite/mqtt", "extension.json"), "utf8"),
   );
-  const view = (page.contributes?.shellViews ?? []).find((view) => view.id === "messages");
-  assert.ok(view, "mqtt must keep its messages view (the live message stream page)");
+  const app = page.contributes?.shellApp;
+  assert.ok(app, "mqtt must declare its shellApp (the live message stream app)");
   const source = fs.readFileSync(
-    path.join(repoRoot, "extensions/composite/mqtt", view.entry),
+    path.join(repoRoot, "extensions/composite/mqtt", app.entry),
     "utf8",
   );
   assert.match(
@@ -5585,39 +5735,37 @@ function createNativeCompositeFixture(workdir, options = {}) {
     id: "com.navop.elasticsearch",
     name: "Elasticsearch",
     version: "0.0.0",
-    engines: { onetcli: ">=0.15.2", gpui_shell: "0.2.0" },
+    engines: { onetcli: ">=0.15.2", nsh: "0.3.0" },
     api: { extension: "1.0", shell: "1.0" },
     permissions: ["shell:exec", "spawn:./bin/elasticsearch-provider"],
     runtime: {
       ipc: [{ id: "main", entry: { command: "./bin/elasticsearch-provider" } }],
     },
     contributes: {
+      shellApp: {
+        title: "Elasticsearch",
+        entry: "ui/dist/bundle.js",
+        backends: { search: "main" },
+        modules: ["resource"],
+      },
       connections: [{
         id: "elasticsearch",
         label: "Elasticsearch",
         runtimeId: "main",
         resourceType: "elasticsearch",
-        shellViewId: "explorer",
+        route: "explorer",
         form: { tabs: [] },
-      }],
-      shellViews: [{
-        id: "explorer",
-        title: "Elasticsearch",
-        entry: "ui/pages/explorer/dist/bundle.js",
-        singleton: false,
-        backends: { search: "main" },
-        modules: ["context", "resource"],
       }],
     },
   });
-  // nsh 页面布局：源码在 ui/pages/<page>/，打包产物取 ui/pages/<page>/dist/bundle.js。
+  // 单个 nsh app：源码在 ui/，产物只有 ui/dist/bundle.js。
   fs.mkdirSync(
-    path.join(workdir, "extensions/composite/elasticsearch/ui/pages/explorer/dist"),
+    path.join(workdir, "extensions/composite/elasticsearch/ui/dist"),
     { recursive: true },
   );
   fs.writeFileSync(
-    path.join(workdir, "extensions/composite/elasticsearch/ui/pages/explorer/dist/bundle.js"),
-    "export default class ElasticsearchExplorer {}\n",
+    path.join(workdir, "extensions/composite/elasticsearch/ui/dist/bundle.js"),
+    "import { mount } from \"nsh\";\nexport default class ElasticsearchExplorer {}\n",
   );
   fs.mkdirSync(path.join(workdir, `target/${target}/release`), { recursive: true });
   fs.writeFileSync(

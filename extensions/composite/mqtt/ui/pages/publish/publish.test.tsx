@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const TOPIC = "devices/kitchen/light/set";
 const PAYLOAD = '{"a":1,"b":[2,3]}';
@@ -16,8 +16,8 @@ test("publish 表单、JSON 提示、发送与历史回填", async () => {
     },
   });
 
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "publish", backends: ["resource"] }, handlers },
     clock: {},
     width: 1280,
     height: 800,

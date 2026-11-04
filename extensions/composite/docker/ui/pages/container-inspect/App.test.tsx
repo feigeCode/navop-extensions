@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "container-inspect" };
 
 /** docker/container/list 的返回形状（provider 的 all(true) 列表）。 */
 function containerList() {
@@ -82,8 +85,11 @@ function invokeCalls(app: Awaited<ReturnType<typeof open>>, method: string) {
 }
 
 test("进页面先列容器，未选中时给引导空态且不请求详情", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/inspect": inspectResult,
@@ -97,8 +103,11 @@ test("进页面先列容器，未选中时给引导空态且不请求详情", as
 });
 
 test("选中容器后按 id 读详情，基础分组默认展开", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/inspect": inspectResult,
@@ -122,8 +131,11 @@ test("选中容器后按 id 读详情，基础分组默认展开", async () => {
 });
 
 test("展开挂载分组后显示来源、目标与只读标记", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/inspect": inspectResult,
@@ -140,8 +152,11 @@ test("展开挂载分组后显示来源、目标与只读标记", async () => {
 });
 
 test("可以切到原始 JSON 再切回分组", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/inspect": inspectResult,
@@ -160,8 +175,11 @@ test("可以切到原始 JSON 再切回分组", async () => {
 
 test("详情读取失败显示错误并可重试", async () => {
   let fail = true;
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/container/list": containerList,
         "docker/container/inspect": () => {

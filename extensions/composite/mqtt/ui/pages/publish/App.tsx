@@ -6,9 +6,10 @@
 //  2. JSON 校验只做提示：非法 JSON 不阻止发送，payload 始终按 UTF-8 原文编码；
 //  3. 发布主题不允许包含 + / #（那是订阅过滤器语法），这里在发送前拦截；
 //  4. 发送历史只存在本页内存里，刷新页面即清空。
-import { host, mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { errorMessage, humanBytes } from "../../lib/format";
 import { Badge, Button, Card, Notice, Row } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
@@ -53,20 +54,6 @@ const OPERATIONS: Record<string, string> = {
   unsubscribe: "middleware/topic/delete",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -76,10 +63,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -517,5 +503,3 @@ export default function Publish() {
     </View>
   );
 }
-
-mount(Publish);

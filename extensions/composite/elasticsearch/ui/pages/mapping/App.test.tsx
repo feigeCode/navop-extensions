@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const INDICES = [
   { name: "orders-2026", health: "green", status: "open", pri: 1, rep: 1, docs: 123456, docs_deleted: 0, size_bytes: 2457600, created: "2026-01-02 03:04" },
@@ -73,10 +73,10 @@ function handlers() {
 }
 
 function openPage(): ReturnType<typeof open> {
-  return open("./App.tsx", {
+  return open("../../App.tsx", {
     width: 1200,
     height: 800,
-    host: { handlers: handlers() },
+    host: { params: TEST_PARAMS, handlers: handlers() },
     clock: {},
   });
 }
@@ -108,7 +108,7 @@ test("列表渲染：健康状态、文档数与大小，默认选中第一个�
   app.dispose();
 });
 
-test("宿主通道：只用 context.current + resource.invoke，不再碰已删除的 workbench", async () => {
+test("宿主通道：只走 params.connection + resource.invoke，不再碰已删除的 workbench", async () => {
   reset();
   const app = await openPage();
 
@@ -118,9 +118,8 @@ test("宿主通道：只用 context.current + resource.invoke，不再碰已删�
 
   const calls = app.host.calls();
   const names = calls.map((call) => call.name);
-  expect(names).toContain("navop.context.current");
   expect(names).toContain("navop.resource.invoke");
-  expect(names.every((name) => name === "navop.context.current" || name === "navop.resource.invoke")).toBe(true);
+  expect(names.every((name) => name === "navop.resource.invoke")).toBe(true);
 
   const invoke = calls.find((call) => call.name === "navop.resource.invoke");
   expect(invoke === undefined).toBe(false);

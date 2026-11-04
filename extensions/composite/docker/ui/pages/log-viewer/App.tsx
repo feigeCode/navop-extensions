@@ -11,10 +11,10 @@
 //
 // 渲染量：只把末尾 MAX_RENDER_LINES 行交给布局，footer 标注实际显示行数。
 
-import { cleanup, effect, mount, Scroll, signal, Text, View } from "nsh";
+import { cleanup, effect, Scroll, signal, Text, View } from "nsh";
 import type { Accessor, JSX } from "nsh";
 import { arr, errorMessage, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
@@ -159,7 +159,7 @@ export default function LogViewer() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -181,7 +181,7 @@ export default function LogViewer() {
     if (raw() === "") loading.set(true);
     try {
       // provider 用 Value::as_str 读 tail，必须传字符串。
-      const result = await call<unknown>("docker/container/logs", { id, tail: String(tail()) });
+      const result = await invoke<unknown>("docker/container/logs", { id, tail: String(tail()) }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       raw.set(str(result, "logs", ""));
       cleared.set(false);
@@ -501,5 +501,3 @@ export default function LogViewer() {
     </View>
   );
 }
-
-mount(LogViewer);

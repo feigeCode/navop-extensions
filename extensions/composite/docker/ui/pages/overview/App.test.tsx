@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "overview" };
 
 const usage = {
   engine: true,
@@ -23,7 +26,7 @@ function handlers() {
 }
 
 test("引擎概览显示运行中容器与磁盘占用", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:Docker 引擎");
   expect(app.texts()).toContain("Docker 引擎");
   const texts = app.texts().join(" ");
@@ -33,10 +36,11 @@ test("引擎概览显示运行中容器与磁盘占用", async () => {
 });
 
 test("取数失败时给出重试", async () => {
-  const app = await open("./App.tsx", {
+  const app = await open("../../App.tsx", {
     width: 1100,
     height: 800,
     host: {
+      params: TEST_PARAMS,
       handlers: hostHandlers({
         "docker/system/usage": () => {
           throw new Error("daemon 不可用");

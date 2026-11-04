@@ -62,10 +62,10 @@
 
 | 入口 | 通道 | 用途 |
 |---|---|---|
-| `navop.event.open(kind)` / `read` / `close` | 宿主 event 通道（长轮询） | JS 壳层视图订阅实时消息 |
-| `middleware/message/stream` | `resource/invoke` → 返回 `ResultRef::EventStream` | 原生工作台 `events` 模板页的声明式订阅（页面 `load` 操作必须返回事件流引用） |
+| `navop.event.subscribe` / `unsubscribe` + `host.on("navop.event")` | 宿主 event 通道（推送） | nsh 页订阅实时消息（见 §5.2） |
+| `middleware/message/stream` | `resource/invoke` → 返回 `ResultRef::EventStream` | 实时订阅页：`navop.event.subscribe` 后用 `host.on("navop.event")` 收批次（见 §5.2） |
 
-- 事件**不带资源标识**：`EventOpenParams.conn_id` 必须为 `None`，消息源由「当前唯一打开的连接」定位；多连接返回 `RESOURCE_BUSY`，无连接返回 `RESOURCE_CLOSED`。
+- 事件**不带资源标识**：消息源由「当前唯一打开的连接」定位；多连接返回 `RESOURCE_BUSY`，无连接返回 `RESOURCE_CLOSED`。
 - 每条事件是标准消息模型 `MiddlewareMessage` 的 JSON：`message_id` 为流内单调序号（如 `mqtt-live-<seq>`），`body` 省略（避免大消息体撑爆事件批），`body_text` 给出 UTF-8 文本；需要原始字节时用 `middleware/message/query` 查缓冲。
 - `Unsupported` 兜底：未实现该方法的实现扩展（如 RocketMQ）必须在 open 的能力清单里**不声明** `middleware/message/stream`，并让 invoke 返回 `Unsupported`。
 
@@ -81,7 +81,7 @@
 | 消息 QoS / 保留标记 / 接收时间 | `MiddlewareMessage.properties`：`qos` / `retain` / `received_at_ms` | `qos` 为可读文案（`QoS 1`）、`retain` 为 `"true"`/`"false"`、`received_at_ms` 为 Unix 毫秒 |
 | 消息时间列 | `MiddlewareMessage.store_time` | `YYYY-MM-DD HH:MM:SS` 本地时间；实时事件同样带 `store_time` |
 
-工作台的事件行渲染按上表取值：`properties.qos` → QoS 徽章、`properties.retain = "true"` → Retain 徽章、`store_time`（回落 `born_time` → `properties.received_at_ms`）→ 时间列，其余 `properties` 原样列在行末。
+事件行渲染按上表取值：`properties.qos` → QoS 徽章、`properties.retain = "true"` → Retain 徽章、`store_time`（回落 `born_time` → `properties.received_at_ms`）→ 时间列，其余 `properties` 原样列在行末。
 
 ## 4. 连接表单标准（contributes.connections）
 
@@ -90,77 +90,55 @@
 - secret 字段（password/secret_key）必须声明 `"secret": true`，宿主经 reverse Host API 以 `secret://self/...` 引用注入。
 - SSH 隧道字段由宿主连接窗口统一提供，provider 侧不感知。
 
-## 5. UI 注册标准（contributes.resourceWorkbenches + contributes.shellViews）
+## 5. UI 注册标准（`contributes.shellApp`）
 
-所有扩展连接在存储里都是 `ConnectionType::Extension`（旧内置 MQTT 连接会在打开时经 `try_migrate_legacy_middleware_connection` 就地迁移）。
+连接级控制台是**一个 nsh app**：`shellApp.entry` 指向 `ui/dist/bundle.js`，源码在 `ui/`（`App.tsx` 外壳 + 路由表，`pages/<route>/` 页面组件，`lib/` 共享库）。ABI v2 起本类扩展**不再声明** `resourceWorkbenches`，也不再提供 `ui/*.js` 形式的 gpui-shell 页面，也没有「每页一个 nsh 包」。
 
-**打开路径（`shell-plugins` 自本次发布起随官方产物提供）**：
+打开路径：连接在 `contributes.connections[*].route` 里声明初始路由（MQTT 是 `messages`），宿主据此打开 app 并把 `route` 写进 `host.params`。连接型打开从 `host.params.connection` 拿到宿主借给它的 `resourceHandle`；工具箱打开时 `connection` 与 `route` 都是 `null`，app 显示空态并回落默认路由。
 
-| 扩展连接 | 打开决策 |
+**页面通道（ABI v2）**
+
+| 通道 | 用途 |
 |---|---|
-| **声明了 `resourceWorkbenches`** | `ExtensionOpenStrategy` / `MiddlewareExtensionOpenStrategy` 先查 `resource_workbench_for_connection(...)`，命中即 `open_native_extension_connection`。**这与构建无关**——工作台优先是打开策略里的硬逻辑，工作台与 `shellViews.console` 同时声明时后者永远不执行。 |
-| **未声明工作台、连接声明了 `shellViewId`** | 回落到 `host.open_connection(ConnectionShellOpen)`，加载 `shellViews` 里那个 JS 视图（连接级 JSON 控制台）。**这就是纯 JS 扩展写连接 UI 的唯一途径**：不需要 Rust provider，也不需要声明工作台。 |
-| 未声明工作台、也没有 `shellViewId` | 只推一条通知（旧构建文案为 *"This extension connection requires the shell-plugins build"*）。 |
+| `host.params` | 同步可读的启动事实：`apiVersion`、`extension`（id/title）、`route`、`backends`（alias 列表）、`connection`（含 `resourceHandle`、连接名与 `config`） |
+| `host.call(name, data, {timeout})` | 请求-应答：`navop.resource.invoke` / `open` / `ping` / `close`、`navop.job.*`、`navop.blob.read`、`navop.event.subscribe` / `unsubscribe`、`navop.runtime.info` |
+| `host.post("navop.log", {level, message, fields})` | 单向日志，无应答 |
+| `host.on("navop.event", batch => …)` | 事件推送（先 `navop.event.subscribe`），返回停止函数；组件里注册的随卸载自动停 |
 
-`shell-plugins` 关闭时（`--no-default-features` 且未补该 feature），`universal-plugins` 的 `shell_plugin_host` / `shell_page_host` / `shell_plugin_tab` 整块不编译，`ShellPluginHost` / `ConnectionShellOpen` / `open_connection` 不存在 ⇒ 连接级 JS 控制台与嵌入式 shell 页都不可用。本扩展不依赖这条假设：**MQTT/RocketMQ 的工作台在任何构建下都能打开**。
+- **连接上下文只从 `params.connection` 读**：`navop.context` 已删除，没有「重取上下文」的 RPC。
+- **能力面**：页面不声明 capabilities；能力由 `shellApp.modules` 派生（`resource` / `job` / `event` / `blob` / `runtime` / `log` / `dev`）。未声明的模块调用会被拒成 `PERMISSION_DENIED`（`details.module` 指出缺哪个）。
+- 完整契约见 `docs/extension-resource-plugins/host-abi-v2.md`，页面写法见 `nsh-page-guide.zh-CN.md`。
 
-**两条路由怎么选**（中间件实现扩展的既定选择是「工作台」，不要反向替换）：
+### 5.1 app 声明与页面目录
 
-| | 工作台（`resourceWorkbenches`，`template` + `renderer.kind: native`） | 连接级 JS 控制台（`connections[].shellViewId` + `shellViews`） |
-|---|---|---|
-| 前提 | 需要 Rust provider 与资源协议（`resource/open` + `middleware/*` 方法） | 纯 JS 即可，也可走 `navop.resource.open` 自建 provider 会话 |
-| UI 能力 | 宿主模板集合（`json`/`collection`/`detail`/`query`/`events`/`tasks`/`terminal`），组件受限但主题、虚拟滚动、事件流等由宿主统一实现 | 任意 `gpui-shell` 视图（gpui / gpui-base / gpui-component 全量组件），完全自定义布局 |
-| 事件流 | `events` 模板页，`load` 返回 `ResultRef::EventStream`（§3.1、§5.2） | `navop.event.open/read/close` 长轮询，同一套 provider 流实现 |
-| 连接上下文 | 无「连接对象」概念，只有工作台会话与命名操作 | `navop.context` 注入 mount-scoped opaque resource handle；视图不得自行 `resource/open` 主连接 |
-| 适用 | 中间件四类（mqtt/rocketmq/elasticsearch/docker）等有 provider 的重型连接 | 纯 JS 小工具、无需 provider 的自定义连接 UI |
+- app 声明：`shellApp: { title: "MQTT", entry: "ui/dist/bundle.js", backends: { "<alias>": "<runtime id>" }, modules: ["resource"], category?, keywords? }`。`backends` 的 alias 必须指向本清单 `runtime.ipc` 里的 runtime id；`resource` 模块要求 `backends` 非空。一个扩展只有一个 `shellApp`、一个 `build` 号。
+- 目录：`ui/{App.tsx, App.test.tsx, nsh.json, tsconfig.json, .gitignore, lib/, pages/, dist/}`；`pages/<route>/` 只放 `App.tsx` + `App.test.tsx`（`export default` 页面组件，不 `mount`、没有自己的 `nsh.json` / `tsconfig.json` / `dist/`）；`dist/`（`bundle.js` / `bundle.nshc` 等）入库，由 `nsh build . --out dist` 生成，不要手改。
+- 路由与渠道：`App.tsx` 读 `params.route` 选根页面，侧栏切换只改 app 内状态；未知/`null` 回落 `messages`。
+- 本扩展五个路由：
+  1. 概览 `overview`（`metrics` + `cluster_overview` 并发拉取，指标卡片 + 集群/Broker 拓扑表）。
+  2. 主题 `topics`（Topic 列表/详情/新建/删除，`topics` 与 `topic_write` 门控）。
+  3. 订阅 `subscriptions`（`middleware/topic/list` 列表；订阅 = `middleware/topic/create`、退订 = `middleware/topic/delete`，过滤器合法性在页面侧校验）。
+  4. 消息 `messages`（`queryByWindow` 每秒增量轮询本地缓冲，收/发同一时间线；主题过滤、关键字、暂停、Text/JSON/Hex/Base64 详情）。页面只声明 `resource`，拿不到 `navop.event`（见 §5.2 前置条件），故只能轮询本地缓冲。
+  5. 发布 `publish`（`publish`，QoS/Retain/格式编码，发送历史回填与重发；body 是 UTF-8 字节数组）。
+- 连接表单新增：`use_tls`、`clean_session`、`auto_subscribe`（空串不自动订阅）、遗嘱 `will_topic/will_payload/will_qos/will_retain`。
 
-- 原 `MiddlewareConsole`（`ui/console/base.js` + 实现扩展的 `ui/console.js` 薄壳）承载的四页能力已**提升为标准契约**，见 §5.3；MQTT/RocketMQ 已声明工作台，故不再保留这两个文件（它们的 `shellViewId` 与 `shellViews.console` 已移除）。新增**纯 JS** 实现若要照抄该四页，按 §5.3 的字段契约实现即可，不必复活共享库。
-- **硬约束**：`renderer.kind = "shell"` 的**工作台页**若未声明 `fallback: "native"`，在未开 `shell-plugins` 的构建里会渲染错误块 *"Shell renderer is unavailable in this build"*（`resource_view::mount_shell_page` 取不到 host）；写了 `fallback` 才会退回该页的原生 `template` 渲染。MQTT 的消息/发布页是嵌入式 shell 页且未写 `fallback`（无等价原生模板），只在开启 `shell-plugins` 的产物里可见;RocketMQ 发布页同理。
-- **不要用 `surface` 之外的规则判断「独立工具」**：工具箱（`catalog::toolbox_views`）列出的是**没有被任何入口占用**的 shell 视图 —— 排除「连接 `shellViewId` 引用」「工作台页面 `renderer.viewId` 引用」「声明了 `workbench` 模块」三类。工作台页体只声明 `context` + `workbench`，独立打开时宿主必然报 *"navop.workbench requires a borrowed resource-workbench session"*，**不得把它当成独立工具暴露**。
+### 5.2 实时消息流约定（`navop.event` 推送）
 
-### 5.1 工作台声明约定
+页面侧：先 `navop.event.subscribe` 拿到 `handle`，再用 `host.on("navop.event", ({ handle, cursor, events, done, error }) => …)` 收批次；`EVENT_OVERFLOW` 时按 `cursor` 续订，`done` / `error` 结束订阅。
 
-- 每个实现扩展声明一个工作台：`resourceWorkbenches: [{ id: "<impl>", connectionIds: ["<impl>"], runtimeId: "main", resourceType: "middleware", defaultPage: "<pageId>", operations: {...}, navigation: [...], pages: [...] }]`
-- `operations[*]` 是「工作台操作」到资源方法的映射：`{ mode: "invoke"|"job", method, requires: [能力位同名方法], effect: "read"|"write"|"destructive", params }`；`requires` 会在派发前与 open 时 provider 声明的能力清单逐个校验（缺一个就不派发）。
-- `params` 的取值来源：`input`（页面输入，走 `inputs[*].id`，支持覆盖路径如 `/properties`）、`route`、`selection`（表格行）、`literal`；`type` 支持 `string`/`number`/`json`。
-- 页面模板（`pages[*].template`）：`json`（键值/JSON 视图）、`collection`（表格 + 行操作 + 分页）、`detail`、`query`（输入表单 + 执行）、`stream`（原语 `{"kind": "stream"}`，实时事件流，见 §5.2）、`tasks`、`terminal`。`renderer.kind = "native"` 用宿主渲染，`"shell"` 挂 QuickJS 视图（`viewId` 对应 `shellViews[*].id`），可配 `fallback: "native"`。
-- 页面 tab 组：同一组的每个页面都声明**完整** `tabs` 列表（`{id, title, pageId, route}`），宿主按 `pageId == 当前页` 判定高亮。MQTT 的发布/订阅四页共用一组：Topics / Subscribe / Live Messages / Send Message。
-- 参考实现（MQTT，v0.2 起为客户端式工作台，四个 `shell` 页 + 一个原生实时流页 + `list` 导航）：
-  1. 概览 `ui/overview.js`（`metrics` + `listClients`，2s 自动刷新；带 `fallback: "native"` 退化为 metrics JSON）。
-  2. 订阅 `ui/subscriptions.js`（`listTopics` 列表 + `subscribe`/`unsubscribe` 操作，过滤器合法性在 UI 侧校验；带 `fallback: "native"` 退化为 collection 表）。
-  3. 消息 `ui/messages.js`（`queryByWindow` 每秒增量轮询本地缓冲，收/发同一时间线；`direction`/`received_at_ms` 属性由 provider 提供；主题过滤、关键字、暂停、Text/JSON/Hex/Base64 详情）。嵌入式页拿不到 `navop.event`（见 §5.2 前置条件），故只能轮询本地缓冲。
-  4. 实时消息 `live`（**原生流页**：`renderer.kind: "native"` + `load.operation: messageStream` + `stack: [{"kind": "stream"}]`，无 `shellViews` 条目、无 `ui/*.js`）。宿主 `subscribe_events` 长轮询 provider 的 `middleware/message/stream`，事件按标准消息模型逐条追加，页头带 `N events` / `N dropped` / `Closed` 徽章与 Clear/Stop。**这是四个扩展里唯一声明 stream 原语的页**；它与 `ui/messages.js` 的分工：前者是 provider 推送的实时流（丢事件有 dropped 计数），后者是本地环形缓冲的窗口查询（可回看、可按关键字过滤）。
-  5. 发布 `ui/publish.js`（`publish` 操作，QoS/Retain/格式编码，发送历史回填与重发）。
-  连接表单新增：`use_tls`、`clean_session`、`auto_subscribe`（空串不自动订阅）、遗嘱 `will_topic/will_payload/will_qos/will_retain`。
-- **已知实现缺口**：MQTT 侧目前没有 —— 四个 shell 页 + 原生流页都声明了 `fallback: "native"`。
-  （RocketMQ 那一侧另有自己的缺口清单，见 `rocketmq/docs/middleware-standard.md`；
-  2026-09-18 之前本节写的「RocketMQ 消息查询页仍缺 / 发布页未声明 fallback / 客户端表能力位为 false」
-  三条**全部已不成立**，不要再从这里抄 RocketMQ 的状态。）
+三条**运行期**前置条件，缺一条就一个事件也看不到：
 
-### 5.2 「实时消息」页约定（页面原语 `{"kind": "stream"}`）
-
-声明写法（现行 schema；早前本文档写的 `template: "events"` 是同一件事的旧词汇）：
-
-```json
-{ "id": "live", "title": "实时消息", "renderer": { "kind": "native" },
-  "load": { "operation": "messageStream" }, "stack": [{ "kind": "stream" }] }
-```
-
-三条**运行期**前置条件，缺一条就一个事件也看不到（宿主 `resource_view`）：
-
-1. `renderer.kind` 必须是 `native` —— `render_page` 先判 shell renderer 并直接接管页面，只有非 shell 才会走到 `has_stream` → `render_events_page`；写成 shell 页时 stream 原语被静默忽略。
-2. `load.operation` 的 `effect` 必须是 `read` —— 宿主以 `confirmed=false` 派发（`dispatch_invoke_result_scoped`），非 read 会被 `guard_effect` 直接拒成 `ConfirmationRequired`。
+1. `shellApp.modules` 必须含 `event`，否则 `navop.event.subscribe` 会被拒成 `PERMISSION_DENIED`。
+2. provider 的 `middleware/message/stream` 必须返回事件流引用（`ResultRef::EventStream`）；非事件流的返回值直接进错误态。
 3. 该操作的 `requires` 必须含它自己的 `method`（`middleware/message/stream`）—— `ensure_capabilities` 按 open 返回的能力清单逐个校验，未声明该方法的实现扩展（RocketMQ）就此被挡在门外。
 
-- 页面 `load.operation` 指向的**必须是**返回事件流引用的操作（`middleware/message/stream` → `ResultRef::EventStream`）。宿主拿到引用后走 `subscribe_events` 长轮询，把批次追加进页面事件列表；非事件流的返回值会直接进错误态（"events operation did not return an event stream"）。
 - 事件流的 kind 由**资源 metadata** 的 `message_stream_kind` 给出（协议层不定义 kind 常量）：MQTT 为 `mqtt/message/events`。
-- 页头保留 Clear/Stop 与 dropped/closed 徽章语义；`Stop` 取消长轮询并停止追加。
-- 行渲染：事件能按标准消息模型解析（有 `topic`）时渲染成「topic + QoS/Retain 徽章 + 时间 + 单行截断的消息体」；否则回落原始 JSON 行 —— 保证 `events` 模板对非消息类事件通用。
+- 行渲染：事件能按标准消息模型解析（有 `topic`）时渲染成「topic + QoS/Retain 徽章 + 时间 + 单行截断的消息体」；否则回落原始 JSON 行。
 - 消费方（UI）不得假设事件一定带 `body`（实时事件省略原始字节），要完整载荷用 `middleware/message/query` 查缓冲。
 
-### 5.3 控制台四页能力契约（承载方式：原生工作台页 或 纯 JS 控制台）
+### 5.3 控制台页面能力契约（承载方式：app 内路由）
 
-本节是**四页能力契约**，与承载方式无关：既约束原生工作台页面（`native` 模板，MQTT/RocketMQ 现状），也约束按 §5 第二条路由编写的纯 JS 连接控制台。原 `MiddlewareConsole`（`ui/console/base.js` + 实现扩展的 `ui/console.js` 薄壳）即后者的参考实现，其能力已全部提升为本节契约。
+本节是**页面能力契约**，与承载方式无关，约束 `shellApp` 里的路由（MQTT/RocketMQ 现状）。
 
 **通用约定（四页共用）**
 
@@ -200,20 +178,18 @@
 - 消息详情（取自行数据）：键值表 = message_id / topic / tag / key / store_time / born_time / store_host / born_host / retry_times / 消息体，其中 `body_text` 为空时显示「(二进制消息体)」；`properties`（序列化形态 `[[k,v],...]`）非空时另起一张键值表。
 - 发送表单（gated by `send_message`，`middleware/message/send`）：字段 = topic（必填）、tag（可选，空 ⇒ `null`）、key（可选，空 ⇒ `null`）、body（必填，UTF-8 字节序列）。成功后提示「发送成功: `<message_id>` (`<status>`)」，失败提示「失败: `<错误>`」。
 
-本页与 §5.2 分工：实时订阅在 §5.2 的 `events` 页，本页负责「查历史缓冲 + 发送」。
+本页与 §5.2 分工：实时订阅走 §5.2 的 `navop.event` 推送，本页负责「查历史缓冲 + 发送」。
 
-### 5.4 工作台的 shell 页与 QuickJS 运行时
+### 5.4 nsh 页面运行时（ABI v2）
 
-`renderer.kind = "shell"` 的页面是**正常可用**的页面承载方式（不是废弃对象），在开启 `shell-plugins` 的产物里正常加载。唯一的构建约束来自 §5 硬约束：未开该 feature 的自建构建（如 `--no-default-features`）里取不到 host，此时**只有**声明了 `fallback: "native"` 才会退回该页的原生 `template` 渲染，否则显示错误块。参考实现见同仓 docker 扩展（5 个 shell 页全部带 `fallback: "native"`）。
+页面是 TypeScript/TSX，组件来自 `nsh` / `nsh/base`；没有 QuickJS / gpui-shell 运行时（`engines.gpui_shell` 只是旧产物元数据）。
 
-- 技术栈：`gpui` / `gpui-base` / `gpui-component`（QuickJS 运行时，`engines.gpui_shell = "0.6.4"`）。可用组件含 `DataTable`/`DataTableState`、`Pagination`、`Input`/`InputState`、`Select`、`Switch`、`Badge`、`Button`、`chart`、`description_list`、`virtual_list` 等。
-- 运行时 API 要点：`InputState.new({value, placeholder})` + `Input.new(state)`（placeholder 只能在 `InputState.new` 设置，`Input` 元素无该方法）；`Select(id, rowsFn, renderRowFn, onSelect)` 与 `DataTable(state, rowsFn, cellFn)`、`DataTableState(columns)`、`Badge()` 均为位置参数或 nullary 构造；`navop.context.current()`、`navop.resource.invoke`、`navop.blob.read/close`。
-- 布局硬规则（都踩过，且都是**静默**故障——页面照常渲染、不报错）：
-  1. **`Select` 必须包在定宽容器里**：`div().w(200).flex_shrink_0().child(new Select(...))`。`Select` 的根是 shell 对 `div` 的 `RenderOnce` 包装，自带整行宽度；裸着当行子元素会让同行的 `div().flex_1()` 拿到 0 基准宽、没有剩余空间可 grow ⇒ **输入框整块消失**（订阅页的过滤器输入框就这么没的），或者把不可收缩的兄弟（标题、按钮）挤出可视区（消息详情页的格式选择器）。守卫测试：`extension UI rows size every Select instead of letting it claim the line`。
-  2. **`h_flex()` 默认 `items_center`**：整页的行要么在行上声明 `items_stretch()`，要么每个列自己声明 `h_full()`，否则两列都会按内容高度居中塌成一行。守卫测试：`extension UI columns inside a full-size h_flex row declare h_full`。
-  3. **颜色只能是主题色或 `#hex`**：元素样式取 `cx.theme().colors.*`，组件 prop 只认 Tailwind 名/`#hex`；`"muted"` 这类 token 名会让整个 view 渲染失败。守卫测试：`extension UI colors are literals or theme colors, never bare token names`。
-  4. **空输入的提示不要复用「非法」文案**：`subscribe` 里空过滤器与非法过滤器分开提示（空 ⇒ 「请先填写主题过滤器」），并把错误提示用 `destructive` 上色、成功提示用 `muted_foreground`，否则用户看到的是一句和实际原因对不上的规则说明。
-- 数据解包：`navop.resource.invoke` 返回 `ResultRef`，inline 取 `.value`、blob 走 `navop.blob.read/close`（协议见开发指南 §9.3）。发送消息时 body 必须是**字节数组**：`Array.from(Buffer.from(text))`（`Buffer` 来自内置 `buffer` 模块，见 `mqtt/ui/shared.js` 的 `encodePayload`）。
+- 构建与验证（页面目录内）：`nsh check .`、`nsh test .`、`nsh build . --out dist`；`dist/` 入库。
+- 超时：`host.call` 第三参 `{timeout}` 以毫秒计，`0` 表示不超时；不传即 nsh 缺省的 30 秒。长操作（建连、大列表/日志查询）显式给 60 秒或 0。
+- 错误：`catch` 到的对象直接带 `code` / `retryable` / `details` / `message`；不要解析任何 base64 信封（`__NAVOP_ERROR__` 已删除）。
+- 主题与语言：宿主把主题写进 nsh —— 用 `token("background")` 这类语义色、`colorScheme()` 与 `dark:` 类名；语言用 `locale()` / `Intl`。没有 `navop.theme.*` / `navop.i18n.*`。
+- 数据解包：`navop.resource.invoke` 的结果是 inline 值，或 `{ blob: handle }`（再 `navop.blob.read` 取值，协议见开发指南 §9.3）。发送消息时 body 必须是字节数组（MQTT 用 `Array.from(Buffer.from(text, "utf8"))`，RocketMQ 用 `Array.from(new TextEncoder().encode(text))`）。
+- 页面写法与布局规范以 `docs/extension-resource-plugins/nsh-page-guide.zh-CN.md` 为准。
 
 ## 6. 打包与发布
 

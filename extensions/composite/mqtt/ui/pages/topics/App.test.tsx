@@ -1,7 +1,7 @@
 // MQTT 主题页的行为测试：列表/详情来自 `middleware/topic/list` + `middleware/message/query`，
 // 订阅与取消走 `middleware/topic/create` / `middleware/topic/delete`。
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 type Subscription = {
   name: string;
@@ -69,8 +69,8 @@ test("topics：列表缩进、详情、搜索、订阅与取消订阅", async ()
     },
   });
 
-  const app = await open("./App.tsx", {
-    host: { handlers },
+  const app = await open("../../App.tsx", {
+    host: { params: { ...TEST_PARAMS, route: "topics", backends: ["resource"] }, handlers },
     clock: {},
     width: 1280,
     height: 900,

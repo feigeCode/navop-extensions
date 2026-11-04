@@ -18,7 +18,7 @@ if [ ! -f "$MANIFEST" ]; then
   exit 1
 fi
 
-node <<'NODE' "$MANIFEST" "$TMP_DIR"
+node --input-type=commonjs - "$MANIFEST" "$TMP_DIR" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 
@@ -83,46 +83,136 @@ for (const runtime of ipcRuntimes) {
   }
 }
 
-const shellViews = manifest.contributes?.shellViews || [];
-const shellViewById = new Map();
-for (const view of shellViews) {
-  for (const key of ["id", "title", "entry"]) {
-    if (!view[key]) {
-      console.error(`shell view missing ${key}`);
-      process.exit(1);
-    }
+// ABI v2: 一个扩展最多一个 nsh app（contributes.shellApp），页面由 app 内的
+// 路由组织。旧的 per-page shellViews 已被宿主 deny_unknown_fields 拒绝，这里
+// 先给出迁移提示，再按宿主安装期校验（crates/extension-runtime/src/extension/
+// manifest/shell_validation.rs）逐项检查。
+const shellApp = manifest.contributes?.shellApp ?? null;
+const supportedModules = new Set(["resource", "job", "event", "blob", "log", "runtime", "dev"]);
+const backendModules = new Set(["resource", "job", "event", "blob"]);
+const reservedBackendAliases = new Set(["host", "navop", "default"]);
+// 与宿主内置 nsh 运行时（nsh-platform-gpui 的 minor）保持一致。
+const hostNshVersion = "0.3.0";
+const builtinDevExtensionIds = new Set(["com.navop.devtools"]);
+
+function isSafeRelativePath(value) {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  if (path.isAbsolute(value) || value.startsWith("\\\\") || value.startsWith("//") || value[1] === ":") {
+    return false;
   }
-  if ((view.surface || "tab") !== "tab") {
-    console.error(`shell view ${view.id} has unsupported surface`);
-    process.exit(1);
-  }
-  if (path.isAbsolute(view.entry) || view.entry.includes("..")) {
-    console.error(`shell view entry must stay inside package: ${view.entry}`);
-    process.exit(1);
-  }
-  if (!fs.existsSync(path.join(packageRoot, view.entry))) {
-    console.error(`shell view entry not found: ${view.entry}`);
-    process.exit(1);
-  }
-  for (const runtimeId of Object.values(view.backends || {})) {
-    if (!ipcIds.has(runtimeId)) {
-      console.error(`shell view ${view.id} references unknown IPC runtime: ${runtimeId}`);
-      process.exit(1);
-    }
-  }
-  if (!Array.isArray(view.modules)) {
-    console.error(`shell view ${view.id} modules must be an array`);
-    process.exit(1);
-  }
-  shellViewById.set(view.id, view);
+  return !value.split(/[\\/]/).includes("..");
 }
-if (shellViews.length > 0) {
+
+function parseSemver(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(String(value ?? "").trim());
+  return match ? match.slice(1).map(Number) : null;
+}
+
+// 与宿主 validate_engine_version 相同：0.x 要求同一 minor，其余要求同一 major，
+// 且宿主提供的版本不低于清单要求。
+function nshEngineSupports(required) {
+  const want = parseSemver(required);
+  const have = parseSemver(hostNshVersion);
+  if (!want) return false;
+  const compatible = want[0] === 0 ? have[0] === 0 && have[1] === want[1] : have[0] === want[0];
+  if (!compatible) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if (have[index] !== want[index]) return have[index] > want[index];
+  }
+  return true;
+}
+
+function isValidIdentifier(value) {
+  return typeof value === "string"
+    && value.length > 0
+    && /^[a-z0-9._-]+$/.test(value)
+    && !/^[._-]/.test(value)
+    && !/[._-]$/.test(value)
+    && !value.includes("..");
+}
+
+if (manifest.contributes && manifest.contributes.shellViews !== undefined) {
+  console.error("contributes.shellViews was removed: declare a single contributes.shellApp instead");
+  process.exit(1);
+}
+if (!shellApp && manifest.engines?.nsh) {
+  console.error("engines.nsh requires contributes.shellApp (every nsh extension has exactly one app)");
+  process.exit(1);
+}
+if (shellApp) {
   if (!(manifest.permissions || []).includes("shell:exec")) {
-    console.error("shell views require shell:exec permission");
+    console.error("shellApp requires shell:exec permission");
     process.exit(1);
   }
-  if (!manifest.engines?.gpui_shell || !manifest.api?.shell) {
-    console.error("shell views require engines.gpui_shell and api.shell");
+  if (!nshEngineSupports(manifest.engines?.nsh)) {
+    console.error(`shellApp requires a compatible engines.nsh (host provides ${hostNshVersion})`);
+    process.exit(1);
+  }
+  if (shellApp.title != null && String(shellApp.title).trim() === "") {
+    console.error("shellApp title must not be empty");
+    process.exit(1);
+  }
+  if (!isSafeRelativePath(shellApp.entry)) {
+    console.error(`shellApp entry must be a non-empty relative path inside the package: ${shellApp.entry}`);
+    process.exit(1);
+  }
+  const entryPath = path.join(packageRoot, shellApp.entry);
+  if (!fs.existsSync(entryPath) || !fs.statSync(entryPath).isFile()) {
+    console.error(`shellApp entry not found: ${shellApp.entry}`);
+    process.exit(1);
+  }
+  if (shellApp.icon != null) {
+    if (!isSafeRelativePath(shellApp.icon)) {
+      console.error(`shellApp icon must be a relative path inside the package: ${shellApp.icon}`);
+      process.exit(1);
+    }
+    const iconPath = path.join(packageRoot, shellApp.icon);
+    if (!fs.existsSync(iconPath) || !fs.statSync(iconPath).isFile()) {
+      console.error(`shellApp icon not found: ${shellApp.icon}`);
+      process.exit(1);
+    }
+  }
+  const backends = shellApp.backends || {};
+  for (const [alias, runtimeId] of Object.entries(backends)) {
+    if (!isValidIdentifier(alias)) {
+      console.error(`shellApp backend alias is invalid: ${alias}`);
+      process.exit(1);
+    }
+    if (reservedBackendAliases.has(alias)) {
+      console.error(`shellApp backend alias is reserved: ${alias}`);
+      process.exit(1);
+    }
+    if (!ipcIds.has(runtimeId)) {
+      console.error(`shellApp backend ${alias} references unknown IPC runtime: ${runtimeId}`);
+      process.exit(1);
+    }
+  }
+  if (!Array.isArray(shellApp.modules)) {
+    console.error("shellApp modules must be an array");
+    process.exit(1);
+  }
+  const seenModules = new Set();
+  for (const module of shellApp.modules) {
+    if (!supportedModules.has(module)) {
+      console.error(`shellApp module is not supported by this host: ${module}`);
+      process.exit(1);
+    }
+    if (seenModules.has(module)) {
+      console.error(`duplicate shellApp module: ${module}`);
+      process.exit(1);
+    }
+    seenModules.add(module);
+    if (module === "dev" && !builtinDevExtensionIds.has(manifest.id)) {
+      console.error(`shellApp module dev is reserved for builtin extensions: ${manifest.id}`);
+      process.exit(1);
+    }
+  }
+  if (Object.keys(backends).length === 0 && shellApp.modules.some((module) => backendModules.has(module))) {
+    console.error("shellApp resource/job/event/blob modules require at least one backend");
+    process.exit(1);
+  }
+  if (shellApp.category != null && !isValidIdentifier(shellApp.category)) {
+    console.error(`shellApp category is invalid: ${shellApp.category}`);
     process.exit(1);
   }
 }
@@ -131,7 +221,7 @@ const connections = manifest.contributes?.connections || [];
 const connectionIds = new Set();
 for (const connection of connections) {
   // 终端型连接(声明 terminal)由宿主直接起本地进程:没有 provider,
-  // 因此不得声明 runtimeId / resourceType / shellViewId。
+  // 因此不得声明 runtimeId / resourceType / route。
   const isTerminal = connection.terminal !== undefined;
   const requiredKeys = isTerminal
     ? ["id", "label", "form"]
@@ -143,8 +233,9 @@ for (const connection of connections) {
     }
   }
   if (isTerminal) {
-    if (connection.runtimeId || connection.resourceType || connection.shellViewId) {
-      console.error(`terminal connection ${connection.id} must not declare runtimeId, resourceType or shellViewId`);
+    if (connection.runtimeId || connection.resourceType || connection.shellViewId
+        || connection.route != null) {
+      console.error(`terminal connection ${connection.id} must not declare runtimeId, resourceType or route`);
       process.exit(1);
     }
     const command = connection.terminal.command;
@@ -162,18 +253,27 @@ for (const connection of connections) {
     console.error(`connection ${connection.id} references unknown IPC runtime: ${connection.runtimeId}`);
     process.exit(1);
   }
-  if (connection.shellViewId) {
-    const view = shellViewById.get(connection.shellViewId);
-    if (!view) {
-      console.error(`connection ${connection.id} references unknown shell view: ${connection.shellViewId}`);
+  if (connection.shellViewId !== undefined) {
+    console.error(`connection ${connection.id} still declares shellViewId: use connections[].route instead`);
+    process.exit(1);
+  }
+  if (connection.route != null) {
+    if (typeof connection.route !== "string" || connection.route.trim() === "") {
+      console.error(`connection ${connection.id} route must be a non-empty string`);
       process.exit(1);
     }
-    if (view.singleton || !view.modules.includes("context") || !view.modules.includes("resource")) {
-      console.error(`connection shell view ${view.id} must be non-singleton with context and resource modules`);
+    if (!shellApp) {
+      console.error(`connection ${connection.id} declares route but the extension has no shellApp`);
       process.exit(1);
     }
-    if (!Object.values(view.backends || {}).includes(connection.runtimeId)) {
-      console.error(`connection shell view ${view.id} must expose runtime ${connection.runtimeId}`);
+    // route 是 app 内的初始路由：连接型 app 需要通过 resource 模块经连接
+    // 访问 provider，并且 backends 要暴露该连接的 runtimeId。
+    if (!shellApp.modules.includes("resource")) {
+      console.error(`connection ${connection.id} shellApp requires the resource module`);
+      process.exit(1);
+    }
+    if (!Object.values(shellApp.backends || {}).includes(connection.runtimeId)) {
+      console.error(`connection ${connection.id} shellApp must expose runtime ${connection.runtimeId} as a backend`);
       process.exit(1);
     }
   }
@@ -239,7 +339,7 @@ for (const editor of editors) {
 }
 
 if (importers.length === 0 && editors.length === 0 && wasmRuntimes.length === 0
-    && ipcRuntimes.length === 0 && shellViews.length === 0 && connections.length === 0) {
+    && ipcRuntimes.length === 0 && !shellApp && connections.length === 0) {
   console.error("extension.json has no supported composite contributions");
   process.exit(1);
 }

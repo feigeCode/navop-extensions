@@ -1,5 +1,8 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS as BASE_PARAMS } from "../../lib/test-host";
+
+// 页面测试统一从外壳入口（ui/App.tsx）进入，用本页路由启动。
+const TEST_PARAMS = { ...BASE_PARAMS, route: "volumes" };
 
 const volume = {
   name: "app-data",
@@ -31,7 +34,7 @@ function handlers() {
 }
 
 test("列表与详情", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-data");
   expect(app.texts()).toContain("存储卷");
   expect(app.texts()).toContain("app-data");
@@ -43,7 +46,7 @@ test("列表与详情", async () => {
 });
 
 test("新建存储卷", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-data");
   await app.press("新建存储卷");
   await app.type("text:存储卷名称，如 app-data", "newvol");
@@ -52,7 +55,7 @@ test("新建存储卷", async () => {
 });
 
 test("删除走二次确认", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-data");
   await app.press("text:app-data");
   await app.waitFor("text:挂载点");
@@ -63,7 +66,7 @@ test("删除走二次确认", async () => {
 });
 
 test("清理未使用", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-data");
   await app.press("清理未使用");
   await app.waitFor("text:清理所有未被容器使用的存储卷？卷里的数据会一并删除。");
@@ -72,7 +75,7 @@ test("清理未使用", async () => {
 });
 
 test("搜索过滤", async () => {
-  const app = await open("./App.tsx", { width: 1100, height: 800, host: { handlers: handlers() } });
+  const app = await open("../../App.tsx", { width: 1100, height: 800, host: { params: TEST_PARAMS, handlers: handlers() } });
   await app.waitFor("text:app-data");
   await app.type("按名称 / 驱动 / 挂载点过滤", "zzz");
   await app.waitFor("text:没有匹配的存储卷");

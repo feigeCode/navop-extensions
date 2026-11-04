@@ -3,9 +3,10 @@
 // 三个操作各有分工：messageId 优先（queryById）、其次 key（queryByKey）、
 // 都没有时按时间窗口翻页（queryByTimeWindow）。时间窗口只对第三种生效。
 //
-// 数据全走 `navop.context.current` + `navop.resource.invoke`，连接由宿主注入。
-import { host, mount, signal, Text, View } from "nsh";
+// 数据全走 `navop.resource.invoke`，连接句柄由宿主写在 `host.params.connection`。
+import { signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { arr, errorMessage, humanBytes, str } from "../../lib/format";
 import {
   Badge,
@@ -80,20 +81,6 @@ const OPERATIONS: Record<string, string> = {
   updateTopic: "middleware/topic/update",
 };
 
-let resourceHandle: string | null = null;
-
-/** 借来的资源句柄：页面所属连接的那一个。 */
-async function handle(): Promise<string> {
-  if (resourceHandle) return resourceHandle;
-  const context = (await host.call("navop.context.current", {})) as {
-    connection?: { resourceHandle?: string } | null;
-  };
-  const found = context?.connection?.resourceHandle;
-  if (!found) throw new Error("这个页面需要一个扩展连接（当前上下文里没有资源句柄）");
-  resourceHandle = found;
-  return found;
-}
-
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -103,10 +90,9 @@ async function dispatch(
   const method = OPERATIONS[operationId];
   if (!method) throw new Error(`未知的操作：${operationId}`);
   try {
-    return await host.call("navop.resource.invoke", {
-      handle: await handle(),
-      method,
-      params: (input as Record<string, unknown>) ?? {},
+    // provider 可能要等 daemon / broker 回话，给慢档超时。
+    return await invoke(method, (input as Record<string, unknown>) ?? {}, {
+      timeout: SLOW_TIMEOUT_MS,
     });
   } catch (error) {
     throw new Error(errorMessage(error));
@@ -739,5 +725,3 @@ export default function Messages() {
     </View>
   );
 }
-
-mount(Messages);

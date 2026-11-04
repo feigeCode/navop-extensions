@@ -7,10 +7,10 @@
 // provider 返回 `{ id, mounts: [{ Type, Name, Source, Destination, Mode, RW, Driver, Propagation }] }`。
 // 字段是 bollard 的 PascalCase；`RW === false`（或 Mode 以 ro 开头）即只读。
 // 挂载数量通常很少，路径不截断，直接换行显示完整值。
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { arr, errorMessage, str } from "../../lib/format";
-import { call } from "../../lib/host";
+import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
 
@@ -127,7 +127,7 @@ export default function ContainerMounts() {
   async function loadContainers() {
     containersLoading.set(true);
     try {
-      const result = await call<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {});
+      const result = await invoke<{ containers?: ContainerRow[] } | ContainerRow[]>("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
       const list = Array.isArray(result) ? (result as ContainerRow[]) : (arr(result, "containers") as ContainerRow[]);
       containers.set(list);
       containersError.set(null);
@@ -147,7 +147,7 @@ export default function ContainerMounts() {
     busy.set(true);
     if (mounts().length === 0) loading.set(true);
     try {
-      const result = await call<unknown>("docker/container/mounts", { id });
+      const result = await invoke<unknown>("docker/container/mounts", { id }, { timeout: SLOW_TIMEOUT_MS });
       if (mine !== seq) return;
       const list = Array.isArray(result) ? (result as MountPoint[]) : (arr(result, "mounts") as MountPoint[]);
       mounts.set(list);
@@ -424,5 +424,3 @@ export default function ContainerMounts() {
     </View>
   );
 }
-
-mount(ContainerMounts);

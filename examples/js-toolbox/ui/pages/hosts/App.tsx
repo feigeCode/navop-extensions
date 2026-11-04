@@ -2,8 +2,8 @@
 //
 // 文件读写走 `fs/promises`：能力来自扩展 permissions（`fs:read:/etc` /
 // `fs:write:/etc`）与 nsh.json 的 fs 声明，两条都要有。保存是破坏性写操作，
-// 必须再点一次确认。日志走 `navop.log.*`。
-import { host, mount, signal, Text, View } from "nsh";
+// 必须再点一次确认。日志走 `host.post("navop.log", …)`（无应答）。
+import { host, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Input } from "nsh/base";
 import { readFile, writeFile } from "fs/promises";
@@ -84,9 +84,9 @@ function Field(props: {
   );
 }
 
-/** 调一次宿主日志；失败不影响页面主流程。 */
+/** 上报一条宿主日志：`navop.log` 是无应答的 post，不会影响页面主流程。 */
 function log(level: "info" | "error", message: string): void {
-  void host.call(`navop.log.${level}`, { message }).catch(() => undefined);
+  host.post("navop.log", { level, message });
 }
 
 export default function Hosts() {
@@ -370,4 +370,3 @@ export default function Hosts() {
   );
 }
 
-mount(Hosts);

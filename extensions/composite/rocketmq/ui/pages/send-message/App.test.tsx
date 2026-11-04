@@ -1,5 +1,5 @@
 import { expect, open, test } from "nsh/test";
-import { hostHandlers } from "../../lib/test-host";
+import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
 const TOPIC_INPUT = "id:topic";
 const TAG_INPUT = "id:tag";
@@ -37,7 +37,7 @@ function handlers() {
 }
 
 function openPage() {
-  return open("./App.tsx", { width: 1280, height: 900, host: { handlers: handlers() } });
+  return open("../../App.tsx", { width: 1280, height: 900, host: { params: { ...TEST_PARAMS, route: "send-message", backends: ["resource"] }, handlers: handlers() } });
 }
 
 test("JSON 合法：即时提示与字节数", async () => {
