@@ -1,3 +1,8 @@
+> **已下线（2026-11）**：扩展页面已从 gpui-shell（QuickJS + `ui/*.js`）迁到 nsh
+> （一个插件一个 app，`ui/App.tsx` + `ui/pages/*` + `ui/dist/bundle.js`）。本文是旧运行时的
+> 存档；新页面类型来自 nsh 的 `ui/.nsh/types` 与 `@navop/extension-kit`，开发入口见
+> `templates/extension-basic/`。
+
 # Navop 如何复用 GPUI Shell
 
 本文件只补充产品约束。通用分层、状态/上下文和组件注册机制见

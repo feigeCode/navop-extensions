@@ -18,6 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install manifest type dependencies
+        working-directory: packages/navop-extension-types
+        run: npm ci
+      - name: Validate extension manifests
+        run: npm run lint:manifests
       - name: Test repository scripts
         run: node --test tests/scripts.test.mjs
       - name: Validate workflow YAML

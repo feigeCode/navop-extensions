@@ -1,3 +1,8 @@
+> **已下线（2026-11）**：扩展页面已从 gpui-shell（QuickJS + `ui/*.js`）迁到 nsh
+> （一个插件一个 app，`ui/App.tsx` + `ui/pages/*` + `ui/dist/bundle.js`）。本文是旧运行时的
+> 存档；新页面类型来自 nsh 的 `ui/.nsh/types` 与 `@navop/extension-kit`，开发入口见
+> `templates/extension-basic/`。
+
 # 扩展 shell 页面脚本 API 参考（gpui-shell 内嵌运行时）
 
 可用性以 navop 宿主实际注入为准（`../navop/crates/universal-plugins/src/shell_plugin_host/`）。API 语义与独立 gpui-shell 同源，实例优先抄 `extensions/composite/mqtt/ui/`。
@@ -20,7 +25,7 @@ import * as theme from "navop.theme";        // 组件库那套主题名（§6.2
 
 - **输入状态优先用 `gpui-base.InputState.new()` / `TextareaState.new()`**；styled `Input` / `Textarea` 从 `gpui-component` 导入。此规则只针对已验证的输入桥接，不表示所有 state 都在 base，也不表示 component catalog 的 retained state 都是空壳。
 - `gpui-base` 也有基础 `Input` / `Textarea`：有意自定外观时用它们；普通 Navop 表单用 styled 控件，布局/状态仍可混用 base。`gpui-component-shell` 是宿主 Rust crate，不是 JS module。
-- 完整 UI 类型读取 `packages/navop-extension-types/vendor/gpui-kit.d.ts`，同时 include `src/shell/*.d.ts` 的 Navop 模块声明。先核对它们是否匹配 **Navop 实际锁定的 gpui-component revision 与 catalog**；兄弟仓库 `examples/js_story/gpui-kit.d.ts` 仅作对照，不能替代匹配宿主的生成物。具体步骤见 [复用边界](shell-reuse.md)。
+- （旧）完整 UI 类型读取 `vendor/gpui-kit.d.ts` + `src/shell/*.d.ts`；这两个文件已随 gpui-shell 下线删除。先核对它们是否匹配 **Navop 实际锁定的 gpui-component revision 与 catalog**；兄弟仓库 `examples/js_story/gpui-kit.d.ts` 仅作对照，不能替代匹配宿主的生成物。具体步骤见 [复用边界](shell-reuse.md)。
 
 ## 2. View 生命周期
 

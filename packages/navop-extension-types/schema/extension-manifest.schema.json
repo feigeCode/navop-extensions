@@ -4,45 +4,113 @@
   "title": "Navop Extension Manifest",
   "description": "Navop extension.json manifest (schema_version 1)",
   "type": "object",
-  "required": ["schema_version", "id", "name", "version", "engines"],
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "version",
+    "engines"
+  ],
   "additionalProperties": true,
   "properties": {
-    "schema_version": { "const": 1 },
-    "id": { "type": "string", "minLength": 1 },
-    "name": { "type": "string", "minLength": 1 },
-    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+" },
-    "publisher": { "type": "string" },
-    "license": { "type": "string" },
-    "homepage": { "type": "string" },
-    "repository": { "type": "string" },
-    "icon": { "type": "string" },
-    "description_i18n": { "type": "string" },
-    "description": { "type": "string" },
-    "categories": { "type": "array", "items": { "type": "string" } },
-    "keywords": { "type": "array", "items": { "type": "string" } },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "icon": {
+      "type": "string"
+    },
+    "description_i18n": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "engines": {
       "type": "object",
-      "required": ["onetcli"],
+      "required": [
+        "onetcli"
+      ],
       "additionalProperties": false,
       "properties": {
-        "onetcli": { "type": "string" },
-        "gpui_shell": { "type": "string" },
-        "nsh": { "type": "string" }
+        "onetcli": {
+          "type": "string"
+        },
+        "gpui_shell": {
+          "type": "string"
+        },
+        "nsh": {
+          "type": "string"
+        }
       }
     },
     "api": {
       "type": "object",
-      "additionalProperties": { "type": "string" },
+      "additionalProperties": {
+        "type": "string"
+      },
       "properties": {
-        "extension": { "type": "string" },
-        "database": { "type": "string" },
-        "ui": { "type": "string" },
-        "task": { "type": "string" },
-        "connection": { "type": "string" },
-        "shell": { "type": "string" }
+        "extension": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "ui": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "shell": {
+          "type": "string"
+        }
       }
     },
-    "activation": { "type": "array", "items": { "type": "string" } },
+    "activation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "permissions": {
       "type": "array",
       "items": {
@@ -50,59 +118,120 @@
         "pattern": "^(spawn:|net:(tcp|udp):|net:unix:|secrets:(read|write):|shell:exec|fs:|process:|clipboard:|storage:)"
       }
     },
-    "runtime": { "$ref": "#/definitions/runtimeSection" },
-    "contributes": { "$ref": "#/definitions/contributes" }
+    "runtime": {
+      "$ref": "#/definitions/runtimeSection"
+    },
+    "contributes": {
+      "$ref": "#/definitions/contributes"
+    }
   },
   "definitions": {
     "runtimeSection": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "ipc": { "type": "array", "items": { "$ref": "#/definitions/ipcRuntime" } },
-        "wasm": { "type": "array", "items": { "$ref": "#/definitions/wasmRuntime" } }
+        "ipc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ipcRuntime"
+          }
+        },
+        "wasm": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/wasmRuntime"
+          }
+        }
       }
     },
     "ipcRuntime": {
       "type": "object",
-      "required": ["id", "entry"],
+      "required": [
+        "id",
+        "entry"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
         "entry": {
           "type": "object",
-          "required": ["command"],
+          "required": [
+            "command"
+          ],
           "additionalProperties": false,
           "properties": {
-            "command": { "type": "string" },
-            "args": { "type": "array", "items": { "type": "string" } },
-            "working_dir": { "type": "string" },
-            "env": { "type": "object", "additionalProperties": { "type": "string" } }
+            "command": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "working_dir": {
+              "type": "string"
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         },
         "transport": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "kind": { "type": "string" },
-            "connect_timeout_ms": { "type": "number" }
+            "kind": {
+              "type": "string"
+            },
+            "connect_timeout_ms": {
+              "type": "number"
+            }
           }
         },
-        "auto_restart": { "type": "boolean" },
-        "max_restart_attempts": { "type": "number" },
-        "shutdown_grace_ms": { "type": "number" }
+        "auto_restart": {
+          "type": "boolean"
+        },
+        "max_restart_attempts": {
+          "type": "number"
+        },
+        "shutdown_grace_ms": {
+          "type": "number"
+        }
       }
     },
     "wasmRuntime": {
       "type": "object",
-      "required": ["id", "module", "kind"],
+      "required": [
+        "id",
+        "module",
+        "kind"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "module": { "type": "string" },
-        "kind": { "const": "component" },
-        "timeout_ms": { "type": "number" },
-        "max_memory_mb": { "type": "number" },
-        "fuel_per_call": { "type": "number" }
+        "id": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "component"
+        },
+        "timeout_ms": {
+          "type": "number"
+        },
+        "max_memory_mb": {
+          "type": "number"
+        },
+        "fuel_per_call": {
+          "type": "number"
+        }
       }
     },
     "contributes": {
@@ -113,42 +242,84 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "name"],
+            "required": [
+              "id",
+              "name"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "name": { "type": "string" },
-              "path": { "type": "string" },
-              "file_extensions": { "type": "array", "items": { "type": "string" } }
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "file_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
         "connectionImporters": {
           "type": "array",
-          "items": { "$ref": "#/definitions/connectionImporter" }
+          "items": {
+            "$ref": "#/definitions/connectionImporter"
+          }
         },
         "connections": {
           "type": "array",
-          "items": { "$ref": "#/definitions/resourceConnection" }
+          "items": {
+            "$ref": "#/definitions/resourceConnection"
+          }
         },
-        "shellApp": { "$ref": "#/definitions/shellApp" },
+        "shellApp": {
+          "$ref": "#/definitions/shellApp"
+        },
         "commands": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "handler"],
+            "required": [
+              "id",
+              "handler"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "title": { "type": "string" },
-              "category": { "type": "string" },
-              "icon": { "type": "string" },
-              "enablement_when": { "type": "string" },
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              },
+              "icon": {
+                "type": "string"
+              },
+              "enablement_when": {
+                "type": "string"
+              },
               "handler": {
                 "type": "object",
                 "required": [],
                 "properties": {
-                  "kind": { "type": "string" },
-                  "runtime_id": { "type": "string" },
-                  "function": { "type": ["string", "null"] }
+                  "kind": {
+                    "type": "string"
+                  },
+                  "runtime_id": {
+                    "type": "string"
+                  },
+                  "function": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
                 }
               }
             }
@@ -158,28 +329,47 @@
           "type": "object",
           "additionalProperties": {
             "type": "array",
-            "items": { "$ref": "#/definitions/menuContrib" }
+            "items": {
+              "$ref": "#/definitions/menuContrib"
+            }
           }
         },
         "toolbars": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
-            "items": { "$ref": "#/definitions/toolbarContrib" }
+            "items": {
+              "$ref": "#/definitions/toolbarContrib"
+            }
           }
         },
         "keybindings": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["command", "key"],
+            "required": [
+              "command",
+              "key"
+            ],
             "properties": {
-              "command": { "type": "string" },
-              "key": { "type": "string" },
-              "mac": { "type": "string" },
-              "linux": { "type": "string" },
-              "windows": { "type": "string" },
-              "when": { "type": "string" }
+              "command": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "mac": {
+                "type": "string"
+              },
+              "linux": {
+                "type": "string"
+              },
+              "windows": {
+                "type": "string"
+              },
+              "when": {
+                "type": "string"
+              }
             }
           }
         },
@@ -187,13 +377,28 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id"],
+            "required": [
+              "id"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "runtimeId": { "type": "string" },
-              "function": { "type": "string" },
-              "languages": { "type": "array", "items": { "type": "string" } },
-              "assets": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "runtimeId": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string"
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "assets": {
+                "type": "string"
+              }
             }
           }
         },
@@ -201,15 +406,38 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "displayName"],
+            "required": [
+              "id",
+              "displayName"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "displayName": { "type": "string" },
-              "runtimeId": { "type": "string" },
-              "function": { "type": "string" },
-              "blockKinds": { "type": "array", "items": { "type": "string" } },
-              "outputMediaTypes": { "type": "array", "items": { "type": "string" } },
-              "priority": { "type": "number" }
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "runtimeId": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string"
+              },
+              "blockKinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "outputMediaTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "priority": {
+                "type": "number"
+              }
             }
           }
         },
@@ -217,112 +445,320 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "displayName"],
+            "required": [
+              "id",
+              "displayName"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "displayName": { "type": "string" },
-              "runtimeId": { "type": "string" },
-              "function": { "type": "string" },
-              "formats": { "type": "array", "items": { "type": "string" } },
-              "outputMediaTypes": { "type": "array", "items": { "type": "string" } },
-              "priority": { "type": "number" }
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "runtimeId": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string"
+              },
+              "formats": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "outputMediaTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "priority": {
+                "type": "number"
+              }
             }
           }
         },
         "remoteFileEditors": {
           "type": "array",
-          "items": { "$ref": "#/definitions/remoteFileEditor" }
+          "items": {
+            "$ref": "#/definitions/remoteFileEditor"
+          }
         }
       }
     },
     "shellApp": {
       "type": "object",
-      "required": ["entry"],
+      "required": [
+        "entry"
+      ],
       "additionalProperties": false,
       "properties": {
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "icon": { "type": "string" },
-        "entry": { "type": "string", "minLength": 1 },
-        "category": { "type": "string" },
-        "keywords": { "type": "array", "items": { "type": "string" } },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "backends": {
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "modules": {
           "type": "array",
           "items": {
-            "enum": ["resource", "job", "event", "blob", "log", "runtime", "dev"]
+            "enum": [
+              "resource",
+              "job",
+              "event",
+              "blob",
+              "log",
+              "runtime",
+              "dev"
+            ]
           }
         }
       }
     },
     "resourceConnection": {
-      "type": "object",
-      "required": ["id", "label", "runtimeId", "resourceType"],
-      "additionalProperties": false,
-      "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "description": { "type": "string" },
-        "icon": { "type": "string" },
-        "runtimeId": { "type": "string" },
-        "resourceType": { "type": "string" },
-        "route": { "type": "string", "minLength": 1 },
-        "form": {
+      "description": "资源连接。普通连接需要 runtimeId + resourceType（可带 route）；终端型连接用 terminal 直接起本地进程，不允许 runtimeId/resourceType/route。",
+      "oneOf": [
+        {
           "type": "object",
+          "required": [
+            "id",
+            "label",
+            "runtimeId",
+            "resourceType"
+          ],
           "additionalProperties": false,
           "properties": {
-            "tabs": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["id", "label"],
-                "additionalProperties": false,
-                "properties": {
-                  "id": { "type": "string" },
-                  "label": { "type": "string" },
-                  "fields": {
-                    "type": "array",
-                    "items": { "$ref": "#/definitions/formField" }
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "form": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tabs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "fields": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/definitions/formField"
+                        }
+                      }
+                    }
                   }
+                }
+              }
+            },
+            "runtimeId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "resourceType": {
+              "type": "string",
+              "minLength": 1
+            },
+            "route": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "label",
+            "terminal"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "form": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tabs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "fields": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/definitions/formField"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "terminal": {
+              "type": "object",
+              "required": [
+                "command"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "env": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "title": {
+                  "type": "string"
                 }
               }
             }
           }
         }
-      }
+      ]
     },
     "formField": {
       "type": "object",
-      "required": ["id", "label", "fieldType"],
+      "required": [
+        "id",
+        "label",
+        "fieldType"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
           "not": {
-            "enum": ["name", "workspace", "remark", "sync_enabled", "team_id"]
+            "enum": [
+              "name",
+              "workspace",
+              "remark",
+              "sync_enabled",
+              "team_id"
+            ]
           },
           "pattern": "^[^:/\\\\]+$"
         },
-        "label": { "type": "string" },
-        "fieldType": {
-          "enum": ["Text", "Number", "Password", "TextArea", "Select", "Checkbox"]
+        "label": {
+          "type": "string"
         },
-        "required": { "type": "boolean" },
-        "defaultValue": { "type": ["string", "boolean"] },
-        "placeholder": { "type": "string" },
-        "secret": { "type": "boolean" },
+        "fieldType": {
+          "enum": [
+            "Text",
+            "Number",
+            "Password",
+            "TextArea",
+            "Select",
+            "Checkbox",
+            "FilePath",
+            "Auth",
+            "Icon"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "defaultValue": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "boolean"
+        },
         "options": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["value", "label"],
+            "required": [
+              "value",
+              "label"
+            ],
             "additionalProperties": false,
             "properties": {
-              "value": { "type": "string" },
-              "label": { "type": "string" }
+              "value": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
             }
           }
         },
@@ -330,50 +766,103 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["field", "equals"],
+            "required": [
+              "field",
+              "equals"
+            ],
             "additionalProperties": false,
             "properties": {
-              "field": { "type": "string" },
-              "equals": { "type": "string" }
+              "field": {
+                "type": "string"
+              },
+              "equals": {
+                "type": "string"
+              }
             }
           }
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
     "connectionImporter": {
       "type": "object",
-      "required": ["id", "displayName"],
+      "required": [
+        "id",
+        "displayName"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "runtimeId": { "type": "string" },
-        "displayName": { "type": "string" },
-        "description": { "type": "string" },
-        "icon": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "runtimeId": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
         "outputKinds": {
           "type": "array",
-          "items": { "enum": ["database", "ssh", "port-forwarding", "quick-command", "workspace"] }
+          "items": {
+            "enum": [
+              "database",
+              "ssh",
+              "port-forwarding",
+              "quick-command",
+              "workspace"
+            ]
+          }
         },
         "platforms": {
           "type": "array",
-          "items": { "enum": ["macos", "windows", "linux"] }
+          "items": {
+            "enum": [
+              "macos",
+              "windows",
+              "linux"
+            ]
+          }
         },
         "manualFilePick": {
           "type": "object",
           "properties": {
-            "prompt": { "type": "string" },
-            "supportsDirectories": { "type": "boolean" },
-            "directoryPrompt": { "type": "string" }
+            "prompt": {
+              "type": "string"
+            },
+            "supportsDirectories": {
+              "type": "boolean"
+            },
+            "directoryPrompt": {
+              "type": "string"
+            }
           }
         },
         "candidateFiles": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "path"],
+            "required": [
+              "id",
+              "path"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "platform": { "type": "string" },
-              "path": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "platform": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
             }
           }
         }
@@ -381,45 +870,108 @@
     },
     "remoteFileEditor": {
       "type": "object",
-      "required": ["id", "displayName", "command"],
+      "required": [
+        "id",
+        "displayName",
+        "command"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "displayName": { "type": "string" },
-        "platforms": { "type": "array", "items": { "type": "string" } },
-        "fileMasks": { "type": "array", "items": { "type": "string" } },
-        "priority": { "type": "number" },
+        "id": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fileMasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "priority": {
+          "type": "number"
+        },
         "command": {
           "type": "object",
           "properties": {
-            "launchMode": { "enum": ["direct", "macos_open"] },
-            "programCandidates": { "type": "array", "items": { "type": "string" } },
-            "args": { "type": "array", "items": { "type": "string" } }
+            "launchMode": {
+              "enum": [
+                "direct",
+                "macos_open"
+              ]
+            },
+            "programCandidates": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       }
     },
     "menuContrib": {
       "type": "object",
-      "required": ["command"],
+      "required": [
+        "command"
+      ],
       "properties": {
-        "command": { "type": "string" },
-        "label": { "type": "string" },
-        "group": { "type": "string" },
-        "when": { "type": "string" },
-        "requires_active": { "type": "boolean" }
+        "command": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        },
+        "requires_active": {
+          "type": "boolean"
+        }
       }
     },
     "toolbarContrib": {
       "type": "object",
-      "required": ["command"],
+      "required": [
+        "command"
+      ],
       "properties": {
-        "command": { "type": "string" },
-        "label": { "type": "string" },
-        "group": { "type": "string" },
-        "when": { "type": "string" },
-        "text_when": { "type": "string" },
-        "icon_only": { "type": "boolean" },
-        "priority": { "type": "number" }
+        "command": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        },
+        "text_when": {
+          "type": "string"
+        },
+        "icon_only": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": "number"
+        }
       }
     }
   }

@@ -1,3 +1,7 @@
+> **已下线（2026-11）**：扩展页面已迁到 nsh（一插件一 app、`ui/App.tsx` 路由 +
+> `ui/pages/*` TSX，产物 `ui/dist/bundle.js`）。下面的 gpui-shell / `ui/*.js`
+> 约定仅作历史参考，新扩展请从 `templates/extension-basic/` 起步。
+
 ---
 name: navop-shell-extension
 description: 'Use when writing, reviewing, or debugging Navop extension shell pages and examples; reusing gpui-shell/gpui-component-shell in navop-extensions; choosing gpui-base vs styled script components; extension.json contributions (connections, shellApp); navop.* host modules; View lifecycle, theme constraints, rendering failures, and local verification.'
