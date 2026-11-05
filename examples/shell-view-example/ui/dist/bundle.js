@@ -1,7 +1,7 @@
 import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
-//#region ../../../extensions/composite/docker/ui/lib/theme.ts
+//#region ../../../packages/extension-kit/src/theme.ts
 /** 语义色角色。取值是函数：token 是响应式的，每次重渲染取最新值。 */
 const c = {
 	/** 页面底色 */
@@ -92,7 +92,7 @@ const panel = (padding = 14) => ({
 });
 
 //#endregion
-//#region ../../../extensions/composite/docker/ui/lib/format.ts
+//#region ../../../packages/extension-kit/src/format.ts
 /** provider 抛出来的错误可能是 Error、字符串或 `{message}`；统一成一句话。 */
 function errorMessage(error) {
 	if (typeof error === "string") return error;
@@ -104,7 +104,7 @@ function errorMessage(error) {
 }
 
 //#endregion
-//#region ../../../extensions/composite/docker/ui/lib/ui.tsx
+//#region ../../../packages/extension-kit/src/ui.tsx
 /** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
 const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {

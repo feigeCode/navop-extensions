@@ -1,0 +1,9 @@
+{
+  "name": "@navop-ext/rocketmq-ui",
+  "private": true,
+  "type": "module",
+  "description": "Navop 扩展的 nsh app（构建产物见 dist/）。",
+  "dependencies": {
+    "@navop/extension-kit": "*"
+  }
+}

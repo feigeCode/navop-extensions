@@ -1,2 +1,2 @@
-// RocketMQ 页面转发 docker 设计系统的公共组件。
-export * from "../../../docker/ui/lib/ui";
+// 公共组件：实现已抽到 @navop/extension-kit/ui。
+export * from "@navop/extension-kit/ui";

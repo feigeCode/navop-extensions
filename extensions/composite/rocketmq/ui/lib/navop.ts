@@ -1,2 +1,2 @@
-// 宿主客户端转发：RocketMQ 的 ui/lib 与 docker 共用一份实现（见 docker/ui/lib/navop.ts）。
-export * from "../../../docker/ui/lib/navop";
+// 宿主 ABI v2 绑定：实现已抽到 @navop/extension-kit。
+export * from "@navop/extension-kit";

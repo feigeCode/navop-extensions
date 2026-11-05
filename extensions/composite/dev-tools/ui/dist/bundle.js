@@ -1,7 +1,7 @@
 import { append, bindProp, component, element, insert, prop, text } from "nsh:rt";
 import { host, mount, signal, token } from "nsh";
 
-//#region ../../docker/ui/lib/navop.ts
+//#region ../../../../packages/extension-kit/src/navop.ts
 /** 启动事实：模块顶层读一次即可。 */
 const params = host.params;
 /** 当前页面的 view 身份。 */
@@ -22,7 +22,7 @@ function log(level, message, fields) {
 }
 
 //#endregion
-//#region ../../docker/ui/lib/format.ts
+//#region ../../../../packages/extension-kit/src/format.ts
 /** provider 抛出来的错误可能是 Error、字符串或 `{message}`；统一成一句话。 */
 function errorMessage(error) {
 	if (typeof error === "string") return error;
@@ -49,7 +49,7 @@ function arr(source, key) {
 }
 
 //#endregion
-//#region ../../docker/ui/lib/theme.ts
+//#region ../../../../packages/extension-kit/src/theme.ts
 /** 语义色角色。取值是函数：token 是响应式的，每次重渲染取最新值。 */
 const c = {
 	/** 页面底色 */
@@ -142,7 +142,7 @@ const hairline = (vertical = false) => vertical ? {
 };
 
 //#endregion
-//#region ../../docker/ui/lib/ui.tsx
+//#region ../../../../packages/extension-kit/src/ui.tsx
 /** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
 const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {

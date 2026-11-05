@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "crypto";
 import { Buffer } from "buffer";
 import { readFile, writeFile } from "fs/promises";
 
-//#region ../../../extensions/composite/docker/ui/lib/theme.ts
+//#region ../../../packages/extension-kit/src/theme.ts
 /** 语义色角色。取值是函数：token 是响应式的，每次重渲染取最新值。 */
 const c = {
 	/** 页面底色 */
@@ -105,7 +105,7 @@ const panel = (padding = 14) => ({
 });
 
 //#endregion
-//#region ../../../extensions/composite/docker/ui/lib/format.ts
+//#region ../../../packages/extension-kit/src/format.ts
 /** `2026-11-02T09:31:04Z` → `11-02 09:31`；解析不了就原样返回。 */
 function shortTime(value) {
 	if (typeof value !== "string" || value.length === 0) return "-";
@@ -125,7 +125,7 @@ function errorMessage(error) {
 }
 
 //#endregion
-//#region ../../../extensions/composite/docker/ui/lib/ui.tsx
+//#region ../../../packages/extension-kit/src/ui.tsx
 /** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
 const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {

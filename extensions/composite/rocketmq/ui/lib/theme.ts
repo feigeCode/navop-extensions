@@ -1,2 +1,2 @@
-// RocketMQ 页面转发 docker 设计系统的主题 token（单一来源，避免复制）。
-export * from "../../../docker/ui/lib/theme";
+// 页面设计系统：实现已抽到 @navop/extension-kit/theme。
+export * from "@navop/extension-kit/theme";

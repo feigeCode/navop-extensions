@@ -1,7 +1,7 @@
 import { append, bindProp, component, cond, element, insert, prop, text } from "nsh:rt";
 import { Clipboard, computed, host, mount, signal, token } from "nsh";
 
-//#region ../../docker/ui/lib/navop.ts
+//#region ../../../../packages/extension-kit/src/navop.ts
 /** 常规命令的默认超时。nsh 自己的缺省也是 30 秒，写出来省得调用点猜。 */
 const DEFAULT_TIMEOUT_MS = 3e4;
 /** 慢命令（列表、日志、大查询）用的超时。 */
@@ -39,7 +39,7 @@ async function invoke(method, payload = {}, options = {}) {
 }
 
 //#endregion
-//#region ../../docker/ui/lib/format.ts
+//#region ../../../../packages/extension-kit/src/format.ts
 /** 字节数 → `1.4 GB` 这类人读形式；非法输入给 `-`。 */
 function humanBytes(bytes) {
 	const value = Number(bytes);
@@ -80,7 +80,7 @@ function str(source, key, fallback = "-") {
 }
 
 //#endregion
-//#region ../../docker/ui/lib/theme.ts
+//#region ../../../../packages/extension-kit/src/theme.ts
 /** 语义色角色。取值是函数：token 是响应式的，每次重渲染取最新值。 */
 const c = {
 	/** 页面底色 */
@@ -163,7 +163,7 @@ const t = {
 };
 
 //#endregion
-//#region ../../docker/ui/lib/ui.tsx
+//#region ../../../../packages/extension-kit/src/ui.tsx
 /** 取值：accessor 就调用，普通值原样返回。只在 JSX 表达式里调用。 */
 const pick = (value) => typeof value === "function" ? value() : value;
 const toneColor = (tone) => {
