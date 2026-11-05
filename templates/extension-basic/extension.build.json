@@ -1,0 +1,11 @@
+{
+  "id": "template",
+  "kind": "composite",
+  "language": "static",
+  "package": "template",
+  "path": "extensions/composite/template",
+  "targets": ["universal"],
+  "releaseTagPrefix": "template-v",
+  "r2Prefix": "extensions/template",
+  "published": false
+}

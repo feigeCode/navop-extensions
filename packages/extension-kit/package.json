@@ -1,0 +1,42 @@
+{
+  "name": "@navop/extension-kit",
+  "version": "0.1.0",
+  "description": "Navop 扩展开发工具包：宿主 ABI v2 绑定、页面组件、主题 token、测试桩。",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./ui": {
+      "types": "./src/ui.tsx",
+      "default": "./src/ui.tsx"
+    },
+    "./theme": {
+      "types": "./src/theme.ts",
+      "default": "./src/theme.ts"
+    },
+    "./format": {
+      "types": "./src/format.ts",
+      "default": "./src/format.ts"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "default": "./src/testing.ts"
+    }
+  },
+  "keywords": [
+    "navop",
+    "nsh",
+    "extension"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

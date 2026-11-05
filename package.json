@@ -1,0 +1,23 @@
+{
+  "name": "navop-extensions",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Navop 扩展仓库：扩展、驱动、示例与发布脚本（monorepo）。",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/extension-kit",
+    "packages/create-extension",
+    "templates/extension-basic/ui",
+    "extensions/composite/*/ui",
+    "examples/*/ui"
+  ],
+  "scripts": {
+    "create": "node scripts/create-extension.mjs",
+    "lint:manifests": "node packages/navop-extension-types/scripts/check-manifests.mjs",
+    "create:offline": "bash scripts/create-extension-offline.sh",
+    "pack:offline": "bash scripts/pack-offline.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

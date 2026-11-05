@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "com.example.template",
+  "name": "扩展模板",
+  "version": "0.1.0",
+  "publisher": "Your Name",
+  "license": "Apache-2.0",
+  "description": "最小可运行的 Navop 扩展模板：一个插件一个 nsh app，app 内用路由组织页面。",
+  "categories": [
+    "developer-tools"
+  ],
+  "keywords": [
+    "template",
+    "example"
+  ],
+  "engines": {
+    "onetcli": ">=0.16.1",
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "扩展模板",
+      "description": "最小可运行的 Navop 插件",
+      "entry": "ui/dist/bundle.js",
+      "category": "developer-tools",
+      "keywords": [
+        "template",
+        "example"
+      ],
+      "backends": {},
+      "modules": []
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@navop/create-extension",
+  "version": "0.1.0",
+  "description": "生成 Navop 扩展：一个插件一个 nsh app，可选离线模式（--vendor-lib）。",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "create-extension": "./cli.mjs",
+    "navop-ext": "./cli.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "create.mjs",
+    "template",
+    "kit",
+    "README.md"
+  ],
+  "scripts": {
+    "prepack": "node scripts/prepare.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "navop",
+    "nsh",
+    "extension",
+    "scaffold"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

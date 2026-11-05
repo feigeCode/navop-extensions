@@ -22,3 +22,14 @@ packages/navop-extension-types/dist/
 
 # Zed editor local config
 .zed/
+
+# create-extension 的 prepack 产物（template/kit 由 scripts/prepare.mjs 复制）
+packages/create-extension/template/
+packages/create-extension/kit/
+templates/extension-basic/ui/dist/
+
+# npm workspaces（扩展 ui 与 packages 的依赖）
+/node_modules/
+extensions/composite/*/ui/node_modules/
+examples/*/ui/node_modules/
+packages/*/node_modules/
