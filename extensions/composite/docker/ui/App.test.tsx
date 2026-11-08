@@ -10,7 +10,7 @@ const handlers = hostHandlers({
   "docker/volume/list": () => ({ volumes: [] }),
 });
 
-test("默认路由渲染容器页，侧栏有 app 标题与路由项", async () => {
+test("默认路由渲染容器页，侧栏只列资源与引擎", async () => {
   const app = await open("./App.tsx", {
     width: 1200,
     height: 800,
@@ -18,8 +18,21 @@ test("默认路由渲染容器页，侧栏有 app 标题与路由项", async () 
   });
   await app.waitFor("text:Docker");
   await app.waitFor("text:还没有容器");
-  expect(app.shows("text:Docker Images")).toBe(true);
-  expect(app.shows("text:Container Terminal")).toBe(true);
+  expect(app.shows("text:镜像")).toBe(true);
+  expect(app.shows("text:引擎概览")).toBe(true);
+  // 单容器视图挪进了容器详情的标签条，侧栏不再列它们。
+  expect(app.shows("text:终端")).toBe(false);
+  expect(app.shows("text:文件变更")).toBe(false);
+});
+
+test("老的单容器路由仍能直接打开（深链兼容）", async () => {
+  const app = await open("./App.tsx", {
+    width: 1200,
+    height: 800,
+    host: { params: { ...TEST_PARAMS, route: "container-terminal" }, handlers },
+  });
+  await app.waitFor("text:选一个容器");
+  expect(app.shows("text:还没有容器")).toBe(false);
 });
 
 test("按 params.route 打开指定页面", async () => {
@@ -48,7 +61,7 @@ test("点侧栏切到另一个路由", async () => {
     host: { params: TEST_PARAMS, handlers },
   });
   await app.waitFor("text:还没有容器");
-  await app.press("text:Docker Images");
+  await app.press("text:镜像");
   await app.waitFor("text:没有匹配的镜像");
   expect(app.shows("text:还没有容器")).toBe(false);
 });

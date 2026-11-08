@@ -62,7 +62,9 @@ function toContainers(payload: unknown): Container[] {
   return list.filter((item) => typeof item?.id === "string" && item.id.length > 0);
 }
 
-export default function App(): JSX.Element {
+export default function App(props: { containerId?: string } = {}): JSX.Element {
+  /** 从容器页的「终端」标签进来时预设容器：直接连这台机器，左边不再列容器。 */
+  const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
   const loading = signal(true);
   const error = signal("");
   const containers = signal<Container[]>([]);
@@ -83,6 +85,8 @@ export default function App(): JSX.Element {
       if (current !== null) {
         const fresh = containers().find((item) => item.id === current.id);
         selected.set(fresh ?? null);
+      } else if (presetId !== null) {
+        selected.set(containers().find((item) => item.id === presetId) ?? null);
       }
     } catch (cause) {
       const message = errorMessage(cause);
@@ -245,9 +249,17 @@ export default function App(): JSX.Element {
             <Text style={{ ...t.meta, color: c.danger() }}>{notice()}</Text>
           </View>
         ) : null}
-        <SplitPane width={260} left={picker()} right={current !== null ? terminal(current) : (
-          <Empty title="选一个容器" hint="左边点一个容器，右边就会开一个 shell" />
-        )} />
+        {presetId !== null ? (
+          current !== null ? (
+            terminal(current)
+          ) : (
+            <Empty title="找不到这个容器" hint="它可能已被删除，刷新列表后再试。" />
+          )
+        ) : (
+          <SplitPane width={260} left={picker()} right={current !== null ? terminal(current) : (
+            <Empty title="选一个容器" hint="左边点一个容器，右边就会开一个 shell" />
+          )} />
+        )}
       </View>
     );
   };

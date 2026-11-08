@@ -61,6 +61,14 @@ const c = {
 	danger: () => token("destructive"),
 	/** 行悬停/选中底色 */
 	hover: () => token("muted"),
+	/** 侧栏专用的一组（shadcn 的 sidebar token：侧栏底色比页面稍深一点） */
+	sidebar: () => token("sidebar"),
+	sidebarText: () => token("sidebar-foreground"),
+	sidebarActive: () => token("sidebar-accent"),
+	sidebarActiveText: () => token("sidebar-accent-foreground"),
+	sidebarLine: () => token("sidebar-border"),
+	/** 输入框描边（比分割线深一档） */
+	field: () => token("input"),
 	/** 图表色板，用于分类着色 */
 	chart: (index) => token(`chart-${index % 5 + 1}`)
 };
@@ -76,46 +84,71 @@ const r = {
 * 用 getter 是必须的：对象字面量里的 `color: c.text()` 会在模块加载时
 * 求值一次并冻住，用户切主题时页面不跟着变。写成 getter 之后每次读
 * `t.meta` 都重新取 token，主题一变就重画。
+*
+* 尺子：桌面应用的正文比网页小一档（13 是上限），层级靠字重和灰度拉开，
+* 不靠字号跳变 —— 一屏里同时出现 22 / 17 / 14 / 11 会像后台管理面板。
 */
 const t = {
+	/** 页面标题：14/600，和 macOS 侧栏标题一个量级 */
 	get h1() {
-		return {
-			fontSize: 17,
-			fontWeight: "600",
-			color: c.text()
-		};
-	},
-	get h2() {
 		return {
 			fontSize: 14,
 			fontWeight: "600",
 			color: c.text()
 		};
 	},
-	get body() {
+	/** 分区标题：12/600 */
+	get h2() {
 		return {
-			fontSize: 13,
+			fontSize: 12,
+			fontWeight: "600",
 			color: c.text()
 		};
 	},
-	get label() {
+	/** 正文 */
+	get body() {
 		return {
-			fontSize: 11,
-			fontWeight: "500",
-			color: c.muted(),
-			letterSpacing: .3
+			fontSize: 12.5,
+			color: c.text()
 		};
 	},
+	/** 列表主行 */
+	get row() {
+		return {
+			fontSize: 13,
+			fontWeight: "500",
+			color: c.text()
+		};
+	},
+	/** 分区标签 / 指标名：10/600 宽字距，靠灰度退到背景里 */
+	get label() {
+		return {
+			fontSize: 10,
+			fontWeight: "600",
+			color: c.muted(),
+			letterSpacing: .6
+		};
+	},
+	/** 次要信息（时间、说明、计数） */
 	get meta() {
 		return {
 			fontSize: 11,
 			color: c.muted()
 		};
 	},
+	/** 等宽数字：ID、端口、路径。正文色，保证别的扩展里当主内容用时不吃亏 */
 	get mono() {
 		return {
-			fontSize: 12,
+			fontSize: 11.5,
 			color: c.text(),
+			fontVariant: ["tabular-nums"]
+		};
+	},
+	/** 等宽 + 退一档灰度：只作辅助信息（短 ID、镜像、路径、IP） */
+	get monoDim() {
+		return {
+			fontSize: 11,
+			color: c.muted(),
 			fontVariant: ["tabular-nums"]
 		};
 	}
@@ -257,174 +290,205 @@ function Card(props) {
 		return __nsh_hv4;
 	})();
 }
-/** 状态胶囊。 */
+/** 状态胶囊：底色填充，不描边（描边胶囊一多就成"盒子汤"）。 */
 function Badge(props) {
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
-			paddingHorizontal: 8,
-			paddingVertical: 2,
+			height: 18,
+			paddingHorizontal: 7,
 			borderRadius: r.pill,
-			borderWidth: 1,
-			borderColor: toneColor(pick$2(props.tone ?? "neutral")),
+			backgroundColor: c.hover(),
 			display: "flex",
 			flexDirection: "row",
-			alignItems: "center"
+			alignItems: "center",
+			gap: 4
 		}));
 		const __nsh_hv10 = element("text");
 		bindProp(__nsh_hv10, "style", () => ({
-			fontSize: 11,
+			fontSize: 10.5,
 			fontWeight: "600",
-			color: toneColor(pick$2(props.tone ?? "neutral"))
+			color: pick$2(props.tone ?? "neutral") === "neutral" ? c.muted() : toneColor(pick$2(props.tone ?? "neutral"))
 		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
+		insert(__nsh_hv9, () => props.dot ? component(Dot, { get color() {
+			return toneColor(pick$2(props.tone ?? "neutral"));
+		} }) : null, __nsh_hv10);
 		return __nsh_hv9;
+	})();
+}
+/** 小圆点：状态色。 */
+function Dot(props) {
+	return (() => {
+		const __nsh_hv11 = element("view");
+		bindProp(__nsh_hv11, "style", () => ({
+			width: props.size ?? 6,
+			height: props.size ?? 6,
+			flexShrink: 0,
+			borderRadius: 999,
+			backgroundColor: pick$2(props.color)
+		}));
+		return __nsh_hv11;
 	})();
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
 	return (() => {
-		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => pick$2(props.disabled ?? false) ? void 0 : props.onPress);
-		prop(__nsh_hv11, "role", "button");
-		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
-		bindProp(__nsh_hv11, "style", () => ({
-			height: props.small ? 24 : 28,
-			paddingHorizontal: props.small ? 9 : 12,
+		const __nsh_hv12 = element("view");
+		bindProp(__nsh_hv12, "onPress", () => pick$2(props.disabled ?? false) ? void 0 : props.onPress);
+		prop(__nsh_hv12, "role", "button");
+		bindProp(__nsh_hv12, "accessibilityLabel", () => props.label);
+		bindProp(__nsh_hv12, "hoverStyle", () => pick$2(props.tone ?? "ghost") === "primary" ? void 0 : { backgroundColor: pick$2(props.disabled ?? false) ? "transparent" : c.hover() });
+		bindProp(__nsh_hv12, "style", () => ({
+			height: props.small ? 22 : 26,
+			paddingHorizontal: props.small ? 8 : 11,
 			borderRadius: r.control,
-			borderWidth: 1,
+			borderWidth: pick$2(props.tone ?? "ghost") === "ghost" ? 0 : 1,
 			borderColor: buttonBorder(pick$2(props.tone ?? "ghost")),
 			backgroundColor: buttonFill(pick$2(props.tone ?? "ghost")),
-			opacity: pick$2(props.disabled ?? false) ? .5 : 1,
+			opacity: pick$2(props.disabled ?? false) ? .45 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
-			justifyContent: "center"
+			justifyContent: "center",
+			cursor: "default"
 		}));
-		const __nsh_hv12 = element("text");
-		bindProp(__nsh_hv12, "style", () => ({
-			fontSize: props.small ? 12 : 13,
+		const __nsh_hv13 = element("text");
+		bindProp(__nsh_hv13, "style", () => ({
+			fontSize: 12,
 			fontWeight: "500",
 			color: buttonLabel(pick$2(props.tone ?? "ghost"), pick$2(props.disabled ?? false))
 		}));
-		insert(__nsh_hv12, () => props.label);
-		append(__nsh_hv11, __nsh_hv12);
-		return __nsh_hv11;
+		insert(__nsh_hv13, () => props.label);
+		append(__nsh_hv12, __nsh_hv13);
+		return __nsh_hv12;
 	})();
 }
 /** 搜索框。`onChange` 拿到的是整串新值。 */
 function SearchField(props) {
 	return (() => {
-		const __nsh_hv13 = element("view");
-		bindProp(__nsh_hv13, "style", () => ({
+		const __nsh_hv14 = element("view");
+		bindProp(__nsh_hv14, "style", () => ({
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 6,
-			height: 28,
-			width: props.width ?? 220,
-			paddingHorizontal: 9,
+			gap: 5,
+			height: 26,
+			width: props.width ?? 180,
+			paddingHorizontal: 8,
 			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: c.line(),
-			backgroundColor: c.bg()
+			backgroundColor: c.hover()
 		}));
-		const __nsh_hv14 = element("text");
-		bindProp(__nsh_hv14, "style", () => ({
-			fontSize: 12,
+		const __nsh_hv15 = element("text");
+		bindProp(__nsh_hv15, "style", () => ({
+			fontSize: 11,
 			color: c.muted()
 		}));
-		const __nsh_hv15 = text("⌕");
-		append(__nsh_hv14, __nsh_hv15);
-		const __nsh_hv16 = element("input");
-		bindProp(__nsh_hv16, "value", () => props.value);
-		bindProp(__nsh_hv16, "placeholder", () => props.placeholder ?? "Filter…");
-		prop(__nsh_hv16, "onChange", (text) => props.onChange(text));
-		prop(__nsh_hv16, "style", {
+		const __nsh_hv16 = text("⌕");
+		append(__nsh_hv15, __nsh_hv16);
+		const __nsh_hv17 = element("input");
+		bindProp(__nsh_hv17, "value", () => props.value);
+		bindProp(__nsh_hv17, "placeholder", () => props.placeholder ?? "Filter…");
+		prop(__nsh_hv17, "onChange", (text) => props.onChange(text));
+		prop(__nsh_hv17, "style", {
 			flex: 1,
-			fontSize: 12,
+			fontSize: 11.5,
 			paddingHorizontal: 0,
 			borderWidth: 0,
 			backgroundColor: "transparent"
 		});
-		append(__nsh_hv13, __nsh_hv14);
-		append(__nsh_hv13, __nsh_hv16);
-		return __nsh_hv13;
+		append(__nsh_hv14, __nsh_hv15);
+		append(__nsh_hv14, __nsh_hv17);
+		return __nsh_hv14;
 	})();
 }
 /** 可滚动的行列表：单选、悬停底色、按 key 高亮。 */
 function List(props) {
 	return cond(() => pick$2(props.items).length === 0 && props.empty !== void 0, () => () => props.empty, () => (() => {
-		const __nsh_hv17 = element("scroll");
-		prop(__nsh_hv17, "style", {
+		const __nsh_hv18 = element("scroll");
+		prop(__nsh_hv18, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv18 = element("view");
-		prop(__nsh_hv18, "style", {
+		const __nsh_hv19 = element("view");
+		prop(__nsh_hv19, "style", {
 			display: "flex",
-			flexDirection: "column"
+			flexDirection: "column",
+			paddingHorizontal: 6,
+			paddingVertical: 4
 		});
-		insert(__nsh_hv18, () => pick$2(props.items).map((item, index) => {
+		insert(__nsh_hv19, () => pick$2(props.items).map((item, index) => {
 			const key = props.keyOf(item);
 			const active = pick$2(props.selected ?? null) === key;
 			return (() => {
-				const __nsh_hv19 = element("view");
-				bindProp(__nsh_hv19, "onPress", () => props.onSelect === void 0 ? void 0 : () => props.onSelect?.(key));
-				bindProp(__nsh_hv19, "style", () => ({
+				const __nsh_hv20 = element("view");
+				bindProp(__nsh_hv20, "onPress", () => props.onSelect === void 0 ? void 0 : () => props.onSelect?.(key));
+				prop(__nsh_hv20, "role", "button");
+				prop(__nsh_hv20, "accessibilityState", { selected: active });
+				bindProp(__nsh_hv20, "hoverStyle", () => ({ backgroundColor: active ? c.hover() : c.sidebarActive() }));
+				bindProp(__nsh_hv20, "style", () => ({
+					borderRadius: r.control,
 					backgroundColor: active ? c.hover() : "transparent",
-					borderBottomWidth: index === pick$2(props.items).length - 1 ? 0 : 1,
-					borderBottomColor: c.line()
+					flexDirection: "row",
+					alignItems: "stretch",
+					cursor: "default"
 				}));
-				insert(__nsh_hv19, () => props.render(item, index));
-				return __nsh_hv19;
+				const __nsh_hv21 = element("view");
+				bindProp(__nsh_hv21, "style", () => ({
+					width: 2,
+					flexShrink: 0,
+					marginVertical: 8,
+					borderRadius: 999,
+					backgroundColor: active ? c.accent() : "transparent"
+				}));
+				append(__nsh_hv20, __nsh_hv21);
+				insert(__nsh_hv20, () => props.render(item, index));
+				return __nsh_hv20;
 			})();
 		}));
-		append(__nsh_hv17, __nsh_hv18);
-		return __nsh_hv17;
+		append(__nsh_hv18, __nsh_hv19);
+		return __nsh_hv18;
 	})());
 }
 /** 列表里的两行一行式条目：主标题 + 次要信息 + 右侧自由内容。 */
 function ListRow(props) {
 	return component(Row, {
-		gap: 10,
+		gap: 9,
 		style: {
-			paddingVertical: 9,
-			paddingHorizontal: 4,
-			minHeight: 40
+			paddingVertical: 7,
+			paddingHorizontal: 8,
+			minHeight: 42,
+			width: "100%"
 		},
 		get children() {
 			return [
 				() => props.leading,
 				(() => {
-					const __nsh_hv20 = element("view");
-					prop(__nsh_hv20, "style", {
+					const __nsh_hv22 = element("view");
+					prop(__nsh_hv22, "style", {
 						display: "flex",
 						flexDirection: "column",
-						gap: 2,
+						gap: 1,
 						flex: 1,
 						minWidth: 0
 					});
-					const __nsh_hv21 = element("text");
-					prop(__nsh_hv21, "numberOfLines", 1);
-					bindProp(__nsh_hv21, "style", () => ({
+					const __nsh_hv23 = element("text");
+					prop(__nsh_hv23, "numberOfLines", 1);
+					bindProp(__nsh_hv23, "style", () => ({
 						fontSize: 13,
 						fontWeight: "500",
 						color: c.text()
 					}));
-					insert(__nsh_hv21, () => props.title);
-					append(__nsh_hv20, __nsh_hv21);
-					insert(__nsh_hv20, () => props.subtitle === void 0 ? null : (() => {
-						const __nsh_hv22 = element("text");
-						prop(__nsh_hv22, "numberOfLines", 1);
-						bindProp(__nsh_hv22, "style", () => ({
-							fontSize: 11,
-							color: c.muted()
-						}));
-						insert(__nsh_hv22, () => props.subtitle);
-						return __nsh_hv22;
+					insert(__nsh_hv23, () => props.title);
+					append(__nsh_hv22, __nsh_hv23);
+					insert(__nsh_hv22, () => props.subtitle === void 0 ? null : (() => {
+						const __nsh_hv24 = element("text");
+						prop(__nsh_hv24, "numberOfLines", 1);
+						bindProp(__nsh_hv24, "style", () => t.meta);
+						insert(__nsh_hv24, () => props.subtitle);
+						return __nsh_hv24;
 					})());
-					return __nsh_hv20;
+					return __nsh_hv22;
 				})(),
 				() => props.trailing
 			];
@@ -434,8 +498,8 @@ function ListRow(props) {
 /** 空状态：一句解释 + 可选的下一步提示。 */
 function Empty(props) {
 	return (() => {
-		const __nsh_hv23 = element("view");
-		prop(__nsh_hv23, "style", {
+		const __nsh_hv25 = element("view");
+		prop(__nsh_hv25, "style", {
 			flex: 1,
 			display: "flex",
 			flexDirection: "column",
@@ -444,32 +508,33 @@ function Empty(props) {
 			gap: 6,
 			padding: 24
 		});
-		const __nsh_hv24 = element("text");
-		bindProp(__nsh_hv24, "style", () => ({
+		const __nsh_hv26 = element("text");
+		bindProp(__nsh_hv26, "style", () => ({
 			fontSize: 13,
 			fontWeight: "500",
 			color: c.text()
 		}));
-		insert(__nsh_hv24, () => props.title);
-		append(__nsh_hv23, __nsh_hv24);
-		insert(__nsh_hv23, [() => props.hint === void 0 ? null : (() => {
-			const __nsh_hv25 = element("text");
-			bindProp(__nsh_hv25, "style", () => ({
-				fontSize: 12,
+		insert(__nsh_hv26, () => props.title);
+		append(__nsh_hv25, __nsh_hv26);
+		insert(__nsh_hv25, [() => props.hint === void 0 ? null : (() => {
+			const __nsh_hv27 = element("text");
+			bindProp(__nsh_hv27, "style", () => ({
+				fontSize: 11.5,
 				color: c.muted(),
-				textAlign: "center"
+				textAlign: "center",
+				maxWidth: 320
 			}));
-			insert(__nsh_hv25, () => props.hint);
-			return __nsh_hv25;
+			insert(__nsh_hv27, () => props.hint);
+			return __nsh_hv27;
 		})(), () => props.action]);
-		return __nsh_hv23;
+		return __nsh_hv25;
 	})();
 }
 /** 加载中：一行说明（列表为空时占满可用高度）。 */
 function Loading(props) {
 	return (() => {
-		const __nsh_hv26 = element("view");
-		prop(__nsh_hv26, "style", {
+		const __nsh_hv28 = element("view");
+		prop(__nsh_hv28, "style", {
 			flex: 1,
 			display: "flex",
 			flexDirection: "row",
@@ -478,34 +543,34 @@ function Loading(props) {
 			gap: 8,
 			padding: 24
 		});
-		const __nsh_hv27 = element("text");
-		bindProp(__nsh_hv27, "style", () => ({
-			fontSize: 12,
+		const __nsh_hv29 = element("text");
+		bindProp(__nsh_hv29, "style", () => ({
+			fontSize: 11.5,
 			color: c.muted()
 		}));
-		insert(__nsh_hv27, () => props.label ?? "Loading…");
-		append(__nsh_hv26, __nsh_hv27);
-		return __nsh_hv26;
+		insert(__nsh_hv29, () => props.label ?? "Loading…");
+		append(__nsh_hv28, __nsh_hv29);
+		return __nsh_hv28;
 	})();
 }
 /** 失败态：原因 + 重试。错误文案保留原文，便于用户搜索。 */
 function LoadError(props) {
 	return (() => {
-		const __nsh_hv28 = element("view");
-		prop(__nsh_hv28, "style", {
+		const __nsh_hv30 = element("view");
+		prop(__nsh_hv30, "style", {
 			display: "flex",
 			flexDirection: "column",
 			gap: 8,
 			padding: 16
 		});
-		const __nsh_hv29 = element("text");
-		bindProp(__nsh_hv29, "style", () => ({
-			fontSize: 13,
+		const __nsh_hv31 = element("text");
+		bindProp(__nsh_hv31, "style", () => ({
+			fontSize: 12.5,
 			color: c.danger()
 		}));
-		insert(__nsh_hv29, () => `加载失败：${props.message}`);
-		append(__nsh_hv28, __nsh_hv29);
-		insert(__nsh_hv28, () => props.onRetry === void 0 ? null : component(Row, { get children() {
+		insert(__nsh_hv31, () => `加载失败：${props.message}`);
+		append(__nsh_hv30, __nsh_hv31);
+		insert(__nsh_hv30, () => props.onRetry === void 0 ? null : component(Row, { get children() {
 			return component(Button, {
 				label: "重试",
 				get onPress() {
@@ -513,101 +578,100 @@ function LoadError(props) {
 				}
 			});
 		} }));
-		return __nsh_hv28;
+		return __nsh_hv30;
 	})();
 }
 /** 指标块：大数字 + 说明。 */
 function Stat(props) {
 	return (() => {
-		const __nsh_hv30 = element("view");
-		bindProp(__nsh_hv30, "style", () => ({
-			...panel(12),
+		const __nsh_hv32 = element("view");
+		prop(__nsh_hv32, "style", {
 			flex: 1,
-			minWidth: 140,
+			minWidth: 120,
 			display: "flex",
 			flexDirection: "column",
-			gap: 4
-		}));
-		const __nsh_hv31 = element("text");
-		bindProp(__nsh_hv31, "style", () => t.label);
-		insert(__nsh_hv31, () => props.label);
-		const __nsh_hv32 = element("text");
-		bindProp(__nsh_hv32, "style", () => ({
-			fontSize: 22,
+			gap: 3
+		});
+		const __nsh_hv33 = element("text");
+		bindProp(__nsh_hv33, "style", () => t.label);
+		insert(__nsh_hv33, () => props.label);
+		const __nsh_hv34 = element("text");
+		bindProp(__nsh_hv34, "style", () => ({
+			fontSize: 18,
 			fontWeight: "600",
 			color: props.tone === void 0 ? c.text() : toneColor(pick$2(props.tone)),
 			fontVariant: ["tabular-nums"]
 		}));
-		insert(__nsh_hv32, () => props.value);
-		append(__nsh_hv30, __nsh_hv31);
-		append(__nsh_hv30, __nsh_hv32);
-		insert(__nsh_hv30, () => props.hint === void 0 ? null : (() => {
-			const __nsh_hv33 = element("text");
-			bindProp(__nsh_hv33, "style", () => t.meta);
-			insert(__nsh_hv33, () => props.hint);
-			return __nsh_hv33;
+		insert(__nsh_hv34, () => props.value);
+		append(__nsh_hv32, __nsh_hv33);
+		append(__nsh_hv32, __nsh_hv34);
+		insert(__nsh_hv32, () => props.hint === void 0 ? null : (() => {
+			const __nsh_hv35 = element("text");
+			bindProp(__nsh_hv35, "style", () => t.meta);
+			insert(__nsh_hv35, () => props.hint);
+			return __nsh_hv35;
 		})());
-		return __nsh_hv30;
+		return __nsh_hv32;
 	})();
 }
 /** 占用条：0..1 的比例 + 两端说明。 */
 function Meter(props) {
 	return (() => {
-		const __nsh_hv34 = element("view");
-		prop(__nsh_hv34, "style", {
+		const __nsh_hv36 = element("view");
+		prop(__nsh_hv36, "style", {
 			display: "flex",
 			flexDirection: "column",
 			gap: 6
 		});
-		const __nsh_hv37 = element("view");
-		bindProp(__nsh_hv37, "style", () => ({
-			height: 8,
+		const __nsh_hv39 = element("view");
+		bindProp(__nsh_hv39, "style", () => ({
+			height: 4,
 			borderRadius: r.pill,
 			backgroundColor: c.hover(),
 			overflow: "hidden"
 		}));
-		const __nsh_hv38 = element("view");
-		bindProp(__nsh_hv38, "style", () => ({
+		const __nsh_hv40 = element("view");
+		bindProp(__nsh_hv40, "style", () => ({
 			width: meterWidth(pick$2(props.ratio)),
-			height: 8,
+			height: 4,
 			borderRadius: r.pill,
 			backgroundColor: props.tone === void 0 ? c.accent() : toneColor(pick$2(props.tone))
 		}));
-		append(__nsh_hv37, __nsh_hv38);
-		append(__nsh_hv34, __nsh_hv37);
-		insert(__nsh_hv34, cond(() => props.label !== void 0 || props.caption !== void 0, () => component(Row, {
+		append(__nsh_hv39, __nsh_hv40);
+		append(__nsh_hv36, __nsh_hv39);
+		insert(__nsh_hv36, cond(() => props.label !== void 0 || props.caption !== void 0, () => component(Row, {
 			style: { justifyContent: "space-between" },
 			get children() {
 				return [(() => {
-					const __nsh_hv35 = element("text");
-					bindProp(__nsh_hv35, "style", () => t.meta);
-					insert(__nsh_hv35, () => props.label ?? "");
-					return __nsh_hv35;
+					const __nsh_hv37 = element("text");
+					bindProp(__nsh_hv37, "style", () => t.meta);
+					insert(__nsh_hv37, () => props.label ?? "");
+					return __nsh_hv37;
 				})(), (() => {
-					const __nsh_hv36 = element("text");
-					bindProp(__nsh_hv36, "style", () => ({
+					const __nsh_hv38 = element("text");
+					bindProp(__nsh_hv38, "style", () => ({
 						...t.meta,
 						fontVariant: ["tabular-nums"]
 					}));
-					insert(__nsh_hv36, () => props.caption ?? "");
-					return __nsh_hv36;
+					insert(__nsh_hv38, () => props.caption ?? "");
+					return __nsh_hv38;
 				})()];
 			}
-		})), __nsh_hv37);
-		return __nsh_hv34;
+		})), __nsh_hv39);
+		return __nsh_hv36;
 	})();
 }
 /** 键值对表：inspect 类页面的主体。 */
 function KeyValue(props) {
 	return (() => {
-		const __nsh_hv39 = element("view");
-		bindProp(__nsh_hv39, "style", () => ({
+		const __nsh_hv41 = element("view");
+		bindProp(__nsh_hv41, "style", () => ({
 			display: "flex",
 			flexDirection: pick$2(props.columns ?? 1) === 2 ? "row" : "column",
 			flexWrap: "wrap",
 			gap: pick$2(props.columns ?? 1) === 2 ? 12 : 0
 		}));
-		insert(__nsh_hv39, () => pick$2(props.rows).map(([key, value]) => component(Row, {
+		insert(__nsh_hv41, () => pick$2(props.rows).map(([key, value]) => component(Row, {
 			get style() {
 				return {
 					justifyContent: "space-between",
@@ -618,40 +682,374 @@ function KeyValue(props) {
 			},
 			get children() {
 				return [(() => {
-					const __nsh_hv40 = element("text");
-					bindProp(__nsh_hv40, "style", () => ({
+					const __nsh_hv42 = element("text");
+					bindProp(__nsh_hv42, "style", () => ({
 						fontSize: 12,
 						color: c.muted()
 					}));
-					insert(__nsh_hv40, key);
-					return __nsh_hv40;
+					insert(__nsh_hv42, key);
+					return __nsh_hv42;
 				})(), (() => {
-					const __nsh_hv41 = element("text");
-					bindProp(__nsh_hv41, "style", () => ({
+					const __nsh_hv43 = element("text");
+					bindProp(__nsh_hv43, "style", () => ({
 						fontSize: 12,
 						color: c.text(),
 						fontVariant: ["tabular-nums"]
 					}));
-					insert(__nsh_hv41, value);
-					return __nsh_hv41;
+					insert(__nsh_hv43, value);
+					return __nsh_hv43;
 				})()];
 			}
 		})));
-		return __nsh_hv39;
+		return __nsh_hv41;
+	})();
+}
+/** 分区标题（列表上方的分组名）。 */
+function SectionTitle(props) {
+	return component(Row, {
+		style: {
+			justifyContent: "space-between",
+			paddingBottom: 2
+		},
+		get children() {
+			return [component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv44 = element("text");
+						bindProp(__nsh_hv44, "style", () => t.label);
+						insert(__nsh_hv44, () => props.title);
+						return __nsh_hv44;
+					})(), () => props.hint === void 0 ? null : (() => {
+						const __nsh_hv45 = element("text");
+						bindProp(__nsh_hv45, "style", () => t.meta);
+						insert(__nsh_hv45, () => props.hint);
+						return __nsh_hv45;
+					})()];
+				}
+			}), () => props.right];
+		}
+	});
+}
+/** 无描边分区：标题 + 内容，详情页用它替代「卡片套卡片」。 */
+function Section$1(props) {
+	return (() => {
+		const __nsh_hv46 = element("view");
+		bindProp(__nsh_hv46, "style", () => ({
+			display: "flex",
+			flexDirection: "column",
+			gap: props.gap ?? 8
+		}));
+		insert(__nsh_hv46, [cond(() => props.title !== void 0, () => component(SectionTitle, {
+			get title() {
+				return props.title ?? "";
+			},
+			get hint() {
+				return props.hint;
+			},
+			get right() {
+				return props.right;
+			}
+		})), () => props.children]);
+		return __nsh_hv46;
+	})();
+}
+/** 页头工具栏：左侧标题/计数，右侧控件。高度固定 44，去掉描边盒子堆叠。 */
+function Toolbar(props) {
+	return component(Row, {
+		gap: 10,
+		get style() {
+			return {
+				height: 44,
+				flexShrink: 0,
+				paddingHorizontal: 14,
+				borderBottomWidth: 1,
+				borderBottomColor: c.line(),
+				justifyContent: "space-between"
+			};
+		},
+		get children() {
+			return [component(Row, {
+				gap: 8,
+				style: {
+					minWidth: 0,
+					flex: 1
+				},
+				get children() {
+					return [
+						cond(() => props.title !== void 0, () => (() => {
+							const __nsh_hv47 = element("text");
+							prop(__nsh_hv47, "numberOfLines", 1);
+							bindProp(__nsh_hv47, "style", () => t.h2);
+							insert(__nsh_hv47, () => props.title ?? "");
+							return __nsh_hv47;
+						})()),
+						cond(() => props.hint !== void 0, () => (() => {
+							const __nsh_hv48 = element("text");
+							prop(__nsh_hv48, "numberOfLines", 1);
+							bindProp(__nsh_hv48, "style", () => t.meta);
+							insert(__nsh_hv48, () => props.hint ?? "");
+							return __nsh_hv48;
+						})()),
+						() => props.children
+					];
+				}
+			}), component(Row, {
+				gap: 6,
+				style: { flexShrink: 0 },
+				get children() {
+					return cond(() => props.right !== void 0, () => () => props.right);
+				}
+			})];
+		}
+	});
+}
+/** 图标按钮：单字形，无描边，hover 出底色。用于刷新/关闭这类高频小操作。 */
+function IconButton(props) {
+	const danger = props.tone === "danger";
+	return (() => {
+		const __nsh_hv49 = element("view");
+		prop(__nsh_hv49, "role", "button");
+		bindProp(__nsh_hv49, "onPress", () => pick$2(props.disabled ?? false) ? void 0 : props.onPress);
+		bindProp(__nsh_hv49, "accessibilityLabel", () => props.label ?? props.glyph);
+		bindProp(__nsh_hv49, "hoverStyle", () => ({ backgroundColor: c.hover() }));
+		bindProp(__nsh_hv49, "activeStyle", () => ({ backgroundColor: c.sidebarActive() }));
+		bindProp(__nsh_hv49, "style", () => ({
+			width: props.size ?? 26,
+			height: props.size ?? 26,
+			flexShrink: 0,
+			alignItems: "center",
+			justifyContent: "center",
+			borderRadius: r.control,
+			backgroundColor: "transparent",
+			cursor: "default",
+			opacity: pick$2(props.disabled ?? false) ? .4 : 1
+		}));
+		const __nsh_hv50 = element("text");
+		bindProp(__nsh_hv50, "style", () => ({
+			fontSize: 13,
+			fontWeight: "500",
+			color: danger ? c.danger() : c.text()
+		}));
+		insert(__nsh_hv50, () => props.glyph);
+		append(__nsh_hv49, __nsh_hv50);
+		return __nsh_hv49;
+	})();
+}
+/** 分段控件：一组互斥的小选项（全部/运行中/已停止）。 */
+function Segmented(props) {
+	const small = props.size === "small";
+	return component(Row, {
+		gap: 2,
+		get style() {
+			return {
+				padding: 2,
+				borderRadius: r.control,
+				backgroundColor: c.hover(),
+				flexShrink: 0,
+				alignSelf: "flex-start"
+			};
+		},
+		get children() {
+			return props.options.map((option) => (() => {
+				const __nsh_hv51 = element("view");
+				prop(__nsh_hv51, "role", "button");
+				prop(__nsh_hv51, "onPress", () => props.onChange(option.value));
+				bindProp(__nsh_hv51, "accessibilityLabel", () => option.testLabel ?? option.label);
+				bindProp(__nsh_hv51, "accessibilityState", () => ({ selected: pick$2(props.value) === option.value }));
+				bindProp(__nsh_hv51, "hoverStyle", () => ({ backgroundColor: pick$2(props.value) === option.value ? c.panel() : c.field() }));
+				bindProp(__nsh_hv51, "style", () => ({
+					height: small ? 20 : 22,
+					paddingHorizontal: small ? 7 : 9,
+					alignItems: "center",
+					justifyContent: "center",
+					borderRadius: r.chip,
+					cursor: "default",
+					backgroundColor: pick$2(props.value) === option.value ? c.panel() : "transparent",
+					boxShadow: pick$2(props.value) === option.value ? "0 1px 2px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.06)" : void 0
+				}));
+				const __nsh_hv52 = element("text");
+				bindProp(__nsh_hv52, "style", () => ({
+					fontSize: small ? 10.5 : 11,
+					fontWeight: pick$2(props.value) === option.value ? "600" : "400",
+					color: pick$2(props.value) === option.value ? c.text() : c.muted()
+				}));
+				insert(__nsh_hv52, () => option.label);
+				append(__nsh_hv51, __nsh_hv52);
+				return __nsh_hv51;
+			})());
+		}
+	});
+}
+/** 指标块：大数字 + 单位 + 说明，横排成一条（CPU / 内存 / 网络）。 */
+function Metric(props) {
+	return (() => {
+		const __nsh_hv53 = element("view");
+		prop(__nsh_hv53, "style", {
+			flex: 1,
+			minWidth: 120,
+			display: "flex",
+			flexDirection: "column",
+			gap: 4
+		});
+		const __nsh_hv54 = element("text");
+		bindProp(__nsh_hv54, "style", () => t.label);
+		insert(__nsh_hv54, () => props.label);
+		append(__nsh_hv53, __nsh_hv54);
+		insert(__nsh_hv53, [
+			component(Row, {
+				gap: 3,
+				style: { alignItems: "baseline" },
+				get children() {
+					return [(() => {
+						const __nsh_hv55 = element("text");
+						bindProp(__nsh_hv55, "style", () => ({
+							fontSize: 18,
+							fontWeight: "600",
+							color: c.text(),
+							fontVariant: ["tabular-nums"]
+						}));
+						insert(__nsh_hv55, () => props.value);
+						return __nsh_hv55;
+					})(), cond(() => props.unit !== void 0, () => (() => {
+						const __nsh_hv56 = element("text");
+						bindProp(__nsh_hv56, "style", () => ({
+							fontSize: 11,
+							color: c.muted()
+						}));
+						insert(__nsh_hv56, () => props.unit ?? "");
+						return __nsh_hv56;
+					})())];
+				}
+			}),
+			cond(() => props.ratio !== void 0, () => (() => {
+				const __nsh_hv57 = element("view");
+				bindProp(__nsh_hv57, "style", () => ({
+					height: 3,
+					borderRadius: r.pill,
+					backgroundColor: c.hover(),
+					overflow: "hidden"
+				}));
+				const __nsh_hv58 = element("view");
+				bindProp(__nsh_hv58, "style", () => ({
+					width: meterWidth(pick$2(props.ratio ?? 0)),
+					height: 3,
+					borderRadius: r.pill,
+					backgroundColor: props.tone === void 0 ? c.accent() : toneColor(pick$2(props.tone))
+				}));
+				append(__nsh_hv57, __nsh_hv58);
+				return __nsh_hv57;
+			})()),
+			cond(() => props.hint !== void 0, () => (() => {
+				const __nsh_hv59 = element("text");
+				prop(__nsh_hv59, "numberOfLines", 1);
+				bindProp(__nsh_hv59, "style", () => t.meta);
+				insert(__nsh_hv59, () => props.hint ?? "");
+				return __nsh_hv59;
+			})())
+		]);
+		return __nsh_hv53;
+	})();
+}
+/** 网格键值：标签在上、值在下，按列铺开；宽屏不再出现「标签左值右中间空一大截」。 */
+function KeyValueGrid(props) {
+	const columns = pick$2(props.columns ?? 2);
+	return (() => {
+		const __nsh_hv60 = element("view");
+		prop(__nsh_hv60, "style", {
+			display: "flex",
+			flexDirection: "row",
+			flexWrap: "wrap",
+			columnGap: 16,
+			rowGap: 10
+		});
+		insert(__nsh_hv60, () => pick$2(props.rows).map(([key, value]) => (() => {
+			const __nsh_hv61 = element("view");
+			bindProp(__nsh_hv61, "style", () => ({
+				width: `${Math.max(28, Math.floor(100 / Math.max(1, columns)) - 2)}%`,
+				display: "flex",
+				flexDirection: "column",
+				gap: 2,
+				minWidth: 0
+			}));
+			const __nsh_hv62 = element("text");
+			bindProp(__nsh_hv62, "style", () => t.label);
+			insert(__nsh_hv62, key);
+			const __nsh_hv63 = element("text");
+			prop(__nsh_hv63, "numberOfLines", 2);
+			bindProp(__nsh_hv63, "style", () => ({
+				fontSize: 12.5,
+				color: c.text(),
+				fontVariant: pick$2(props.mono ?? false) ? ["tabular-nums"] : void 0
+			}));
+			insert(__nsh_hv63, value);
+			append(__nsh_hv61, __nsh_hv62);
+			append(__nsh_hv61, __nsh_hv63);
+			return __nsh_hv61;
+		})()));
+		return __nsh_hv60;
+	})();
+}
+/** 定义列表：标签列定宽、值自适应换行。值很长（路径、命令行）时用它，
+* 而不是把值甩到右边缘。 */
+function KeyValueList(props) {
+	return (() => {
+		const __nsh_hv64 = element("view");
+		prop(__nsh_hv64, "style", {
+			display: "flex",
+			flexDirection: "column"
+		});
+		insert(__nsh_hv64, () => pick$2(props.rows).map(([key, value]) => component(Row, {
+			gap: 12,
+			get style() {
+				return {
+					alignItems: "flex-start",
+					paddingVertical: 5,
+					borderBottomWidth: 1,
+					borderBottomColor: c.line()
+				};
+			},
+			get children() {
+				return [(() => {
+					const __nsh_hv65 = element("text");
+					prop(__nsh_hv65, "numberOfLines", 1);
+					bindProp(__nsh_hv65, "style", () => ({
+						...t.meta,
+						width: props.labelWidth ?? 150,
+						flexShrink: 0
+					}));
+					insert(__nsh_hv65, key);
+					return __nsh_hv65;
+				})(), (() => {
+					const __nsh_hv66 = element("text");
+					bindProp(__nsh_hv66, "selectable", () => props.selectable === true);
+					bindProp(__nsh_hv66, "style", () => ({
+						flex: 1,
+						minWidth: 0,
+						fontSize: 12,
+						color: c.text(),
+						fontVariant: pick$2(props.mono ?? false) ? ["tabular-nums"] : void 0
+					}));
+					insert(__nsh_hv66, value);
+					return __nsh_hv66;
+				})()];
+			}
+		})));
+		return __nsh_hv64;
 	})();
 }
 /** 主从布局：左侧列表固定宽度，右侧详情自适应。 */
 function SplitPane(props) {
 	return (() => {
-		const __nsh_hv44 = element("view");
-		prop(__nsh_hv44, "style", {
+		const __nsh_hv67 = element("view");
+		prop(__nsh_hv67, "style", {
 			flex: 1,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "row"
 		});
-		const __nsh_hv45 = element("view");
-		bindProp(__nsh_hv45, "style", () => ({
+		const __nsh_hv68 = element("view");
+		bindProp(__nsh_hv68, "style", () => ({
 			width: props.width ?? 300,
 			flexShrink: 0,
 			minHeight: 0,
@@ -660,19 +1058,19 @@ function SplitPane(props) {
 			borderRightWidth: 1,
 			borderRightColor: c.line()
 		}));
-		insert(__nsh_hv45, () => props.left);
-		const __nsh_hv46 = element("view");
-		prop(__nsh_hv46, "style", {
+		insert(__nsh_hv68, () => props.left);
+		const __nsh_hv69 = element("view");
+		prop(__nsh_hv69, "style", {
 			flex: 1,
 			minWidth: 0,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column"
 		});
-		insert(__nsh_hv46, () => props.right);
-		append(__nsh_hv44, __nsh_hv45);
-		append(__nsh_hv44, __nsh_hv46);
-		return __nsh_hv44;
+		insert(__nsh_hv69, () => props.right);
+		append(__nsh_hv67, __nsh_hv68);
+		append(__nsh_hv67, __nsh_hv69);
+		return __nsh_hv67;
 	})();
 }
 /** 确认条：危险操作执行前的内联二次确认（不用弹出对话框）。 */
@@ -691,15 +1089,15 @@ function ConfirmBar(props) {
 		get children() {
 			return [
 				(() => {
-					const __nsh_hv47 = element("text");
-					bindProp(__nsh_hv47, "style", () => ({
+					const __nsh_hv70 = element("text");
+					bindProp(__nsh_hv70, "style", () => ({
 						flex: 1,
 						minWidth: 0,
 						fontSize: 12,
 						color: c.text()
 					}));
-					insert(__nsh_hv47, () => props.message);
-					return __nsh_hv47;
+					insert(__nsh_hv70, () => props.message);
+					return __nsh_hv70;
 				})(),
 				component(Button, {
 					label: "取消",
@@ -728,13 +1126,13 @@ function ConfirmBar(props) {
 /** 一行提示（操作结果/错误），`tone` 决定颜色。 */
 function Notice(props) {
 	return (() => {
-		const __nsh_hv48 = element("text");
-		bindProp(__nsh_hv48, "style", () => ({
-			fontSize: 12,
+		const __nsh_hv71 = element("text");
+		bindProp(__nsh_hv71, "style", () => ({
+			fontSize: 11.5,
 			color: props.tone === void 0 ? c.muted() : toneColor(pick$2(props.tone))
 		}));
-		insert(__nsh_hv48, () => props.message);
-		return __nsh_hv48;
+		insert(__nsh_hv71, () => props.message);
+		return __nsh_hv71;
 	})();
 }
 
@@ -809,6 +1207,16 @@ function errorMessage(error) {
 	}
 	return String(error);
 }
+/**
+* 判断错误是不是「容器没在跑」这类可解释的状态，而不是真的故障。
+*
+* 进容器执行命令（docker exec）的接口在容器停止/暂停时会被 Docker 以
+* `status code 409: container <id> is not running` 拒绝，对用户来说这是
+* 一个正常的业务状态，不该把协议错误原文糊到脸上。
+*/
+function isContainerStoppedError(message) {
+	return /is not running|is paused|status code 409/i.test(message);
+}
 /** 取对象上的字符串字段（provider 的 JSON 不保证形状）。 */
 function str(source, key, fallback = "-") {
 	if (!source || typeof source !== "object") return fallback;
@@ -826,11 +1234,4905 @@ function arr(source, key) {
 }
 
 //#endregion
+//#region pages/processes/App.tsx
+/** 列宽与对齐；没有登记的列平分剩余宽度，COMMAND / CMD 吃满剩余。 */
+const COLUMNS = {
+	UID: { width: 76 },
+	USER: { width: 80 },
+	PID: {
+		width: 64,
+		align: "right"
+	},
+	PPID: {
+		width: 64,
+		align: "right"
+	},
+	C: {
+		width: 38,
+		align: "right"
+	},
+	"%CPU": {
+		width: 58,
+		align: "right"
+	},
+	"%MEM": {
+		width: 58,
+		align: "right"
+	},
+	VSZ: {
+		width: 84,
+		align: "right"
+	},
+	RSS: {
+		width: 84,
+		align: "right"
+	},
+	NI: {
+		width: 42,
+		align: "right"
+	},
+	STAT: { width: 54 },
+	STIME: { width: 84 },
+	START: { width: 86 },
+	TIME: {
+		width: 86,
+		align: "right"
+	},
+	TTY: { width: 58 },
+	COMMAND: {},
+	CMD: {}
+};
+/** 数字列走 t.mono；只有“命令行”用正文排版。 */
+const NUMERIC = [
+	"PID",
+	"PPID",
+	"C",
+	"%CPU",
+	"%MEM",
+	"VSZ",
+	"RSS",
+	"NI",
+	"TIME",
+	"UID",
+	"TTY",
+	"STIME",
+	"START"
+];
+function alignOf(title) {
+	return COLUMNS[title]?.align ?? "left";
+}
+function cellStyle(title) {
+	const meta = COLUMNS[title];
+	if (meta === void 0 || meta.width === void 0) return {
+		flex: 1,
+		minWidth: 0,
+		textAlign: alignOf(title)
+	};
+	return {
+		width: meta.width,
+		flexShrink: 0,
+		textAlign: alignOf(title)
+	};
+}
+/** ps 的单元格可能来自对象（titles 作键）或数组（与 titles 同序）。 */
+function cell(row, titles, title) {
+	if (Array.isArray(row)) {
+		const index = titles.indexOf(title);
+		return index < 0 ? "" : String(row[index] ?? "");
+	}
+	const record = row;
+	const direct = record[title];
+	if (typeof direct === "string") return direct;
+	if (typeof direct === "number") return String(direct);
+	const key = Object.keys(record).find((name) => name.toLowerCase() === title.toLowerCase());
+	if (key === void 0) return "";
+	return str(record, key, "");
+}
+function inferTitles(rows) {
+	const first = rows[0];
+	if (first === void 0) return [];
+	if (Array.isArray(first)) return first.map((_, index) => String(index));
+	return Object.keys(first);
+}
+const containerId$5 = (row) => str(row, "id", "");
+const containerName$6 = (row) => str(row, "name", "");
+const containerImage$5 = (row) => str(row, "image", "");
+const containerState$5 = (row) => str(row, "state", "");
+function stateTone$7(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+function Processes(props = {}) {
+	const rows = signal([]);
+	const titles = signal([]);
+	const stats = signal(null);
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const selected = signal(null);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	/** 预设了容器就收起挑选列表，只留一条状态条。 */
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName$6(row)} ${containerImage$5(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId$5(item) === id);
+		return row === void 0 ? selectedName() : `${containerName$6(row)} · ${containerImage$5(row)}`;
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId$5(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	function resetData() {
+		rows.set([]);
+		titles.set([]);
+		stats.set(null);
+		selected.set(null);
+		error.set(null);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId$5(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName$6(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (rows().length === 0) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/top", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			const list = Array.isArray(result) ? result : arr(result, "processes");
+			const names = Array.isArray(result) ? [] : arr(result, "titles").map(String);
+			rows.set(list);
+			titles.set(names.length > 0 ? names : inferTitles(list));
+			error.set(null);
+			if (selected() !== null && selected() >= list.length) selected.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+		loadStats(id, mine);
+	}
+	/** 顺带取一次容器整体占用，失败不影响进程表。 */
+	async function loadStats(id, mine) {
+		try {
+			const result = await invoke$1("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			stats.set(result ?? null);
+		} catch {
+			if (mine === seq) stats.set(null);
+		}
+	}
+	function statsLine() {
+		const sample = stats();
+		if (sample === null) return "";
+		const cpu = Number(sample.cpu_percent);
+		return `容器 CPU ${Number.isFinite(cpu) ? `${cpu.toFixed(1)}%` : "-"} · 内存 ${humanBytes(sample.memory_usage_bytes)} / ${humanBytes(sample.memory_limit_bytes)}`;
+	}
+	function selectedCommand() {
+		const index = selected();
+		if (index === null) return null;
+		const row = rows()[index];
+		if (row === void 0) return null;
+		const names = titles();
+		for (const title of names) if (title === "CMD" || title === "COMMAND") {
+			const value = cell(row, names, title);
+			if (value.length > 0) return value;
+		}
+		return null;
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId$5(row);
+		const state = containerState$5(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$6(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName$6(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage$5(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone$7(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function tableHeader() {
+		const names = titles();
+		return component(Row, {
+			gap: 0,
+			get style() {
+				return {
+					paddingHorizontal: 12,
+					paddingVertical: 7,
+					backgroundColor: c.panel(),
+					borderBottomWidth: 1,
+					borderBottomColor: c.line(),
+					flexShrink: 0
+				};
+			},
+			get children() {
+				return names.map((title) => (() => {
+					const __nsh_hv16 = element("text");
+					prop(__nsh_hv16, "numberOfLines", 1);
+					bindProp(__nsh_hv16, "style", () => ({
+						...t.label,
+						...cellStyle(title)
+					}));
+					insert(__nsh_hv16, title);
+					return __nsh_hv16;
+				})());
+			}
+		});
+	}
+	function tableRow(row, names, index) {
+		return (() => {
+			const __nsh_hv17 = element("view");
+			prop(__nsh_hv17, "onPress", () => selected.set(selected() === index ? null : index));
+			bindProp(__nsh_hv17, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 0,
+				paddingHorizontal: 12,
+				paddingVertical: 5,
+				backgroundColor: selected() === index ? c.hover() : "transparent",
+				borderBottomWidth: 1,
+				borderBottomColor: c.line()
+			}));
+			insert(__nsh_hv17, () => names.map((title) => {
+				const style = NUMERIC.includes(title) ? {
+					...t.mono,
+					...cellStyle(title)
+				} : {
+					fontSize: 12,
+					color: c.text(),
+					...cellStyle(title)
+				};
+				return (() => {
+					const __nsh_hv18 = element("text");
+					prop(__nsh_hv18, "numberOfLines", 1);
+					prop(__nsh_hv18, "style", style);
+					insert(__nsh_hv18, () => cell(row, names, title));
+					return __nsh_hv18;
+				})();
+			}));
+			return __nsh_hv17;
+		})();
+	}
+	function footer() {
+		const command = selectedCommand();
+		return (() => {
+			const __nsh_hv19 = element("view");
+			bindProp(__nsh_hv19, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				flexShrink: 0
+			}));
+			insert(__nsh_hv19, () => command === null ? (() => {
+				const __nsh_hv20 = element("text");
+				prop(__nsh_hv20, "numberOfLines", 1);
+				bindProp(__nsh_hv20, "style", () => t.meta);
+				insert(__nsh_hv20, () => `${titles().length} 列来自 ps -ef；单进程 CPU / 内存不在 ps -ef 输出里，工具条显示的是容器整体占用。`);
+				return __nsh_hv20;
+			})() : (() => {
+				const __nsh_hv21 = element("text");
+				prop(__nsh_hv21, "numberOfLines", 2);
+				bindProp(__nsh_hv21, "style", () => t.mono);
+				insert(__nsh_hv21, command);
+				return __nsh_hv21;
+			})());
+			return __nsh_hv19;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的进程表。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && rows().length === 0) return component(Loading, { label: "正在读取容器进程…" });
+		if (error() !== null && rows().length === 0) {
+			if (isContainerStoppedError(error() ?? "")) return component(Empty, {
+				title: "容器不在运行中",
+				hint: "读进程要进容器执行 ps（docker exec），容器停止或暂停时不可用。启动容器后再刷新就行。",
+				get action() {
+					return component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void load()
+					});
+				}
+			});
+			return component(LoadError, {
+				get message() {
+					return error() ?? "";
+				},
+				onRetry: () => void load()
+			});
+		}
+		if (rows().length === 0) return component(Empty, {
+			title: "容器里没有可见的进程",
+			hint: "ps -ef 返回了空列表：容器可能已停止，或者 PID 1 已经退出。可以刷新重试。",
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv22 = element("view");
+			prop(__nsh_hv22, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv24 = element("scroll");
+			prop(__nsh_hv24, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			insert(__nsh_hv24, () => rows().map((row, index) => tableRow(row, titles(), index)));
+			append(__nsh_hv22, __nsh_hv24);
+			insert(__nsh_hv22, [() => error() === null ? null : (() => {
+				const __nsh_hv23 = element("view");
+				prop(__nsh_hv23, "style", {
+					paddingHorizontal: 12,
+					paddingTop: 8
+				});
+				insert(__nsh_hv23, component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }));
+				return __nsh_hv23;
+			})(), () => tableHeader()], __nsh_hv24);
+			insert(__nsh_hv22, () => footer());
+			return __nsh_hv22;
+		})();
+	}
+	function toolbar() {
+		const id = selectedId();
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [
+							(() => {
+								const __nsh_hv25 = element("text");
+								bindProp(__nsh_hv25, "style", () => t.h1);
+								const __nsh_hv26 = text("进程");
+								append(__nsh_hv25, __nsh_hv26);
+								return __nsh_hv25;
+							})(),
+							() => id === null ? (() => {
+								const __nsh_hv27 = element("text");
+								bindProp(__nsh_hv27, "style", () => t.meta);
+								const __nsh_hv28 = text("未选择容器");
+								append(__nsh_hv27, __nsh_hv28);
+								return __nsh_hv27;
+							})() : (() => {
+								const __nsh_hv29 = element("text");
+								bindProp(__nsh_hv29, "style", () => t.meta);
+								insert(__nsh_hv29, () => `${rows().length} 个进程`);
+								return __nsh_hv29;
+							})(),
+							(() => {
+								const __nsh_hv30 = element("text");
+								bindProp(__nsh_hv30, "style", () => t.meta);
+								insert(__nsh_hv30, () => statsLine());
+								return __nsh_hv30;
+							})()
+						];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [() => busy() ? (() => {
+							const __nsh_hv31 = element("text");
+							bindProp(__nsh_hv31, "style", () => t.meta);
+							const __nsh_hv32 = text("正在读取…");
+							append(__nsh_hv31, __nsh_hv32);
+							return __nsh_hv31;
+						})() : null, component(Button, {
+							label: "刷新",
+							small: true,
+							onPress: () => refresh()
+						})];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	if (presetId !== null) load();
+	return (() => {
+		const __nsh_hv33 = element("view");
+		bindProp(__nsh_hv33, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv34 = element("view");
+		bindProp(__nsh_hv34, "style", () => hairline());
+		append(__nsh_hv33, __nsh_hv34);
+		insert(__nsh_hv33, () => toolbar(), __nsh_hv34);
+		insert(__nsh_hv33, [() => presetId === null ? containerBar() : null, () => body()]);
+		return __nsh_hv33;
+	})();
+}
+
+//#endregion
+//#region pages/changes/App.tsx
+const KIND_LABEL = {
+	A: "新增",
+	C: "修改",
+	D: "删除"
+};
+const KIND_LONG = {
+	A: "新增（Added）",
+	C: "修改（Modified）",
+	D: "删除（Deleted）"
+};
+/** 变色标记：新增绿、修改黄、删除红。 */
+function kindColor(kind) {
+	if (kind === "A") return c.chart(1);
+	if (kind === "D") return c.danger();
+	return c.chart(4);
+}
+/** 变更类型归一化：数字枚举、单字母、英文长名都能认。 */
+function kindOf(change) {
+	const raw = change.Kind ?? change.kind;
+	if (typeof raw === "number") {
+		if (raw === 1) return "A";
+		if (raw === 2) return "D";
+		return "C";
+	}
+	const text = String(raw ?? "").trim().toUpperCase();
+	if (text === "A" || text.startsWith("ADD")) return "A";
+	if (text === "D" || text.startsWith("DEL") || text.startsWith("REM")) return "D";
+	if (text === "C" || text.startsWith("MOD") || text.startsWith("CHA")) return "C";
+	return "C";
+}
+function pathOf(change) {
+	const value = change.Path ?? change.path;
+	return typeof value === "string" && value.length > 0 ? value : str(change, "Path", "-");
+}
+/** `/usr/lib/x.so` → 末段 + 目录，长路径靠 numberOfLines 省略。 */
+function splitPath(path) {
+	const trimmed = path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+	const index = trimmed.lastIndexOf("/");
+	if (index < 0) return {
+		name: trimmed,
+		dir: ""
+	};
+	const name = trimmed.slice(index + 1);
+	const dir = trimmed.slice(0, index);
+	return {
+		name: name.length > 0 ? name : "/",
+		dir: dir.length > 0 ? dir : "/"
+	};
+}
+const containerId$4 = (row) => str(row, "id", "");
+const containerName$5 = (row) => str(row, "name", "");
+const containerImage$4 = (row) => str(row, "image", "");
+const containerState$4 = (row) => str(row, "state", "");
+function stateTone$6(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+function Changes(props = {}) {
+	const changes = signal([]);
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const selected = signal(null);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	/** 预设了容器就收起挑选列表，只留一条状态条。 */
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	function countOf(kind) {
+		return changes().filter((change) => kindOf(change) === kind).length;
+	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName$5(row)} ${containerImage$4(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId$4(item) === id);
+		return row === void 0 ? selectedName() : `${containerName$5(row)} · ${containerImage$4(row)}`;
+	}
+	function resetData() {
+		changes.set([]);
+		selected.set(null);
+		error.set(null);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId$4(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName$5(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId$4(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (changes().length === 0) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/diff", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			const list = Array.isArray(result) ? result : arr(result, "changes");
+			changes.set(list);
+			error.set(null);
+			if (selected() !== null && selected() >= list.length) selected.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+	}
+	function selectedChange() {
+		const index = selected();
+		if (index === null) return null;
+		const change = changes()[index];
+		if (change === void 0) return null;
+		return {
+			change,
+			kind: kindOf(change)
+		};
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId$4(row);
+		const state = containerState$4(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$5(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName$5(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage$4(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone$6(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function changeRow(change, index) {
+		const kind = kindOf(change);
+		const parts = splitPath(pathOf(change));
+		const color = kindColor(kind);
+		return (() => {
+			const __nsh_hv16 = element("view");
+			prop(__nsh_hv16, "onPress", () => selected.set(selected() === index ? null : index));
+			bindProp(__nsh_hv16, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 10,
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				backgroundColor: selected() === index ? c.hover() : "transparent",
+				borderBottomWidth: 1,
+				borderBottomColor: c.line()
+			}));
+			const __nsh_hv17 = element("view");
+			bindProp(__nsh_hv17, "style", () => ({
+				width: 20,
+				height: 20,
+				flexShrink: 0,
+				borderRadius: r.chip,
+				borderWidth: 1,
+				borderColor: color,
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				justifyContent: "center"
+			}));
+			const __nsh_hv18 = element("text");
+			prop(__nsh_hv18, "style", {
+				fontSize: 11,
+				fontWeight: "600",
+				color
+			});
+			insert(__nsh_hv18, kind);
+			append(__nsh_hv17, __nsh_hv18);
+			const __nsh_hv19 = element("view");
+			prop(__nsh_hv19, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 2,
+				flex: 1,
+				minWidth: 0
+			});
+			const __nsh_hv20 = element("text");
+			prop(__nsh_hv20, "numberOfLines", 1);
+			bindProp(__nsh_hv20, "style", () => t.mono);
+			insert(__nsh_hv20, () => parts.name);
+			append(__nsh_hv19, __nsh_hv20);
+			insert(__nsh_hv19, () => parts.dir.length === 0 ? null : (() => {
+				const __nsh_hv21 = element("text");
+				prop(__nsh_hv21, "numberOfLines", 1);
+				bindProp(__nsh_hv21, "style", () => ({
+					fontSize: 11,
+					color: c.muted()
+				}));
+				insert(__nsh_hv21, () => parts.dir);
+				return __nsh_hv21;
+			})());
+			const __nsh_hv22 = element("text");
+			bindProp(__nsh_hv22, "style", () => ({
+				...t.meta,
+				width: 36,
+				textAlign: "right",
+				flexShrink: 0
+			}));
+			insert(__nsh_hv22, () => KIND_LABEL[kind]);
+			append(__nsh_hv16, __nsh_hv17);
+			append(__nsh_hv16, __nsh_hv19);
+			append(__nsh_hv16, __nsh_hv22);
+			return __nsh_hv16;
+		})();
+	}
+	function detailBar() {
+		const picked = selectedChange();
+		if (picked === null) return (() => {
+			const __nsh_hv23 = element("view");
+			bindProp(__nsh_hv23, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				flexShrink: 0
+			}));
+			const __nsh_hv24 = element("text");
+			prop(__nsh_hv24, "numberOfLines", 1);
+			bindProp(__nsh_hv24, "style", () => t.meta);
+			const __nsh_hv25 = text("点击任意一行查看完整路径；docker diff 只比较容器可写层。");
+			append(__nsh_hv24, __nsh_hv25);
+			append(__nsh_hv23, __nsh_hv24);
+			return __nsh_hv23;
+		})();
+		return (() => {
+			const __nsh_hv26 = element("view");
+			bindProp(__nsh_hv26, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 8,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				flexShrink: 0
+			}));
+			const __nsh_hv30 = element("text");
+			prop(__nsh_hv30, "numberOfLines", 3);
+			bindProp(__nsh_hv30, "style", () => t.mono);
+			insert(__nsh_hv30, () => pathOf(picked.change));
+			append(__nsh_hv26, __nsh_hv30);
+			insert(__nsh_hv26, component(Row, {
+				gap: 8,
+				style: { justifyContent: "space-between" },
+				get children() {
+					return [(() => {
+						const __nsh_hv27 = element("text");
+						bindProp(__nsh_hv27, "style", () => t.label);
+						const __nsh_hv28 = text("完整路径");
+						append(__nsh_hv27, __nsh_hv28);
+						return __nsh_hv27;
+					})(), (() => {
+						const __nsh_hv29 = element("text");
+						bindProp(__nsh_hv29, "style", () => ({
+							...t.meta,
+							color: kindColor(picked.kind)
+						}));
+						insert(__nsh_hv29, () => KIND_LONG[picked.kind]);
+						return __nsh_hv29;
+					})()];
+				}
+			}), __nsh_hv30);
+			return __nsh_hv26;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的文件变更。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && changes().length === 0) return component(Loading, { label: "正在读取容器文件变更…" });
+		if (error() !== null && changes().length === 0) {
+			if (isContainerStoppedError(error() ?? "")) return component(Empty, {
+				title: "容器不在运行中",
+				hint: "文件变更对比的是容器可写层（docker diff），容器停止或暂停时不可用。启动容器后再刷新就行。",
+				get action() {
+					return component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void load()
+					});
+				}
+			});
+			return component(LoadError, {
+				get message() {
+					return error() ?? "";
+				},
+				onRetry: () => void load()
+			});
+		}
+		if (changes().length === 0) return component(Empty, {
+			title: "可写层没有文件变更",
+			hint: "容器启动后没有新增、修改或删除文件；docker diff 只比较容器可写层，不包含镜像层。",
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv31 = element("view");
+			prop(__nsh_hv31, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv33 = element("scroll");
+			prop(__nsh_hv33, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv34 = element("view");
+			prop(__nsh_hv34, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv34, () => changes().map((change, index) => changeRow(change, index)));
+			append(__nsh_hv33, __nsh_hv34);
+			append(__nsh_hv31, __nsh_hv33);
+			insert(__nsh_hv31, () => error() === null ? null : (() => {
+				const __nsh_hv32 = element("view");
+				prop(__nsh_hv32, "style", {
+					paddingHorizontal: 12,
+					paddingTop: 8
+				});
+				insert(__nsh_hv32, component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }));
+				return __nsh_hv32;
+			})(), __nsh_hv33);
+			insert(__nsh_hv31, () => detailBar());
+			return __nsh_hv31;
+		})();
+	}
+	function toolbar() {
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [(() => {
+							const __nsh_hv35 = element("text");
+							bindProp(__nsh_hv35, "style", () => t.h1);
+							const __nsh_hv36 = text("文件变更");
+							append(__nsh_hv35, __nsh_hv36);
+							return __nsh_hv35;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv37 = element("text");
+							bindProp(__nsh_hv37, "style", () => t.meta);
+							const __nsh_hv38 = text("未选择容器");
+							append(__nsh_hv37, __nsh_hv38);
+							return __nsh_hv37;
+						})() : [
+							(() => {
+								const __nsh_hv39 = element("text");
+								bindProp(__nsh_hv39, "style", () => t.meta);
+								insert(__nsh_hv39, () => `${changes().length} 项`);
+								return __nsh_hv39;
+							})(),
+							component(Badge, {
+								get text() {
+									return `新增 ${countOf("A")}`;
+								},
+								tone: "ok"
+							}),
+							component(Badge, {
+								get text() {
+									return `修改 ${countOf("C")}`;
+								},
+								tone: "warn"
+							}),
+							component(Badge, {
+								get text() {
+									return `删除 ${countOf("D")}`;
+								},
+								tone: "danger"
+							})
+						]];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [() => busy() ? (() => {
+							const __nsh_hv40 = element("text");
+							bindProp(__nsh_hv40, "style", () => t.meta);
+							const __nsh_hv41 = text("正在读取…");
+							append(__nsh_hv40, __nsh_hv41);
+							return __nsh_hv40;
+						})() : null, component(Button, {
+							label: "刷新",
+							small: true,
+							onPress: () => refresh()
+						})];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	if (presetId !== null) load();
+	return (() => {
+		const __nsh_hv42 = element("view");
+		bindProp(__nsh_hv42, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv43 = element("view");
+		bindProp(__nsh_hv43, "style", () => hairline());
+		append(__nsh_hv42, __nsh_hv43);
+		insert(__nsh_hv42, () => toolbar(), __nsh_hv43);
+		insert(__nsh_hv42, [() => presetId === null ? containerBar() : null, () => body()]);
+		return __nsh_hv42;
+	})();
+}
+
+//#endregion
+//#region pages/container-files/App.tsx
+const entryName = (entry) => str(entry, "name", "");
+const entryPath = (entry) => str(entry, "path", "");
+const entryType = (entry) => str(entry, "type", "file");
+const entrySize = (entry) => str(entry, "size", "-");
+const entryModified = (entry) => str(entry, "modified", "-");
+const isDirectory = (entry) => entryType(entry) === "directory";
+const containerId$3 = (row) => str(row, "id", "");
+const containerName$4 = (row) => str(row, "name", "");
+const containerImage$3 = (row) => str(row, "image", "");
+const containerState$3 = (row) => str(row, "state", "");
+function stateTone$5(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+/** 路径拆成面包屑：`/opt/emqx/data` → ["/", "opt", "emqx", "data"]。 */
+function crumbs(path) {
+	if (path === "/" || path.length === 0) return [{
+		label: "/",
+		path: "/"
+	}];
+	const parts = path.split("/").filter((part) => part.length > 0);
+	const list = [{
+		label: "/",
+		path: "/"
+	}];
+	let cursor = "";
+	for (const part of parts) {
+		cursor += `/${part}`;
+		list.push({
+			label: part,
+			path: cursor
+		});
+	}
+	return list;
+}
+function ContainerFiles(props = {}) {
+	const entries = signal([]);
+	const path = signal("/");
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「文件」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName$4(row)} ${containerImage$3(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId$3(item) === id);
+		return row === void 0 ? selectedName() : `${containerName$4(row)} · ${containerImage$3(row)}`;
+	}
+	function directoryCount() {
+		return entries().filter((entry) => isDirectory(entry) && entryName(entry) !== "..").length;
+	}
+	function fileCount() {
+		return entries().filter((entry) => !isDirectory(entry)).length;
+	}
+	function resetData() {
+		entries.set([]);
+		path.set("/");
+		error.set(null);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId$3(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName$4(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load("/");
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load(path());
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId$3(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load(target) {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (entries().length === 0) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/files/list", {
+				id,
+				path: target
+			}, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			const list = Array.isArray(result) ? result : arr(result, "entries");
+			const readed = Array.isArray(result) ? target : str(result, "path", target);
+			path.set(readed);
+			entries.set(list);
+			error.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+			entries.set([]);
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+	}
+	function go(target) {
+		entries.set([]);
+		loading.set(true);
+		load(target);
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId$3(row);
+		const state = containerState$3(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$4(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName$4(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage$3(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone$5(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function pathBar() {
+		const list = crumbs(path());
+		return component(Row, {
+			gap: 6,
+			get style() {
+				return {
+					paddingHorizontal: 12,
+					paddingVertical: 7,
+					borderBottomWidth: 1,
+					borderBottomColor: c.line(),
+					backgroundColor: c.panel(),
+					flexShrink: 0
+				};
+			},
+			get children() {
+				return [
+					() => list.map((crumb, index) => {
+						const last = index === list.length - 1;
+						return (() => {
+							const __nsh_hv16 = element("view");
+							prop(__nsh_hv16, "style", {
+								display: "flex",
+								flexDirection: "row",
+								alignItems: "center",
+								gap: 6
+							});
+							const __nsh_hv19 = element("view");
+							prop(__nsh_hv19, "role", "button");
+							bindProp(__nsh_hv19, "accessibilityLabel", () => `路径 ${crumb.path}`);
+							prop(__nsh_hv19, "onPress", () => {
+								if (!last) go(crumb.path);
+							});
+							bindProp(__nsh_hv19, "style", () => ({
+								paddingHorizontal: 4,
+								paddingVertical: 2,
+								borderRadius: r.chip
+							}));
+							const __nsh_hv20 = element("text");
+							bindProp(__nsh_hv20, "style", () => ({
+								...t.mono,
+								fontSize: 11.5,
+								color: last ? c.text() : c.muted(),
+								fontWeight: last ? "600" : "400"
+							}));
+							insert(__nsh_hv20, () => crumb.label);
+							append(__nsh_hv19, __nsh_hv20);
+							append(__nsh_hv16, __nsh_hv19);
+							insert(__nsh_hv16, () => index > 1 ? (() => {
+								const __nsh_hv17 = element("text");
+								bindProp(__nsh_hv17, "style", () => ({
+									...t.meta,
+									color: c.muted()
+								}));
+								const __nsh_hv18 = text("/");
+								append(__nsh_hv17, __nsh_hv18);
+								return __nsh_hv17;
+							})() : null, __nsh_hv19);
+							return __nsh_hv16;
+						})();
+					}),
+					(() => {
+						const __nsh_hv21 = element("view");
+						prop(__nsh_hv21, "style", { flex: 1 });
+						return __nsh_hv21;
+					})(),
+					(() => {
+						const __nsh_hv22 = element("text");
+						bindProp(__nsh_hv22, "style", () => t.meta);
+						insert(__nsh_hv22, () => `${directoryCount()} 个目录 · ${fileCount()} 个文件`);
+						return __nsh_hv22;
+					})(),
+					component(Button, {
+						label: "上级",
+						small: true,
+						onPress: () => go(parentOf(path())),
+						disabled: () => path() === "/"
+					}),
+					component(IconButton, {
+						glyph: "↻",
+						label: "刷新目录",
+						disabled: () => busy(),
+						onPress: () => void load(path())
+					})
+				];
+			}
+		});
+	}
+	function entryRow(entry) {
+		const isDir = isDirectory(entry);
+		const name = entryName(entry);
+		return (() => {
+			const __nsh_hv23 = element("view");
+			prop(__nsh_hv23, "role", "button");
+			prop(__nsh_hv23, "accessibilityLabel", isDir ? `目录 ${name}` : `文件 ${name}`);
+			prop(__nsh_hv23, "onPress", () => {
+				if (isDir) go(entryPath(entry));
+			});
+			bindProp(__nsh_hv23, "hoverStyle", () => ({ backgroundColor: c.hover() }));
+			bindProp(__nsh_hv23, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 10,
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderBottomWidth: 1,
+				borderBottomColor: c.line(),
+				cursor: isDir ? "pointer" : "default",
+				width: "100%"
+			}));
+			const __nsh_hv24 = element("text");
+			bindProp(__nsh_hv24, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: isDir ? c.accent() : c.muted(),
+				width: 12
+			}));
+			insert(__nsh_hv24, name === ".." ? "↑" : isDir ? "▸" : "·");
+			const __nsh_hv25 = element("text");
+			prop(__nsh_hv25, "numberOfLines", 1);
+			bindProp(__nsh_hv25, "style", () => ({
+				fontSize: 12.5,
+				color: c.text(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv25, name);
+			const __nsh_hv26 = element("text");
+			bindProp(__nsh_hv26, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				width: 84,
+				textAlign: "right",
+				flexShrink: 0
+			}));
+			insert(__nsh_hv26, () => isDir ? "" : entrySize(entry));
+			const __nsh_hv27 = element("text");
+			bindProp(__nsh_hv27, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				width: 128,
+				flexShrink: 0
+			}));
+			insert(__nsh_hv27, () => isDir ? "" : entryModified(entry));
+			append(__nsh_hv23, __nsh_hv24);
+			append(__nsh_hv23, __nsh_hv25);
+			append(__nsh_hv23, __nsh_hv26);
+			append(__nsh_hv23, __nsh_hv27);
+			return __nsh_hv23;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会浏览它的文件系统。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && entries().length === 0) return component(Loading, { label: "正在读取目录…" });
+		if (error() !== null && entries().length === 0) {
+			if (isContainerStoppedError(error() ?? "")) return component(Empty, {
+				title: "容器不在运行中",
+				hint: "浏览容器文件要进容器执行命令（docker exec），容器停止或被暂停时不可用。启动容器后会自动恢复。",
+				get action() {
+					return component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void load(path())
+					});
+				}
+			});
+			return component(LoadError, {
+				get message() {
+					return error() ?? "";
+				},
+				onRetry: () => void load(path())
+			});
+		}
+		if (entries().length === 0) return component(Empty, {
+			title: "空目录",
+			get hint() {
+				return `${path()} 里没有任何文件。`;
+			},
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load(path())
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv28 = element("view");
+			prop(__nsh_hv28, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv30 = element("scroll");
+			prop(__nsh_hv30, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv31 = element("view");
+			prop(__nsh_hv31, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv31, () => entries().map((entry) => entryRow(entry)));
+			append(__nsh_hv30, __nsh_hv31);
+			const __nsh_hv32 = element("view");
+			bindProp(__nsh_hv32, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				flexShrink: 0
+			}));
+			const __nsh_hv33 = element("text");
+			prop(__nsh_hv33, "numberOfLines", 1);
+			bindProp(__nsh_hv33, "style", () => t.meta);
+			const __nsh_hv34 = text("在容器内执行 ls -Ap / stat 读取；点目录进入，点面包屑回上级。");
+			append(__nsh_hv33, __nsh_hv34);
+			append(__nsh_hv32, __nsh_hv33);
+			append(__nsh_hv28, __nsh_hv30);
+			append(__nsh_hv28, __nsh_hv32);
+			insert(__nsh_hv28, () => error() === null ? null : (() => {
+				const __nsh_hv29 = element("view");
+				prop(__nsh_hv29, "style", {
+					paddingHorizontal: 12,
+					paddingTop: 8
+				});
+				insert(__nsh_hv29, component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }));
+				return __nsh_hv29;
+			})(), __nsh_hv30);
+			return __nsh_hv28;
+		})();
+	}
+	function toolbar() {
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [(() => {
+							const __nsh_hv35 = element("text");
+							bindProp(__nsh_hv35, "style", () => t.h1);
+							const __nsh_hv36 = text("文件");
+							append(__nsh_hv35, __nsh_hv36);
+							return __nsh_hv35;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv37 = element("text");
+							bindProp(__nsh_hv37, "style", () => t.meta);
+							const __nsh_hv38 = text("未选择容器");
+							append(__nsh_hv37, __nsh_hv38);
+							return __nsh_hv37;
+						})() : (() => {
+							const __nsh_hv39 = element("text");
+							prop(__nsh_hv39, "numberOfLines", 1);
+							bindProp(__nsh_hv39, "style", () => ({
+								...t.meta,
+								maxWidth: 420
+							}));
+							insert(__nsh_hv39, () => `${selectedName()} · ${path()}`);
+							return __nsh_hv39;
+						})()];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [
+							() => busy() ? (() => {
+								const __nsh_hv40 = element("text");
+								bindProp(__nsh_hv40, "style", () => t.meta);
+								const __nsh_hv41 = text("正在读取…");
+								append(__nsh_hv40, __nsh_hv41);
+								return __nsh_hv40;
+							})() : null,
+							component(Button, {
+								label: "上级",
+								small: true,
+								onPress: () => go(parentOf(path())),
+								disabled: () => path() === "/"
+							}),
+							component(Button, {
+								label: "刷新",
+								small: true,
+								onPress: () => refresh()
+							})
+						];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	if (presetId !== null) load("/");
+	return (() => {
+		const __nsh_hv42 = element("view");
+		bindProp(__nsh_hv42, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv43 = element("view");
+		bindProp(__nsh_hv43, "style", () => hairline());
+		append(__nsh_hv42, __nsh_hv43);
+		insert(__nsh_hv42, () => presetId === null ? toolbar() : null, __nsh_hv43);
+		insert(__nsh_hv42, [
+			() => presetId === null ? containerBar() : null,
+			() => selectedId() === null ? null : pathBar(),
+			() => body()
+		]);
+		return __nsh_hv42;
+	})();
+}
+/** 上一级目录；根目录返回自身。 */
+function parentOf(path) {
+	if (path === "/" || path.length === 0) return "/";
+	const trimmed = path.endsWith("/") ? path.slice(0, -1) : path;
+	const at = trimmed.lastIndexOf("/");
+	if (at <= 0) return "/";
+	return trimmed.slice(0, at);
+}
+
+//#endregion
+//#region pages/container-inspect/App.tsx
+/** 原始 JSON 最多渲染的行数（超出部分不交给布局）。 */
+const RAW_MAX_LINES = 800;
+/** 按路径取字段；中途不是对象就给 undefined。 */
+function pick$1(source, ...path) {
+	let node = source;
+	for (const key of path) {
+		if (!node || typeof node !== "object" || Array.isArray(node)) return void 0;
+		node = node[key];
+	}
+	return node;
+}
+/** 按路径取对象；不是对象就给空对象。 */
+function objOf(source, ...path) {
+	const value = pick$1(source, ...path);
+	return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+/** 按路径取数组；不是数组就给空数组。 */
+function listOf(source, ...path) {
+	const value = pick$1(source, ...path);
+	return Array.isArray(value) ? value : [];
+}
+/** 任意 JSON 值 → 一行可读文本。 */
+function text$2(value, fallback = "-") {
+	if (typeof value === "string") return value.length > 0 ? value : fallback;
+	if (typeof value === "number") return Number.isFinite(value) ? String(value) : fallback;
+	if (typeof value === "boolean") return value ? "是" : "否";
+	return fallback;
+}
+/** docker 的 Name 带前导 `/`。 */
+function containerName$3(doc) {
+	const name = text$2(pick$1(doc, "Name"), "");
+	return name.startsWith("/") ? name.slice(1) : name === "" ? "-" : name;
+}
+/** `NetworkSettings.Ports` → 行：`0.0.0.0:8080 → 80/tcp`，无绑定写「仅暴露」。 */
+function portLines$1(ports) {
+	if (!ports || typeof ports !== "object" || Array.isArray(ports)) return [];
+	const lines = [];
+	for (const [containerPort, bindings] of Object.entries(ports)) {
+		if (!Array.isArray(bindings) || bindings.length === 0) {
+			lines.push(`${containerPort}（仅暴露）`);
+			continue;
+		}
+		for (const binding of bindings) {
+			const hostIp = text$2(pick$1(binding, "HostIp"), "") || "0.0.0.0";
+			const hostPort = text$2(pick$1(binding, "HostPort"), "-");
+			lines.push(`${hostIp}:${hostPort} → ${containerPort}`);
+		}
+	}
+	return lines.sort();
+}
+/** 内存类限额：0 / 缺失 = 不限。 */
+function limitText(value) {
+	const number = Number(value);
+	return Number.isFinite(number) && number > 0 ? humanBytes(number) : "不限";
+}
+/** Swap：-1 表示显式不限，0 表示没单独设置。 */
+function swapText(value) {
+	const number = Number(value);
+	if (!Number.isFinite(number) || number === 0) return "未单独设置";
+	if (number < 0) return "不限";
+	return humanBytes(number);
+}
+/** CPU 配额：优先 NanoCpus，回退 CpuQuota / CpuPeriod；0 = 不限。 */
+function cpuText(hostConfig) {
+	const nano = Number(pick$1(hostConfig, "NanoCpus"));
+	if (Number.isFinite(nano) && nano > 0) return `${(nano / 1e9).toFixed(2)} 核`;
+	const quota = Number(pick$1(hostConfig, "CpuQuota"));
+	const period = Number(pick$1(hostConfig, "CpuPeriod"));
+	if (Number.isFinite(quota) && quota > 0 && Number.isFinite(period) && period > 0) return `${(quota / period).toFixed(2)} 核`;
+	return "不限";
+}
+/** 重启策略：`no` / `always` / `unless-stopped` / `on-failure[:n]`。 */
+function restartText$1(policy) {
+	const name = text$2(pick$1(policy, "Name"), "");
+	if (name === "" || name === "no") return "no（不自动重启）";
+	const retries = Number(pick$1(policy, "MaximumRetryCount"));
+	if (name === "on-failure" && Number.isFinite(retries) && retries > 0) return `on-failure（最多 ${retries} 次）`;
+	return name;
+}
+/** 状态 → Badge 语气。 */
+function statusTone(status) {
+	if (status === "running") return "ok";
+	if (status === "paused" || status === "restarting" || status === "removing") return "warn";
+	if (status === "exited" || status === "dead") return "danger";
+	if (status === "created") return "info";
+	return "neutral";
+}
+/** 小按钮：`active` 用 accessor，样式读的是当前值（写在 style 绑定里才响应式）。 */
+function chip$1(label, active, onPress, testLabel) {
+	return (() => {
+		const __nsh_hv0 = element("view");
+		prop(__nsh_hv0, "onPress", onPress);
+		prop(__nsh_hv0, "role", "button");
+		prop(__nsh_hv0, "accessibilityLabel", testLabel ?? label);
+		bindProp(__nsh_hv0, "style", () => ({
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 10,
+			paddingVertical: 5,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: active() ? c.accent() : c.line(),
+			backgroundColor: active() ? c.accent() : "transparent"
+		}));
+		const __nsh_hv1 = element("text");
+		bindProp(__nsh_hv1, "style", () => ({
+			...t.meta,
+			color: active() ? c.accentText() : c.text()
+		}));
+		insert(__nsh_hv1, label);
+		append(__nsh_hv0, __nsh_hv1);
+		return __nsh_hv0;
+	})();
+}
+/** 一行「标签 / 值」；`truncate` 的值单行省略但可选中复制完整内容。 */
+function Field$2(props) {
+	return (() => {
+		const __nsh_hv2 = element("view");
+		prop(__nsh_hv2, "style", {
+			flexDirection: "row",
+			alignItems: "flex-start",
+			gap: 16,
+			paddingVertical: 4
+		});
+		const __nsh_hv3 = element("text");
+		bindProp(__nsh_hv3, "style", () => ({
+			...t.meta,
+			color: c.muted(),
+			width: 88,
+			flexShrink: 0
+		}));
+		insert(__nsh_hv3, () => props.label);
+		const __nsh_hv4 = element("text");
+		bindProp(__nsh_hv4, "selectable", () => props.truncate === true);
+		bindProp(__nsh_hv4, "numberOfLines", () => props.truncate === true ? 1 : 0);
+		prop(__nsh_hv4, "ellipsizeMode", "middle");
+		bindProp(__nsh_hv4, "style", () => ({
+			flex: 1,
+			minWidth: 0,
+			textAlign: "right",
+			...props.mono === true ? t.mono : t.body,
+			color: c.text()
+		}));
+		insert(__nsh_hv4, () => props.value);
+		append(__nsh_hv2, __nsh_hv3);
+		append(__nsh_hv2, __nsh_hv4);
+		return __nsh_hv2;
+	})();
+}
+/** 分组的折叠区：标题行可点，内容只在展开时构建（数据变化会重建）。 */
+function Section(props) {
+	return (() => {
+		const __nsh_hv5 = element("view");
+		bindProp(__nsh_hv5, "style", () => ({
+			...panel(0),
+			padding: 0,
+			overflow: "hidden"
+		}));
+		const __nsh_hv6 = element("view");
+		bindProp(__nsh_hv6, "onPress", () => props.onToggle);
+		prop(__nsh_hv6, "role", "button");
+		bindProp(__nsh_hv6, "accessibilityLabel", () => `${props.title}分组`);
+		prop(__nsh_hv6, "style", {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+			paddingHorizontal: 14,
+			paddingVertical: 10
+		});
+		const __nsh_hv7 = element("text");
+		bindProp(__nsh_hv7, "style", () => ({
+			...t.h2,
+			color: props.open() ? c.text() : c.muted()
+		}));
+		insert(__nsh_hv7, () => props.open() ? "▾" : "▸");
+		const __nsh_hv8 = element("text");
+		bindProp(__nsh_hv8, "style", () => ({
+			...t.h2,
+			color: c.text()
+		}));
+		insert(__nsh_hv8, () => props.title);
+		const __nsh_hv10 = element("view");
+		prop(__nsh_hv10, "style", { flex: 1 });
+		const __nsh_hv11 = element("text");
+		bindProp(__nsh_hv11, "style", () => ({
+			...t.meta,
+			color: c.muted()
+		}));
+		insert(__nsh_hv11, () => props.open() ? "收起" : "展开");
+		append(__nsh_hv6, __nsh_hv7);
+		append(__nsh_hv6, __nsh_hv8);
+		append(__nsh_hv6, __nsh_hv10);
+		append(__nsh_hv6, __nsh_hv11);
+		insert(__nsh_hv6, () => props.hint === void 0 ? null : (() => {
+			const __nsh_hv9 = element("text");
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			insert(__nsh_hv9, () => props.hint);
+			return __nsh_hv9;
+		})(), __nsh_hv10);
+		append(__nsh_hv5, __nsh_hv6);
+		insert(__nsh_hv5, () => props.open() ? (() => {
+			const __nsh_hv12 = element("view");
+			prop(__nsh_hv12, "style", {
+				paddingHorizontal: 14,
+				paddingBottom: 12,
+				paddingTop: 2,
+				display: "flex",
+				flexDirection: "column",
+				gap: 6
+			});
+			insert(__nsh_hv12, () => props.body());
+			return __nsh_hv12;
+		})() : null);
+		return __nsh_hv5;
+	})();
+}
+/** 端口映射块：每行一个绑定。 */
+function PortLines(props) {
+	const lines = portLines$1(props.ports);
+	if (lines.length === 0) return (() => {
+		const __nsh_hv13 = element("text");
+		bindProp(__nsh_hv13, "style", () => ({
+			...t.meta,
+			color: c.muted()
+		}));
+		const __nsh_hv14 = text("没有端口映射");
+		append(__nsh_hv13, __nsh_hv14);
+		return __nsh_hv13;
+	})();
+	return (() => {
+		const __nsh_hv15 = element("view");
+		prop(__nsh_hv15, "style", {
+			display: "flex",
+			flexDirection: "column",
+			gap: 2
+		});
+		insert(__nsh_hv15, () => lines.map((line) => (() => {
+			const __nsh_hv16 = element("text");
+			prop(__nsh_hv16, "selectable", true);
+			bindProp(__nsh_hv16, "style", () => ({
+				...t.mono,
+				color: c.text()
+			}));
+			insert(__nsh_hv16, line);
+			return __nsh_hv16;
+		})()));
+		return __nsh_hv15;
+	})();
+}
+function ContainerInspect(props = {}) {
+	const data = signal(null);
+	const loading = signal(true);
+	const busy = signal(false);
+	const error = signal(null);
+	const updatedAt = signal("");
+	const showRaw = signal(false);
+	const openBasic = signal(true);
+	const openNetwork = signal(true);
+	const openMounts = signal(false);
+	const openEnv = signal(false);
+	const openLimits = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	/** 预设了容器就收起挑选列表，只留一条状态条。 */
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	const status = () => text$2(pick$1(data() ?? {}, "State", "Status"), "unknown");
+	const health = () => text$2(pick$1(data() ?? {}, "State", "Health", "Status"), "");
+	function rowId(row) {
+		return str(row, "id", "");
+	}
+	function rowName(row) {
+		return str(row, "name", "");
+	}
+	function rowImage(row) {
+		return str(row, "image", "");
+	}
+	function rowState(row) {
+		return str(row, "state", "");
+	}
+	function containerTone(state) {
+		if (state === "running") return "ok";
+		if (state === "paused" || state === "restarting") return "warn";
+		if (state === "exited" || state === "dead") return "danger";
+		return "neutral";
+	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${rowName(row)} ${rowImage(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => rowId(item) === id);
+		return row === void 0 ? selectedName() : `${rowName(row)} · ${rowImage(row)}`;
+	}
+	function resetData() {
+		data.set(null);
+		error.set(null);
+		updatedAt.set("");
+		showRaw.set(false);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = rowId(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(rowName(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => rowId(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (data() === null) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/inspect", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			data.set(result && typeof result === "object" && !Array.isArray(result) ? result : null);
+			updatedAt.set(clock());
+			error.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				busy.set(false);
+				loading.set(false);
+			}
+		}
+	}
+	function basicBody() {
+		const doc = data() ?? {};
+		const state = objOf(doc, "State");
+		const config = objOf(doc, "Config");
+		const hostConfig = objOf(doc, "HostConfig");
+		const startedAt = text$2(pick$1(state, "StartedAt"), "");
+		return (() => {
+			const __nsh_hv17 = element("view");
+			prop(__nsh_hv17, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv18 = element("text");
+			bindProp(__nsh_hv18, "style", () => ({
+				...t.meta,
+				color: c.muted(),
+				marginTop: 6
+			}));
+			const __nsh_hv19 = text("长值单行省略；选中文本即可复制完整内容。");
+			append(__nsh_hv18, __nsh_hv19);
+			append(__nsh_hv17, __nsh_hv18);
+			insert(__nsh_hv17, [
+				component(Field$2, {
+					label: "容器 ID",
+					get value() {
+						return text$2(pick$1(doc, "Id"));
+					},
+					mono: true,
+					truncate: true
+				}),
+				component(Field$2, {
+					label: "名称",
+					get value() {
+						return containerName$3(doc);
+					}
+				}),
+				component(Field$2, {
+					label: "镜像",
+					get value() {
+						return text$2(pick$1(doc, "Image"));
+					},
+					mono: true,
+					truncate: true
+				}),
+				component(Field$2, {
+					label: "状态",
+					get value() {
+						return health() === "" ? status() : `${status()}（健康检查 ${health()}）`;
+					}
+				}),
+				component(Field$2, {
+					label: "启动时间",
+					get value() {
+						return startedAt === "" || startedAt.startsWith("0001-") ? "未启动" : shortTime(startedAt);
+					}
+				}),
+				component(Field$2, {
+					label: "重启策略",
+					get value() {
+						return restartText$1(pick$1(hostConfig, "RestartPolicy"));
+					}
+				}),
+				component(Field$2, {
+					label: "启动命令",
+					get value() {
+						return joinCommand(pick$1(config, "Cmd"));
+					},
+					mono: true
+				})
+			], __nsh_hv18);
+			return __nsh_hv17;
+		})();
+	}
+	function networkBody() {
+		const settings = objOf(data() ?? {}, "NetworkSettings");
+		const networks = objOf(settings, "Networks");
+		const names = Object.keys(networks);
+		if (names.length === 0) return (() => {
+			const __nsh_hv20 = element("view");
+			prop(__nsh_hv20, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 4
+			});
+			const __nsh_hv21 = element("view");
+			prop(__nsh_hv21, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 2,
+				marginTop: 4
+			});
+			const __nsh_hv22 = element("text");
+			bindProp(__nsh_hv22, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			const __nsh_hv23 = text("端口映射");
+			append(__nsh_hv22, __nsh_hv23);
+			append(__nsh_hv21, __nsh_hv22);
+			insert(__nsh_hv21, component(PortLines, { get ports() {
+				return pick$1(settings, "Ports");
+			} }));
+			append(__nsh_hv20, __nsh_hv21);
+			insert(__nsh_hv20, [
+				component(Field$2, {
+					label: "IP 地址",
+					get value() {
+						return text$2(pick$1(settings, "IPAddress"), "未分配");
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "网关",
+					get value() {
+						return text$2(pick$1(settings, "Gateway"), "未分配");
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "MAC",
+					get value() {
+						return text$2(pick$1(settings, "MacAddress"), "未分配");
+					},
+					mono: true
+				})
+			], __nsh_hv21);
+			return __nsh_hv20;
+		})();
+		return (() => {
+			const __nsh_hv24 = element("view");
+			prop(__nsh_hv24, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 10
+			});
+			const __nsh_hv30 = element("view");
+			prop(__nsh_hv30, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 2
+			});
+			const __nsh_hv31 = element("text");
+			bindProp(__nsh_hv31, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			const __nsh_hv32 = text("端口映射");
+			append(__nsh_hv31, __nsh_hv32);
+			append(__nsh_hv30, __nsh_hv31);
+			insert(__nsh_hv30, component(PortLines, { get ports() {
+				return pick$1(settings, "Ports");
+			} }));
+			append(__nsh_hv24, __nsh_hv30);
+			insert(__nsh_hv24, () => names.map((name) => {
+				const network = objOf(networks, name);
+				const bindings = pick$1(network, "Ports");
+				return (() => {
+					const __nsh_hv25 = element("view");
+					prop(__nsh_hv25, "style", {
+						display: "flex",
+						flexDirection: "column",
+						gap: 2
+					});
+					const __nsh_hv26 = element("text");
+					bindProp(__nsh_hv26, "style", () => ({
+						...t.h2,
+						color: c.text()
+					}));
+					insert(__nsh_hv26, name);
+					append(__nsh_hv25, __nsh_hv26);
+					insert(__nsh_hv25, [
+						component(Field$2, {
+							label: "IP 地址",
+							get value() {
+								return text$2(pick$1(network, "IPAddress"), "未分配");
+							},
+							mono: true
+						}),
+						component(Field$2, {
+							label: "网关",
+							get value() {
+								return text$2(pick$1(network, "Gateway"), "未分配");
+							},
+							mono: true
+						}),
+						component(Field$2, {
+							label: "MAC",
+							get value() {
+								return text$2(pick$1(network, "MacAddress"), "未分配");
+							},
+							mono: true
+						}),
+						() => Array.isArray(bindings) && bindings.length > 0 ? (() => {
+							const __nsh_hv27 = element("view");
+							prop(__nsh_hv27, "style", {
+								display: "flex",
+								flexDirection: "column",
+								gap: 2
+							});
+							const __nsh_hv28 = element("text");
+							bindProp(__nsh_hv28, "style", () => ({
+								...t.meta,
+								color: c.muted()
+							}));
+							const __nsh_hv29 = text("端口映射");
+							append(__nsh_hv28, __nsh_hv29);
+							append(__nsh_hv27, __nsh_hv28);
+							insert(__nsh_hv27, component(PortLines, { ports: bindings }));
+							return __nsh_hv27;
+						})() : null
+					]);
+					return __nsh_hv25;
+				})();
+			}), __nsh_hv30);
+			return __nsh_hv24;
+		})();
+	}
+	function mountsBody() {
+		const mounts = listOf(data() ?? {}, "Mounts");
+		if (mounts.length === 0) return (() => {
+			const __nsh_hv33 = element("text");
+			bindProp(__nsh_hv33, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			const __nsh_hv34 = text("没有挂载");
+			append(__nsh_hv33, __nsh_hv34);
+			return __nsh_hv33;
+		})();
+		return (() => {
+			const __nsh_hv35 = element("view");
+			prop(__nsh_hv35, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv35, () => mounts.map((mount, index) => {
+				const readOnly = pick$1(mount, "RW") === false;
+				const mode = text$2(pick$1(mount, "Mode"), "");
+				return (() => {
+					const __nsh_hv36 = element("view");
+					bindProp(__nsh_hv36, "style", () => ({
+						display: "flex",
+						flexDirection: "column",
+						gap: 3,
+						paddingVertical: 6,
+						borderTopWidth: index === 0 ? 0 : 1,
+						borderColor: c.line()
+					}));
+					const __nsh_hv37 = element("view");
+					prop(__nsh_hv37, "style", {
+						flexDirection: "row",
+						alignItems: "center",
+						gap: 6
+					});
+					const __nsh_hv38 = element("text");
+					bindProp(__nsh_hv38, "style", () => ({
+						...t.meta,
+						color: c.muted()
+					}));
+					insert(__nsh_hv38, () => `${index + 1}. ${text$2(pick$1(mount, "Type"), "bind")}`);
+					append(__nsh_hv37, __nsh_hv38);
+					insert(__nsh_hv37, [component(Badge, {
+						text: readOnly ? "只读 (ro)" : "读写 (rw)",
+						tone: readOnly ? "warn" : "ok"
+					}), () => mode === "" ? null : (() => {
+						const __nsh_hv39 = element("text");
+						bindProp(__nsh_hv39, "style", () => ({
+							...t.meta,
+							color: c.muted()
+						}));
+						insert(__nsh_hv39, `模式 ${mode}`);
+						return __nsh_hv39;
+					})()]);
+					const __nsh_hv40 = element("text");
+					prop(__nsh_hv40, "selectable", true);
+					bindProp(__nsh_hv40, "style", () => ({
+						...t.mono,
+						color: c.text()
+					}));
+					insert(__nsh_hv40, () => `${text$2(pick$1(mount, "Source"))} → ${text$2(pick$1(mount, "Destination"))}`);
+					append(__nsh_hv36, __nsh_hv37);
+					append(__nsh_hv36, __nsh_hv40);
+					return __nsh_hv36;
+				})();
+			}));
+			return __nsh_hv35;
+		})();
+	}
+	function envBody() {
+		const env = listOf(data() ?? {}, "Config", "Env").map((entry) => String(entry));
+		if (env.length === 0) return (() => {
+			const __nsh_hv41 = element("text");
+			bindProp(__nsh_hv41, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			const __nsh_hv42 = text("没有环境变量");
+			append(__nsh_hv41, __nsh_hv42);
+			return __nsh_hv41;
+		})();
+		return (() => {
+			const __nsh_hv43 = element("view");
+			prop(__nsh_hv43, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv47 = element("text");
+			bindProp(__nsh_hv47, "style", () => ({
+				...t.meta,
+				color: c.muted(),
+				marginTop: 6
+			}));
+			const __nsh_hv48 = text("两列：变量名 / 值。值过长会省略；选中文本即可复制完整值。");
+			append(__nsh_hv47, __nsh_hv48);
+			append(__nsh_hv43, __nsh_hv47);
+			insert(__nsh_hv43, () => env.map((entry) => {
+				const index = entry.indexOf("=");
+				const key = index < 0 ? entry : entry.slice(0, index);
+				const value = index < 0 ? "" : entry.slice(index + 1);
+				return (() => {
+					const __nsh_hv44 = element("view");
+					bindProp(__nsh_hv44, "style", () => ({
+						flexDirection: "row",
+						alignItems: "center",
+						gap: 12,
+						paddingVertical: 4,
+						borderBottomWidth: 1,
+						borderColor: c.line()
+					}));
+					const __nsh_hv45 = element("text");
+					prop(__nsh_hv45, "numberOfLines", 1);
+					prop(__nsh_hv45, "ellipsizeMode", "tail");
+					bindProp(__nsh_hv45, "style", () => ({
+						width: 200,
+						flexShrink: 0,
+						...t.mono,
+						color: c.muted()
+					}));
+					insert(__nsh_hv45, key);
+					const __nsh_hv46 = element("text");
+					prop(__nsh_hv46, "selectable", true);
+					prop(__nsh_hv46, "numberOfLines", 1);
+					prop(__nsh_hv46, "ellipsizeMode", "middle");
+					bindProp(__nsh_hv46, "style", () => ({
+						flex: 1,
+						minWidth: 0,
+						...t.mono,
+						color: c.text()
+					}));
+					insert(__nsh_hv46, value === "" ? "（空）" : value);
+					append(__nsh_hv44, __nsh_hv45);
+					append(__nsh_hv44, __nsh_hv46);
+					return __nsh_hv44;
+				})();
+			}), __nsh_hv47);
+			return __nsh_hv43;
+		})();
+	}
+	function limitsBody() {
+		const hostConfig = objOf(data() ?? {}, "HostConfig");
+		const pids = Number(pick$1(hostConfig, "PidsLimit"));
+		return (() => {
+			const __nsh_hv49 = element("view");
+			prop(__nsh_hv49, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv49, [
+				component(Field$2, {
+					label: "CPU 配额",
+					get value() {
+						return cpuText(hostConfig);
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "CPU 权重",
+					get value() {
+						return Number(pick$1(hostConfig, "CpuShares")) > 0 ? text$2(pick$1(hostConfig, "CpuShares")) : "不限（默认权重）";
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "内存限制",
+					get value() {
+						return limitText(pick$1(hostConfig, "Memory"));
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "Swap",
+					get value() {
+						return swapText(pick$1(hostConfig, "MemorySwap"));
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "进程数上限",
+					get value() {
+						return Number.isFinite(pids) && pids > 0 ? String(pids) : "不限";
+					},
+					mono: true
+				}),
+				component(Field$2, {
+					label: "只读根文件系统",
+					get value() {
+						return pick$1(hostConfig, "ReadonlyRootfs") === true ? "是" : "否";
+					}
+				})
+			]);
+			return __nsh_hv49;
+		})();
+	}
+	function rawBlock() {
+		const lines = JSON.stringify(data() ?? {}, null, 2).split("\n");
+		const shown = lines.slice(0, RAW_MAX_LINES);
+		return (() => {
+			const __nsh_hv50 = element("view");
+			bindProp(__nsh_hv50, "style", () => ({
+				...panel(12),
+				gap: 6,
+				display: "flex",
+				flexDirection: "column"
+			}));
+			const __nsh_hv51 = element("text");
+			bindProp(__nsh_hv51, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			insert(__nsh_hv51, () => lines.length > RAW_MAX_LINES ? `原始 JSON · 共 ${lines.length} 行，仅渲染前 ${RAW_MAX_LINES} 行` : `原始 JSON · ${lines.length} 行`);
+			const __nsh_hv52 = element("text");
+			prop(__nsh_hv52, "selectable", true);
+			bindProp(__nsh_hv52, "style", () => ({
+				...t.mono,
+				color: c.text(),
+				lineHeight: 17
+			}));
+			insert(__nsh_hv52, () => shown.join("\n"));
+			const __nsh_hv53 = element("text");
+			bindProp(__nsh_hv53, "style", () => ({
+				...t.meta,
+				color: c.muted()
+			}));
+			const __nsh_hv54 = text("长行自动折行 · 可选中复制");
+			append(__nsh_hv53, __nsh_hv54);
+			append(__nsh_hv50, __nsh_hv51);
+			append(__nsh_hv50, __nsh_hv52);
+			append(__nsh_hv50, __nsh_hv53);
+			return __nsh_hv50;
+		})();
+	}
+	function sectionsBlock() {
+		const doc = data() ?? {};
+		const mountCount = listOf(doc, "Mounts").length;
+		const envCount = listOf(doc, "Config", "Env").length;
+		const networkCount = Object.keys(objOf(doc, "NetworkSettings", "Networks")).length;
+		return (() => {
+			const __nsh_hv55 = element("view");
+			prop(__nsh_hv55, "style", {
+				display: "flex",
+				flexDirection: "column",
+				gap: 10
+			});
+			insert(__nsh_hv55, [
+				component(Section, {
+					title: "基础",
+					get hint() {
+						return containerName$3(doc);
+					},
+					open: openBasic,
+					onToggle: () => openBasic.set(!openBasic()),
+					body: basicBody
+				}),
+				component(Section, {
+					title: "网络",
+					hint: networkCount === 0 ? "无网络信息" : `${networkCount} 个网络`,
+					open: openNetwork,
+					onToggle: () => openNetwork.set(!openNetwork()),
+					body: networkBody
+				}),
+				component(Section, {
+					title: "挂载",
+					hint: `${mountCount} 项`,
+					open: openMounts,
+					onToggle: () => openMounts.set(!openMounts()),
+					body: mountsBody
+				}),
+				component(Section, {
+					title: "环境变量",
+					hint: `${envCount} 项`,
+					open: openEnv,
+					onToggle: () => openEnv.set(!openEnv()),
+					body: envBody
+				}),
+				component(Section, {
+					title: "资源限制",
+					hint: "CPU / 内存",
+					open: openLimits,
+					onToggle: () => openLimits.set(!openLimits()),
+					body: limitsBody
+				})
+			]);
+			return __nsh_hv55;
+		})();
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv56 = element("view");
+			bindProp(__nsh_hv56, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv56, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv57 = element("text");
+				bindProp(__nsh_hv57, "style", () => t.meta);
+				const __nsh_hv58 = text("正在读取容器列表…");
+				append(__nsh_hv57, __nsh_hv58);
+				return __nsh_hv57;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv59 = element("text");
+						bindProp(__nsh_hv59, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv59, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv59;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv60 = element("text");
+				bindProp(__nsh_hv60, "style", () => t.meta);
+				insert(__nsh_hv60, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv60;
+			})() : (() => {
+				const __nsh_hv61 = element("scroll");
+				prop(__nsh_hv61, "style", { maxHeight: 168 });
+				const __nsh_hv62 = element("view");
+				prop(__nsh_hv62, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv62, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv61, __nsh_hv62);
+				return __nsh_hv61;
+			})());
+			return __nsh_hv56;
+		})();
+	}
+	function containerOption(row) {
+		const id = rowId(row);
+		const state = rowState(row);
+		return (() => {
+			const __nsh_hv63 = element("view");
+			prop(__nsh_hv63, "onPress", () => selectContainer(row));
+			prop(__nsh_hv63, "role", "button");
+			bindProp(__nsh_hv63, "accessibilityLabel", () => `容器 ${rowName(row)}`);
+			bindProp(__nsh_hv63, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv64 = element("text");
+			prop(__nsh_hv64, "numberOfLines", 1);
+			bindProp(__nsh_hv64, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv64, () => rowName(row));
+			const __nsh_hv65 = element("text");
+			prop(__nsh_hv65, "numberOfLines", 1);
+			bindProp(__nsh_hv65, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv65, () => rowImage(row));
+			append(__nsh_hv63, __nsh_hv64);
+			append(__nsh_hv63, __nsh_hv65);
+			insert(__nsh_hv63, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return containerTone(state);
+				}
+			}));
+			return __nsh_hv63;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv66 = element("view");
+			prop(__nsh_hv66, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv66, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv67 = element("text");
+							bindProp(__nsh_hv67, "style", () => t.meta);
+							insert(__nsh_hv67, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv67;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv68 = element("text");
+							bindProp(__nsh_hv68, "style", () => t.meta);
+							const __nsh_hv69 = text("未选择容器");
+							append(__nsh_hv68, __nsh_hv69);
+							return __nsh_hv68;
+						})() : (() => {
+							const __nsh_hv70 = element("text");
+							prop(__nsh_hv70, "numberOfLines", 1);
+							bindProp(__nsh_hv70, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv70, () => selectedSummary());
+							return __nsh_hv70;
+						})(),
+						(() => {
+							const __nsh_hv71 = element("view");
+							prop(__nsh_hv71, "style", { flex: 1 });
+							return __nsh_hv71;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv66;
+		})();
+	}
+	function toolbar() {
+		return (() => {
+			const __nsh_hv72 = element("view");
+			prop(__nsh_hv72, "style", {
+				flexDirection: "row",
+				alignItems: "center",
+				flexWrap: "wrap",
+				gap: 8,
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				flexShrink: 0
+			});
+			const __nsh_hv73 = element("text");
+			bindProp(__nsh_hv73, "style", () => ({
+				...t.h1,
+				color: c.text()
+			}));
+			const __nsh_hv74 = text("容器详情");
+			append(__nsh_hv73, __nsh_hv74);
+			const __nsh_hv78 = element("view");
+			prop(__nsh_hv78, "style", { flex: 1 });
+			append(__nsh_hv72, __nsh_hv73);
+			append(__nsh_hv72, __nsh_hv78);
+			insert(__nsh_hv72, () => selectedId() === null ? (() => {
+				const __nsh_hv75 = element("text");
+				bindProp(__nsh_hv75, "style", () => ({
+					...t.meta,
+					color: c.muted()
+				}));
+				const __nsh_hv76 = text("未选择容器");
+				append(__nsh_hv75, __nsh_hv76);
+				return __nsh_hv75;
+			})() : data() === null ? null : [component(Badge, {
+				get text() {
+					return status();
+				},
+				get tone() {
+					return statusTone(status());
+				}
+			}), (() => {
+				const __nsh_hv77 = element("text");
+				bindProp(__nsh_hv77, "style", () => ({
+					...t.meta,
+					color: c.muted()
+				}));
+				insert(__nsh_hv77, () => containerName$3(data() ?? {}));
+				return __nsh_hv77;
+			})()], __nsh_hv78);
+			insert(__nsh_hv72, [
+				() => selectedId() === null ? null : (() => {
+					const __nsh_hv79 = element("text");
+					bindProp(__nsh_hv79, "style", () => ({
+						...t.meta,
+						color: c.muted()
+					}));
+					insert(__nsh_hv79, () => loading() ? "读取中…" : busy() ? "刷新中…" : updatedAt() === "" ? "" : `更新于 ${updatedAt()}`);
+					return __nsh_hv79;
+				})(),
+				component(Button, {
+					label: "刷新",
+					small: true,
+					onPress: () => refresh()
+				}),
+				() => selectedId() === null ? null : chip$1(showRaw() ? "查看分组" : "查看原始 JSON", showRaw, () => showRaw.set(!showRaw()), "原始 JSON")
+			]);
+			return __nsh_hv72;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的 inspect 详情。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (data() === null && error() !== null) return component(LoadError, {
+			get message() {
+				return error() ?? "";
+			},
+			onRetry: () => void load()
+		});
+		if (data() === null && loading()) return component(Loading, { label: "正在读取容器详情…" });
+		if (data() === null) return component(Empty, {
+			title: "没有容器数据",
+			hint: "docker/container/inspect 没有返回文档：容器可能刚被删除，或者这次采样的结果为空。",
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv80 = element("scroll");
+			prop(__nsh_hv80, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv81 = element("view");
+			prop(__nsh_hv81, "style", {
+				padding: 14,
+				display: "flex",
+				flexDirection: "column",
+				gap: 10
+			});
+			insert(__nsh_hv81, [() => error() === null ? null : component(Notice, {
+				get message() {
+					return `刷新失败：${error()}`;
+				},
+				tone: "danger"
+			}), () => showRaw() ? rawBlock() : sectionsBlock()]);
+			append(__nsh_hv80, __nsh_hv81);
+			return __nsh_hv80;
+		})();
+	}
+	loadContainers();
+	if (presetId !== null) load();
+	return (() => {
+		const __nsh_hv82 = element("view");
+		bindProp(__nsh_hv82, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv83 = element("view");
+		bindProp(__nsh_hv83, "style", () => hairline());
+		append(__nsh_hv82, __nsh_hv83);
+		insert(__nsh_hv82, () => toolbar(), __nsh_hv83);
+		insert(__nsh_hv82, [() => presetId === null ? containerBar() : null, () => body()]);
+		return __nsh_hv82;
+	})();
+}
+/** 本地时钟（HH:MM:SS）。 */
+function clock() {
+	const now = /* @__PURE__ */ new Date();
+	const two = (value) => String(value).padStart(2, "0");
+	return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
+}
+
+//#endregion
+//#region pages/container-mounts/App.tsx
+/** 挂载类型 → 胶囊配色；未知类型保持中性。 */
+function typeTone(type) {
+	const text = type.toLowerCase();
+	if (text === "bind") return "info";
+	if (text === "volume") return "ok";
+	if (text === "tmpfs") return "warn";
+	return "neutral";
+}
+function typeOf(entry) {
+	const type = str(entry, "Type", "").toLowerCase();
+	return type.length > 0 ? type : "bind";
+}
+function modeOf(entry) {
+	return str(entry, "Mode", "默认");
+}
+function isReadOnly(entry) {
+	if (entry.RW === false) return true;
+	return /^ro\b/.test(str(entry, "Mode", ""));
+}
+const containerId$2 = (row) => str(row, "id", "");
+const containerName$2 = (row) => str(row, "name", "");
+const containerImage$2 = (row) => str(row, "image", "");
+const containerState$2 = (row) => str(row, "state", "");
+function stateTone$4(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+function ContainerMounts(props = {}) {
+	const mounts = signal([]);
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	/** 预设了容器就收起挑选列表，只留一条状态条。 */
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	function readOnlyCount() {
+		return mounts().filter((entry) => isReadOnly(entry)).length;
+	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName$2(row)} ${containerImage$2(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId$2(item) === id);
+		return row === void 0 ? selectedName() : `${containerName$2(row)} · ${containerImage$2(row)}`;
+	}
+	function resetData() {
+		mounts.set([]);
+		error.set(null);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId$2(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName$2(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId$2(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (mounts().length === 0) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/mounts", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			const list = Array.isArray(result) ? result : arr(result, "mounts");
+			mounts.set(list);
+			error.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId$2(row);
+		const state = containerState$2(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$2(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName$2(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage$2(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone$4(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function mountRow(entry) {
+		const type = typeOf(entry);
+		const readOnly = isReadOnly(entry);
+		const name = str(entry, "Name", "");
+		return (() => {
+			const __nsh_hv16 = element("view");
+			bindProp(__nsh_hv16, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				paddingHorizontal: 12,
+				paddingVertical: 9,
+				borderBottomWidth: 1,
+				borderBottomColor: c.line()
+			}));
+			insert(__nsh_hv16, [
+				component(Row, {
+					gap: 8,
+					get children() {
+						return [
+							component(Badge, {
+								text: type,
+								get tone() {
+									return typeTone(type);
+								}
+							}),
+							() => readOnly ? component(Badge, {
+								text: "只读",
+								tone: "warn"
+							}) : component(Badge, {
+								text: "可写",
+								tone: "neutral"
+							}),
+							(() => {
+								const __nsh_hv17 = element("text");
+								prop(__nsh_hv17, "numberOfLines", 1);
+								bindProp(__nsh_hv17, "style", () => t.meta);
+								insert(__nsh_hv17, () => `模式 ${modeOf(entry)}`);
+								return __nsh_hv17;
+							})(),
+							(() => {
+								const __nsh_hv18 = element("text");
+								prop(__nsh_hv18, "numberOfLines", 1);
+								bindProp(__nsh_hv18, "style", () => ({
+									...t.meta,
+									flex: 1,
+									minWidth: 0,
+									textAlign: "right"
+								}));
+								insert(__nsh_hv18, () => name.length > 0 ? `名称 ${name}` : "");
+								return __nsh_hv18;
+							})()
+						];
+					}
+				}),
+				component(Row, {
+					gap: 6,
+					align: "flex-start",
+					get children() {
+						return [(() => {
+							const __nsh_hv19 = element("text");
+							bindProp(__nsh_hv19, "style", () => ({
+								...t.label,
+								width: 26,
+								flexShrink: 0
+							}));
+							const __nsh_hv20 = text("源");
+							append(__nsh_hv19, __nsh_hv20);
+							return __nsh_hv19;
+						})(), (() => {
+							const __nsh_hv21 = element("text");
+							bindProp(__nsh_hv21, "style", () => ({
+								...t.mono,
+								flex: 1,
+								minWidth: 0
+							}));
+							insert(__nsh_hv21, () => str(entry, "Source", "-"));
+							return __nsh_hv21;
+						})()];
+					}
+				}),
+				component(Row, {
+					gap: 6,
+					align: "flex-start",
+					get children() {
+						return [(() => {
+							const __nsh_hv22 = element("text");
+							bindProp(__nsh_hv22, "style", () => ({
+								...t.label,
+								width: 26,
+								flexShrink: 0
+							}));
+							const __nsh_hv23 = text("目标");
+							append(__nsh_hv22, __nsh_hv23);
+							return __nsh_hv22;
+						})(), (() => {
+							const __nsh_hv24 = element("text");
+							bindProp(__nsh_hv24, "style", () => ({
+								...t.mono,
+								flex: 1,
+								minWidth: 0
+							}));
+							insert(__nsh_hv24, () => str(entry, "Destination", "-"));
+							return __nsh_hv24;
+						})()];
+					}
+				})
+			]);
+			return __nsh_hv16;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的挂载。`;
+			}
+		});
+	}
+	function body() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && mounts().length === 0) return component(Loading, { label: "正在读取容器挂载…" });
+		if (error() !== null && mounts().length === 0) return component(LoadError, {
+			get message() {
+				return error() ?? "";
+			},
+			onRetry: () => void load()
+		});
+		if (mounts().length === 0) return component(Empty, {
+			title: "容器没有挂载",
+			hint: "容器启动时没有声明 bind / volume / tmpfs 挂载，因此没有宿主机路径映射进来。",
+			get action() {
+				return component(Button, {
+					label: "重新读取",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv25 = element("view");
+			prop(__nsh_hv25, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			const __nsh_hv27 = element("scroll");
+			prop(__nsh_hv27, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv28 = element("view");
+			prop(__nsh_hv28, "style", {
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv28, () => mounts().map((entry) => mountRow(entry)));
+			append(__nsh_hv27, __nsh_hv28);
+			const __nsh_hv29 = element("view");
+			bindProp(__nsh_hv29, "style", () => ({
+				paddingHorizontal: 12,
+				paddingVertical: 7,
+				borderTopWidth: 1,
+				borderTopColor: c.line(),
+				backgroundColor: c.panel(),
+				flexShrink: 0
+			}));
+			const __nsh_hv30 = element("text");
+			prop(__nsh_hv30, "numberOfLines", 1);
+			bindProp(__nsh_hv30, "style", () => t.meta);
+			const __nsh_hv31 = text("数据来自容器 Mounts 字段；RW=false 或 Mode 以 ro 开头的挂载按只读显示。");
+			append(__nsh_hv30, __nsh_hv31);
+			append(__nsh_hv29, __nsh_hv30);
+			append(__nsh_hv25, __nsh_hv27);
+			append(__nsh_hv25, __nsh_hv29);
+			insert(__nsh_hv25, () => error() === null ? null : (() => {
+				const __nsh_hv26 = element("view");
+				prop(__nsh_hv26, "style", {
+					paddingHorizontal: 12,
+					paddingTop: 8
+				});
+				insert(__nsh_hv26, component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }));
+				return __nsh_hv26;
+			})(), __nsh_hv27);
+			return __nsh_hv25;
+		})();
+	}
+	function toolbar() {
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [(() => {
+							const __nsh_hv32 = element("text");
+							bindProp(__nsh_hv32, "style", () => t.h1);
+							const __nsh_hv33 = text("挂载");
+							append(__nsh_hv32, __nsh_hv33);
+							return __nsh_hv32;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv34 = element("text");
+							bindProp(__nsh_hv34, "style", () => t.meta);
+							const __nsh_hv35 = text("未选择容器");
+							append(__nsh_hv34, __nsh_hv35);
+							return __nsh_hv34;
+						})() : [(() => {
+							const __nsh_hv36 = element("text");
+							bindProp(__nsh_hv36, "style", () => t.meta);
+							insert(__nsh_hv36, () => `${mounts().length} 个挂载`);
+							return __nsh_hv36;
+						})(), component(Badge, {
+							get text() {
+								return `只读 ${readOnlyCount()}`;
+							},
+							tone: "warn"
+						})]];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [() => busy() ? (() => {
+							const __nsh_hv37 = element("text");
+							bindProp(__nsh_hv37, "style", () => t.meta);
+							const __nsh_hv38 = text("正在读取…");
+							append(__nsh_hv37, __nsh_hv38);
+							return __nsh_hv37;
+						})() : null, component(Button, {
+							label: "刷新",
+							small: true,
+							onPress: () => refresh()
+						})];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	if (presetId !== null) load();
+	return (() => {
+		const __nsh_hv39 = element("view");
+		bindProp(__nsh_hv39, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv40 = element("view");
+		bindProp(__nsh_hv40, "style", () => hairline());
+		append(__nsh_hv39, __nsh_hv40);
+		insert(__nsh_hv39, () => toolbar(), __nsh_hv40);
+		insert(__nsh_hv39, [() => presetId === null ? containerBar() : null, () => body()]);
+		return __nsh_hv39;
+	})();
+}
+
+//#endregion
+//#region pages/container-stats/App.tsx
+function numberField(source, key) {
+	if (source === null) return null;
+	const value = source[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function clockText(date) {
+	const two = (value) => String(value).padStart(2, "0");
+	return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
+}
+const containerId$1 = (row) => str(row, "id", "");
+const containerName$1 = (row) => str(row, "name", "");
+const containerImage$1 = (row) => str(row, "image", "");
+const containerState$1 = (row) => str(row, "state", "");
+function stateTone$3(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "exited" || state === "dead") return "danger";
+	return "neutral";
+}
+const AUTO_REFRESH_MS = 2e3;
+function ContainerStats(props = {}) {
+	const sample = signal(null);
+	const sampledAt = signal("-");
+	const loading = signal(true);
+	const error = signal(null);
+	const busy = signal(false);
+	const autoRefresh = signal(false);
+	const containers = signal([]);
+	const containerQuery = signal("");
+	const containersLoading = signal(true);
+	const containersError = signal(null);
+	/** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const selectedId = signal(presetId);
+	const selectedName = signal("");
+	/** 预设了容器就收起挑选列表，只留一条状态条。 */
+	const pickerOpen = signal(presetId === null);
+	let seq = 0;
+	let timer = null;
+	const cpu = () => numberField(sample(), "cpu_percent");
+	const cores = () => numberField(sample(), "online_cpus");
+	const usage = () => numberField(sample(), "memory_usage_bytes");
+	const limit = () => numberField(sample(), "memory_limit_bytes");
+	function hasSample() {
+		return sample() !== null && (cpu() !== null || usage() !== null);
+	}
+	function cpuText() {
+		const value = cpu();
+		return value === null ? "-" : `${value.toFixed(1)}%`;
+	}
+	function coresHint() {
+		const value = cores();
+		if (value === null) return "核数未知";
+		return `${value} 个核 · 100% ≈ 1 核满载`;
+	}
+	function memoryCaption() {
+		return `${humanBytes(usage())} / ${humanBytes(limit())}`;
+	}
+	function memoryLeft() {
+		const used = usage();
+		const total = limit();
+		if (used === null || total === null) return "-";
+		return humanBytes(Math.max(0, total - used));
+	}
+	function visibleContainers() {
+		const needle = containerQuery().trim().toLowerCase();
+		if (needle.length === 0) return containers();
+		return containers().filter((row) => `${containerName$1(row)} ${containerImage$1(row)}`.toLowerCase().includes(needle));
+	}
+	function selectedSummary() {
+		const id = selectedId();
+		if (id === null) return "";
+		const row = containers().find((item) => containerId$1(item) === id);
+		return row === void 0 ? selectedName() : `${containerName$1(row)} · ${containerImage$1(row)}`;
+	}
+	function resetData() {
+		sample.set(null);
+		sampledAt.set("-");
+		error.set(null);
+	}
+	function stopTimer() {
+		if (timer !== null) {
+			clearInterval(timer);
+			timer = null;
+		}
+	}
+	function setAutoRefresh(on) {
+		autoRefresh.set(on);
+		stopTimer();
+		if (on) timer = setInterval(() => {
+			if (selectedId() !== null) load();
+		}, AUTO_REFRESH_MS);
+	}
+	function clearSelection() {
+		selectedId.set(null);
+		selectedName.set("");
+		resetData();
+		loading.set(false);
+		pickerOpen.set(true);
+	}
+	function selectContainer(row) {
+		const id = containerId$1(row);
+		if (id.length === 0) return;
+		if (selectedId() === id) {
+			pickerOpen.set(false);
+			return;
+		}
+		selectedId.set(id);
+		selectedName.set(containerName$1(row));
+		pickerOpen.set(false);
+		resetData();
+		loading.set(true);
+		load();
+	}
+	function refresh() {
+		if (selectedId() === null) loadContainers();
+		else load();
+	}
+	async function loadContainers() {
+		containersLoading.set(true);
+		try {
+			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			const list = Array.isArray(result) ? result : arr(result, "containers");
+			containers.set(list);
+			containersError.set(null);
+			const current = selectedId();
+			if (current !== null && !list.some((row) => containerId$1(row) === current)) clearSelection();
+		} catch (failure) {
+			containersError.set(errorMessage(failure));
+		} finally {
+			containersLoading.set(false);
+		}
+	}
+	async function load() {
+		const id = selectedId();
+		if (id === null) return;
+		if (busy()) return;
+		const mine = ++seq;
+		busy.set(true);
+		if (sample() === null) loading.set(true);
+		try {
+			const result = await invoke$1("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
+			if (mine !== seq) return;
+			sample.set(result ?? null);
+			sampledAt.set(clockText(/* @__PURE__ */ new Date()));
+			error.set(null);
+		} catch (failure) {
+			if (mine !== seq) return;
+			error.set(errorMessage(failure));
+		} finally {
+			if (mine === seq) {
+				loading.set(false);
+				busy.set(false);
+			}
+		}
+	}
+	function pickerList() {
+		if (!pickerOpen()) return null;
+		return (() => {
+			const __nsh_hv0 = element("view");
+			bindProp(__nsh_hv0, "style", () => ({
+				display: "flex",
+				flexDirection: "column",
+				gap: 4,
+				marginHorizontal: 14,
+				marginBottom: 8,
+				padding: 6,
+				borderWidth: 1,
+				borderColor: c.line(),
+				borderRadius: r.card,
+				backgroundColor: c.panel()
+			}));
+			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
+				const __nsh_hv1 = element("text");
+				bindProp(__nsh_hv1, "style", () => t.meta);
+				const __nsh_hv2 = text("正在读取容器列表…");
+				append(__nsh_hv1, __nsh_hv2);
+				return __nsh_hv1;
+			})() : containersError() !== null && containers().length === 0 ? component(Row, {
+				gap: 8,
+				get children() {
+					return [(() => {
+						const __nsh_hv3 = element("text");
+						bindProp(__nsh_hv3, "style", () => ({
+							...t.meta,
+							color: c.danger()
+						}));
+						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
+						return __nsh_hv3;
+					})(), component(Button, {
+						label: "重试",
+						small: true,
+						onPress: () => void loadContainers()
+					})];
+				}
+			}) : visibleContainers().length === 0 ? (() => {
+				const __nsh_hv4 = element("text");
+				bindProp(__nsh_hv4, "style", () => t.meta);
+				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
+				return __nsh_hv4;
+			})() : (() => {
+				const __nsh_hv5 = element("scroll");
+				prop(__nsh_hv5, "style", { maxHeight: 168 });
+				const __nsh_hv6 = element("view");
+				prop(__nsh_hv6, "style", {
+					display: "flex",
+					flexDirection: "column"
+				});
+				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
+				append(__nsh_hv5, __nsh_hv6);
+				return __nsh_hv5;
+			})());
+			return __nsh_hv0;
+		})();
+	}
+	function containerOption(row) {
+		const id = containerId$1(row);
+		const state = containerState$1(row);
+		return (() => {
+			const __nsh_hv7 = element("view");
+			prop(__nsh_hv7, "onPress", () => selectContainer(row));
+			prop(__nsh_hv7, "role", "button");
+			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$1(row)}`);
+			bindProp(__nsh_hv7, "style", () => ({
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 6,
+				borderRadius: r.control,
+				backgroundColor: selectedId() === id ? c.hover() : "transparent"
+			}));
+			const __nsh_hv8 = element("text");
+			prop(__nsh_hv8, "numberOfLines", 1);
+			bindProp(__nsh_hv8, "style", () => ({
+				fontSize: 12,
+				fontWeight: "500",
+				color: c.text(),
+				width: 180
+			}));
+			insert(__nsh_hv8, () => containerName$1(row));
+			const __nsh_hv9 = element("text");
+			prop(__nsh_hv9, "numberOfLines", 1);
+			bindProp(__nsh_hv9, "style", () => ({
+				...t.mono,
+				fontSize: 11,
+				color: c.muted(),
+				flex: 1,
+				minWidth: 0
+			}));
+			insert(__nsh_hv9, () => containerImage$1(row));
+			append(__nsh_hv7, __nsh_hv8);
+			append(__nsh_hv7, __nsh_hv9);
+			insert(__nsh_hv7, component(Badge, {
+				get text() {
+					return state.length === 0 ? "unknown" : state;
+				},
+				get tone() {
+					return stateTone$3(state);
+				}
+			}));
+			return __nsh_hv7;
+		})();
+	}
+	function pickerToggle() {
+		return component(Button, {
+			get label() {
+				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
+			},
+			small: true,
+			onPress: () => pickerOpen.set(!pickerOpen())
+		});
+	}
+	function autoRefreshToggle() {
+		return component(Button, {
+			get label() {
+				return autoRefresh() ? `自动刷新 · ${AUTO_REFRESH_MS / 1e3}s` : "自动刷新";
+			},
+			small: true,
+			get tone() {
+				return autoRefresh() ? "primary" : "ghost";
+			},
+			onPress: () => setAutoRefresh(!autoRefresh())
+		});
+	}
+	function containerBar() {
+		return (() => {
+			const __nsh_hv10 = element("view");
+			prop(__nsh_hv10, "style", {
+				display: "flex",
+				flexDirection: "column",
+				flexShrink: 0
+			});
+			insert(__nsh_hv10, [component(Row, {
+				wrap: true,
+				gap: 8,
+				get style() {
+					return {
+						paddingHorizontal: 14,
+						paddingBottom: pickerOpen() ? 6 : 10
+					};
+				},
+				get children() {
+					return [
+						component(SearchField, {
+							get value() {
+								return containerQuery();
+							},
+							onChange: (text) => {
+								containerQuery.set(text);
+								if (!pickerOpen()) pickerOpen.set(true);
+							},
+							placeholder: "按名称 / 镜像过滤容器",
+							width: 280
+						}),
+						(() => {
+							const __nsh_hv11 = element("text");
+							bindProp(__nsh_hv11, "style", () => t.meta);
+							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
+							return __nsh_hv11;
+						})(),
+						() => selectedId() === null ? (() => {
+							const __nsh_hv12 = element("text");
+							bindProp(__nsh_hv12, "style", () => t.meta);
+							const __nsh_hv13 = text("未选择容器");
+							append(__nsh_hv12, __nsh_hv13);
+							return __nsh_hv12;
+						})() : (() => {
+							const __nsh_hv14 = element("text");
+							prop(__nsh_hv14, "numberOfLines", 1);
+							bindProp(__nsh_hv14, "style", () => ({
+								...t.meta,
+								color: c.text(),
+								maxWidth: 360
+							}));
+							insert(__nsh_hv14, () => selectedSummary());
+							return __nsh_hv14;
+						})(),
+						(() => {
+							const __nsh_hv15 = element("view");
+							prop(__nsh_hv15, "style", { flex: 1 });
+							return __nsh_hv15;
+						})(),
+						component(Button, {
+							label: "刷新列表",
+							small: true,
+							onPress: () => void loadContainers()
+						}),
+						() => pickerToggle()
+					];
+				}
+			}), () => pickerList()]);
+			return __nsh_hv10;
+		})();
+	}
+	function selectionGate() {
+		if (containersError() !== null && containers().length === 0) return component(LoadError, {
+			get message() {
+				return containersError() ?? "";
+			},
+			onRetry: () => void loadContainers()
+		});
+		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (containers().length === 0) return component(Empty, {
+			title: "这个连接里没有容器",
+			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
+			get action() {
+				return component(Button, {
+					label: "重新读取容器列表",
+					small: true,
+					onPress: () => void loadContainers()
+				});
+			}
+		});
+		return component(Empty, {
+			title: "先选择一个容器",
+			get hint() {
+				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会采样它的资源占用。`;
+			}
+		});
+	}
+	function content() {
+		if (selectedId() === null) return selectionGate();
+		if (loading() && sample() === null) return component(Loading, { label: "正在采样容器资源占用…" });
+		if (error() !== null && sample() === null) return component(LoadError, {
+			get message() {
+				return error() ?? "";
+			},
+			onRetry: () => void load()
+		});
+		if (!hasSample()) return component(Empty, {
+			title: "没有可用的采样",
+			hint: "containerStats 没有返回 CPU / 内存数据：容器可能已经停止，或这次一次性采样失败。刷新会重新取一次。",
+			get action() {
+				return component(Button, {
+					label: "重新采样",
+					small: true,
+					onPress: () => void load()
+				});
+			}
+		});
+		return (() => {
+			const __nsh_hv16 = element("scroll");
+			prop(__nsh_hv16, "style", {
+				flex: 1,
+				minHeight: 0
+			});
+			const __nsh_hv17 = element("view");
+			prop(__nsh_hv17, "style", {
+				padding: 14,
+				display: "flex",
+				flexDirection: "column",
+				gap: 12
+			});
+			insert(__nsh_hv17, [
+				() => error() === null ? null : component(Notice, { get message() {
+					return `刷新失败：${error() ?? ""}`;
+				} }),
+				component(Row, {
+					gap: 12,
+					wrap: true,
+					get children() {
+						return [
+							component(Stat, {
+								label: "CPU 使用率",
+								get value() {
+									return cpuText();
+								},
+								get hint() {
+									return coresHint();
+								}
+							}),
+							component(Stat, {
+								label: "内存用量",
+								get value() {
+									return humanBytes(usage());
+								},
+								get hint() {
+									return `上限 ${humanBytes(limit())}`;
+								}
+							}),
+							component(Stat, {
+								label: "内存使用率",
+								get value() {
+									return percent(usage(), limit());
+								},
+								get hint() {
+									return `剩余 ${memoryLeft()}`;
+								},
+								get tone() {
+									return ratio(usage(), limit()) > .9 ? "danger" : "neutral";
+								}
+							})
+						];
+					}
+				}),
+				component(Card, {
+					title: "内存",
+					hint: "用量 / 上限",
+					get children() {
+						return [
+							component(Meter, {
+								get ratio() {
+									return ratio(usage(), limit());
+								},
+								label: "内存占用",
+								get caption() {
+									return memoryCaption();
+								}
+							}),
+							component(Row, {
+								style: { justifyContent: "space-between" },
+								get children() {
+									return [(() => {
+										const __nsh_hv18 = element("text");
+										bindProp(__nsh_hv18, "style", () => t.label);
+										const __nsh_hv19 = text("采样时间");
+										append(__nsh_hv18, __nsh_hv19);
+										return __nsh_hv18;
+									})(), (() => {
+										const __nsh_hv20 = element("text");
+										bindProp(__nsh_hv20, "style", () => ({
+											...t.mono,
+											color: c.muted()
+										}));
+										insert(__nsh_hv20, () => sampledAt());
+										return __nsh_hv20;
+									})()];
+								}
+							}),
+							(() => {
+								const __nsh_hv21 = element("text");
+								bindProp(__nsh_hv21, "style", () => t.meta);
+								insert(__nsh_hv21, () => autoRefresh() ? `采样时间取本次请求返回时的本地时间；自动刷新每 ${AUTO_REFRESH_MS / 1e3} 秒采样一次。` : "采样时间取本次请求返回时的本地时间；默认只手动刷新，可以打开自动刷新。");
+								return __nsh_hv21;
+							})()
+						];
+					}
+				}),
+				component(Card, {
+					title: "网络收发",
+					hint: "宿主未提供",
+					get children() {
+						return [component(Row, {
+							gap: 12,
+							wrap: true,
+							get children() {
+								return [component(Stat, {
+									label: "收到",
+									value: "—",
+									hint: "containerStats 未返回网络字段"
+								}), component(Stat, {
+									label: "发出",
+									value: "—",
+									hint: "containerStats 未返回网络字段"
+								})];
+							}
+						}), (() => {
+							const __nsh_hv22 = element("text");
+							bindProp(__nsh_hv22, "style", () => t.meta);
+							const __nsh_hv23 = text("provider 的 summarize_stats 只汇总 CPU 与内存，Docker 的 networks（rx / tx 字节与包数）没有被解析。");
+							append(__nsh_hv22, __nsh_hv23);
+							return __nsh_hv22;
+						})()];
+					}
+				}),
+				component(Card, {
+					title: "块 IO",
+					hint: "宿主未提供",
+					get children() {
+						return [component(Row, {
+							gap: 12,
+							wrap: true,
+							get children() {
+								return [component(Stat, {
+									label: "读取",
+									value: "—",
+									hint: "containerStats 未返回块 IO 字段"
+								}), component(Stat, {
+									label: "写入",
+									value: "—",
+									hint: "containerStats 未返回块 IO 字段"
+								})];
+							}
+						}), (() => {
+							const __nsh_hv24 = element("text");
+							bindProp(__nsh_hv24, "style", () => t.meta);
+							const __nsh_hv25 = text("同样，blkio_stats（read / write 字节数）不在 operation 的返回结构里；补上后这两组指标可以直接填进来。");
+							append(__nsh_hv24, __nsh_hv25);
+							return __nsh_hv24;
+						})()];
+					}
+				})
+			]);
+			append(__nsh_hv16, __nsh_hv17);
+			return __nsh_hv16;
+		})();
+	}
+	function toolbar() {
+		return component(Row, {
+			gap: 8,
+			style: {
+				paddingHorizontal: 14,
+				paddingVertical: 10,
+				justifyContent: "space-between",
+				flexShrink: 0
+			},
+			get children() {
+				return [component(Row, {
+					gap: 8,
+					get children() {
+						return [(() => {
+							const __nsh_hv26 = element("text");
+							bindProp(__nsh_hv26, "style", () => t.h1);
+							const __nsh_hv27 = text("资源占用");
+							append(__nsh_hv26, __nsh_hv27);
+							return __nsh_hv26;
+						})(), () => selectedId() === null ? (() => {
+							const __nsh_hv28 = element("text");
+							bindProp(__nsh_hv28, "style", () => t.meta);
+							const __nsh_hv29 = text("未选择容器");
+							append(__nsh_hv28, __nsh_hv29);
+							return __nsh_hv28;
+						})() : [component(Badge, {
+							get text() {
+								return `采样 ${sampledAt()}`;
+							},
+							tone: "info"
+						}), (() => {
+							const __nsh_hv30 = element("text");
+							bindProp(__nsh_hv30, "style", () => t.meta);
+							insert(__nsh_hv30, () => cores() === null ? "" : `${cores()} 个核`);
+							return __nsh_hv30;
+						})()]];
+					}
+				}), component(Row, {
+					gap: 6,
+					get children() {
+						return [
+							() => busy() ? (() => {
+								const __nsh_hv31 = element("text");
+								bindProp(__nsh_hv31, "style", () => t.meta);
+								const __nsh_hv32 = text("正在采样…");
+								append(__nsh_hv31, __nsh_hv32);
+								return __nsh_hv31;
+							})() : null,
+							() => selectedId() === null ? null : autoRefreshToggle(),
+							component(Button, {
+								label: "刷新",
+								small: true,
+								onPress: () => refresh()
+							})
+						];
+					}
+				})];
+			}
+		});
+	}
+	loadContainers();
+	if (presetId !== null) load();
+	return (() => {
+		const __nsh_hv33 = element("view");
+		bindProp(__nsh_hv33, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: c.bg()
+		}));
+		const __nsh_hv34 = element("view");
+		bindProp(__nsh_hv34, "style", () => hairline());
+		append(__nsh_hv33, __nsh_hv34);
+		insert(__nsh_hv33, () => toolbar(), __nsh_hv34);
+		insert(__nsh_hv33, [() => presetId === null ? containerBar() : null, () => content()]);
+		return __nsh_hv33;
+	})();
+}
+
+//#endregion
+//#region pages/container-terminal/App.tsx
+/** 宿主注册的原生终端：`command` + `args` 起一个本地进程。 */
+const Terminal = nativeComponent("navop.terminal", { props: [
+	"command",
+	"args",
+	"env",
+	"title"
+] });
+const STATE_LABEL$1 = {
+	running: "运行中",
+	exited: "已停止",
+	paused: "已暂停",
+	created: "已创建",
+	restarting: "重启中"
+};
+function stateLabel$1(state) {
+	const label = STATE_LABEL$1[state];
+	return label === void 0 ? state.length === 0 ? "未知" : state : label;
+}
+function stateTone$2(state) {
+	if (state === "running") return "ok";
+	if (state === "paused" || state === "restarting") return "warn";
+	if (state === "dead") return "danger";
+	return "neutral";
+}
+function toContainers(payload) {
+	const source = payload;
+	return (Array.isArray(source?.containers) ? source.containers : []).filter((item) => typeof item?.id === "string" && item.id.length > 0);
+}
+function App$1(props = {}) {
+	/** 从容器页的「终端」标签进来时预设容器：直接连这台机器，左边不再列容器。 */
+	const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+	const loading = signal(true);
+	const error = signal("");
+	const containers = signal([]);
+	const filter = signal("");
+	const selected = signal(null);
+	/** 每次点「重新连接」+1：进 env，宿主看到参数变化就重开一个 pty。 */
+	const attempt = signal(0);
+	/** 首屏之后就失败时不打断已有内容，只在顶部提示。 */
+	const notice = signal("");
+	async function load() {
+		loading.set(true);
+		error.set("");
+		try {
+			const payload = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
+			containers.set(toContainers(payload));
+			const current = selected();
+			if (current !== null) {
+				const fresh = containers().find((item) => item.id === current.id);
+				selected.set(fresh ?? null);
+			} else if (presetId !== null) selected.set(containers().find((item) => item.id === presetId) ?? null);
+		} catch (cause) {
+			const message = errorMessage(cause);
+			error.set(message);
+			notice.set(message);
+		} finally {
+			loading.set(false);
+		}
+	}
+	load();
+	const visible = () => {
+		const keyword = filter().trim().toLowerCase();
+		const all = containers();
+		if (keyword.length === 0) return all;
+		return all.filter((item) => `${item.name} ${item.image} ${item.state}`.toLowerCase().includes(keyword));
+	};
+	const row = (item) => (() => {
+		const __nsh_hv0 = element("view");
+		prop(__nsh_hv0, "onPress", () => {
+			selected.set(item);
+			notice.set("");
+		});
+		bindProp(__nsh_hv0, "style", () => ({
+			flexDirection: "column",
+			gap: 3,
+			paddingVertical: 7,
+			paddingHorizontal: 10,
+			borderRadius: r.control,
+			backgroundColor: selected()?.id === item.id ? c.hover() : c.bg(),
+			borderWidth: 1,
+			borderColor: selected()?.id === item.id ? c.line() : "transparent"
+		}));
+		const __nsh_hv1 = element("view");
+		prop(__nsh_hv1, "style", {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6
+		});
+		const __nsh_hv2 = element("text");
+		prop(__nsh_hv2, "numberOfLines", 1);
+		bindProp(__nsh_hv2, "style", () => ({
+			...t.body,
+			color: c.text(),
+			flexGrow: 1
+		}));
+		insert(__nsh_hv2, () => item.name);
+		append(__nsh_hv1, __nsh_hv2);
+		insert(__nsh_hv1, component(Badge, {
+			get text() {
+				return stateLabel$1(item.state);
+			},
+			get tone() {
+				return stateTone$2(item.state);
+			}
+		}));
+		const __nsh_hv3 = element("text");
+		prop(__nsh_hv3, "numberOfLines", 1);
+		bindProp(__nsh_hv3, "style", () => ({
+			...t.meta,
+			color: c.muted()
+		}));
+		insert(__nsh_hv3, () => item.image);
+		append(__nsh_hv0, __nsh_hv1);
+		append(__nsh_hv0, __nsh_hv3);
+		return __nsh_hv0;
+	})();
+	const picker = () => (() => {
+		const __nsh_hv4 = element("view");
+		prop(__nsh_hv4, "style", {
+			flexDirection: "column",
+			gap: 8,
+			height: "100%",
+			minWidth: 0
+		});
+		const __nsh_hv5 = element("view");
+		prop(__nsh_hv5, "style", {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6
+		});
+		const __nsh_hv6 = element("view");
+		prop(__nsh_hv6, "onPress", () => void load());
+		bindProp(__nsh_hv6, "style", () => ({
+			paddingHorizontal: 8,
+			paddingVertical: 4,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: c.line()
+		}));
+		const __nsh_hv7 = element("text");
+		bindProp(__nsh_hv7, "style", () => ({
+			...t.label,
+			color: c.text()
+		}));
+		const __nsh_hv8 = text("刷新列表");
+		append(__nsh_hv7, __nsh_hv8);
+		append(__nsh_hv6, __nsh_hv7);
+		const __nsh_hv9 = element("text");
+		bindProp(__nsh_hv9, "style", () => ({
+			...t.meta,
+			color: c.muted()
+		}));
+		const __nsh_hv10 = text("共 ");
+		const __nsh_hv11 = text(" 个容器");
+		append(__nsh_hv9, __nsh_hv10);
+		append(__nsh_hv9, __nsh_hv11);
+		insert(__nsh_hv9, () => containers().length, __nsh_hv11);
+		append(__nsh_hv5, __nsh_hv6);
+		append(__nsh_hv5, __nsh_hv9);
+		append(__nsh_hv4, __nsh_hv5);
+		insert(__nsh_hv4, [component(SearchField, {
+			get value() {
+				return filter();
+			},
+			onChange: (next) => filter.set(next),
+			placeholder: "过滤容器",
+			width: 220
+		}), component(List, {
+			get items() {
+				return visible();
+			},
+			keyOf: (item) => item.id,
+			get selected() {
+				return selected()?.id ?? null;
+			},
+			onSelect: (id) => {
+				selected.set(containers().find((item) => item.id === id) ?? null);
+				notice.set("");
+			},
+			render: (item) => row(item),
+			get empty() {
+				return component(Empty, {
+					title: "没有匹配的容器",
+					hint: "换个关键字，或刷新列表"
+				});
+			}
+		})], __nsh_hv5);
+		return __nsh_hv4;
+	})();
+	const terminal = (item) => (() => {
+		const __nsh_hv12 = element("view");
+		prop(__nsh_hv12, "style", {
+			flexDirection: "column",
+			gap: 8,
+			height: "100%",
+			minWidth: 0
+		});
+		const __nsh_hv13 = element("view");
+		prop(__nsh_hv13, "style", {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8
+		});
+		const __nsh_hv14 = element("text");
+		prop(__nsh_hv14, "numberOfLines", 1);
+		bindProp(__nsh_hv14, "style", () => ({
+			...t.h2,
+			color: c.text(),
+			flexGrow: 1
+		}));
+		insert(__nsh_hv14, () => item.name);
+		const __nsh_hv15 = element("view");
+		prop(__nsh_hv15, "onPress", () => attempt.set(attempt() + 1));
+		bindProp(__nsh_hv15, "style", () => ({
+			paddingHorizontal: 8,
+			paddingVertical: 4,
+			borderRadius: r.control,
+			borderWidth: 1,
+			borderColor: c.line()
+		}));
+		const __nsh_hv16 = element("text");
+		bindProp(__nsh_hv16, "style", () => ({
+			...t.label,
+			color: c.text()
+		}));
+		const __nsh_hv17 = text("重新连接");
+		append(__nsh_hv16, __nsh_hv17);
+		append(__nsh_hv15, __nsh_hv16);
+		append(__nsh_hv13, __nsh_hv14);
+		append(__nsh_hv13, __nsh_hv15);
+		insert(__nsh_hv13, component(Badge, {
+			get text() {
+				return stateLabel$1(item.state);
+			},
+			get tone() {
+				return stateTone$2(item.state);
+			}
+		}), __nsh_hv15);
+		const __nsh_hv18 = element("text");
+		bindProp(__nsh_hv18, "style", () => ({
+			...t.meta,
+			color: c.muted()
+		}));
+		insert(__nsh_hv18, () => item.state === "running" ? `在本机开一个 docker exec -it ${item.name} /bin/sh` : "容器没在运行：先启动它，再回到这里连接。");
+		const __nsh_hv19 = element("view");
+		bindProp(__nsh_hv19, "style", () => ({
+			flex: 1,
+			minHeight: 240,
+			borderRadius: r.card,
+			borderWidth: 1,
+			borderColor: c.line(),
+			backgroundColor: c.panel(),
+			overflow: "hidden"
+		}));
+		insert(__nsh_hv19, () => item.state === "running" ? component(Terminal, {
+			command: "docker",
+			get args() {
+				return [
+					"exec",
+					"-it",
+					item.name,
+					"/bin/sh"
+				];
+			},
+			get env() {
+				return {
+					NAVOP_SESSION: String(attempt()),
+					NAVOP_TERM: "xterm-256color"
+				};
+			},
+			get title() {
+				return item.name;
+			}
+		}) : component(Empty, {
+			title: "容器未运行",
+			hint: "启动容器后点上面的「重新连接」"
+		}));
+		append(__nsh_hv12, __nsh_hv13);
+		append(__nsh_hv12, __nsh_hv18);
+		append(__nsh_hv12, __nsh_hv19);
+		return __nsh_hv12;
+	})();
+	const body = () => {
+		if (loading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
+		if (error().length > 0 && containers().length === 0) return component(LoadError, {
+			get message() {
+				return error();
+			},
+			onRetry: () => void load()
+		});
+		const current = selected();
+		return (() => {
+			const __nsh_hv20 = element("view");
+			prop(__nsh_hv20, "style", {
+				flexDirection: "column",
+				gap: 8,
+				flex: 1,
+				minHeight: 0
+			});
+			insert(__nsh_hv20, [() => notice().length > 0 ? (() => {
+				const __nsh_hv21 = element("view");
+				bindProp(__nsh_hv21, "style", () => ({
+					paddingHorizontal: 10,
+					paddingVertical: 6,
+					borderRadius: r.control,
+					backgroundColor: c.panel(),
+					borderWidth: 1,
+					borderColor: c.danger()
+				}));
+				const __nsh_hv22 = element("text");
+				bindProp(__nsh_hv22, "style", () => ({
+					...t.meta,
+					color: c.danger()
+				}));
+				insert(__nsh_hv22, () => notice());
+				append(__nsh_hv21, __nsh_hv22);
+				return __nsh_hv21;
+			})() : null, () => presetId !== null ? current !== null ? terminal(current) : component(Empty, {
+				title: "找不到这个容器",
+				hint: "它可能已被删除，刷新列表后再试。"
+			}) : component(SplitPane, {
+				width: 260,
+				get left() {
+					return picker();
+				},
+				get right() {
+					return current !== null ? terminal(current) : component(Empty, {
+						title: "选一个容器",
+						hint: "左边点一个容器，右边就会开一个 shell"
+					});
+				}
+			})]);
+			return __nsh_hv20;
+		})();
+	};
+	return (() => {
+		const __nsh_hv23 = element("view");
+		bindProp(__nsh_hv23, "style", () => ({
+			flex: 1,
+			minHeight: 0,
+			padding: 12,
+			backgroundColor: c.bg()
+		}));
+		insert(__nsh_hv23, () => body());
+		return __nsh_hv23;
+	})();
+}
+
+//#endregion
 //#region pages/containers/App.tsx
 /** 一次最多显示多少条环境变量 / 标签，避免一屏几千行。 */
 const ENV_LIMIT = 40;
 const LABEL_LIMIT = 20;
-const STATE_LABEL$1 = {
+const STATE_LABEL = {
 	running: "运行中",
 	exited: "已停止",
 	paused: "已暂停",
@@ -846,18 +6148,18 @@ const ACTION_PAST = {
 	pause: "已暂停",
 	unpause: "已恢复"
 };
-function stateLabel$1(state) {
-	const label = STATE_LABEL$1[state];
+function stateLabel(state) {
+	const label = STATE_LABEL[state];
 	return label === void 0 ? state.length === 0 ? "未知" : state : label;
 }
-function stateTone$6(state) {
+function stateTone$1(state) {
 	if (state === "running") return "ok";
 	if (state === "paused" || state === "restarting" || state === "removing") return "warn";
 	if (state === "dead") return "danger";
 	return "neutral";
 }
 function stateColor(state) {
-	const tone = stateTone$6(state);
+	const tone = stateTone$1(state);
 	if (tone === "ok") return c.chart(1);
 	if (tone === "warn") return c.chart(4);
 	if (tone === "danger") return c.danger();
@@ -866,11 +6168,11 @@ function stateColor(state) {
 function isObject(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function pick$1(source, key) {
+function pick(source, key) {
 	return isObject(source) ? source[key] : void 0;
 }
 /** 把任意值读成一句可显示文本；缺失时给 fallback。 */
-function text$2(value, fallback = "-") {
+function text$1(value, fallback = "-") {
 	if (typeof value === "string") return value.length === 0 ? fallback : value;
 	if (typeof value === "number") return Number.isFinite(value) ? String(value) : fallback;
 	if (typeof value === "boolean") return value ? "是" : "否";
@@ -897,10 +6199,10 @@ function toContainer(value) {
 }
 function toStats(value) {
 	return {
-		cpuPercent: numberOr(pick$1(value, "cpu_percent"), 0),
-		memoryUsage: numberOr(pick$1(value, "memory_usage_bytes"), 0),
-		memoryLimit: numberOr(pick$1(value, "memory_limit_bytes"), 0),
-		cpus: numberOr(pick$1(value, "online_cpus"), 0)
+		cpuPercent: numberOr(pick(value, "cpu_percent"), 0),
+		memoryUsage: numberOr(pick(value, "memory_usage_bytes"), 0),
+		memoryLimit: numberOr(pick(value, "memory_limit_bytes"), 0),
+		cpus: numberOr(pick(value, "online_cpus"), 0)
 	};
 }
 function nowClock$1() {
@@ -908,26 +6210,26 @@ function nowClock$1() {
 	const two = (value) => String(value).padStart(2, "0");
 	return `${two(now.getHours())}:${two(now.getMinutes())}`;
 }
-function restartText$1(policy) {
-	const name = text$2(pick$1(policy, "Name"), "");
+function restartText(policy) {
+	const name = text$1(pick(policy, "Name"), "");
 	if (name.length === 0 || name === "no") return "不自动重启";
-	const retries = numberOr(pick$1(policy, "MaximumRetryCount"), 0);
+	const retries = numberOr(pick(policy, "MaximumRetryCount"), 0);
 	return retries > 0 ? `${name}（最多 ${retries} 次）` : name;
 }
 /** 状态 + 健康检查 + 暂停位（inspect 里这三处是分开的）。 */
 function stateText(state) {
-	const status = text$2(pick$1(state, "Status"), "");
-	const health = text$2(pick$1(state, "Health"), "");
-	const healthStatus = text$2(pick$1(pick$1(state, "Health"), "Status"), "");
-	const parts = [status.length === 0 ? "未知" : stateLabel$1(status)];
+	const status = text$1(pick(state, "Status"), "");
+	const health = text$1(pick(state, "Health"), "");
+	const healthStatus = text$1(pick(pick(state, "Health"), "Status"), "");
+	const parts = [status.length === 0 ? "未知" : stateLabel(status)];
 	if (healthStatus.length > 0) parts.push(`健康检查 ${healthStatus}`);
 	else if (health.length > 0) parts.push(`健康检查 ${health}`);
-	if (pick$1(state, "Paused") === true) parts.push("已暂停");
+	if (pick(state, "Paused") === true) parts.push("已暂停");
 	return parts.join(" · ");
 }
 /** `NetworkSettings.Ports` → `0.0.0.0:8080 → 80/tcp` 这样的行。 */
-function portLines$1(info) {
-	const ports = pick$1(pick$1(info, "NetworkSettings"), "Ports");
+function portLines(info) {
+	const ports = pick(pick(info, "NetworkSettings"), "Ports");
 	if (!isObject(ports)) return [];
 	const lines = [];
 	for (const [containerPort, bindings] of Object.entries(ports)) {
@@ -936,8 +6238,8 @@ function portLines$1(info) {
 			continue;
 		}
 		for (const binding of bindings) {
-			const hostIp = text$2(pick$1(binding, "HostIp"), "0.0.0.0");
-			const hostPort = text$2(pick$1(binding, "HostPort"), "");
+			const hostIp = text$1(pick(binding, "HostIp"), "0.0.0.0");
+			const hostPort = text$1(pick(binding, "HostPort"), "");
 			lines.push(hostPort.length === 0 ? `${containerPort}（仅暴露，未发布）` : `${hostIp}:${hostPort} → ${containerPort}`);
 		}
 	}
@@ -945,13 +6247,13 @@ function portLines$1(info) {
 }
 /** 各网络的名字 → IP / 网关 / MAC。 */
 function networkRows(info) {
-	const networks = pick$1(pick$1(info, "NetworkSettings"), "Networks");
+	const networks = pick(pick(info, "NetworkSettings"), "Networks");
 	if (!isObject(networks)) return [];
 	return Object.entries(networks).map(([name, value]) => {
 		const parts = [];
-		const ip = text$2(pick$1(value, "IPAddress"), "");
-		const gateway = text$2(pick$1(value, "Gateway"), "");
-		const mac = text$2(pick$1(value, "MacAddress"), "");
+		const ip = text$1(pick(value, "IPAddress"), "");
+		const gateway = text$1(pick(value, "Gateway"), "");
+		const mac = text$1(pick(value, "MacAddress"), "");
 		if (ip.length > 0) parts.push(ip);
 		if (gateway.length > 0) parts.push(`网关 ${gateway}`);
 		if (mac.length > 0) parts.push(mac);
@@ -960,19 +6262,19 @@ function networkRows(info) {
 }
 /** 挂载：源 → 目标（读写位）。 */
 function mountRows(info) {
-	const mounts = pick$1(info, "Mounts");
+	const mounts = pick(info, "Mounts");
 	if (!Array.isArray(mounts)) return [];
 	return mounts.map((mount) => {
-		const source = text$2(pick$1(mount, "Source"), "-");
-		const destination = text$2(pick$1(mount, "Destination"), "-");
-		const mode = pick$1(mount, "RW") === false ? "只读" : "读写";
-		const type = text$2(pick$1(mount, "Type"), "");
+		const source = text$1(pick(mount, "Source"), "-");
+		const destination = text$1(pick(mount, "Destination"), "-");
+		const mode = pick(mount, "RW") === false ? "只读" : "读写";
+		const type = text$1(pick(mount, "Type"), "");
 		return [source, `${destination}（${mode}${type.length === 0 ? "" : ` · ${type}`}）`];
 	});
 }
 /** `Config.Env` 是 `KEY=VALUE` 字符串数组。 */
 function envRows(info) {
-	const env = pick$1(pick$1(info, "Config"), "Env");
+	const env = pick(pick(info, "Config"), "Env");
 	if (!Array.isArray(env)) return [];
 	return env.map((entry) => {
 		const line = typeof entry === "string" ? entry : String(entry);
@@ -981,28 +6283,29 @@ function envRows(info) {
 	});
 }
 function labelRows(info) {
-	const labels = pick$1(pick$1(info, "Config"), "Labels");
+	const labels = pick(pick(info, "Config"), "Labels");
 	if (!isObject(labels)) return [];
-	return Object.entries(labels).map(([key, value]) => [key, text$2(value, "")]);
+	return Object.entries(labels).map(([key, value]) => [key, text$1(value, "")]);
 }
 function overviewRows(info) {
-	const state = pick$1(info, "State");
-	const config = pick$1(info, "Config");
-	const hostConfig = pick$1(info, "HostConfig");
+	const state = pick(info, "State");
+	const config = pick(info, "Config");
+	const hostConfig = pick(info, "HostConfig");
 	return [
-		["容器 ID", text$2(pick$1(info, "Id")).slice(0, 12)],
-		["名称", text$2(pick$1(info, "Name")).replace(/^\//, "")],
-		["镜像", text$2(pick$1(config, "Image"), text$2(pick$1(info, "Image")))],
+		["容器 ID", text$1(pick(info, "Id")).slice(0, 12)],
+		["名称", text$1(pick(info, "Name")).replace(/^\//, "")],
+		["镜像", text$1(pick(config, "Image"), text$1(pick(info, "Image")))],
 		["状态", stateText(state)],
-		["启动时间", shortTime(text$2(pick$1(state, "StartedAt"), ""))],
-		["创建时间", shortTime(text$2(pick$1(info, "Created"), ""))],
-		["退出码", text$2(pick$1(state, "ExitCode"), "0")],
-		["重启次数", text$2(pick$1(state, "RestartCount"), "0")],
-		["重启策略", restartText$1(pick$1(hostConfig, "RestartPolicy"))],
-		["启动命令", joinCommand(pick$1(config, "Cmd"))]
+		["启动时间", shortTime(text$1(pick(state, "StartedAt"), ""))],
+		["创建时间", shortTime(text$1(pick(info, "Created"), ""))],
+		["退出码", text$1(pick(state, "ExitCode"), "0")],
+		["重启次数", text$1(pick(state, "RestartCount"), "0")],
+		["重启策略", restartText(pick(hostConfig, "RestartPolicy"))],
+		["启动命令", joinCommand(pick(config, "Cmd"))]
 	];
 }
-function ToolButton(props) {
+/** 操作按钮：主操作填色，其余纯文字 + hover 底色，不再一排描边盒子。 */
+function ActionButton(props) {
 	const label = () => typeof props.label === "function" ? props.label() : props.label;
 	const disabled = () => props.disabled?.() === true;
 	const tone = props.tone ?? "ghost";
@@ -1015,18 +6318,18 @@ function ToolButton(props) {
 			if (disabled()) return;
 			props.onPress();
 		});
+		bindProp(__nsh_hv0, "hoverStyle", () => ({ backgroundColor: tone === "primary" ? c.accent() : c.hover() }));
 		bindProp(__nsh_hv0, "style", () => ({
-			height: 24,
+			height: 26,
 			paddingHorizontal: 10,
 			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: tone === "danger" ? c.danger() : tone === "primary" ? c.accent() : c.line(),
 			backgroundColor: tone === "primary" ? c.accent() : "transparent",
-			opacity: disabled() ? .5 : 1,
+			opacity: disabled() ? .45 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
-			justifyContent: "center"
+			justifyContent: "center",
+			cursor: "default"
 		}));
 		const __nsh_hv1 = element("text");
 		bindProp(__nsh_hv1, "style", () => ({
@@ -1039,83 +6342,42 @@ function ToolButton(props) {
 		return __nsh_hv0;
 	})();
 }
-function chip$2(label, active, testLabel, onPress) {
-	return (() => {
-		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "role", "button");
-		prop(__nsh_hv2, "accessibilityLabel", testLabel);
-		prop(__nsh_hv2, "onPress", onPress);
-		bindProp(__nsh_hv2, "style", () => ({
-			flexDirection: "row",
-			alignItems: "center",
-			paddingHorizontal: 10,
-			paddingVertical: 5,
-			borderRadius: r.pill,
-			borderWidth: 1,
-			borderColor: active() ? c.accent() : c.line(),
-			backgroundColor: active() ? c.accent() : "transparent"
-		}));
-		const __nsh_hv3 = element("text");
-		bindProp(__nsh_hv3, "style", () => ({
-			...t.meta,
-			color: active() ? c.accentText() : c.text()
-		}));
-		insert(__nsh_hv3, label);
-		append(__nsh_hv2, __nsh_hv3);
-		return __nsh_hv2;
-	})();
-}
 /** 过滤输入框：lib 的 SearchField 不暴露 testID，测试里要用 `id:` 定位，所以自己包一层。 */
 function FilterField(props) {
 	return (() => {
-		const __nsh_hv4 = element("view");
-		bindProp(__nsh_hv4, "style", () => ({
+		const __nsh_hv2 = element("view");
+		bindProp(__nsh_hv2, "style", () => ({
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 6,
-			height: 28,
-			width: 240,
-			paddingHorizontal: 9,
+			gap: 5,
+			height: 24,
+			width: 190,
+			paddingHorizontal: 8,
 			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: c.line(),
-			backgroundColor: c.bg()
+			backgroundColor: c.hover()
 		}));
-		const __nsh_hv5 = element("text");
-		bindProp(__nsh_hv5, "style", () => ({
-			fontSize: 12,
+		const __nsh_hv3 = element("text");
+		bindProp(__nsh_hv3, "style", () => ({
+			fontSize: 11,
 			color: c.muted()
 		}));
-		const __nsh_hv6 = text("⌕");
-		append(__nsh_hv5, __nsh_hv6);
-		const __nsh_hv7 = element("input");
-		bindProp(__nsh_hv7, "testID", () => props.testID);
-		bindProp(__nsh_hv7, "value", () => props.value);
-		bindProp(__nsh_hv7, "placeholder", () => props.placeholder);
-		prop(__nsh_hv7, "onChange", (text) => props.onChange(text));
-		prop(__nsh_hv7, "style", {
+		const __nsh_hv4 = text("⌕");
+		append(__nsh_hv3, __nsh_hv4);
+		const __nsh_hv5 = element("input");
+		bindProp(__nsh_hv5, "testID", () => props.testID);
+		bindProp(__nsh_hv5, "value", () => props.value);
+		bindProp(__nsh_hv5, "placeholder", () => props.placeholder);
+		prop(__nsh_hv5, "onChange", (text) => props.onChange(text));
+		prop(__nsh_hv5, "style", {
 			flex: 1,
-			fontSize: 12,
+			fontSize: 11.5,
 			paddingHorizontal: 0,
 			borderWidth: 0,
 			backgroundColor: "transparent"
 		});
-		append(__nsh_hv4, __nsh_hv5);
-		append(__nsh_hv4, __nsh_hv7);
-		return __nsh_hv4;
-	})();
-}
-function dot(state) {
-	return (() => {
-		const __nsh_hv8 = element("view");
-		bindProp(__nsh_hv8, "style", () => ({
-			width: 8,
-			height: 8,
-			borderRadius: 999,
-			backgroundColor: stateColor(state),
-			flexShrink: 0
-		}));
-		return __nsh_hv8;
+		append(__nsh_hv2, __nsh_hv3);
+		append(__nsh_hv2, __nsh_hv5);
+		return __nsh_hv2;
 	})();
 }
 function Containers() {
@@ -1134,6 +6396,7 @@ function Containers() {
 	const notice = signal(null);
 	const noticeTone = signal("neutral");
 	const updatedAt = signal(null);
+	const detailTab = signal("overview");
 	let listSeq = 0;
 	let detailSeq = 0;
 	let statsSeq = 0;
@@ -1271,29 +6534,16 @@ function Containers() {
 		}
 	}
 	load();
-	function filters() {
-		return component(Row, {
-			gap: 6,
-			get children() {
-				return [
-					() => chip$2("全部", () => stateFilter() === "all", "过滤:全部", () => stateFilter.set("all")),
-					() => chip$2("运行中", () => stateFilter() === "running", "过滤:运行中", () => stateFilter.set("running")),
-					() => chip$2("已停止", () => stateFilter() === "stopped", "过滤:已停止", () => stateFilter.set("stopped"))
-				];
-			}
-		});
-	}
 	function listPane() {
 		return (() => {
-			const __nsh_hv9 = element("view");
-			bindProp(__nsh_hv9, "style", () => ({
+			const __nsh_hv6 = element("view");
+			prop(__nsh_hv6, "style", {
 				flex: 1,
 				minHeight: 0,
 				display: "flex",
-				flexDirection: "column",
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv9, () => visible().length === 0 ? component(Empty, {
+				flexDirection: "column"
+			});
+			insert(__nsh_hv6, () => visible().length === 0 ? component(Empty, {
 				get title() {
 					return rows().length === 0 ? "还没有容器" : "没有匹配的容器";
 				},
@@ -1314,78 +6564,85 @@ function Containers() {
 						return row.name.length > 0 ? row.name : row.id.slice(0, 12);
 					},
 					get subtitle() {
-						return `${row.status.length > 0 ? row.status : stateLabel$1(row.state)} · ${row.image}`;
+						return `${row.status.length > 0 ? row.status : stateLabel(row.state)} · ${row.image}`;
 					},
 					get leading() {
-						return dot(row.state);
+						return component(Dot, {
+							get color() {
+								return stateColor(row.state);
+							},
+							size: 7
+						});
 					},
 					get trailing() {
 						return (() => {
-							const __nsh_hv10 = element("view");
-							prop(__nsh_hv10, "style", {
+							const __nsh_hv7 = element("view");
+							prop(__nsh_hv7, "style", {
 								display: "flex",
 								flexDirection: "column",
 								alignItems: "flex-end",
-								gap: 2
+								gap: 3,
+								width: 66,
+								flexShrink: 0
 							});
-							const __nsh_hv11 = element("text");
-							bindProp(__nsh_hv11, "style", () => t.meta);
-							insert(__nsh_hv11, () => row.created);
-							append(__nsh_hv10, __nsh_hv11);
-							insert(__nsh_hv10, component(Badge, {
+							const __nsh_hv8 = element("text");
+							prop(__nsh_hv8, "numberOfLines", 1);
+							bindProp(__nsh_hv8, "style", () => ({
+								...t.meta,
+								fontSize: 10
+							}));
+							insert(__nsh_hv8, () => row.created.replace(/^\d{4}-/, ""));
+							append(__nsh_hv7, __nsh_hv8);
+							insert(__nsh_hv7, component(Badge, {
 								get text() {
-									return stateLabel$1(row.state);
+									return stateLabel(row.state);
 								},
 								get tone() {
-									return stateTone$6(row.state);
+									return stateTone$1(row.state);
 								}
-							}), __nsh_hv11);
-							return __nsh_hv10;
+							}), __nsh_hv8);
+							return __nsh_hv7;
 						})();
 					}
 				})
 			}));
-			return __nsh_hv9;
+			return __nsh_hv6;
 		})();
 	}
+	/** 生命周期操作：运行中先给「停止」，已暂停先给「恢复」，其余给「启动」。 */
 	function actions(row) {
 		const controls = [];
-		if (row.state === "running") controls.push(component(ToolButton, {
+		if (row.state === "running") controls.push(component(ActionButton, {
 			label: "停止",
-			testLabel: "停止",
 			disabled: busy,
 			onPress: () => void act("stop", row)
-		}), component(ToolButton, {
+		}), component(ActionButton, {
 			label: "重启",
-			testLabel: "重启",
 			disabled: busy,
 			onPress: () => void act("restart", row)
-		}), component(ToolButton, {
+		}), component(ActionButton, {
 			label: "暂停",
-			testLabel: "暂停",
 			disabled: busy,
 			onPress: () => void act("pause", row)
 		}));
-		else if (row.state === "paused") controls.push(component(ToolButton, {
+		else if (row.state === "paused") controls.push(component(ActionButton, {
 			label: "恢复",
-			testLabel: "恢复",
+			tone: "primary",
 			disabled: busy,
 			onPress: () => void act("unpause", row)
-		}), component(ToolButton, {
+		}), component(ActionButton, {
 			label: "停止",
-			testLabel: "停止",
 			disabled: busy,
 			onPress: () => void act("stop", row)
 		}));
-		else controls.push(component(ToolButton, {
+		else controls.push(component(ActionButton, {
 			label: "启动",
-			testLabel: "启动",
+			tone: "primary",
 			disabled: busy,
 			onPress: () => void act("start", row)
 		}));
-		controls.push(component(ToolButton, {
+		controls.push(component(ActionButton, {
 			label: "删除容器",
-			testLabel: "删除容器",
 			tone: "danger",
 			disabled: busy,
 			onPress: () => {
@@ -1394,249 +6651,232 @@ function Containers() {
 			}
 		}));
 		return component(Row, {
-			gap: 6,
+			gap: 4,
 			get children() {
 				return controls;
 			}
 		});
 	}
-	function overviewCard(info) {
-		if (info === null) return null;
-		return component(Card, {
-			title: "概览",
-			get children() {
-				return component(KeyValue, { get rows() {
-					return overviewRows(info);
-				} });
-			}
-		});
-	}
-	function resourcesCard(row) {
-		if (row.state !== "running") return component(Card, {
-			title: "资源占用",
-			hint: "容器未运行",
-			get children() {
-				return (() => {
-					const __nsh_hv12 = element("text");
-					bindProp(__nsh_hv12, "style", () => t.meta);
-					const __nsh_hv13 = text("启动容器后这里显示 CPU / 内存的实时采样。");
-					append(__nsh_hv12, __nsh_hv13);
-					return __nsh_hv12;
-				})();
-			}
-		});
+	/** 运行中才有的实时指标：一条，而不是卡片里再套卡片。 */
+	function metrics(row) {
+		if (row.state !== "running") return null;
 		const sample = stats();
-		if (sample === null) return component(Card, {
-			title: "资源占用",
-			get children() {
-				return (() => {
-					const __nsh_hv14 = element("text");
-					bindProp(__nsh_hv14, "style", () => t.meta);
-					const __nsh_hv15 = text("暂无实时数据（provider 采样失败，或容器刚启动还没攒到一个样本）。");
-					append(__nsh_hv14, __nsh_hv15);
-					return __nsh_hv14;
-				})();
-			}
-		});
-		const limit = sample.memoryLimit > 0 ? sample.memoryLimit : 0;
-		const usedRatio = limit > 0 ? sample.memoryUsage / limit : 0;
-		return component(Card, {
-			title: "资源占用",
-			get hint() {
-				return sample.cpus > 0 ? `${sample.cpus} 个 CPU` : void 0;
-			},
-			get children() {
-				return [component(Row, {
-					gap: 12,
-					get children() {
-						return [component(Stat, {
+		const limit = sample === null ? 0 : sample.memoryLimit;
+		const used = sample === null ? 0 : sample.memoryUsage;
+		return (() => {
+			const __nsh_hv9 = element("view");
+			bindProp(__nsh_hv9, "style", () => ({
+				paddingHorizontal: 16,
+				paddingVertical: 12,
+				borderBottomWidth: 1,
+				borderBottomColor: c.line(),
+				display: "flex",
+				flexDirection: "column",
+				gap: 10
+			}));
+			const __nsh_hv10 = element("text");
+			bindProp(__nsh_hv10, "style", () => t.label);
+			const __nsh_hv11 = text("资源占用");
+			append(__nsh_hv10, __nsh_hv11);
+			append(__nsh_hv9, __nsh_hv10);
+			insert(__nsh_hv9, () => sample === null ? (() => {
+				const __nsh_hv12 = element("text");
+				bindProp(__nsh_hv12, "style", () => t.meta);
+				const __nsh_hv13 = text("正在采样…");
+				append(__nsh_hv12, __nsh_hv13);
+				return __nsh_hv12;
+			})() : component(Row, {
+				gap: 26,
+				get children() {
+					return [
+						component(Metric, {
 							label: "CPU",
 							get value() {
-								return `${sample.cpuPercent.toFixed(2)}%`;
+								return sample.cpuPercent.toFixed(1);
+							},
+							unit: "%",
+							get hint() {
+								return sample.cpus > 0 ? `${sample.cpus} 个 CPU` : void 0;
 							}
-						}), component(Stat, {
+						}),
+						component(Metric, {
 							label: "内存",
 							get value() {
-								return humanBytes(sample.memoryUsage);
+								return humanBytes(used);
 							},
 							get hint() {
-								return limit > 0 ? `上限 ${humanBytes(limit)}` : "无限";
+								return limit > 0 ? `上限 ${humanBytes(limit)}` : "无上限";
 							}
-						})];
-					}
-				}), component(Meter, {
-					ratio: usedRatio,
-					label: "内存使用率",
-					get caption() {
-						return limit > 0 ? percent(sample.memoryUsage, limit) : "—";
-					}
-				})];
-			}
-		});
-	}
-	function networkCard(info) {
-		if (info === null) return null;
-		const networks = networkRows(info);
-		const ports = portLines$1(info);
-		if (networks.length === 0 && ports.length === 0) return null;
-		return component(Card, {
-			title: "网络",
-			get hint() {
-				return networks.length > 0 ? `${networks.length} 个网络` : void 0;
-			},
-			get children() {
-				return [() => networks.length === 0 ? null : component(KeyValue, { rows: networks }), (() => {
-					const __nsh_hv16 = element("view");
-					prop(__nsh_hv16, "style", {
-						display: "flex",
-						flexDirection: "column",
-						gap: 4
-					});
-					const __nsh_hv17 = element("text");
-					bindProp(__nsh_hv17, "style", () => t.label);
-					const __nsh_hv18 = text("端口");
-					append(__nsh_hv17, __nsh_hv18);
-					append(__nsh_hv16, __nsh_hv17);
-					insert(__nsh_hv16, () => ports.length === 0 ? (() => {
-						const __nsh_hv19 = element("text");
-						bindProp(__nsh_hv19, "style", () => t.meta);
-						const __nsh_hv20 = text("没有发布端口。");
-						append(__nsh_hv19, __nsh_hv20);
-						return __nsh_hv19;
-					})() : ports.map((line) => (() => {
-						const __nsh_hv21 = element("text");
-						bindProp(__nsh_hv21, "style", () => ({
-							...t.mono,
-							fontSize: 11
-						}));
-						prop(__nsh_hv21, "selectable", true);
-						insert(__nsh_hv21, line);
-						return __nsh_hv21;
-					})()));
-					return __nsh_hv16;
-				})()];
-			}
-		});
-	}
-	function mountsCard(info) {
-		if (info === null) return null;
-		const mounts = mountRows(info);
-		if (mounts.length === 0) return null;
-		return component(Card, {
-			title: "挂载",
-			get hint() {
-				return `${mounts.length} 处`;
-			},
-			get children() {
-				return component(KeyValue, { rows: mounts });
-			}
-		});
-	}
-	function envCard(info) {
-		if (info === null) return null;
-		const env = envRows(info);
-		if (env.length === 0) return null;
-		const shown = env.slice(0, ENV_LIMIT);
-		return component(Card, {
-			title: "环境变量",
-			get hint() {
-				return env.length > shown.length ? `${env.length} 项，显示前 ${shown.length} 项` : `${env.length} 项`;
-			},
-			get children() {
-				return component(KeyValue, { rows: shown });
-			}
-		});
-	}
-	function labelsCard(info) {
-		if (info === null) return null;
-		const labels = labelRows(info);
-		if (labels.length === 0) return null;
-		const shown = labels.slice(0, LABEL_LIMIT);
-		return component(Card, {
-			title: "标签",
-			get hint() {
-				return labels.length > shown.length ? `${labels.length} 项，显示前 ${shown.length} 项` : `${labels.length} 项`;
-			},
-			get children() {
-				return component(KeyValue, { rows: shown });
-			}
-		});
+						}),
+						component(Metric, {
+							label: "内存占比",
+							get value() {
+								return limit > 0 ? percent(used, limit) : "—";
+							}
+						})
+					];
+				}
+			}));
+			return __nsh_hv9;
+		})();
 	}
 	function detailBody(row) {
-		const info = detail();
 		const name = row.name.length > 0 ? row.name : row.id.slice(0, 12);
 		return (() => {
-			const __nsh_hv22 = element("view");
-			prop(__nsh_hv22, "style", {
+			const __nsh_hv14 = element("view");
+			prop(__nsh_hv14, "style", {
 				flex: 1,
 				minHeight: 0,
 				display: "flex",
 				flexDirection: "column"
 			});
-			const __nsh_hv23 = element("view");
-			bindProp(__nsh_hv23, "style", () => ({
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				gap: 6,
+			const __nsh_hv15 = element("view");
+			bindProp(__nsh_hv15, "style", () => ({
+				paddingHorizontal: 16,
+				paddingTop: 12,
+				paddingBottom: 12,
+				gap: 5,
 				borderBottomWidth: 1,
 				borderBottomColor: c.line()
 			}));
-			const __nsh_hv26 = element("text");
-			prop(__nsh_hv26, "numberOfLines", 1);
-			bindProp(__nsh_hv26, "style", () => t.meta);
-			insert(__nsh_hv26, () => row.image);
-			append(__nsh_hv23, __nsh_hv26);
-			insert(__nsh_hv23, component(Row, {
-				gap: 8,
-				style: { justifyContent: "space-between" },
+			insert(__nsh_hv15, component(Row, {
+				gap: 10,
+				style: {
+					justifyContent: "space-between",
+					alignItems: "flex-start"
+				},
 				get children() {
-					return [component(Row, {
-						gap: 8,
-						style: {
+					return [(() => {
+						const __nsh_hv16 = element("view");
+						prop(__nsh_hv16, "style", {
 							flex: 1,
-							minWidth: 0
-						},
-						get children() {
-							return [
-								(() => {
-									const __nsh_hv24 = element("text");
-									prop(__nsh_hv24, "numberOfLines", 1);
-									bindProp(__nsh_hv24, "style", () => ({
-										fontSize: 15,
-										fontWeight: "600",
-										color: c.text()
+							minWidth: 0,
+							display: "flex",
+							flexDirection: "column",
+							gap: 4
+						});
+						insert(__nsh_hv16, [component(Row, {
+							gap: 7,
+							style: { alignItems: "center" },
+							get children() {
+								return [
+									component(Dot, {
+										get color() {
+											return stateColor(row.state);
+										},
+										size: 7
+									}),
+									(() => {
+										const __nsh_hv17 = element("text");
+										prop(__nsh_hv17, "numberOfLines", 1);
+										bindProp(__nsh_hv17, "style", () => ({
+											fontSize: 16,
+											fontWeight: "600",
+											color: c.text()
+										}));
+										insert(__nsh_hv17, name);
+										return __nsh_hv17;
+									})(),
+									component(Badge, {
+										get text() {
+											return stateLabel(row.state);
+										},
+										get tone() {
+											return stateTone$1(row.state);
+										}
+									})
+								];
+							}
+						}), component(Row, {
+							gap: 8,
+							style: { alignItems: "center" },
+							get children() {
+								return [(() => {
+									const __nsh_hv18 = element("text");
+									prop(__nsh_hv18, "numberOfLines", 1);
+									bindProp(__nsh_hv18, "style", () => t.monoDim);
+									insert(__nsh_hv18, () => row.id.slice(0, 12));
+									return __nsh_hv18;
+								})(), (() => {
+									const __nsh_hv19 = element("text");
+									prop(__nsh_hv19, "numberOfLines", 1);
+									bindProp(__nsh_hv19, "style", () => ({
+										...t.meta,
+										flex: 1,
+										minWidth: 0
 									}));
-									insert(__nsh_hv24, name);
-									return __nsh_hv24;
-								})(),
-								component(Badge, {
-									get text() {
-										return stateLabel$1(row.state);
-									},
-									get tone() {
-										return stateTone$6(row.state);
-									}
-								}),
-								(() => {
-									const __nsh_hv25 = element("text");
-									prop(__nsh_hv25, "numberOfLines", 1);
-									bindProp(__nsh_hv25, "style", () => t.mono);
-									insert(__nsh_hv25, () => row.id.slice(0, 12));
-									return __nsh_hv25;
-								})()
-							];
-						}
-					}), () => actions(row)];
+									insert(__nsh_hv19, () => row.image);
+									return __nsh_hv19;
+								})()];
+							}
+						})]);
+						return __nsh_hv16;
+					})(), () => actions(row)];
 				}
-			}), __nsh_hv26);
-			append(__nsh_hv22, __nsh_hv23);
-			insert(__nsh_hv22, [() => pendingRemove() === row.id ? (() => {
-				const __nsh_hv27 = element("view");
-				prop(__nsh_hv27, "style", {
-					paddingHorizontal: 14,
+			}));
+			const __nsh_hv21 = element("view");
+			prop(__nsh_hv21, "style", {
+				paddingHorizontal: 16,
+				paddingTop: 10,
+				flexShrink: 0
+			});
+			insert(__nsh_hv21, component(Segmented, {
+				get value() {
+					return detailTab();
+				},
+				options: [
+					{
+						value: "overview",
+						label: "概览",
+						testLabel: "详情:概览"
+					},
+					{
+						value: "processes",
+						label: "进程",
+						testLabel: "详情:进程"
+					},
+					{
+						value: "files",
+						label: "文件",
+						testLabel: "详情:文件"
+					},
+					{
+						value: "changes",
+						label: "变更",
+						testLabel: "详情:变更"
+					},
+					{
+						value: "inspect",
+						label: "检查",
+						testLabel: "详情:检查"
+					},
+					{
+						value: "mounts",
+						label: "挂载",
+						testLabel: "详情:挂载"
+					},
+					{
+						value: "stats",
+						label: "统计",
+						testLabel: "详情:统计"
+					},
+					{
+						value: "terminal",
+						label: "终端",
+						testLabel: "详情:终端"
+					}
+				],
+				onChange: (value) => detailTab.set(value)
+			}));
+			append(__nsh_hv14, __nsh_hv15);
+			append(__nsh_hv14, __nsh_hv21);
+			insert(__nsh_hv14, () => pendingRemove() === row.id ? (() => {
+				const __nsh_hv20 = element("view");
+				prop(__nsh_hv20, "style", {
+					paddingHorizontal: 16,
 					paddingTop: 10
 				});
-				insert(__nsh_hv27, component(ConfirmBar, {
+				insert(__nsh_hv20, component(ConfirmBar, {
 					message: `删除容器 ${name}？会先强制停止再删除（匿名卷一并删除），无法恢复。`,
 					confirmLabel: "删除",
 					get busy() {
@@ -1645,30 +6885,53 @@ function Containers() {
 					onConfirm: () => void remove(row),
 					onCancel: () => pendingRemove.set(null)
 				}));
-				return __nsh_hv27;
-			})() : null, component(Stack, {
+				return __nsh_hv20;
+			})() : null, __nsh_hv21);
+			insert(__nsh_hv14, () => detailTab() === "overview" ? overviewTab(row) : containerTab(row));
+			return __nsh_hv14;
+		})();
+	}
+	/** 「概览」：页面自己的摘要 + 指标条，其余标签把活交给单容器页。 */
+	function overviewTab(row) {
+		const info = detail();
+		const networks = info === null ? [] : networkRows(info);
+		const ports = info === null ? [] : portLines(info);
+		const mounts = info === null ? [] : mountRows(info);
+		const env = info === null ? [] : envRows(info);
+		const labels = info === null ? [] : labelRows(info);
+		const shownEnv = env.slice(0, ENV_LIMIT);
+		const shownLabels = labels.slice(0, LABEL_LIMIT);
+		return (() => {
+			const __nsh_hv22 = element("view");
+			prop(__nsh_hv22, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv22, [() => metrics(row), component(Stack, {
 				scroll: true,
-				padding: 14,
-				gap: 12,
+				padding: 16,
+				gap: 20,
 				get children() {
 					return [
 						() => detailError() === null ? null : component(Row, {
 							gap: 8,
 							get children() {
 								return [(() => {
-									const __nsh_hv28 = element("view");
-									prop(__nsh_hv28, "style", {
+									const __nsh_hv23 = element("view");
+									prop(__nsh_hv23, "style", {
 										flex: 1,
 										minWidth: 0
 									});
-									insert(__nsh_hv28, component(Notice, {
+									insert(__nsh_hv23, component(Notice, {
 										get message() {
 											return `读取详情失败：${detailError() ?? ""}`;
 										},
 										tone: "danger"
 									}));
-									return __nsh_hv28;
-								})(), component(ToolButton, {
+									return __nsh_hv23;
+								})(), component(ActionButton, {
 									label: "重试",
 									testLabel: "重试读取详情",
 									onPress: () => void loadDetail(row.id)
@@ -1676,19 +6939,105 @@ function Containers() {
 							}
 						}),
 						() => detailLoading() && info === null ? component(Loading, { label: "正在读取容器详情…" }) : null,
-						() => overviewCard(info),
-						() => resourcesCard(row),
-						() => networkCard(info),
-						() => mountsCard(info),
-						() => envCard(info),
-						() => labelsCard(info)
+						() => info === null ? null : component(Section$1, {
+							title: "概览",
+							get children() {
+								return component(KeyValueGrid, {
+									get rows() {
+										return overviewRows(info);
+									},
+									columns: 2
+								});
+							}
+						}),
+						() => networks.length === 0 && ports.length === 0 ? null : component(Section$1, {
+							title: "网络",
+							get hint() {
+								return networks.length > 0 ? `${networks.length} 个网络` : void 0;
+							},
+							get children() {
+								return [
+									() => networks.length === 0 ? null : component(KeyValueList, {
+										rows: networks,
+										labelWidth: 140
+									}),
+									(() => {
+										const __nsh_hv24 = element("text");
+										bindProp(__nsh_hv24, "style", () => t.label);
+										const __nsh_hv25 = text("端口");
+										append(__nsh_hv24, __nsh_hv25);
+										return __nsh_hv24;
+									})(),
+									() => ports.length === 0 ? (() => {
+										const __nsh_hv26 = element("text");
+										bindProp(__nsh_hv26, "style", () => t.meta);
+										const __nsh_hv27 = text("没有发布端口。");
+										append(__nsh_hv26, __nsh_hv27);
+										return __nsh_hv26;
+									})() : ports.map((line) => (() => {
+										const __nsh_hv28 = element("text");
+										bindProp(__nsh_hv28, "style", () => ({
+											...t.mono,
+											fontSize: 11.5
+										}));
+										prop(__nsh_hv28, "selectable", true);
+										insert(__nsh_hv28, line);
+										return __nsh_hv28;
+									})())
+								];
+							}
+						}),
+						() => mounts.length === 0 ? null : component(Section$1, {
+							title: "挂载",
+							get hint() {
+								return `${mounts.length} 处`;
+							},
+							get children() {
+								return component(KeyValueList, {
+									rows: mounts,
+									labelWidth: 240,
+									mono: true,
+									selectable: true
+								});
+							}
+						}),
+						() => env.length === 0 ? null : component(Section$1, {
+							title: "环境变量",
+							get hint() {
+								return env.length > shownEnv.length ? `${env.length} 项，显示前 ${shownEnv.length} 项` : `${env.length} 项`;
+							},
+							get children() {
+								return component(KeyValueList, {
+									rows: shownEnv,
+									labelWidth: 220,
+									mono: true,
+									selectable: true
+								});
+							}
+						}),
+						() => labels.length === 0 ? null : component(Section$1, {
+							title: "标签",
+							get hint() {
+								return labels.length > shownLabels.length ? `${labels.length} 项，显示前 ${shownLabels.length} 项` : `${labels.length} 项`;
+							},
+							get children() {
+								return component(KeyValueList, {
+									rows: shownLabels,
+									labelWidth: 220,
+									mono: true,
+									selectable: true
+								});
+							}
+						})
 					];
 				}
 			})]);
 			return __nsh_hv22;
 		})();
 	}
-	function detailPane() {
+	/** 单容器标签：直接嵌那一页，并把当前容器预设进去，所以不需要再挑一次。 */
+	function containerTab(row) {
+		const tab = detailTab();
 		return (() => {
 			const __nsh_hv29 = element("view");
 			prop(__nsh_hv29, "style", {
@@ -1697,99 +7046,131 @@ function Containers() {
 				display: "flex",
 				flexDirection: "column"
 			});
-			insert(__nsh_hv29, () => {
+			insert(__nsh_hv29, () => tab === "processes" ? component(Processes, { get containerId() {
+				return row.id;
+			} }) : tab === "files" ? component(ContainerFiles, { get containerId() {
+				return row.id;
+			} }) : tab === "changes" ? component(Changes, { get containerId() {
+				return row.id;
+			} }) : tab === "inspect" ? component(ContainerInspect, { get containerId() {
+				return row.id;
+			} }) : tab === "mounts" ? component(ContainerMounts, { get containerId() {
+				return row.id;
+			} }) : tab === "stats" ? component(ContainerStats, { get containerId() {
+				return row.id;
+			} }) : component(App$1, { get containerId() {
+				return row.id;
+			} }));
+			return __nsh_hv29;
+		})();
+	}
+	function detailPane() {
+		return (() => {
+			const __nsh_hv30 = element("view");
+			prop(__nsh_hv30, "style", {
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column"
+			});
+			insert(__nsh_hv30, () => {
 				const row = selectedRow();
 				return row === null ? component(Empty, {
 					title: "选择一个容器",
 					hint: "左侧点一个容器查看详情；可以启动、停止、重启、暂停，或删除它。"
 				}) : detailBody(row);
 			});
-			return __nsh_hv29;
+			return __nsh_hv30;
 		})();
 	}
 	return (() => {
-		const __nsh_hv30 = element("view");
-		bindProp(__nsh_hv30, "style", () => ({
+		const __nsh_hv31 = element("view");
+		bindProp(__nsh_hv31, "style", () => ({
 			flex: 1,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column",
 			backgroundColor: c.bg()
 		}));
-		insert(__nsh_hv30, [
-			component(Row, {
-				wrap: true,
-				gap: 8,
-				style: {
-					paddingHorizontal: 14,
-					paddingVertical: 10,
-					justifyContent: "space-between"
+		insert(__nsh_hv31, [
+			component(Toolbar, {
+				title: "容器",
+				get hint() {
+					return `${rows().length} 个 · 运行中 ${runningCount()}`;
 				},
-				get children() {
-					return [component(Row, {
-						gap: 8,
+				get right() {
+					return component(Row, {
+						gap: 6,
+						style: { alignItems: "center" },
 						get children() {
-							return [
-								(() => {
-									const __nsh_hv31 = element("text");
-									bindProp(__nsh_hv31, "style", () => t.h1);
-									const __nsh_hv32 = text("容器");
-									append(__nsh_hv31, __nsh_hv32);
-									return __nsh_hv31;
-								})(),
-								() => component(Badge, { get text() {
-									return `${rows().length} 个 · 运行中 ${runningCount()}`;
-								} }),
-								component(FilterField, {
-									testID: "container-filter",
-									get value() {
-										return filter();
-									},
-									placeholder: "按名称 / 镜像过滤",
-									onChange: (value) => filter.set(value)
-								}),
-								() => filters()
-							];
-						}
-					}), component(Row, {
-						gap: 8,
-						get children() {
-							return [() => updatedAt() === null ? null : (() => {
-								const __nsh_hv33 = element("text");
-								bindProp(__nsh_hv33, "style", () => t.meta);
-								insert(__nsh_hv33, () => `上次更新 ${updatedAt() ?? ""}`);
-								return __nsh_hv33;
-							})(), component(ToolButton, {
-								label: () => loading() ? "刷新中…" : "刷新",
-								testLabel: "刷新",
+							return [cond(() => updatedAt() !== null, () => (() => {
+								const __nsh_hv32 = element("text");
+								bindProp(__nsh_hv32, "style", () => t.meta);
+								insert(__nsh_hv32, () => `上次更新 ${updatedAt() ?? ""}`);
+								return __nsh_hv32;
+							})()), component(IconButton, {
+								glyph: "↻",
+								label: "刷新",
 								disabled: () => loading() || busy(),
 								onPress: () => void load()
 							})];
 						}
+					});
+				},
+				get children() {
+					return [component(FilterField, {
+						testID: "container-filter",
+						get value() {
+							return filter();
+						},
+						placeholder: "按名称 / 镜像过滤",
+						onChange: (value) => filter.set(value)
+					}), component(Segmented, {
+						get value() {
+							return stateFilter();
+						},
+						options: [
+							{
+								value: "all",
+								label: "全部",
+								testLabel: "过滤:全部"
+							},
+							{
+								value: "running",
+								label: "运行中",
+								testLabel: "过滤:运行中"
+							},
+							{
+								value: "stopped",
+								label: "已停止",
+								testLabel: "过滤:已停止"
+							}
+						],
+						onChange: (value) => stateFilter.set(value)
 					})];
 				}
 			}),
 			() => listError() !== null && rows().length > 0 ? (() => {
-				const __nsh_hv34 = element("view");
-				prop(__nsh_hv34, "style", {
-					paddingHorizontal: 14,
-					paddingBottom: 8
+				const __nsh_hv33 = element("view");
+				prop(__nsh_hv33, "style", {
+					paddingHorizontal: 16,
+					paddingTop: 8
 				});
-				insert(__nsh_hv34, component(Notice, {
+				insert(__nsh_hv33, component(Notice, {
 					get message() {
 						return `刷新失败，下面是上次的列表：${listError() ?? ""}`;
 					},
 					tone: "danger"
 				}));
-				return __nsh_hv34;
+				return __nsh_hv33;
 			})() : null,
 			() => notice() === null ? null : (() => {
-				const __nsh_hv35 = element("view");
-				prop(__nsh_hv35, "style", {
-					paddingHorizontal: 14,
-					paddingBottom: 8
+				const __nsh_hv34 = element("view");
+				prop(__nsh_hv34, "style", {
+					paddingHorizontal: 16,
+					paddingTop: 8
 				});
-				insert(__nsh_hv35, component(Notice, {
+				insert(__nsh_hv34, component(Notice, {
 					get message() {
 						return notice() ?? "";
 					},
@@ -1797,7 +7178,7 @@ function Containers() {
 						return noticeTone();
 					}
 				}));
-				return __nsh_hv35;
+				return __nsh_hv34;
 			})(),
 			() => firstLoad() ? component(Loading, { label: "正在读取容器列表…" }) : null,
 			() => firstError() ? component(LoadError, {
@@ -1807,7 +7188,7 @@ function Containers() {
 				onRetry: () => void load()
 			}) : null,
 			() => firstLoad() || firstError() ? null : component(SplitPane, {
-				width: 320,
+				width: 300,
 				get left() {
 					return listPane();
 				},
@@ -1816,7 +7197,7 @@ function Containers() {
 				}
 			})
 		]);
-		return __nsh_hv30;
+		return __nsh_hv31;
 	})();
 }
 
@@ -2565,7 +7946,7 @@ function rowsOf$1(source) {
 	});
 }
 /** 单行输入框。SearchField 带放大镜，名称 / 驱动字段用它不合适。 */
-function Field$2(props) {
+function Field$1(props) {
 	return (() => {
 		const __nsh_hv0 = element("view");
 		bindProp(__nsh_hv0, "style", () => ({
@@ -3063,7 +8444,7 @@ function Volumes() {
 				},
 				get children() {
 					return [
-						component(Field$2, {
+						component(Field$1, {
 							get value() {
 								return createName();
 							},
@@ -3072,7 +8453,7 @@ function Volumes() {
 							width: 220,
 							onSubmit: () => void create()
 						}),
-						component(Field$2, {
+						component(Field$1, {
 							get value() {
 								return createDriver();
 							},
@@ -3215,7 +8596,7 @@ function rowsOf(source) {
 	});
 }
 /** 单行输入框。SearchField 带放大镜，名称 / 驱动字段用它不合适。 */
-function Field$1(props) {
+function Field(props) {
 	return (() => {
 		const __nsh_hv0 = element("view");
 		bindProp(__nsh_hv0, "style", () => ({
@@ -3812,7 +9193,7 @@ function Networks() {
 				},
 				get children() {
 					return [
-						component(Field$1, {
+						component(Field, {
 							get value() {
 								return createName();
 							},
@@ -3821,7 +9202,7 @@ function Networks() {
 							width: 220,
 							onSubmit: () => void create()
 						}),
-						component(Field$1, {
+						component(Field, {
 							get value() {
 								return createDriver();
 							},
@@ -4208,7 +9589,7 @@ function nowClock() {
 	return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
 }
 /** 小按钮：`active` 用 accessor，样式读的是当前值（写在 style 绑定里才响应式）。 */
-function chip$1(label, active, onPress, testLabel) {
+function chip(label, active, onPress, testLabel) {
 	return (() => {
 		const __nsh_hv0 = element("view");
 		prop(__nsh_hv0, "onPress", onPress);
@@ -4234,11 +9615,11 @@ function chip$1(label, active, onPress, testLabel) {
 		return __nsh_hv0;
 	})();
 }
-const containerId$4 = (row) => str(row, "id", "");
-const containerName$5 = (row) => str(row, "name", "");
-const containerImage$4 = (row) => str(row, "image", "");
-const containerState$4 = (row) => str(row, "state", "");
-function stateTone$5(state) {
+const containerId = (row) => str(row, "id", "");
+const containerName = (row) => str(row, "name", "");
+const containerImage = (row) => str(row, "image", "");
+const containerState = (row) => str(row, "state", "");
+function stateTone(state) {
 	if (state === "running") return "ok";
 	if (state === "paused" || state === "restarting") return "warn";
 	if (state === "exited" || state === "dead") return "danger";
@@ -4264,13 +9645,13 @@ function LogViewer() {
 	function visibleContainers() {
 		const needle = containerQuery().trim().toLowerCase();
 		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${containerName$5(row)} ${containerImage$4(row)}`.toLowerCase().includes(needle));
+		return containers().filter((row) => `${containerName(row)} ${containerImage(row)}`.toLowerCase().includes(needle));
 	}
 	function selectedSummary() {
 		const id = selectedId();
 		if (id === null) return "";
-		const row = containers().find((item) => containerId$4(item) === id);
-		return row === void 0 ? selectedName() : `${containerName$5(row)} · ${containerImage$4(row)}`;
+		const row = containers().find((item) => containerId(item) === id);
+		return row === void 0 ? selectedName() : `${containerName(row)} · ${containerImage(row)}`;
 	}
 	function resetData() {
 		raw.set("");
@@ -4287,14 +9668,14 @@ function LogViewer() {
 		pickerOpen.set(true);
 	}
 	function selectContainer(row) {
-		const id = containerId$4(row);
+		const id = containerId(row);
 		if (id.length === 0) return;
 		if (selectedId() === id) {
 			pickerOpen.set(false);
 			return;
 		}
 		selectedId.set(id);
-		selectedName.set(containerName$5(row));
+		selectedName.set(containerName(row));
 		pickerOpen.set(false);
 		resetData();
 		loading.set(true);
@@ -4308,7 +9689,7 @@ function LogViewer() {
 			containers.set(list);
 			containersError.set(null);
 			const current = selectedId();
-			if (current !== null && !list.some((row) => containerId$4(row) === current)) clearSelection();
+			if (current !== null && !list.some((row) => containerId(row) === current)) clearSelection();
 		} catch (failure) {
 			containersError.set(errorMessage(failure));
 		} finally {
@@ -4424,13 +9805,13 @@ function LogViewer() {
 		})();
 	}
 	function containerOption(row) {
-		const id = containerId$4(row);
-		const state = containerState$4(row);
+		const id = containerId(row);
+		const state = containerState(row);
 		return (() => {
 			const __nsh_hv9 = element("view");
 			prop(__nsh_hv9, "onPress", () => selectContainer(row));
 			prop(__nsh_hv9, "role", "button");
-			bindProp(__nsh_hv9, "accessibilityLabel", () => `容器 ${containerName$5(row)}`);
+			bindProp(__nsh_hv9, "accessibilityLabel", () => `容器 ${containerName(row)}`);
 			bindProp(__nsh_hv9, "style", () => ({
 				display: "flex",
 				flexDirection: "row",
@@ -4449,7 +9830,7 @@ function LogViewer() {
 				color: c.text(),
 				width: 180
 			}));
-			insert(__nsh_hv10, () => containerName$5(row));
+			insert(__nsh_hv10, () => containerName(row));
 			const __nsh_hv11 = element("text");
 			prop(__nsh_hv11, "numberOfLines", 1);
 			bindProp(__nsh_hv11, "style", () => ({
@@ -4459,7 +9840,7 @@ function LogViewer() {
 				flex: 1,
 				minWidth: 0
 			}));
-			insert(__nsh_hv11, () => containerImage$4(row));
+			insert(__nsh_hv11, () => containerImage(row));
 			append(__nsh_hv9, __nsh_hv10);
 			append(__nsh_hv9, __nsh_hv11);
 			insert(__nsh_hv9, component(Badge, {
@@ -4467,7 +9848,7 @@ function LogViewer() {
 					return state.length === 0 ? "unknown" : state;
 				},
 				get tone() {
-					return stateTone$5(state);
+					return stateTone(state);
 				}
 			}));
 			return __nsh_hv9;
@@ -4604,9 +9985,9 @@ function LogViewer() {
 					append(__nsh_hv25, __nsh_hv26);
 					return __nsh_hv25;
 				})(),
-				() => TAILS.map((option) => chip$1(option.label, () => tail() === option.value, () => pickTail(option.value), `行数 ${option.label}`)),
-				() => chip$1(follow() ? "自动刷新 · 开" : "自动刷新 · 关", follow, () => follow.set(!follow()), "自动刷新"),
-				() => chip$1("清屏", () => cleared(), () => cleared.set(true), "清屏"),
+				() => TAILS.map((option) => chip(option.label, () => tail() === option.value, () => pickTail(option.value), `行数 ${option.label}`)),
+				() => chip(follow() ? "自动刷新 · 开" : "自动刷新 · 关", follow, () => follow.set(!follow()), "自动刷新"),
+				() => chip("清屏", () => cleared(), () => cleared.set(true), "清屏"),
 				component(Button, {
 					label: "刷新",
 					small: true,
@@ -4770,4228 +10151,94 @@ function LogViewer() {
 }
 
 //#endregion
-//#region pages/processes/App.tsx
-/** 列宽与对齐；没有登记的列平分剩余宽度，COMMAND / CMD 吃满剩余。 */
-const COLUMNS = {
-	UID: { width: 76 },
-	USER: { width: 80 },
-	PID: {
-		width: 64,
-		align: "right"
-	},
-	PPID: {
-		width: 64,
-		align: "right"
-	},
-	C: {
-		width: 38,
-		align: "right"
-	},
-	"%CPU": {
-		width: 58,
-		align: "right"
-	},
-	"%MEM": {
-		width: 58,
-		align: "right"
-	},
-	VSZ: {
-		width: 84,
-		align: "right"
-	},
-	RSS: {
-		width: 84,
-		align: "right"
-	},
-	NI: {
-		width: 42,
-		align: "right"
-	},
-	STAT: { width: 54 },
-	STIME: { width: 84 },
-	START: { width: 86 },
-	TIME: {
-		width: 86,
-		align: "right"
-	},
-	TTY: { width: 58 },
-	COMMAND: {},
-	CMD: {}
-};
-/** 数字列走 t.mono；只有“命令行”用正文排版。 */
-const NUMERIC = [
-	"PID",
-	"PPID",
-	"C",
-	"%CPU",
-	"%MEM",
-	"VSZ",
-	"RSS",
-	"NI",
-	"TIME",
-	"UID",
-	"TTY",
-	"STIME",
-	"START"
-];
-function alignOf(title) {
-	return COLUMNS[title]?.align ?? "left";
-}
-function cellStyle(title) {
-	const meta = COLUMNS[title];
-	if (meta === void 0 || meta.width === void 0) return {
-		flex: 1,
-		minWidth: 0,
-		textAlign: alignOf(title)
-	};
-	return {
-		width: meta.width,
-		flexShrink: 0,
-		textAlign: alignOf(title)
-	};
-}
-/** ps 的单元格可能来自对象（titles 作键）或数组（与 titles 同序）。 */
-function cell(row, titles, title) {
-	if (Array.isArray(row)) {
-		const index = titles.indexOf(title);
-		return index < 0 ? "" : String(row[index] ?? "");
-	}
-	const record = row;
-	const direct = record[title];
-	if (typeof direct === "string") return direct;
-	if (typeof direct === "number") return String(direct);
-	const key = Object.keys(record).find((name) => name.toLowerCase() === title.toLowerCase());
-	if (key === void 0) return "";
-	return str(record, key, "");
-}
-function inferTitles(rows) {
-	const first = rows[0];
-	if (first === void 0) return [];
-	if (Array.isArray(first)) return first.map((_, index) => String(index));
-	return Object.keys(first);
-}
-const containerId$3 = (row) => str(row, "id", "");
-const containerName$4 = (row) => str(row, "name", "");
-const containerImage$3 = (row) => str(row, "image", "");
-const containerState$3 = (row) => str(row, "state", "");
-function stateTone$4(state) {
-	if (state === "running") return "ok";
-	if (state === "paused" || state === "restarting") return "warn";
-	if (state === "exited" || state === "dead") return "danger";
-	return "neutral";
-}
-function Processes() {
-	const rows = signal([]);
-	const titles = signal([]);
-	const stats = signal(null);
-	const loading = signal(true);
-	const error = signal(null);
-	const busy = signal(false);
-	const selected = signal(null);
-	const containers = signal([]);
-	const containerQuery = signal("");
-	const containersLoading = signal(true);
-	const containersError = signal(null);
-	const selectedId = signal(null);
-	const selectedName = signal("");
-	const pickerOpen = signal(true);
-	let seq = 0;
-	function visibleContainers() {
-		const needle = containerQuery().trim().toLowerCase();
-		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${containerName$4(row)} ${containerImage$3(row)}`.toLowerCase().includes(needle));
-	}
-	function selectedSummary() {
-		const id = selectedId();
-		if (id === null) return "";
-		const row = containers().find((item) => containerId$3(item) === id);
-		return row === void 0 ? selectedName() : `${containerName$4(row)} · ${containerImage$3(row)}`;
-	}
-	async function loadContainers() {
-		containersLoading.set(true);
-		try {
-			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			const list = Array.isArray(result) ? result : arr(result, "containers");
-			containers.set(list);
-			containersError.set(null);
-			const current = selectedId();
-			if (current !== null && !list.some((row) => containerId$3(row) === current)) clearSelection();
-		} catch (failure) {
-			containersError.set(errorMessage(failure));
-		} finally {
-			containersLoading.set(false);
-		}
-	}
-	function resetData() {
-		rows.set([]);
-		titles.set([]);
-		stats.set(null);
-		selected.set(null);
-		error.set(null);
-	}
-	function clearSelection() {
-		selectedId.set(null);
-		selectedName.set("");
-		resetData();
-		loading.set(false);
-		pickerOpen.set(true);
-	}
-	function selectContainer(row) {
-		const id = containerId$3(row);
-		if (id.length === 0) return;
-		if (selectedId() === id) {
-			pickerOpen.set(false);
-			return;
-		}
-		selectedId.set(id);
-		selectedName.set(containerName$4(row));
-		pickerOpen.set(false);
-		resetData();
-		loading.set(true);
-		load();
-	}
-	function refresh() {
-		if (selectedId() === null) loadContainers();
-		else load();
-	}
-	async function load() {
-		const id = selectedId();
-		if (id === null) return;
-		const mine = ++seq;
-		busy.set(true);
-		if (rows().length === 0) loading.set(true);
-		try {
-			const result = await invoke$1("docker/container/top", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			const list = Array.isArray(result) ? result : arr(result, "processes");
-			const names = Array.isArray(result) ? [] : arr(result, "titles").map(String);
-			rows.set(list);
-			titles.set(names.length > 0 ? names : inferTitles(list));
-			error.set(null);
-			if (selected() !== null && selected() >= list.length) selected.set(null);
-		} catch (failure) {
-			if (mine !== seq) return;
-			error.set(errorMessage(failure));
-		} finally {
-			if (mine === seq) {
-				loading.set(false);
-				busy.set(false);
-			}
-		}
-		loadStats(id, mine);
-	}
-	/** 顺带取一次容器整体占用，失败不影响进程表。 */
-	async function loadStats(id, mine) {
-		try {
-			const result = await invoke$1("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			stats.set(result ?? null);
-		} catch {
-			if (mine === seq) stats.set(null);
-		}
-	}
-	function statsLine() {
-		const sample = stats();
-		if (sample === null) return "";
-		const cpu = Number(sample.cpu_percent);
-		return `容器 CPU ${Number.isFinite(cpu) ? `${cpu.toFixed(1)}%` : "-"} · 内存 ${humanBytes(sample.memory_usage_bytes)} / ${humanBytes(sample.memory_limit_bytes)}`;
-	}
-	function selectedCommand() {
-		const index = selected();
-		if (index === null) return null;
-		const row = rows()[index];
-		if (row === void 0) return null;
-		const names = titles();
-		for (const title of names) if (title === "CMD" || title === "COMMAND") {
-			const value = cell(row, names, title);
-			if (value.length > 0) return value;
-		}
-		return null;
-	}
-	function pickerList() {
-		if (!pickerOpen()) return null;
-		return (() => {
-			const __nsh_hv0 = element("view");
-			bindProp(__nsh_hv0, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				marginHorizontal: 14,
-				marginBottom: 8,
-				padding: 6,
-				borderWidth: 1,
-				borderColor: c.line(),
-				borderRadius: r.card,
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
-				const __nsh_hv1 = element("text");
-				bindProp(__nsh_hv1, "style", () => t.meta);
-				const __nsh_hv2 = text("正在读取容器列表…");
-				append(__nsh_hv1, __nsh_hv2);
-				return __nsh_hv1;
-			})() : containersError() !== null && containers().length === 0 ? component(Row, {
-				gap: 8,
-				get children() {
-					return [(() => {
-						const __nsh_hv3 = element("text");
-						bindProp(__nsh_hv3, "style", () => ({
-							...t.meta,
-							color: c.danger()
-						}));
-						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
-						return __nsh_hv3;
-					})(), component(Button, {
-						label: "重试",
-						small: true,
-						onPress: () => void loadContainers()
-					})];
-				}
-			}) : visibleContainers().length === 0 ? (() => {
-				const __nsh_hv4 = element("text");
-				bindProp(__nsh_hv4, "style", () => t.meta);
-				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
-				return __nsh_hv4;
-			})() : (() => {
-				const __nsh_hv5 = element("scroll");
-				prop(__nsh_hv5, "style", { maxHeight: 168 });
-				const __nsh_hv6 = element("view");
-				prop(__nsh_hv6, "style", {
-					display: "flex",
-					flexDirection: "column"
-				});
-				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
-				append(__nsh_hv5, __nsh_hv6);
-				return __nsh_hv5;
-			})());
-			return __nsh_hv0;
-		})();
-	}
-	function containerOption(row) {
-		const id = containerId$3(row);
-		const state = containerState$3(row);
-		return (() => {
-			const __nsh_hv7 = element("view");
-			prop(__nsh_hv7, "onPress", () => selectContainer(row));
-			prop(__nsh_hv7, "role", "button");
-			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$4(row)}`);
-			bindProp(__nsh_hv7, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 8,
-				paddingHorizontal: 8,
-				paddingVertical: 6,
-				borderRadius: r.control,
-				backgroundColor: selectedId() === id ? c.hover() : "transparent"
-			}));
-			const __nsh_hv8 = element("text");
-			prop(__nsh_hv8, "numberOfLines", 1);
-			bindProp(__nsh_hv8, "style", () => ({
-				fontSize: 12,
-				fontWeight: "500",
-				color: c.text(),
-				width: 180
-			}));
-			insert(__nsh_hv8, () => containerName$4(row));
-			const __nsh_hv9 = element("text");
-			prop(__nsh_hv9, "numberOfLines", 1);
-			bindProp(__nsh_hv9, "style", () => ({
-				...t.mono,
-				fontSize: 11,
-				color: c.muted(),
-				flex: 1,
-				minWidth: 0
-			}));
-			insert(__nsh_hv9, () => containerImage$3(row));
-			append(__nsh_hv7, __nsh_hv8);
-			append(__nsh_hv7, __nsh_hv9);
-			insert(__nsh_hv7, component(Badge, {
-				get text() {
-					return state.length === 0 ? "unknown" : state;
-				},
-				get tone() {
-					return stateTone$4(state);
-				}
-			}));
-			return __nsh_hv7;
-		})();
-	}
-	function pickerToggle() {
-		return component(Button, {
-			get label() {
-				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
-			},
-			small: true,
-			onPress: () => pickerOpen.set(!pickerOpen())
-		});
-	}
-	function containerBar() {
-		return (() => {
-			const __nsh_hv10 = element("view");
-			prop(__nsh_hv10, "style", {
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0
-			});
-			insert(__nsh_hv10, [component(Row, {
-				wrap: true,
-				gap: 8,
-				get style() {
-					return {
-						paddingHorizontal: 14,
-						paddingBottom: pickerOpen() ? 6 : 10
-					};
-				},
-				get children() {
-					return [
-						component(SearchField, {
-							get value() {
-								return containerQuery();
-							},
-							onChange: (text) => {
-								containerQuery.set(text);
-								if (!pickerOpen()) pickerOpen.set(true);
-							},
-							placeholder: "按名称 / 镜像过滤容器",
-							width: 280
-						}),
-						(() => {
-							const __nsh_hv11 = element("text");
-							bindProp(__nsh_hv11, "style", () => t.meta);
-							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
-							return __nsh_hv11;
-						})(),
-						() => selectedId() === null ? (() => {
-							const __nsh_hv12 = element("text");
-							bindProp(__nsh_hv12, "style", () => t.meta);
-							const __nsh_hv13 = text("未选择容器");
-							append(__nsh_hv12, __nsh_hv13);
-							return __nsh_hv12;
-						})() : (() => {
-							const __nsh_hv14 = element("text");
-							prop(__nsh_hv14, "numberOfLines", 1);
-							bindProp(__nsh_hv14, "style", () => ({
-								...t.meta,
-								color: c.text(),
-								maxWidth: 360
-							}));
-							insert(__nsh_hv14, () => selectedSummary());
-							return __nsh_hv14;
-						})(),
-						(() => {
-							const __nsh_hv15 = element("view");
-							prop(__nsh_hv15, "style", { flex: 1 });
-							return __nsh_hv15;
-						})(),
-						component(Button, {
-							label: "刷新列表",
-							small: true,
-							onPress: () => void loadContainers()
-						}),
-						() => pickerToggle()
-					];
-				}
-			}), () => pickerList()]);
-			return __nsh_hv10;
-		})();
-	}
-	function tableHeader() {
-		const names = titles();
-		return component(Row, {
-			gap: 0,
-			get style() {
-				return {
-					paddingHorizontal: 12,
-					paddingVertical: 7,
-					backgroundColor: c.panel(),
-					borderBottomWidth: 1,
-					borderBottomColor: c.line(),
-					flexShrink: 0
-				};
-			},
-			get children() {
-				return names.map((title) => (() => {
-					const __nsh_hv16 = element("text");
-					prop(__nsh_hv16, "numberOfLines", 1);
-					bindProp(__nsh_hv16, "style", () => ({
-						...t.label,
-						...cellStyle(title)
-					}));
-					insert(__nsh_hv16, title);
-					return __nsh_hv16;
-				})());
-			}
-		});
-	}
-	function tableRow(row, names, index) {
-		return (() => {
-			const __nsh_hv17 = element("view");
-			prop(__nsh_hv17, "onPress", () => selected.set(selected() === index ? null : index));
-			bindProp(__nsh_hv17, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 0,
-				paddingHorizontal: 12,
-				paddingVertical: 5,
-				backgroundColor: selected() === index ? c.hover() : "transparent",
-				borderBottomWidth: 1,
-				borderBottomColor: c.line()
-			}));
-			insert(__nsh_hv17, () => names.map((title) => {
-				const style = NUMERIC.includes(title) ? {
-					...t.mono,
-					...cellStyle(title)
-				} : {
-					fontSize: 12,
-					color: c.text(),
-					...cellStyle(title)
-				};
-				return (() => {
-					const __nsh_hv18 = element("text");
-					prop(__nsh_hv18, "numberOfLines", 1);
-					prop(__nsh_hv18, "style", style);
-					insert(__nsh_hv18, () => cell(row, names, title));
-					return __nsh_hv18;
-				})();
-			}));
-			return __nsh_hv17;
-		})();
-	}
-	function footer() {
-		const command = selectedCommand();
-		return (() => {
-			const __nsh_hv19 = element("view");
-			bindProp(__nsh_hv19, "style", () => ({
-				paddingHorizontal: 12,
-				paddingVertical: 7,
-				borderTopWidth: 1,
-				borderTopColor: c.line(),
-				backgroundColor: c.panel(),
-				flexShrink: 0
-			}));
-			insert(__nsh_hv19, () => command === null ? (() => {
-				const __nsh_hv20 = element("text");
-				prop(__nsh_hv20, "numberOfLines", 1);
-				bindProp(__nsh_hv20, "style", () => t.meta);
-				insert(__nsh_hv20, () => `${titles().length} 列来自 ps -ef；单进程 CPU / 内存不在 ps -ef 输出里，工具条显示的是容器整体占用。`);
-				return __nsh_hv20;
-			})() : (() => {
-				const __nsh_hv21 = element("text");
-				prop(__nsh_hv21, "numberOfLines", 2);
-				bindProp(__nsh_hv21, "style", () => t.mono);
-				insert(__nsh_hv21, command);
-				return __nsh_hv21;
-			})());
-			return __nsh_hv19;
-		})();
-	}
-	function selectionGate() {
-		if (containersError() !== null && containers().length === 0) return component(LoadError, {
-			get message() {
-				return containersError() ?? "";
-			},
-			onRetry: () => void loadContainers()
-		});
-		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (containers().length === 0) return component(Empty, {
-			title: "这个连接里没有容器",
-			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
-			get action() {
-				return component(Button, {
-					label: "重新读取容器列表",
-					small: true,
-					onPress: () => void loadContainers()
-				});
-			}
-		});
-		return component(Empty, {
-			title: "先选择一个容器",
-			get hint() {
-				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的进程表。`;
-			}
-		});
-	}
-	function body() {
-		if (selectedId() === null) return selectionGate();
-		if (loading() && rows().length === 0) return component(Loading, { label: "正在读取容器进程…" });
-		if (error() !== null && rows().length === 0) return component(LoadError, {
-			get message() {
-				return error() ?? "";
-			},
-			onRetry: () => void load()
-		});
-		if (rows().length === 0) return component(Empty, {
-			title: "容器里没有可见的进程",
-			hint: "ps -ef 返回了空列表：容器可能已停止，或者 PID 1 已经退出。可以刷新重试。",
-			get action() {
-				return component(Button, {
-					label: "重新读取",
-					small: true,
-					onPress: () => void load()
-				});
-			}
-		});
-		return (() => {
-			const __nsh_hv22 = element("view");
-			prop(__nsh_hv22, "style", {
-				flex: 1,
-				minHeight: 0,
-				display: "flex",
-				flexDirection: "column"
-			});
-			const __nsh_hv24 = element("scroll");
-			prop(__nsh_hv24, "style", {
-				flex: 1,
-				minHeight: 0
-			});
-			insert(__nsh_hv24, () => rows().map((row, index) => tableRow(row, titles(), index)));
-			append(__nsh_hv22, __nsh_hv24);
-			insert(__nsh_hv22, [() => error() === null ? null : (() => {
-				const __nsh_hv23 = element("view");
-				prop(__nsh_hv23, "style", {
-					paddingHorizontal: 12,
-					paddingTop: 8
-				});
-				insert(__nsh_hv23, component(Notice, { get message() {
-					return `刷新失败：${error() ?? ""}`;
-				} }));
-				return __nsh_hv23;
-			})(), () => tableHeader()], __nsh_hv24);
-			insert(__nsh_hv22, () => footer());
-			return __nsh_hv22;
-		})();
-	}
-	function toolbar() {
-		const id = selectedId();
-		return component(Row, {
-			gap: 8,
-			style: {
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				justifyContent: "space-between",
-				flexShrink: 0
-			},
-			get children() {
-				return [component(Row, {
-					gap: 8,
-					get children() {
-						return [
-							(() => {
-								const __nsh_hv25 = element("text");
-								bindProp(__nsh_hv25, "style", () => t.h1);
-								const __nsh_hv26 = text("进程");
-								append(__nsh_hv25, __nsh_hv26);
-								return __nsh_hv25;
-							})(),
-							() => id === null ? (() => {
-								const __nsh_hv27 = element("text");
-								bindProp(__nsh_hv27, "style", () => t.meta);
-								const __nsh_hv28 = text("未选择容器");
-								append(__nsh_hv27, __nsh_hv28);
-								return __nsh_hv27;
-							})() : (() => {
-								const __nsh_hv29 = element("text");
-								bindProp(__nsh_hv29, "style", () => t.meta);
-								insert(__nsh_hv29, () => `${rows().length} 个进程`);
-								return __nsh_hv29;
-							})(),
-							(() => {
-								const __nsh_hv30 = element("text");
-								bindProp(__nsh_hv30, "style", () => t.meta);
-								insert(__nsh_hv30, () => statsLine());
-								return __nsh_hv30;
-							})()
-						];
-					}
-				}), component(Row, {
-					gap: 6,
-					get children() {
-						return [() => busy() ? (() => {
-							const __nsh_hv31 = element("text");
-							bindProp(__nsh_hv31, "style", () => t.meta);
-							const __nsh_hv32 = text("正在读取…");
-							append(__nsh_hv31, __nsh_hv32);
-							return __nsh_hv31;
-						})() : null, component(Button, {
-							label: "刷新",
-							small: true,
-							onPress: () => refresh()
-						})];
-					}
-				})];
-			}
-		});
-	}
-	loadContainers();
-	return (() => {
-		const __nsh_hv33 = element("view");
-		bindProp(__nsh_hv33, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv34 = element("view");
-		bindProp(__nsh_hv34, "style", () => hairline());
-		append(__nsh_hv33, __nsh_hv34);
-		insert(__nsh_hv33, () => toolbar(), __nsh_hv34);
-		insert(__nsh_hv33, [() => containerBar(), () => body()]);
-		return __nsh_hv33;
-	})();
-}
-
-//#endregion
-//#region pages/changes/App.tsx
-const KIND_LABEL = {
-	A: "新增",
-	C: "修改",
-	D: "删除"
-};
-const KIND_LONG = {
-	A: "新增（Added）",
-	C: "修改（Modified）",
-	D: "删除（Deleted）"
-};
-/** 变色标记：新增绿、修改黄、删除红。 */
-function kindColor(kind) {
-	if (kind === "A") return c.chart(1);
-	if (kind === "D") return c.danger();
-	return c.chart(4);
-}
-/** 变更类型归一化：数字枚举、单字母、英文长名都能认。 */
-function kindOf(change) {
-	const raw = change.Kind ?? change.kind;
-	if (typeof raw === "number") {
-		if (raw === 1) return "A";
-		if (raw === 2) return "D";
-		return "C";
-	}
-	const text = String(raw ?? "").trim().toUpperCase();
-	if (text === "A" || text.startsWith("ADD")) return "A";
-	if (text === "D" || text.startsWith("DEL") || text.startsWith("REM")) return "D";
-	if (text === "C" || text.startsWith("MOD") || text.startsWith("CHA")) return "C";
-	return "C";
-}
-function pathOf(change) {
-	const value = change.Path ?? change.path;
-	return typeof value === "string" && value.length > 0 ? value : str(change, "Path", "-");
-}
-/** `/usr/lib/x.so` → 末段 + 目录，长路径靠 numberOfLines 省略。 */
-function splitPath(path) {
-	const trimmed = path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
-	const index = trimmed.lastIndexOf("/");
-	if (index < 0) return {
-		name: trimmed,
-		dir: ""
-	};
-	const name = trimmed.slice(index + 1);
-	const dir = trimmed.slice(0, index);
-	return {
-		name: name.length > 0 ? name : "/",
-		dir: dir.length > 0 ? dir : "/"
-	};
-}
-const containerId$2 = (row) => str(row, "id", "");
-const containerName$3 = (row) => str(row, "name", "");
-const containerImage$2 = (row) => str(row, "image", "");
-const containerState$2 = (row) => str(row, "state", "");
-function stateTone$3(state) {
-	if (state === "running") return "ok";
-	if (state === "paused" || state === "restarting") return "warn";
-	if (state === "exited" || state === "dead") return "danger";
-	return "neutral";
-}
-function Changes() {
-	const changes = signal([]);
-	const loading = signal(true);
-	const error = signal(null);
-	const busy = signal(false);
-	const selected = signal(null);
-	const containers = signal([]);
-	const containerQuery = signal("");
-	const containersLoading = signal(true);
-	const containersError = signal(null);
-	const selectedId = signal(null);
-	const selectedName = signal("");
-	const pickerOpen = signal(true);
-	let seq = 0;
-	function countOf(kind) {
-		return changes().filter((change) => kindOf(change) === kind).length;
-	}
-	function visibleContainers() {
-		const needle = containerQuery().trim().toLowerCase();
-		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${containerName$3(row)} ${containerImage$2(row)}`.toLowerCase().includes(needle));
-	}
-	function selectedSummary() {
-		const id = selectedId();
-		if (id === null) return "";
-		const row = containers().find((item) => containerId$2(item) === id);
-		return row === void 0 ? selectedName() : `${containerName$3(row)} · ${containerImage$2(row)}`;
-	}
-	function resetData() {
-		changes.set([]);
-		selected.set(null);
-		error.set(null);
-	}
-	function clearSelection() {
-		selectedId.set(null);
-		selectedName.set("");
-		resetData();
-		loading.set(false);
-		pickerOpen.set(true);
-	}
-	function selectContainer(row) {
-		const id = containerId$2(row);
-		if (id.length === 0) return;
-		if (selectedId() === id) {
-			pickerOpen.set(false);
-			return;
-		}
-		selectedId.set(id);
-		selectedName.set(containerName$3(row));
-		pickerOpen.set(false);
-		resetData();
-		loading.set(true);
-		load();
-	}
-	function refresh() {
-		if (selectedId() === null) loadContainers();
-		else load();
-	}
-	async function loadContainers() {
-		containersLoading.set(true);
-		try {
-			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			const list = Array.isArray(result) ? result : arr(result, "containers");
-			containers.set(list);
-			containersError.set(null);
-			const current = selectedId();
-			if (current !== null && !list.some((row) => containerId$2(row) === current)) clearSelection();
-		} catch (failure) {
-			containersError.set(errorMessage(failure));
-		} finally {
-			containersLoading.set(false);
-		}
-	}
-	async function load() {
-		const id = selectedId();
-		if (id === null) return;
-		const mine = ++seq;
-		busy.set(true);
-		if (changes().length === 0) loading.set(true);
-		try {
-			const result = await invoke$1("docker/container/diff", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			const list = Array.isArray(result) ? result : arr(result, "changes");
-			changes.set(list);
-			error.set(null);
-			if (selected() !== null && selected() >= list.length) selected.set(null);
-		} catch (failure) {
-			if (mine !== seq) return;
-			error.set(errorMessage(failure));
-		} finally {
-			if (mine === seq) {
-				loading.set(false);
-				busy.set(false);
-			}
-		}
-	}
-	function selectedChange() {
-		const index = selected();
-		if (index === null) return null;
-		const change = changes()[index];
-		if (change === void 0) return null;
-		return {
-			change,
-			kind: kindOf(change)
-		};
-	}
-	function pickerList() {
-		if (!pickerOpen()) return null;
-		return (() => {
-			const __nsh_hv0 = element("view");
-			bindProp(__nsh_hv0, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				marginHorizontal: 14,
-				marginBottom: 8,
-				padding: 6,
-				borderWidth: 1,
-				borderColor: c.line(),
-				borderRadius: r.card,
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
-				const __nsh_hv1 = element("text");
-				bindProp(__nsh_hv1, "style", () => t.meta);
-				const __nsh_hv2 = text("正在读取容器列表…");
-				append(__nsh_hv1, __nsh_hv2);
-				return __nsh_hv1;
-			})() : containersError() !== null && containers().length === 0 ? component(Row, {
-				gap: 8,
-				get children() {
-					return [(() => {
-						const __nsh_hv3 = element("text");
-						bindProp(__nsh_hv3, "style", () => ({
-							...t.meta,
-							color: c.danger()
-						}));
-						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
-						return __nsh_hv3;
-					})(), component(Button, {
-						label: "重试",
-						small: true,
-						onPress: () => void loadContainers()
-					})];
-				}
-			}) : visibleContainers().length === 0 ? (() => {
-				const __nsh_hv4 = element("text");
-				bindProp(__nsh_hv4, "style", () => t.meta);
-				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
-				return __nsh_hv4;
-			})() : (() => {
-				const __nsh_hv5 = element("scroll");
-				prop(__nsh_hv5, "style", { maxHeight: 168 });
-				const __nsh_hv6 = element("view");
-				prop(__nsh_hv6, "style", {
-					display: "flex",
-					flexDirection: "column"
-				});
-				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
-				append(__nsh_hv5, __nsh_hv6);
-				return __nsh_hv5;
-			})());
-			return __nsh_hv0;
-		})();
-	}
-	function containerOption(row) {
-		const id = containerId$2(row);
-		const state = containerState$2(row);
-		return (() => {
-			const __nsh_hv7 = element("view");
-			prop(__nsh_hv7, "onPress", () => selectContainer(row));
-			prop(__nsh_hv7, "role", "button");
-			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$3(row)}`);
-			bindProp(__nsh_hv7, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 8,
-				paddingHorizontal: 8,
-				paddingVertical: 6,
-				borderRadius: r.control,
-				backgroundColor: selectedId() === id ? c.hover() : "transparent"
-			}));
-			const __nsh_hv8 = element("text");
-			prop(__nsh_hv8, "numberOfLines", 1);
-			bindProp(__nsh_hv8, "style", () => ({
-				fontSize: 12,
-				fontWeight: "500",
-				color: c.text(),
-				width: 180
-			}));
-			insert(__nsh_hv8, () => containerName$3(row));
-			const __nsh_hv9 = element("text");
-			prop(__nsh_hv9, "numberOfLines", 1);
-			bindProp(__nsh_hv9, "style", () => ({
-				...t.mono,
-				fontSize: 11,
-				color: c.muted(),
-				flex: 1,
-				minWidth: 0
-			}));
-			insert(__nsh_hv9, () => containerImage$2(row));
-			append(__nsh_hv7, __nsh_hv8);
-			append(__nsh_hv7, __nsh_hv9);
-			insert(__nsh_hv7, component(Badge, {
-				get text() {
-					return state.length === 0 ? "unknown" : state;
-				},
-				get tone() {
-					return stateTone$3(state);
-				}
-			}));
-			return __nsh_hv7;
-		})();
-	}
-	function pickerToggle() {
-		return component(Button, {
-			get label() {
-				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
-			},
-			small: true,
-			onPress: () => pickerOpen.set(!pickerOpen())
-		});
-	}
-	function containerBar() {
-		return (() => {
-			const __nsh_hv10 = element("view");
-			prop(__nsh_hv10, "style", {
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0
-			});
-			insert(__nsh_hv10, [component(Row, {
-				wrap: true,
-				gap: 8,
-				get style() {
-					return {
-						paddingHorizontal: 14,
-						paddingBottom: pickerOpen() ? 6 : 10
-					};
-				},
-				get children() {
-					return [
-						component(SearchField, {
-							get value() {
-								return containerQuery();
-							},
-							onChange: (text) => {
-								containerQuery.set(text);
-								if (!pickerOpen()) pickerOpen.set(true);
-							},
-							placeholder: "按名称 / 镜像过滤容器",
-							width: 280
-						}),
-						(() => {
-							const __nsh_hv11 = element("text");
-							bindProp(__nsh_hv11, "style", () => t.meta);
-							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
-							return __nsh_hv11;
-						})(),
-						() => selectedId() === null ? (() => {
-							const __nsh_hv12 = element("text");
-							bindProp(__nsh_hv12, "style", () => t.meta);
-							const __nsh_hv13 = text("未选择容器");
-							append(__nsh_hv12, __nsh_hv13);
-							return __nsh_hv12;
-						})() : (() => {
-							const __nsh_hv14 = element("text");
-							prop(__nsh_hv14, "numberOfLines", 1);
-							bindProp(__nsh_hv14, "style", () => ({
-								...t.meta,
-								color: c.text(),
-								maxWidth: 360
-							}));
-							insert(__nsh_hv14, () => selectedSummary());
-							return __nsh_hv14;
-						})(),
-						(() => {
-							const __nsh_hv15 = element("view");
-							prop(__nsh_hv15, "style", { flex: 1 });
-							return __nsh_hv15;
-						})(),
-						component(Button, {
-							label: "刷新列表",
-							small: true,
-							onPress: () => void loadContainers()
-						}),
-						() => pickerToggle()
-					];
-				}
-			}), () => pickerList()]);
-			return __nsh_hv10;
-		})();
-	}
-	function changeRow(change, index) {
-		const kind = kindOf(change);
-		const parts = splitPath(pathOf(change));
-		const color = kindColor(kind);
-		return (() => {
-			const __nsh_hv16 = element("view");
-			prop(__nsh_hv16, "onPress", () => selected.set(selected() === index ? null : index));
-			bindProp(__nsh_hv16, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 10,
-				paddingHorizontal: 12,
-				paddingVertical: 7,
-				backgroundColor: selected() === index ? c.hover() : "transparent",
-				borderBottomWidth: 1,
-				borderBottomColor: c.line()
-			}));
-			const __nsh_hv17 = element("view");
-			bindProp(__nsh_hv17, "style", () => ({
-				width: 20,
-				height: 20,
-				flexShrink: 0,
-				borderRadius: r.chip,
-				borderWidth: 1,
-				borderColor: color,
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				justifyContent: "center"
-			}));
-			const __nsh_hv18 = element("text");
-			prop(__nsh_hv18, "style", {
-				fontSize: 11,
-				fontWeight: "600",
-				color
-			});
-			insert(__nsh_hv18, kind);
-			append(__nsh_hv17, __nsh_hv18);
-			const __nsh_hv19 = element("view");
-			prop(__nsh_hv19, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 2,
-				flex: 1,
-				minWidth: 0
-			});
-			const __nsh_hv20 = element("text");
-			prop(__nsh_hv20, "numberOfLines", 1);
-			bindProp(__nsh_hv20, "style", () => t.mono);
-			insert(__nsh_hv20, () => parts.name);
-			append(__nsh_hv19, __nsh_hv20);
-			insert(__nsh_hv19, () => parts.dir.length === 0 ? null : (() => {
-				const __nsh_hv21 = element("text");
-				prop(__nsh_hv21, "numberOfLines", 1);
-				bindProp(__nsh_hv21, "style", () => ({
-					fontSize: 11,
-					color: c.muted()
-				}));
-				insert(__nsh_hv21, () => parts.dir);
-				return __nsh_hv21;
-			})());
-			const __nsh_hv22 = element("text");
-			bindProp(__nsh_hv22, "style", () => ({
-				...t.meta,
-				width: 36,
-				textAlign: "right",
-				flexShrink: 0
-			}));
-			insert(__nsh_hv22, () => KIND_LABEL[kind]);
-			append(__nsh_hv16, __nsh_hv17);
-			append(__nsh_hv16, __nsh_hv19);
-			append(__nsh_hv16, __nsh_hv22);
-			return __nsh_hv16;
-		})();
-	}
-	function detailBar() {
-		const picked = selectedChange();
-		if (picked === null) return (() => {
-			const __nsh_hv23 = element("view");
-			bindProp(__nsh_hv23, "style", () => ({
-				paddingHorizontal: 12,
-				paddingVertical: 7,
-				borderTopWidth: 1,
-				borderTopColor: c.line(),
-				backgroundColor: c.panel(),
-				flexShrink: 0
-			}));
-			const __nsh_hv24 = element("text");
-			prop(__nsh_hv24, "numberOfLines", 1);
-			bindProp(__nsh_hv24, "style", () => t.meta);
-			const __nsh_hv25 = text("点击任意一行查看完整路径；docker diff 只比较容器可写层。");
-			append(__nsh_hv24, __nsh_hv25);
-			append(__nsh_hv23, __nsh_hv24);
-			return __nsh_hv23;
-		})();
-		return (() => {
-			const __nsh_hv26 = element("view");
-			bindProp(__nsh_hv26, "style", () => ({
-				paddingHorizontal: 12,
-				paddingVertical: 8,
-				borderTopWidth: 1,
-				borderTopColor: c.line(),
-				backgroundColor: c.panel(),
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				flexShrink: 0
-			}));
-			const __nsh_hv30 = element("text");
-			prop(__nsh_hv30, "numberOfLines", 3);
-			bindProp(__nsh_hv30, "style", () => t.mono);
-			insert(__nsh_hv30, () => pathOf(picked.change));
-			append(__nsh_hv26, __nsh_hv30);
-			insert(__nsh_hv26, component(Row, {
-				gap: 8,
-				style: { justifyContent: "space-between" },
-				get children() {
-					return [(() => {
-						const __nsh_hv27 = element("text");
-						bindProp(__nsh_hv27, "style", () => t.label);
-						const __nsh_hv28 = text("完整路径");
-						append(__nsh_hv27, __nsh_hv28);
-						return __nsh_hv27;
-					})(), (() => {
-						const __nsh_hv29 = element("text");
-						bindProp(__nsh_hv29, "style", () => ({
-							...t.meta,
-							color: kindColor(picked.kind)
-						}));
-						insert(__nsh_hv29, () => KIND_LONG[picked.kind]);
-						return __nsh_hv29;
-					})()];
-				}
-			}), __nsh_hv30);
-			return __nsh_hv26;
-		})();
-	}
-	function selectionGate() {
-		if (containersError() !== null && containers().length === 0) return component(LoadError, {
-			get message() {
-				return containersError() ?? "";
-			},
-			onRetry: () => void loadContainers()
-		});
-		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (containers().length === 0) return component(Empty, {
-			title: "这个连接里没有容器",
-			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
-			get action() {
-				return component(Button, {
-					label: "重新读取容器列表",
-					small: true,
-					onPress: () => void loadContainers()
-				});
-			}
-		});
-		return component(Empty, {
-			title: "先选择一个容器",
-			get hint() {
-				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的文件变更。`;
-			}
-		});
-	}
-	function body() {
-		if (selectedId() === null) return selectionGate();
-		if (loading() && changes().length === 0) return component(Loading, { label: "正在读取容器文件变更…" });
-		if (error() !== null && changes().length === 0) return component(LoadError, {
-			get message() {
-				return error() ?? "";
-			},
-			onRetry: () => void load()
-		});
-		if (changes().length === 0) return component(Empty, {
-			title: "可写层没有文件变更",
-			hint: "容器启动后没有新增、修改或删除文件；docker diff 只比较容器可写层，不包含镜像层。",
-			get action() {
-				return component(Button, {
-					label: "重新读取",
-					small: true,
-					onPress: () => void load()
-				});
-			}
-		});
-		return (() => {
-			const __nsh_hv31 = element("view");
-			prop(__nsh_hv31, "style", {
-				flex: 1,
-				minHeight: 0,
-				display: "flex",
-				flexDirection: "column"
-			});
-			const __nsh_hv33 = element("scroll");
-			prop(__nsh_hv33, "style", {
-				flex: 1,
-				minHeight: 0
-			});
-			const __nsh_hv34 = element("view");
-			prop(__nsh_hv34, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			insert(__nsh_hv34, () => changes().map((change, index) => changeRow(change, index)));
-			append(__nsh_hv33, __nsh_hv34);
-			append(__nsh_hv31, __nsh_hv33);
-			insert(__nsh_hv31, () => error() === null ? null : (() => {
-				const __nsh_hv32 = element("view");
-				prop(__nsh_hv32, "style", {
-					paddingHorizontal: 12,
-					paddingTop: 8
-				});
-				insert(__nsh_hv32, component(Notice, { get message() {
-					return `刷新失败：${error() ?? ""}`;
-				} }));
-				return __nsh_hv32;
-			})(), __nsh_hv33);
-			insert(__nsh_hv31, () => detailBar());
-			return __nsh_hv31;
-		})();
-	}
-	function toolbar() {
-		return component(Row, {
-			gap: 8,
-			style: {
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				justifyContent: "space-between",
-				flexShrink: 0
-			},
-			get children() {
-				return [component(Row, {
-					gap: 8,
-					get children() {
-						return [(() => {
-							const __nsh_hv35 = element("text");
-							bindProp(__nsh_hv35, "style", () => t.h1);
-							const __nsh_hv36 = text("文件变更");
-							append(__nsh_hv35, __nsh_hv36);
-							return __nsh_hv35;
-						})(), () => selectedId() === null ? (() => {
-							const __nsh_hv37 = element("text");
-							bindProp(__nsh_hv37, "style", () => t.meta);
-							const __nsh_hv38 = text("未选择容器");
-							append(__nsh_hv37, __nsh_hv38);
-							return __nsh_hv37;
-						})() : [
-							(() => {
-								const __nsh_hv39 = element("text");
-								bindProp(__nsh_hv39, "style", () => t.meta);
-								insert(__nsh_hv39, () => `${changes().length} 项`);
-								return __nsh_hv39;
-							})(),
-							component(Badge, {
-								get text() {
-									return `新增 ${countOf("A")}`;
-								},
-								tone: "ok"
-							}),
-							component(Badge, {
-								get text() {
-									return `修改 ${countOf("C")}`;
-								},
-								tone: "warn"
-							}),
-							component(Badge, {
-								get text() {
-									return `删除 ${countOf("D")}`;
-								},
-								tone: "danger"
-							})
-						]];
-					}
-				}), component(Row, {
-					gap: 6,
-					get children() {
-						return [() => busy() ? (() => {
-							const __nsh_hv40 = element("text");
-							bindProp(__nsh_hv40, "style", () => t.meta);
-							const __nsh_hv41 = text("正在读取…");
-							append(__nsh_hv40, __nsh_hv41);
-							return __nsh_hv40;
-						})() : null, component(Button, {
-							label: "刷新",
-							small: true,
-							onPress: () => refresh()
-						})];
-					}
-				})];
-			}
-		});
-	}
-	loadContainers();
-	return (() => {
-		const __nsh_hv42 = element("view");
-		bindProp(__nsh_hv42, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv43 = element("view");
-		bindProp(__nsh_hv43, "style", () => hairline());
-		append(__nsh_hv42, __nsh_hv43);
-		insert(__nsh_hv42, () => toolbar(), __nsh_hv43);
-		insert(__nsh_hv42, [() => containerBar(), () => body()]);
-		return __nsh_hv42;
-	})();
-}
-
-//#endregion
-//#region pages/container-inspect/App.tsx
-/** 原始 JSON 最多渲染的行数（超出部分不交给布局）。 */
-const RAW_MAX_LINES = 800;
-/** 按路径取字段；中途不是对象就给 undefined。 */
-function pick(source, ...path) {
-	let node = source;
-	for (const key of path) {
-		if (!node || typeof node !== "object" || Array.isArray(node)) return void 0;
-		node = node[key];
-	}
-	return node;
-}
-/** 按路径取对象；不是对象就给空对象。 */
-function objOf(source, ...path) {
-	const value = pick(source, ...path);
-	return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-/** 按路径取数组；不是数组就给空数组。 */
-function listOf(source, ...path) {
-	const value = pick(source, ...path);
-	return Array.isArray(value) ? value : [];
-}
-/** 任意 JSON 值 → 一行可读文本。 */
-function text$1(value, fallback = "-") {
-	if (typeof value === "string") return value.length > 0 ? value : fallback;
-	if (typeof value === "number") return Number.isFinite(value) ? String(value) : fallback;
-	if (typeof value === "boolean") return value ? "是" : "否";
-	return fallback;
-}
-/** docker 的 Name 带前导 `/`。 */
-function containerName$2(doc) {
-	const name = text$1(pick(doc, "Name"), "");
-	return name.startsWith("/") ? name.slice(1) : name === "" ? "-" : name;
-}
-/** `NetworkSettings.Ports` → 行：`0.0.0.0:8080 → 80/tcp`，无绑定写「仅暴露」。 */
-function portLines(ports) {
-	if (!ports || typeof ports !== "object" || Array.isArray(ports)) return [];
-	const lines = [];
-	for (const [containerPort, bindings] of Object.entries(ports)) {
-		if (!Array.isArray(bindings) || bindings.length === 0) {
-			lines.push(`${containerPort}（仅暴露）`);
-			continue;
-		}
-		for (const binding of bindings) {
-			const hostIp = text$1(pick(binding, "HostIp"), "") || "0.0.0.0";
-			const hostPort = text$1(pick(binding, "HostPort"), "-");
-			lines.push(`${hostIp}:${hostPort} → ${containerPort}`);
-		}
-	}
-	return lines.sort();
-}
-/** 内存类限额：0 / 缺失 = 不限。 */
-function limitText(value) {
-	const number = Number(value);
-	return Number.isFinite(number) && number > 0 ? humanBytes(number) : "不限";
-}
-/** Swap：-1 表示显式不限，0 表示没单独设置。 */
-function swapText(value) {
-	const number = Number(value);
-	if (!Number.isFinite(number) || number === 0) return "未单独设置";
-	if (number < 0) return "不限";
-	return humanBytes(number);
-}
-/** CPU 配额：优先 NanoCpus，回退 CpuQuota / CpuPeriod；0 = 不限。 */
-function cpuText(hostConfig) {
-	const nano = Number(pick(hostConfig, "NanoCpus"));
-	if (Number.isFinite(nano) && nano > 0) return `${(nano / 1e9).toFixed(2)} 核`;
-	const quota = Number(pick(hostConfig, "CpuQuota"));
-	const period = Number(pick(hostConfig, "CpuPeriod"));
-	if (Number.isFinite(quota) && quota > 0 && Number.isFinite(period) && period > 0) return `${(quota / period).toFixed(2)} 核`;
-	return "不限";
-}
-/** 重启策略：`no` / `always` / `unless-stopped` / `on-failure[:n]`。 */
-function restartText(policy) {
-	const name = text$1(pick(policy, "Name"), "");
-	if (name === "" || name === "no") return "no（不自动重启）";
-	const retries = Number(pick(policy, "MaximumRetryCount"));
-	if (name === "on-failure" && Number.isFinite(retries) && retries > 0) return `on-failure（最多 ${retries} 次）`;
-	return name;
-}
-/** 状态 → Badge 语气。 */
-function statusTone(status) {
-	if (status === "running") return "ok";
-	if (status === "paused" || status === "restarting" || status === "removing") return "warn";
-	if (status === "exited" || status === "dead") return "danger";
-	if (status === "created") return "info";
-	return "neutral";
-}
-/** 小按钮：`active` 用 accessor，样式读的是当前值（写在 style 绑定里才响应式）。 */
-function chip(label, active, onPress, testLabel) {
-	return (() => {
-		const __nsh_hv0 = element("view");
-		prop(__nsh_hv0, "onPress", onPress);
-		prop(__nsh_hv0, "role", "button");
-		prop(__nsh_hv0, "accessibilityLabel", testLabel ?? label);
-		bindProp(__nsh_hv0, "style", () => ({
-			flexDirection: "row",
-			alignItems: "center",
-			paddingHorizontal: 10,
-			paddingVertical: 5,
-			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: active() ? c.accent() : c.line(),
-			backgroundColor: active() ? c.accent() : "transparent"
-		}));
-		const __nsh_hv1 = element("text");
-		bindProp(__nsh_hv1, "style", () => ({
-			...t.meta,
-			color: active() ? c.accentText() : c.text()
-		}));
-		insert(__nsh_hv1, label);
-		append(__nsh_hv0, __nsh_hv1);
-		return __nsh_hv0;
-	})();
-}
-/** 一行「标签 / 值」；`truncate` 的值单行省略但可选中复制完整内容。 */
-function Field(props) {
-	return (() => {
-		const __nsh_hv2 = element("view");
-		prop(__nsh_hv2, "style", {
-			flexDirection: "row",
-			alignItems: "flex-start",
-			gap: 16,
-			paddingVertical: 4
-		});
-		const __nsh_hv3 = element("text");
-		bindProp(__nsh_hv3, "style", () => ({
-			...t.meta,
-			color: c.muted(),
-			width: 88,
-			flexShrink: 0
-		}));
-		insert(__nsh_hv3, () => props.label);
-		const __nsh_hv4 = element("text");
-		bindProp(__nsh_hv4, "selectable", () => props.truncate === true);
-		bindProp(__nsh_hv4, "numberOfLines", () => props.truncate === true ? 1 : 0);
-		prop(__nsh_hv4, "ellipsizeMode", "middle");
-		bindProp(__nsh_hv4, "style", () => ({
-			flex: 1,
-			minWidth: 0,
-			textAlign: "right",
-			...props.mono === true ? t.mono : t.body,
-			color: c.text()
-		}));
-		insert(__nsh_hv4, () => props.value);
-		append(__nsh_hv2, __nsh_hv3);
-		append(__nsh_hv2, __nsh_hv4);
-		return __nsh_hv2;
-	})();
-}
-/** 分组的折叠区：标题行可点，内容只在展开时构建（数据变化会重建）。 */
-function Section(props) {
-	return (() => {
-		const __nsh_hv5 = element("view");
-		bindProp(__nsh_hv5, "style", () => ({
-			...panel(0),
-			padding: 0,
-			overflow: "hidden"
-		}));
-		const __nsh_hv6 = element("view");
-		bindProp(__nsh_hv6, "onPress", () => props.onToggle);
-		prop(__nsh_hv6, "role", "button");
-		bindProp(__nsh_hv6, "accessibilityLabel", () => `${props.title}分组`);
-		prop(__nsh_hv6, "style", {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8,
-			paddingHorizontal: 14,
-			paddingVertical: 10
-		});
-		const __nsh_hv7 = element("text");
-		bindProp(__nsh_hv7, "style", () => ({
-			...t.h2,
-			color: props.open() ? c.text() : c.muted()
-		}));
-		insert(__nsh_hv7, () => props.open() ? "▾" : "▸");
-		const __nsh_hv8 = element("text");
-		bindProp(__nsh_hv8, "style", () => ({
-			...t.h2,
-			color: c.text()
-		}));
-		insert(__nsh_hv8, () => props.title);
-		const __nsh_hv10 = element("view");
-		prop(__nsh_hv10, "style", { flex: 1 });
-		const __nsh_hv11 = element("text");
-		bindProp(__nsh_hv11, "style", () => ({
-			...t.meta,
-			color: c.muted()
-		}));
-		insert(__nsh_hv11, () => props.open() ? "收起" : "展开");
-		append(__nsh_hv6, __nsh_hv7);
-		append(__nsh_hv6, __nsh_hv8);
-		append(__nsh_hv6, __nsh_hv10);
-		append(__nsh_hv6, __nsh_hv11);
-		insert(__nsh_hv6, () => props.hint === void 0 ? null : (() => {
-			const __nsh_hv9 = element("text");
-			bindProp(__nsh_hv9, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			insert(__nsh_hv9, () => props.hint);
-			return __nsh_hv9;
-		})(), __nsh_hv10);
-		append(__nsh_hv5, __nsh_hv6);
-		insert(__nsh_hv5, () => props.open() ? (() => {
-			const __nsh_hv12 = element("view");
-			prop(__nsh_hv12, "style", {
-				paddingHorizontal: 14,
-				paddingBottom: 12,
-				paddingTop: 2,
-				display: "flex",
-				flexDirection: "column",
-				gap: 6
-			});
-			insert(__nsh_hv12, () => props.body());
-			return __nsh_hv12;
-		})() : null);
-		return __nsh_hv5;
-	})();
-}
-/** 端口映射块：每行一个绑定。 */
-function PortLines(props) {
-	const lines = portLines(props.ports);
-	if (lines.length === 0) return (() => {
-		const __nsh_hv13 = element("text");
-		bindProp(__nsh_hv13, "style", () => ({
-			...t.meta,
-			color: c.muted()
-		}));
-		const __nsh_hv14 = text("没有端口映射");
-		append(__nsh_hv13, __nsh_hv14);
-		return __nsh_hv13;
-	})();
-	return (() => {
-		const __nsh_hv15 = element("view");
-		prop(__nsh_hv15, "style", {
-			display: "flex",
-			flexDirection: "column",
-			gap: 2
-		});
-		insert(__nsh_hv15, () => lines.map((line) => (() => {
-			const __nsh_hv16 = element("text");
-			prop(__nsh_hv16, "selectable", true);
-			bindProp(__nsh_hv16, "style", () => ({
-				...t.mono,
-				color: c.text()
-			}));
-			insert(__nsh_hv16, line);
-			return __nsh_hv16;
-		})()));
-		return __nsh_hv15;
-	})();
-}
-function ContainerInspect() {
-	const data = signal(null);
-	const loading = signal(true);
-	const busy = signal(false);
-	const error = signal(null);
-	const updatedAt = signal("");
-	const showRaw = signal(false);
-	const openBasic = signal(true);
-	const openNetwork = signal(true);
-	const openMounts = signal(false);
-	const openEnv = signal(false);
-	const openLimits = signal(false);
-	const containers = signal([]);
-	const containerQuery = signal("");
-	const containersLoading = signal(true);
-	const containersError = signal(null);
-	const selectedId = signal(null);
-	const selectedName = signal("");
-	const pickerOpen = signal(true);
-	let seq = 0;
-	const status = () => text$1(pick(data() ?? {}, "State", "Status"), "unknown");
-	const health = () => text$1(pick(data() ?? {}, "State", "Health", "Status"), "");
-	function rowId(row) {
-		return str(row, "id", "");
-	}
-	function rowName(row) {
-		return str(row, "name", "");
-	}
-	function rowImage(row) {
-		return str(row, "image", "");
-	}
-	function rowState(row) {
-		return str(row, "state", "");
-	}
-	function containerTone(state) {
-		if (state === "running") return "ok";
-		if (state === "paused" || state === "restarting") return "warn";
-		if (state === "exited" || state === "dead") return "danger";
-		return "neutral";
-	}
-	function visibleContainers() {
-		const needle = containerQuery().trim().toLowerCase();
-		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${rowName(row)} ${rowImage(row)}`.toLowerCase().includes(needle));
-	}
-	function selectedSummary() {
-		const id = selectedId();
-		if (id === null) return "";
-		const row = containers().find((item) => rowId(item) === id);
-		return row === void 0 ? selectedName() : `${rowName(row)} · ${rowImage(row)}`;
-	}
-	function resetData() {
-		data.set(null);
-		error.set(null);
-		updatedAt.set("");
-		showRaw.set(false);
-	}
-	function clearSelection() {
-		selectedId.set(null);
-		selectedName.set("");
-		resetData();
-		loading.set(false);
-		pickerOpen.set(true);
-	}
-	function selectContainer(row) {
-		const id = rowId(row);
-		if (id.length === 0) return;
-		if (selectedId() === id) {
-			pickerOpen.set(false);
-			return;
-		}
-		selectedId.set(id);
-		selectedName.set(rowName(row));
-		pickerOpen.set(false);
-		resetData();
-		loading.set(true);
-		load();
-	}
-	function refresh() {
-		if (selectedId() === null) loadContainers();
-		else load();
-	}
-	async function loadContainers() {
-		containersLoading.set(true);
-		try {
-			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			const list = Array.isArray(result) ? result : arr(result, "containers");
-			containers.set(list);
-			containersError.set(null);
-			const current = selectedId();
-			if (current !== null && !list.some((row) => rowId(row) === current)) clearSelection();
-		} catch (failure) {
-			containersError.set(errorMessage(failure));
-		} finally {
-			containersLoading.set(false);
-		}
-	}
-	async function load() {
-		const id = selectedId();
-		if (id === null) return;
-		const mine = ++seq;
-		busy.set(true);
-		if (data() === null) loading.set(true);
-		try {
-			const result = await invoke$1("docker/container/inspect", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			data.set(result && typeof result === "object" && !Array.isArray(result) ? result : null);
-			updatedAt.set(clock());
-			error.set(null);
-		} catch (failure) {
-			if (mine !== seq) return;
-			error.set(errorMessage(failure));
-		} finally {
-			if (mine === seq) {
-				busy.set(false);
-				loading.set(false);
-			}
-		}
-	}
-	function basicBody() {
-		const doc = data() ?? {};
-		const state = objOf(doc, "State");
-		const config = objOf(doc, "Config");
-		const hostConfig = objOf(doc, "HostConfig");
-		const startedAt = text$1(pick(state, "StartedAt"), "");
-		return (() => {
-			const __nsh_hv17 = element("view");
-			prop(__nsh_hv17, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			const __nsh_hv18 = element("text");
-			bindProp(__nsh_hv18, "style", () => ({
-				...t.meta,
-				color: c.muted(),
-				marginTop: 6
-			}));
-			const __nsh_hv19 = text("长值单行省略；选中文本即可复制完整内容。");
-			append(__nsh_hv18, __nsh_hv19);
-			append(__nsh_hv17, __nsh_hv18);
-			insert(__nsh_hv17, [
-				component(Field, {
-					label: "容器 ID",
-					get value() {
-						return text$1(pick(doc, "Id"));
-					},
-					mono: true,
-					truncate: true
-				}),
-				component(Field, {
-					label: "名称",
-					get value() {
-						return containerName$2(doc);
-					}
-				}),
-				component(Field, {
-					label: "镜像",
-					get value() {
-						return text$1(pick(doc, "Image"));
-					},
-					mono: true,
-					truncate: true
-				}),
-				component(Field, {
-					label: "状态",
-					get value() {
-						return health() === "" ? status() : `${status()}（健康检查 ${health()}）`;
-					}
-				}),
-				component(Field, {
-					label: "启动时间",
-					get value() {
-						return startedAt === "" || startedAt.startsWith("0001-") ? "未启动" : shortTime(startedAt);
-					}
-				}),
-				component(Field, {
-					label: "重启策略",
-					get value() {
-						return restartText(pick(hostConfig, "RestartPolicy"));
-					}
-				}),
-				component(Field, {
-					label: "启动命令",
-					get value() {
-						return joinCommand(pick(config, "Cmd"));
-					},
-					mono: true
-				})
-			], __nsh_hv18);
-			return __nsh_hv17;
-		})();
-	}
-	function networkBody() {
-		const settings = objOf(data() ?? {}, "NetworkSettings");
-		const networks = objOf(settings, "Networks");
-		const names = Object.keys(networks);
-		if (names.length === 0) return (() => {
-			const __nsh_hv20 = element("view");
-			prop(__nsh_hv20, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 4
-			});
-			const __nsh_hv21 = element("view");
-			prop(__nsh_hv21, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 2,
-				marginTop: 4
-			});
-			const __nsh_hv22 = element("text");
-			bindProp(__nsh_hv22, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			const __nsh_hv23 = text("端口映射");
-			append(__nsh_hv22, __nsh_hv23);
-			append(__nsh_hv21, __nsh_hv22);
-			insert(__nsh_hv21, component(PortLines, { get ports() {
-				return pick(settings, "Ports");
-			} }));
-			append(__nsh_hv20, __nsh_hv21);
-			insert(__nsh_hv20, [
-				component(Field, {
-					label: "IP 地址",
-					get value() {
-						return text$1(pick(settings, "IPAddress"), "未分配");
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "网关",
-					get value() {
-						return text$1(pick(settings, "Gateway"), "未分配");
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "MAC",
-					get value() {
-						return text$1(pick(settings, "MacAddress"), "未分配");
-					},
-					mono: true
-				})
-			], __nsh_hv21);
-			return __nsh_hv20;
-		})();
-		return (() => {
-			const __nsh_hv24 = element("view");
-			prop(__nsh_hv24, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 10
-			});
-			const __nsh_hv30 = element("view");
-			prop(__nsh_hv30, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 2
-			});
-			const __nsh_hv31 = element("text");
-			bindProp(__nsh_hv31, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			const __nsh_hv32 = text("端口映射");
-			append(__nsh_hv31, __nsh_hv32);
-			append(__nsh_hv30, __nsh_hv31);
-			insert(__nsh_hv30, component(PortLines, { get ports() {
-				return pick(settings, "Ports");
-			} }));
-			append(__nsh_hv24, __nsh_hv30);
-			insert(__nsh_hv24, () => names.map((name) => {
-				const network = objOf(networks, name);
-				const bindings = pick(network, "Ports");
-				return (() => {
-					const __nsh_hv25 = element("view");
-					prop(__nsh_hv25, "style", {
-						display: "flex",
-						flexDirection: "column",
-						gap: 2
-					});
-					const __nsh_hv26 = element("text");
-					bindProp(__nsh_hv26, "style", () => ({
-						...t.h2,
-						color: c.text()
-					}));
-					insert(__nsh_hv26, name);
-					append(__nsh_hv25, __nsh_hv26);
-					insert(__nsh_hv25, [
-						component(Field, {
-							label: "IP 地址",
-							get value() {
-								return text$1(pick(network, "IPAddress"), "未分配");
-							},
-							mono: true
-						}),
-						component(Field, {
-							label: "网关",
-							get value() {
-								return text$1(pick(network, "Gateway"), "未分配");
-							},
-							mono: true
-						}),
-						component(Field, {
-							label: "MAC",
-							get value() {
-								return text$1(pick(network, "MacAddress"), "未分配");
-							},
-							mono: true
-						}),
-						() => Array.isArray(bindings) && bindings.length > 0 ? (() => {
-							const __nsh_hv27 = element("view");
-							prop(__nsh_hv27, "style", {
-								display: "flex",
-								flexDirection: "column",
-								gap: 2
-							});
-							const __nsh_hv28 = element("text");
-							bindProp(__nsh_hv28, "style", () => ({
-								...t.meta,
-								color: c.muted()
-							}));
-							const __nsh_hv29 = text("端口映射");
-							append(__nsh_hv28, __nsh_hv29);
-							append(__nsh_hv27, __nsh_hv28);
-							insert(__nsh_hv27, component(PortLines, { ports: bindings }));
-							return __nsh_hv27;
-						})() : null
-					]);
-					return __nsh_hv25;
-				})();
-			}), __nsh_hv30);
-			return __nsh_hv24;
-		})();
-	}
-	function mountsBody() {
-		const mounts = listOf(data() ?? {}, "Mounts");
-		if (mounts.length === 0) return (() => {
-			const __nsh_hv33 = element("text");
-			bindProp(__nsh_hv33, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			const __nsh_hv34 = text("没有挂载");
-			append(__nsh_hv33, __nsh_hv34);
-			return __nsh_hv33;
-		})();
-		return (() => {
-			const __nsh_hv35 = element("view");
-			prop(__nsh_hv35, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			insert(__nsh_hv35, () => mounts.map((mount, index) => {
-				const readOnly = pick(mount, "RW") === false;
-				const mode = text$1(pick(mount, "Mode"), "");
-				return (() => {
-					const __nsh_hv36 = element("view");
-					bindProp(__nsh_hv36, "style", () => ({
-						display: "flex",
-						flexDirection: "column",
-						gap: 3,
-						paddingVertical: 6,
-						borderTopWidth: index === 0 ? 0 : 1,
-						borderColor: c.line()
-					}));
-					const __nsh_hv37 = element("view");
-					prop(__nsh_hv37, "style", {
-						flexDirection: "row",
-						alignItems: "center",
-						gap: 6
-					});
-					const __nsh_hv38 = element("text");
-					bindProp(__nsh_hv38, "style", () => ({
-						...t.meta,
-						color: c.muted()
-					}));
-					insert(__nsh_hv38, () => `${index + 1}. ${text$1(pick(mount, "Type"), "bind")}`);
-					append(__nsh_hv37, __nsh_hv38);
-					insert(__nsh_hv37, [component(Badge, {
-						text: readOnly ? "只读 (ro)" : "读写 (rw)",
-						tone: readOnly ? "warn" : "ok"
-					}), () => mode === "" ? null : (() => {
-						const __nsh_hv39 = element("text");
-						bindProp(__nsh_hv39, "style", () => ({
-							...t.meta,
-							color: c.muted()
-						}));
-						insert(__nsh_hv39, `模式 ${mode}`);
-						return __nsh_hv39;
-					})()]);
-					const __nsh_hv40 = element("text");
-					prop(__nsh_hv40, "selectable", true);
-					bindProp(__nsh_hv40, "style", () => ({
-						...t.mono,
-						color: c.text()
-					}));
-					insert(__nsh_hv40, () => `${text$1(pick(mount, "Source"))} → ${text$1(pick(mount, "Destination"))}`);
-					append(__nsh_hv36, __nsh_hv37);
-					append(__nsh_hv36, __nsh_hv40);
-					return __nsh_hv36;
-				})();
-			}));
-			return __nsh_hv35;
-		})();
-	}
-	function envBody() {
-		const env = listOf(data() ?? {}, "Config", "Env").map((entry) => String(entry));
-		if (env.length === 0) return (() => {
-			const __nsh_hv41 = element("text");
-			bindProp(__nsh_hv41, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			const __nsh_hv42 = text("没有环境变量");
-			append(__nsh_hv41, __nsh_hv42);
-			return __nsh_hv41;
-		})();
-		return (() => {
-			const __nsh_hv43 = element("view");
-			prop(__nsh_hv43, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			const __nsh_hv47 = element("text");
-			bindProp(__nsh_hv47, "style", () => ({
-				...t.meta,
-				color: c.muted(),
-				marginTop: 6
-			}));
-			const __nsh_hv48 = text("两列：变量名 / 值。值过长会省略；选中文本即可复制完整值。");
-			append(__nsh_hv47, __nsh_hv48);
-			append(__nsh_hv43, __nsh_hv47);
-			insert(__nsh_hv43, () => env.map((entry) => {
-				const index = entry.indexOf("=");
-				const key = index < 0 ? entry : entry.slice(0, index);
-				const value = index < 0 ? "" : entry.slice(index + 1);
-				return (() => {
-					const __nsh_hv44 = element("view");
-					bindProp(__nsh_hv44, "style", () => ({
-						flexDirection: "row",
-						alignItems: "center",
-						gap: 12,
-						paddingVertical: 4,
-						borderBottomWidth: 1,
-						borderColor: c.line()
-					}));
-					const __nsh_hv45 = element("text");
-					prop(__nsh_hv45, "numberOfLines", 1);
-					prop(__nsh_hv45, "ellipsizeMode", "tail");
-					bindProp(__nsh_hv45, "style", () => ({
-						width: 200,
-						flexShrink: 0,
-						...t.mono,
-						color: c.muted()
-					}));
-					insert(__nsh_hv45, key);
-					const __nsh_hv46 = element("text");
-					prop(__nsh_hv46, "selectable", true);
-					prop(__nsh_hv46, "numberOfLines", 1);
-					prop(__nsh_hv46, "ellipsizeMode", "middle");
-					bindProp(__nsh_hv46, "style", () => ({
-						flex: 1,
-						minWidth: 0,
-						...t.mono,
-						color: c.text()
-					}));
-					insert(__nsh_hv46, value === "" ? "（空）" : value);
-					append(__nsh_hv44, __nsh_hv45);
-					append(__nsh_hv44, __nsh_hv46);
-					return __nsh_hv44;
-				})();
-			}), __nsh_hv47);
-			return __nsh_hv43;
-		})();
-	}
-	function limitsBody() {
-		const hostConfig = objOf(data() ?? {}, "HostConfig");
-		const pids = Number(pick(hostConfig, "PidsLimit"));
-		return (() => {
-			const __nsh_hv49 = element("view");
-			prop(__nsh_hv49, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			insert(__nsh_hv49, [
-				component(Field, {
-					label: "CPU 配额",
-					get value() {
-						return cpuText(hostConfig);
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "CPU 权重",
-					get value() {
-						return Number(pick(hostConfig, "CpuShares")) > 0 ? text$1(pick(hostConfig, "CpuShares")) : "不限（默认权重）";
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "内存限制",
-					get value() {
-						return limitText(pick(hostConfig, "Memory"));
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "Swap",
-					get value() {
-						return swapText(pick(hostConfig, "MemorySwap"));
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "进程数上限",
-					get value() {
-						return Number.isFinite(pids) && pids > 0 ? String(pids) : "不限";
-					},
-					mono: true
-				}),
-				component(Field, {
-					label: "只读根文件系统",
-					get value() {
-						return pick(hostConfig, "ReadonlyRootfs") === true ? "是" : "否";
-					}
-				})
-			]);
-			return __nsh_hv49;
-		})();
-	}
-	function rawBlock() {
-		const lines = JSON.stringify(data() ?? {}, null, 2).split("\n");
-		const shown = lines.slice(0, RAW_MAX_LINES);
-		return (() => {
-			const __nsh_hv50 = element("view");
-			bindProp(__nsh_hv50, "style", () => ({
-				...panel(12),
-				gap: 6,
-				display: "flex",
-				flexDirection: "column"
-			}));
-			const __nsh_hv51 = element("text");
-			bindProp(__nsh_hv51, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			insert(__nsh_hv51, () => lines.length > RAW_MAX_LINES ? `原始 JSON · 共 ${lines.length} 行，仅渲染前 ${RAW_MAX_LINES} 行` : `原始 JSON · ${lines.length} 行`);
-			const __nsh_hv52 = element("text");
-			prop(__nsh_hv52, "selectable", true);
-			bindProp(__nsh_hv52, "style", () => ({
-				...t.mono,
-				color: c.text(),
-				lineHeight: 17
-			}));
-			insert(__nsh_hv52, () => shown.join("\n"));
-			const __nsh_hv53 = element("text");
-			bindProp(__nsh_hv53, "style", () => ({
-				...t.meta,
-				color: c.muted()
-			}));
-			const __nsh_hv54 = text("长行自动折行 · 可选中复制");
-			append(__nsh_hv53, __nsh_hv54);
-			append(__nsh_hv50, __nsh_hv51);
-			append(__nsh_hv50, __nsh_hv52);
-			append(__nsh_hv50, __nsh_hv53);
-			return __nsh_hv50;
-		})();
-	}
-	function sectionsBlock() {
-		const doc = data() ?? {};
-		const mountCount = listOf(doc, "Mounts").length;
-		const envCount = listOf(doc, "Config", "Env").length;
-		const networkCount = Object.keys(objOf(doc, "NetworkSettings", "Networks")).length;
-		return (() => {
-			const __nsh_hv55 = element("view");
-			prop(__nsh_hv55, "style", {
-				display: "flex",
-				flexDirection: "column",
-				gap: 10
-			});
-			insert(__nsh_hv55, [
-				component(Section, {
-					title: "基础",
-					get hint() {
-						return containerName$2(doc);
-					},
-					open: openBasic,
-					onToggle: () => openBasic.set(!openBasic()),
-					body: basicBody
-				}),
-				component(Section, {
-					title: "网络",
-					hint: networkCount === 0 ? "无网络信息" : `${networkCount} 个网络`,
-					open: openNetwork,
-					onToggle: () => openNetwork.set(!openNetwork()),
-					body: networkBody
-				}),
-				component(Section, {
-					title: "挂载",
-					hint: `${mountCount} 项`,
-					open: openMounts,
-					onToggle: () => openMounts.set(!openMounts()),
-					body: mountsBody
-				}),
-				component(Section, {
-					title: "环境变量",
-					hint: `${envCount} 项`,
-					open: openEnv,
-					onToggle: () => openEnv.set(!openEnv()),
-					body: envBody
-				}),
-				component(Section, {
-					title: "资源限制",
-					hint: "CPU / 内存",
-					open: openLimits,
-					onToggle: () => openLimits.set(!openLimits()),
-					body: limitsBody
-				})
-			]);
-			return __nsh_hv55;
-		})();
-	}
-	function pickerList() {
-		if (!pickerOpen()) return null;
-		return (() => {
-			const __nsh_hv56 = element("view");
-			bindProp(__nsh_hv56, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				marginHorizontal: 14,
-				marginBottom: 8,
-				padding: 6,
-				borderWidth: 1,
-				borderColor: c.line(),
-				borderRadius: r.card,
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv56, () => containersLoading() && containers().length === 0 ? (() => {
-				const __nsh_hv57 = element("text");
-				bindProp(__nsh_hv57, "style", () => t.meta);
-				const __nsh_hv58 = text("正在读取容器列表…");
-				append(__nsh_hv57, __nsh_hv58);
-				return __nsh_hv57;
-			})() : containersError() !== null && containers().length === 0 ? component(Row, {
-				gap: 8,
-				get children() {
-					return [(() => {
-						const __nsh_hv59 = element("text");
-						bindProp(__nsh_hv59, "style", () => ({
-							...t.meta,
-							color: c.danger()
-						}));
-						insert(__nsh_hv59, () => `容器列表读取失败：${containersError()}`);
-						return __nsh_hv59;
-					})(), component(Button, {
-						label: "重试",
-						small: true,
-						onPress: () => void loadContainers()
-					})];
-				}
-			}) : visibleContainers().length === 0 ? (() => {
-				const __nsh_hv60 = element("text");
-				bindProp(__nsh_hv60, "style", () => t.meta);
-				insert(__nsh_hv60, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
-				return __nsh_hv60;
-			})() : (() => {
-				const __nsh_hv61 = element("scroll");
-				prop(__nsh_hv61, "style", { maxHeight: 168 });
-				const __nsh_hv62 = element("view");
-				prop(__nsh_hv62, "style", {
-					display: "flex",
-					flexDirection: "column"
-				});
-				insert(__nsh_hv62, () => visibleContainers().map((row) => containerOption(row)));
-				append(__nsh_hv61, __nsh_hv62);
-				return __nsh_hv61;
-			})());
-			return __nsh_hv56;
-		})();
-	}
-	function containerOption(row) {
-		const id = rowId(row);
-		const state = rowState(row);
-		return (() => {
-			const __nsh_hv63 = element("view");
-			prop(__nsh_hv63, "onPress", () => selectContainer(row));
-			prop(__nsh_hv63, "role", "button");
-			bindProp(__nsh_hv63, "accessibilityLabel", () => `容器 ${rowName(row)}`);
-			bindProp(__nsh_hv63, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 8,
-				paddingHorizontal: 8,
-				paddingVertical: 6,
-				borderRadius: r.control,
-				backgroundColor: selectedId() === id ? c.hover() : "transparent"
-			}));
-			const __nsh_hv64 = element("text");
-			prop(__nsh_hv64, "numberOfLines", 1);
-			bindProp(__nsh_hv64, "style", () => ({
-				fontSize: 12,
-				fontWeight: "500",
-				color: c.text(),
-				width: 180
-			}));
-			insert(__nsh_hv64, () => rowName(row));
-			const __nsh_hv65 = element("text");
-			prop(__nsh_hv65, "numberOfLines", 1);
-			bindProp(__nsh_hv65, "style", () => ({
-				...t.mono,
-				fontSize: 11,
-				color: c.muted(),
-				flex: 1,
-				minWidth: 0
-			}));
-			insert(__nsh_hv65, () => rowImage(row));
-			append(__nsh_hv63, __nsh_hv64);
-			append(__nsh_hv63, __nsh_hv65);
-			insert(__nsh_hv63, component(Badge, {
-				get text() {
-					return state.length === 0 ? "unknown" : state;
-				},
-				get tone() {
-					return containerTone(state);
-				}
-			}));
-			return __nsh_hv63;
-		})();
-	}
-	function pickerToggle() {
-		return component(Button, {
-			get label() {
-				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
-			},
-			small: true,
-			onPress: () => pickerOpen.set(!pickerOpen())
-		});
-	}
-	function containerBar() {
-		return (() => {
-			const __nsh_hv66 = element("view");
-			prop(__nsh_hv66, "style", {
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0
-			});
-			insert(__nsh_hv66, [component(Row, {
-				wrap: true,
-				gap: 8,
-				get style() {
-					return {
-						paddingHorizontal: 14,
-						paddingBottom: pickerOpen() ? 6 : 10
-					};
-				},
-				get children() {
-					return [
-						component(SearchField, {
-							get value() {
-								return containerQuery();
-							},
-							onChange: (text) => {
-								containerQuery.set(text);
-								if (!pickerOpen()) pickerOpen.set(true);
-							},
-							placeholder: "按名称 / 镜像过滤容器",
-							width: 280
-						}),
-						(() => {
-							const __nsh_hv67 = element("text");
-							bindProp(__nsh_hv67, "style", () => t.meta);
-							insert(__nsh_hv67, () => `${visibleContainers().length} / ${containers().length} 个容器`);
-							return __nsh_hv67;
-						})(),
-						() => selectedId() === null ? (() => {
-							const __nsh_hv68 = element("text");
-							bindProp(__nsh_hv68, "style", () => t.meta);
-							const __nsh_hv69 = text("未选择容器");
-							append(__nsh_hv68, __nsh_hv69);
-							return __nsh_hv68;
-						})() : (() => {
-							const __nsh_hv70 = element("text");
-							prop(__nsh_hv70, "numberOfLines", 1);
-							bindProp(__nsh_hv70, "style", () => ({
-								...t.meta,
-								color: c.text(),
-								maxWidth: 360
-							}));
-							insert(__nsh_hv70, () => selectedSummary());
-							return __nsh_hv70;
-						})(),
-						(() => {
-							const __nsh_hv71 = element("view");
-							prop(__nsh_hv71, "style", { flex: 1 });
-							return __nsh_hv71;
-						})(),
-						component(Button, {
-							label: "刷新列表",
-							small: true,
-							onPress: () => void loadContainers()
-						}),
-						() => pickerToggle()
-					];
-				}
-			}), () => pickerList()]);
-			return __nsh_hv66;
-		})();
-	}
-	function toolbar() {
-		return (() => {
-			const __nsh_hv72 = element("view");
-			prop(__nsh_hv72, "style", {
-				flexDirection: "row",
-				alignItems: "center",
-				flexWrap: "wrap",
-				gap: 8,
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				flexShrink: 0
-			});
-			const __nsh_hv73 = element("text");
-			bindProp(__nsh_hv73, "style", () => ({
-				...t.h1,
-				color: c.text()
-			}));
-			const __nsh_hv74 = text("容器详情");
-			append(__nsh_hv73, __nsh_hv74);
-			const __nsh_hv78 = element("view");
-			prop(__nsh_hv78, "style", { flex: 1 });
-			append(__nsh_hv72, __nsh_hv73);
-			append(__nsh_hv72, __nsh_hv78);
-			insert(__nsh_hv72, () => selectedId() === null ? (() => {
-				const __nsh_hv75 = element("text");
-				bindProp(__nsh_hv75, "style", () => ({
-					...t.meta,
-					color: c.muted()
-				}));
-				const __nsh_hv76 = text("未选择容器");
-				append(__nsh_hv75, __nsh_hv76);
-				return __nsh_hv75;
-			})() : data() === null ? null : [component(Badge, {
-				get text() {
-					return status();
-				},
-				get tone() {
-					return statusTone(status());
-				}
-			}), (() => {
-				const __nsh_hv77 = element("text");
-				bindProp(__nsh_hv77, "style", () => ({
-					...t.meta,
-					color: c.muted()
-				}));
-				insert(__nsh_hv77, () => containerName$2(data() ?? {}));
-				return __nsh_hv77;
-			})()], __nsh_hv78);
-			insert(__nsh_hv72, [
-				() => selectedId() === null ? null : (() => {
-					const __nsh_hv79 = element("text");
-					bindProp(__nsh_hv79, "style", () => ({
-						...t.meta,
-						color: c.muted()
-					}));
-					insert(__nsh_hv79, () => loading() ? "读取中…" : busy() ? "刷新中…" : updatedAt() === "" ? "" : `更新于 ${updatedAt()}`);
-					return __nsh_hv79;
-				})(),
-				component(Button, {
-					label: "刷新",
-					small: true,
-					onPress: () => refresh()
-				}),
-				() => selectedId() === null ? null : chip(showRaw() ? "查看分组" : "查看原始 JSON", showRaw, () => showRaw.set(!showRaw()), "原始 JSON")
-			]);
-			return __nsh_hv72;
-		})();
-	}
-	function selectionGate() {
-		if (containersError() !== null && containers().length === 0) return component(LoadError, {
-			get message() {
-				return containersError() ?? "";
-			},
-			onRetry: () => void loadContainers()
-		});
-		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (containers().length === 0) return component(Empty, {
-			title: "这个连接里没有容器",
-			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
-			get action() {
-				return component(Button, {
-					label: "重新读取容器列表",
-					small: true,
-					onPress: () => void loadContainers()
-				});
-			}
-		});
-		return component(Empty, {
-			title: "先选择一个容器",
-			get hint() {
-				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的 inspect 详情。`;
-			}
-		});
-	}
-	function body() {
-		if (selectedId() === null) return selectionGate();
-		if (data() === null && error() !== null) return component(LoadError, {
-			get message() {
-				return error() ?? "";
-			},
-			onRetry: () => void load()
-		});
-		if (data() === null && loading()) return component(Loading, { label: "正在读取容器详情…" });
-		if (data() === null) return component(Empty, {
-			title: "没有容器数据",
-			hint: "docker/container/inspect 没有返回文档：容器可能刚被删除，或者这次采样的结果为空。",
-			get action() {
-				return component(Button, {
-					label: "重新读取",
-					small: true,
-					onPress: () => void load()
-				});
-			}
-		});
-		return (() => {
-			const __nsh_hv80 = element("scroll");
-			prop(__nsh_hv80, "style", {
-				flex: 1,
-				minHeight: 0
-			});
-			const __nsh_hv81 = element("view");
-			prop(__nsh_hv81, "style", {
-				padding: 14,
-				display: "flex",
-				flexDirection: "column",
-				gap: 10
-			});
-			insert(__nsh_hv81, [() => error() === null ? null : component(Notice, {
-				get message() {
-					return `刷新失败：${error()}`;
-				},
-				tone: "danger"
-			}), () => showRaw() ? rawBlock() : sectionsBlock()]);
-			append(__nsh_hv80, __nsh_hv81);
-			return __nsh_hv80;
-		})();
-	}
-	loadContainers();
-	return (() => {
-		const __nsh_hv82 = element("view");
-		bindProp(__nsh_hv82, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv83 = element("view");
-		bindProp(__nsh_hv83, "style", () => hairline());
-		append(__nsh_hv82, __nsh_hv83);
-		insert(__nsh_hv82, () => toolbar(), __nsh_hv83);
-		insert(__nsh_hv82, [() => containerBar(), () => body()]);
-		return __nsh_hv82;
-	})();
-}
-/** 本地时钟（HH:MM:SS）。 */
-function clock() {
-	const now = /* @__PURE__ */ new Date();
-	const two = (value) => String(value).padStart(2, "0");
-	return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
-}
-
-//#endregion
-//#region pages/container-mounts/App.tsx
-/** 挂载类型 → 胶囊配色；未知类型保持中性。 */
-function typeTone(type) {
-	const text = type.toLowerCase();
-	if (text === "bind") return "info";
-	if (text === "volume") return "ok";
-	if (text === "tmpfs") return "warn";
-	return "neutral";
-}
-function typeOf(entry) {
-	const type = str(entry, "Type", "").toLowerCase();
-	return type.length > 0 ? type : "bind";
-}
-function modeOf(entry) {
-	return str(entry, "Mode", "默认");
-}
-function isReadOnly(entry) {
-	if (entry.RW === false) return true;
-	return /^ro\b/.test(str(entry, "Mode", ""));
-}
-const containerId$1 = (row) => str(row, "id", "");
-const containerName$1 = (row) => str(row, "name", "");
-const containerImage$1 = (row) => str(row, "image", "");
-const containerState$1 = (row) => str(row, "state", "");
-function stateTone$2(state) {
-	if (state === "running") return "ok";
-	if (state === "paused" || state === "restarting") return "warn";
-	if (state === "exited" || state === "dead") return "danger";
-	return "neutral";
-}
-function ContainerMounts() {
-	const mounts = signal([]);
-	const loading = signal(true);
-	const error = signal(null);
-	const busy = signal(false);
-	const containers = signal([]);
-	const containerQuery = signal("");
-	const containersLoading = signal(true);
-	const containersError = signal(null);
-	const selectedId = signal(null);
-	const selectedName = signal("");
-	const pickerOpen = signal(true);
-	let seq = 0;
-	function readOnlyCount() {
-		return mounts().filter((entry) => isReadOnly(entry)).length;
-	}
-	function visibleContainers() {
-		const needle = containerQuery().trim().toLowerCase();
-		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${containerName$1(row)} ${containerImage$1(row)}`.toLowerCase().includes(needle));
-	}
-	function selectedSummary() {
-		const id = selectedId();
-		if (id === null) return "";
-		const row = containers().find((item) => containerId$1(item) === id);
-		return row === void 0 ? selectedName() : `${containerName$1(row)} · ${containerImage$1(row)}`;
-	}
-	function resetData() {
-		mounts.set([]);
-		error.set(null);
-	}
-	function clearSelection() {
-		selectedId.set(null);
-		selectedName.set("");
-		resetData();
-		loading.set(false);
-		pickerOpen.set(true);
-	}
-	function selectContainer(row) {
-		const id = containerId$1(row);
-		if (id.length === 0) return;
-		if (selectedId() === id) {
-			pickerOpen.set(false);
-			return;
-		}
-		selectedId.set(id);
-		selectedName.set(containerName$1(row));
-		pickerOpen.set(false);
-		resetData();
-		loading.set(true);
-		load();
-	}
-	function refresh() {
-		if (selectedId() === null) loadContainers();
-		else load();
-	}
-	async function loadContainers() {
-		containersLoading.set(true);
-		try {
-			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			const list = Array.isArray(result) ? result : arr(result, "containers");
-			containers.set(list);
-			containersError.set(null);
-			const current = selectedId();
-			if (current !== null && !list.some((row) => containerId$1(row) === current)) clearSelection();
-		} catch (failure) {
-			containersError.set(errorMessage(failure));
-		} finally {
-			containersLoading.set(false);
-		}
-	}
-	async function load() {
-		const id = selectedId();
-		if (id === null) return;
-		const mine = ++seq;
-		busy.set(true);
-		if (mounts().length === 0) loading.set(true);
-		try {
-			const result = await invoke$1("docker/container/mounts", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			const list = Array.isArray(result) ? result : arr(result, "mounts");
-			mounts.set(list);
-			error.set(null);
-		} catch (failure) {
-			if (mine !== seq) return;
-			error.set(errorMessage(failure));
-		} finally {
-			if (mine === seq) {
-				loading.set(false);
-				busy.set(false);
-			}
-		}
-	}
-	function pickerList() {
-		if (!pickerOpen()) return null;
-		return (() => {
-			const __nsh_hv0 = element("view");
-			bindProp(__nsh_hv0, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				marginHorizontal: 14,
-				marginBottom: 8,
-				padding: 6,
-				borderWidth: 1,
-				borderColor: c.line(),
-				borderRadius: r.card,
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
-				const __nsh_hv1 = element("text");
-				bindProp(__nsh_hv1, "style", () => t.meta);
-				const __nsh_hv2 = text("正在读取容器列表…");
-				append(__nsh_hv1, __nsh_hv2);
-				return __nsh_hv1;
-			})() : containersError() !== null && containers().length === 0 ? component(Row, {
-				gap: 8,
-				get children() {
-					return [(() => {
-						const __nsh_hv3 = element("text");
-						bindProp(__nsh_hv3, "style", () => ({
-							...t.meta,
-							color: c.danger()
-						}));
-						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
-						return __nsh_hv3;
-					})(), component(Button, {
-						label: "重试",
-						small: true,
-						onPress: () => void loadContainers()
-					})];
-				}
-			}) : visibleContainers().length === 0 ? (() => {
-				const __nsh_hv4 = element("text");
-				bindProp(__nsh_hv4, "style", () => t.meta);
-				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
-				return __nsh_hv4;
-			})() : (() => {
-				const __nsh_hv5 = element("scroll");
-				prop(__nsh_hv5, "style", { maxHeight: 168 });
-				const __nsh_hv6 = element("view");
-				prop(__nsh_hv6, "style", {
-					display: "flex",
-					flexDirection: "column"
-				});
-				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
-				append(__nsh_hv5, __nsh_hv6);
-				return __nsh_hv5;
-			})());
-			return __nsh_hv0;
-		})();
-	}
-	function containerOption(row) {
-		const id = containerId$1(row);
-		const state = containerState$1(row);
-		return (() => {
-			const __nsh_hv7 = element("view");
-			prop(__nsh_hv7, "onPress", () => selectContainer(row));
-			prop(__nsh_hv7, "role", "button");
-			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName$1(row)}`);
-			bindProp(__nsh_hv7, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 8,
-				paddingHorizontal: 8,
-				paddingVertical: 6,
-				borderRadius: r.control,
-				backgroundColor: selectedId() === id ? c.hover() : "transparent"
-			}));
-			const __nsh_hv8 = element("text");
-			prop(__nsh_hv8, "numberOfLines", 1);
-			bindProp(__nsh_hv8, "style", () => ({
-				fontSize: 12,
-				fontWeight: "500",
-				color: c.text(),
-				width: 180
-			}));
-			insert(__nsh_hv8, () => containerName$1(row));
-			const __nsh_hv9 = element("text");
-			prop(__nsh_hv9, "numberOfLines", 1);
-			bindProp(__nsh_hv9, "style", () => ({
-				...t.mono,
-				fontSize: 11,
-				color: c.muted(),
-				flex: 1,
-				minWidth: 0
-			}));
-			insert(__nsh_hv9, () => containerImage$1(row));
-			append(__nsh_hv7, __nsh_hv8);
-			append(__nsh_hv7, __nsh_hv9);
-			insert(__nsh_hv7, component(Badge, {
-				get text() {
-					return state.length === 0 ? "unknown" : state;
-				},
-				get tone() {
-					return stateTone$2(state);
-				}
-			}));
-			return __nsh_hv7;
-		})();
-	}
-	function pickerToggle() {
-		return component(Button, {
-			get label() {
-				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
-			},
-			small: true,
-			onPress: () => pickerOpen.set(!pickerOpen())
-		});
-	}
-	function containerBar() {
-		return (() => {
-			const __nsh_hv10 = element("view");
-			prop(__nsh_hv10, "style", {
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0
-			});
-			insert(__nsh_hv10, [component(Row, {
-				wrap: true,
-				gap: 8,
-				get style() {
-					return {
-						paddingHorizontal: 14,
-						paddingBottom: pickerOpen() ? 6 : 10
-					};
-				},
-				get children() {
-					return [
-						component(SearchField, {
-							get value() {
-								return containerQuery();
-							},
-							onChange: (text) => {
-								containerQuery.set(text);
-								if (!pickerOpen()) pickerOpen.set(true);
-							},
-							placeholder: "按名称 / 镜像过滤容器",
-							width: 280
-						}),
-						(() => {
-							const __nsh_hv11 = element("text");
-							bindProp(__nsh_hv11, "style", () => t.meta);
-							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
-							return __nsh_hv11;
-						})(),
-						() => selectedId() === null ? (() => {
-							const __nsh_hv12 = element("text");
-							bindProp(__nsh_hv12, "style", () => t.meta);
-							const __nsh_hv13 = text("未选择容器");
-							append(__nsh_hv12, __nsh_hv13);
-							return __nsh_hv12;
-						})() : (() => {
-							const __nsh_hv14 = element("text");
-							prop(__nsh_hv14, "numberOfLines", 1);
-							bindProp(__nsh_hv14, "style", () => ({
-								...t.meta,
-								color: c.text(),
-								maxWidth: 360
-							}));
-							insert(__nsh_hv14, () => selectedSummary());
-							return __nsh_hv14;
-						})(),
-						(() => {
-							const __nsh_hv15 = element("view");
-							prop(__nsh_hv15, "style", { flex: 1 });
-							return __nsh_hv15;
-						})(),
-						component(Button, {
-							label: "刷新列表",
-							small: true,
-							onPress: () => void loadContainers()
-						}),
-						() => pickerToggle()
-					];
-				}
-			}), () => pickerList()]);
-			return __nsh_hv10;
-		})();
-	}
-	function mountRow(entry) {
-		const type = typeOf(entry);
-		const readOnly = isReadOnly(entry);
-		const name = str(entry, "Name", "");
-		return (() => {
-			const __nsh_hv16 = element("view");
-			bindProp(__nsh_hv16, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 5,
-				paddingHorizontal: 12,
-				paddingVertical: 9,
-				borderBottomWidth: 1,
-				borderBottomColor: c.line()
-			}));
-			insert(__nsh_hv16, [
-				component(Row, {
-					gap: 8,
-					get children() {
-						return [
-							component(Badge, {
-								text: type,
-								get tone() {
-									return typeTone(type);
-								}
-							}),
-							() => readOnly ? component(Badge, {
-								text: "只读",
-								tone: "warn"
-							}) : component(Badge, {
-								text: "可写",
-								tone: "neutral"
-							}),
-							(() => {
-								const __nsh_hv17 = element("text");
-								prop(__nsh_hv17, "numberOfLines", 1);
-								bindProp(__nsh_hv17, "style", () => t.meta);
-								insert(__nsh_hv17, () => `模式 ${modeOf(entry)}`);
-								return __nsh_hv17;
-							})(),
-							(() => {
-								const __nsh_hv18 = element("text");
-								prop(__nsh_hv18, "numberOfLines", 1);
-								bindProp(__nsh_hv18, "style", () => ({
-									...t.meta,
-									flex: 1,
-									minWidth: 0,
-									textAlign: "right"
-								}));
-								insert(__nsh_hv18, () => name.length > 0 ? `名称 ${name}` : "");
-								return __nsh_hv18;
-							})()
-						];
-					}
-				}),
-				component(Row, {
-					gap: 6,
-					align: "flex-start",
-					get children() {
-						return [(() => {
-							const __nsh_hv19 = element("text");
-							bindProp(__nsh_hv19, "style", () => ({
-								...t.label,
-								width: 26,
-								flexShrink: 0
-							}));
-							const __nsh_hv20 = text("源");
-							append(__nsh_hv19, __nsh_hv20);
-							return __nsh_hv19;
-						})(), (() => {
-							const __nsh_hv21 = element("text");
-							bindProp(__nsh_hv21, "style", () => ({
-								...t.mono,
-								flex: 1,
-								minWidth: 0
-							}));
-							insert(__nsh_hv21, () => str(entry, "Source", "-"));
-							return __nsh_hv21;
-						})()];
-					}
-				}),
-				component(Row, {
-					gap: 6,
-					align: "flex-start",
-					get children() {
-						return [(() => {
-							const __nsh_hv22 = element("text");
-							bindProp(__nsh_hv22, "style", () => ({
-								...t.label,
-								width: 26,
-								flexShrink: 0
-							}));
-							const __nsh_hv23 = text("目标");
-							append(__nsh_hv22, __nsh_hv23);
-							return __nsh_hv22;
-						})(), (() => {
-							const __nsh_hv24 = element("text");
-							bindProp(__nsh_hv24, "style", () => ({
-								...t.mono,
-								flex: 1,
-								minWidth: 0
-							}));
-							insert(__nsh_hv24, () => str(entry, "Destination", "-"));
-							return __nsh_hv24;
-						})()];
-					}
-				})
-			]);
-			return __nsh_hv16;
-		})();
-	}
-	function selectionGate() {
-		if (containersError() !== null && containers().length === 0) return component(LoadError, {
-			get message() {
-				return containersError() ?? "";
-			},
-			onRetry: () => void loadContainers()
-		});
-		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (containers().length === 0) return component(Empty, {
-			title: "这个连接里没有容器",
-			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
-			get action() {
-				return component(Button, {
-					label: "重新读取容器列表",
-					small: true,
-					onPress: () => void loadContainers()
-				});
-			}
-		});
-		return component(Empty, {
-			title: "先选择一个容器",
-			get hint() {
-				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会读取它的挂载。`;
-			}
-		});
-	}
-	function body() {
-		if (selectedId() === null) return selectionGate();
-		if (loading() && mounts().length === 0) return component(Loading, { label: "正在读取容器挂载…" });
-		if (error() !== null && mounts().length === 0) return component(LoadError, {
-			get message() {
-				return error() ?? "";
-			},
-			onRetry: () => void load()
-		});
-		if (mounts().length === 0) return component(Empty, {
-			title: "容器没有挂载",
-			hint: "容器启动时没有声明 bind / volume / tmpfs 挂载，因此没有宿主机路径映射进来。",
-			get action() {
-				return component(Button, {
-					label: "重新读取",
-					small: true,
-					onPress: () => void load()
-				});
-			}
-		});
-		return (() => {
-			const __nsh_hv25 = element("view");
-			prop(__nsh_hv25, "style", {
-				flex: 1,
-				minHeight: 0,
-				display: "flex",
-				flexDirection: "column"
-			});
-			const __nsh_hv27 = element("scroll");
-			prop(__nsh_hv27, "style", {
-				flex: 1,
-				minHeight: 0
-			});
-			const __nsh_hv28 = element("view");
-			prop(__nsh_hv28, "style", {
-				display: "flex",
-				flexDirection: "column"
-			});
-			insert(__nsh_hv28, () => mounts().map((entry) => mountRow(entry)));
-			append(__nsh_hv27, __nsh_hv28);
-			const __nsh_hv29 = element("view");
-			bindProp(__nsh_hv29, "style", () => ({
-				paddingHorizontal: 12,
-				paddingVertical: 7,
-				borderTopWidth: 1,
-				borderTopColor: c.line(),
-				backgroundColor: c.panel(),
-				flexShrink: 0
-			}));
-			const __nsh_hv30 = element("text");
-			prop(__nsh_hv30, "numberOfLines", 1);
-			bindProp(__nsh_hv30, "style", () => t.meta);
-			const __nsh_hv31 = text("数据来自容器 Mounts 字段；RW=false 或 Mode 以 ro 开头的挂载按只读显示。");
-			append(__nsh_hv30, __nsh_hv31);
-			append(__nsh_hv29, __nsh_hv30);
-			append(__nsh_hv25, __nsh_hv27);
-			append(__nsh_hv25, __nsh_hv29);
-			insert(__nsh_hv25, () => error() === null ? null : (() => {
-				const __nsh_hv26 = element("view");
-				prop(__nsh_hv26, "style", {
-					paddingHorizontal: 12,
-					paddingTop: 8
-				});
-				insert(__nsh_hv26, component(Notice, { get message() {
-					return `刷新失败：${error() ?? ""}`;
-				} }));
-				return __nsh_hv26;
-			})(), __nsh_hv27);
-			return __nsh_hv25;
-		})();
-	}
-	function toolbar() {
-		return component(Row, {
-			gap: 8,
-			style: {
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				justifyContent: "space-between",
-				flexShrink: 0
-			},
-			get children() {
-				return [component(Row, {
-					gap: 8,
-					get children() {
-						return [(() => {
-							const __nsh_hv32 = element("text");
-							bindProp(__nsh_hv32, "style", () => t.h1);
-							const __nsh_hv33 = text("挂载");
-							append(__nsh_hv32, __nsh_hv33);
-							return __nsh_hv32;
-						})(), () => selectedId() === null ? (() => {
-							const __nsh_hv34 = element("text");
-							bindProp(__nsh_hv34, "style", () => t.meta);
-							const __nsh_hv35 = text("未选择容器");
-							append(__nsh_hv34, __nsh_hv35);
-							return __nsh_hv34;
-						})() : [(() => {
-							const __nsh_hv36 = element("text");
-							bindProp(__nsh_hv36, "style", () => t.meta);
-							insert(__nsh_hv36, () => `${mounts().length} 个挂载`);
-							return __nsh_hv36;
-						})(), component(Badge, {
-							get text() {
-								return `只读 ${readOnlyCount()}`;
-							},
-							tone: "warn"
-						})]];
-					}
-				}), component(Row, {
-					gap: 6,
-					get children() {
-						return [() => busy() ? (() => {
-							const __nsh_hv37 = element("text");
-							bindProp(__nsh_hv37, "style", () => t.meta);
-							const __nsh_hv38 = text("正在读取…");
-							append(__nsh_hv37, __nsh_hv38);
-							return __nsh_hv37;
-						})() : null, component(Button, {
-							label: "刷新",
-							small: true,
-							onPress: () => refresh()
-						})];
-					}
-				})];
-			}
-		});
-	}
-	loadContainers();
-	return (() => {
-		const __nsh_hv39 = element("view");
-		bindProp(__nsh_hv39, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv40 = element("view");
-		bindProp(__nsh_hv40, "style", () => hairline());
-		append(__nsh_hv39, __nsh_hv40);
-		insert(__nsh_hv39, () => toolbar(), __nsh_hv40);
-		insert(__nsh_hv39, [() => containerBar(), () => body()]);
-		return __nsh_hv39;
-	})();
-}
-
-//#endregion
-//#region pages/container-stats/App.tsx
-function numberField(source, key) {
-	if (source === null) return null;
-	const value = source[key];
-	return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-function clockText(date) {
-	const two = (value) => String(value).padStart(2, "0");
-	return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
-}
-const containerId = (row) => str(row, "id", "");
-const containerName = (row) => str(row, "name", "");
-const containerImage = (row) => str(row, "image", "");
-const containerState = (row) => str(row, "state", "");
-function stateTone$1(state) {
-	if (state === "running") return "ok";
-	if (state === "paused" || state === "restarting") return "warn";
-	if (state === "exited" || state === "dead") return "danger";
-	return "neutral";
-}
-const AUTO_REFRESH_MS = 2e3;
-function ContainerStats() {
-	const sample = signal(null);
-	const sampledAt = signal("-");
-	const loading = signal(true);
-	const error = signal(null);
-	const busy = signal(false);
-	const autoRefresh = signal(false);
-	const containers = signal([]);
-	const containerQuery = signal("");
-	const containersLoading = signal(true);
-	const containersError = signal(null);
-	const selectedId = signal(null);
-	const selectedName = signal("");
-	const pickerOpen = signal(true);
-	let seq = 0;
-	let timer = null;
-	const cpu = () => numberField(sample(), "cpu_percent");
-	const cores = () => numberField(sample(), "online_cpus");
-	const usage = () => numberField(sample(), "memory_usage_bytes");
-	const limit = () => numberField(sample(), "memory_limit_bytes");
-	function hasSample() {
-		return sample() !== null && (cpu() !== null || usage() !== null);
-	}
-	function cpuText() {
-		const value = cpu();
-		return value === null ? "-" : `${value.toFixed(1)}%`;
-	}
-	function coresHint() {
-		const value = cores();
-		if (value === null) return "核数未知";
-		return `${value} 个核 · 100% ≈ 1 核满载`;
-	}
-	function memoryCaption() {
-		return `${humanBytes(usage())} / ${humanBytes(limit())}`;
-	}
-	function memoryLeft() {
-		const used = usage();
-		const total = limit();
-		if (used === null || total === null) return "-";
-		return humanBytes(Math.max(0, total - used));
-	}
-	function visibleContainers() {
-		const needle = containerQuery().trim().toLowerCase();
-		if (needle.length === 0) return containers();
-		return containers().filter((row) => `${containerName(row)} ${containerImage(row)}`.toLowerCase().includes(needle));
-	}
-	function selectedSummary() {
-		const id = selectedId();
-		if (id === null) return "";
-		const row = containers().find((item) => containerId(item) === id);
-		return row === void 0 ? selectedName() : `${containerName(row)} · ${containerImage(row)}`;
-	}
-	function resetData() {
-		sample.set(null);
-		sampledAt.set("-");
-		error.set(null);
-	}
-	function stopTimer() {
-		if (timer !== null) {
-			clearInterval(timer);
-			timer = null;
-		}
-	}
-	function setAutoRefresh(on) {
-		autoRefresh.set(on);
-		stopTimer();
-		if (on) timer = setInterval(() => {
-			if (selectedId() !== null) load();
-		}, AUTO_REFRESH_MS);
-	}
-	function clearSelection() {
-		selectedId.set(null);
-		selectedName.set("");
-		resetData();
-		loading.set(false);
-		pickerOpen.set(true);
-	}
-	function selectContainer(row) {
-		const id = containerId(row);
-		if (id.length === 0) return;
-		if (selectedId() === id) {
-			pickerOpen.set(false);
-			return;
-		}
-		selectedId.set(id);
-		selectedName.set(containerName(row));
-		pickerOpen.set(false);
-		resetData();
-		loading.set(true);
-		load();
-	}
-	function refresh() {
-		if (selectedId() === null) loadContainers();
-		else load();
-	}
-	async function loadContainers() {
-		containersLoading.set(true);
-		try {
-			const result = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			const list = Array.isArray(result) ? result : arr(result, "containers");
-			containers.set(list);
-			containersError.set(null);
-			const current = selectedId();
-			if (current !== null && !list.some((row) => containerId(row) === current)) clearSelection();
-		} catch (failure) {
-			containersError.set(errorMessage(failure));
-		} finally {
-			containersLoading.set(false);
-		}
-	}
-	async function load() {
-		const id = selectedId();
-		if (id === null) return;
-		if (busy()) return;
-		const mine = ++seq;
-		busy.set(true);
-		if (sample() === null) loading.set(true);
-		try {
-			const result = await invoke$1("docker/container/stats", { id }, { timeout: SLOW_TIMEOUT_MS });
-			if (mine !== seq) return;
-			sample.set(result ?? null);
-			sampledAt.set(clockText(/* @__PURE__ */ new Date()));
-			error.set(null);
-		} catch (failure) {
-			if (mine !== seq) return;
-			error.set(errorMessage(failure));
-		} finally {
-			if (mine === seq) {
-				loading.set(false);
-				busy.set(false);
-			}
-		}
-	}
-	function pickerList() {
-		if (!pickerOpen()) return null;
-		return (() => {
-			const __nsh_hv0 = element("view");
-			bindProp(__nsh_hv0, "style", () => ({
-				display: "flex",
-				flexDirection: "column",
-				gap: 4,
-				marginHorizontal: 14,
-				marginBottom: 8,
-				padding: 6,
-				borderWidth: 1,
-				borderColor: c.line(),
-				borderRadius: r.card,
-				backgroundColor: c.panel()
-			}));
-			insert(__nsh_hv0, () => containersLoading() && containers().length === 0 ? (() => {
-				const __nsh_hv1 = element("text");
-				bindProp(__nsh_hv1, "style", () => t.meta);
-				const __nsh_hv2 = text("正在读取容器列表…");
-				append(__nsh_hv1, __nsh_hv2);
-				return __nsh_hv1;
-			})() : containersError() !== null && containers().length === 0 ? component(Row, {
-				gap: 8,
-				get children() {
-					return [(() => {
-						const __nsh_hv3 = element("text");
-						bindProp(__nsh_hv3, "style", () => ({
-							...t.meta,
-							color: c.danger()
-						}));
-						insert(__nsh_hv3, () => `容器列表读取失败：${containersError()}`);
-						return __nsh_hv3;
-					})(), component(Button, {
-						label: "重试",
-						small: true,
-						onPress: () => void loadContainers()
-					})];
-				}
-			}) : visibleContainers().length === 0 ? (() => {
-				const __nsh_hv4 = element("text");
-				bindProp(__nsh_hv4, "style", () => t.meta);
-				insert(__nsh_hv4, () => containers().length === 0 ? "这个连接里没有容器。" : "没有匹配的容器，换个关键词试试。");
-				return __nsh_hv4;
-			})() : (() => {
-				const __nsh_hv5 = element("scroll");
-				prop(__nsh_hv5, "style", { maxHeight: 168 });
-				const __nsh_hv6 = element("view");
-				prop(__nsh_hv6, "style", {
-					display: "flex",
-					flexDirection: "column"
-				});
-				insert(__nsh_hv6, () => visibleContainers().map((row) => containerOption(row)));
-				append(__nsh_hv5, __nsh_hv6);
-				return __nsh_hv5;
-			})());
-			return __nsh_hv0;
-		})();
-	}
-	function containerOption(row) {
-		const id = containerId(row);
-		const state = containerState(row);
-		return (() => {
-			const __nsh_hv7 = element("view");
-			prop(__nsh_hv7, "onPress", () => selectContainer(row));
-			prop(__nsh_hv7, "role", "button");
-			bindProp(__nsh_hv7, "accessibilityLabel", () => `容器 ${containerName(row)}`);
-			bindProp(__nsh_hv7, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 8,
-				paddingHorizontal: 8,
-				paddingVertical: 6,
-				borderRadius: r.control,
-				backgroundColor: selectedId() === id ? c.hover() : "transparent"
-			}));
-			const __nsh_hv8 = element("text");
-			prop(__nsh_hv8, "numberOfLines", 1);
-			bindProp(__nsh_hv8, "style", () => ({
-				fontSize: 12,
-				fontWeight: "500",
-				color: c.text(),
-				width: 180
-			}));
-			insert(__nsh_hv8, () => containerName(row));
-			const __nsh_hv9 = element("text");
-			prop(__nsh_hv9, "numberOfLines", 1);
-			bindProp(__nsh_hv9, "style", () => ({
-				...t.mono,
-				fontSize: 11,
-				color: c.muted(),
-				flex: 1,
-				minWidth: 0
-			}));
-			insert(__nsh_hv9, () => containerImage(row));
-			append(__nsh_hv7, __nsh_hv8);
-			append(__nsh_hv7, __nsh_hv9);
-			insert(__nsh_hv7, component(Badge, {
-				get text() {
-					return state.length === 0 ? "unknown" : state;
-				},
-				get tone() {
-					return stateTone$1(state);
-				}
-			}));
-			return __nsh_hv7;
-		})();
-	}
-	function pickerToggle() {
-		return component(Button, {
-			get label() {
-				return pickerOpen() ? "收起列表" : selectedId() === null ? "选择容器" : "切换容器";
-			},
-			small: true,
-			onPress: () => pickerOpen.set(!pickerOpen())
-		});
-	}
-	function autoRefreshToggle() {
-		return component(Button, {
-			get label() {
-				return autoRefresh() ? `自动刷新 · ${AUTO_REFRESH_MS / 1e3}s` : "自动刷新";
-			},
-			small: true,
-			get tone() {
-				return autoRefresh() ? "primary" : "ghost";
-			},
-			onPress: () => setAutoRefresh(!autoRefresh())
-		});
-	}
-	function containerBar() {
-		return (() => {
-			const __nsh_hv10 = element("view");
-			prop(__nsh_hv10, "style", {
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0
-			});
-			insert(__nsh_hv10, [component(Row, {
-				wrap: true,
-				gap: 8,
-				get style() {
-					return {
-						paddingHorizontal: 14,
-						paddingBottom: pickerOpen() ? 6 : 10
-					};
-				},
-				get children() {
-					return [
-						component(SearchField, {
-							get value() {
-								return containerQuery();
-							},
-							onChange: (text) => {
-								containerQuery.set(text);
-								if (!pickerOpen()) pickerOpen.set(true);
-							},
-							placeholder: "按名称 / 镜像过滤容器",
-							width: 280
-						}),
-						(() => {
-							const __nsh_hv11 = element("text");
-							bindProp(__nsh_hv11, "style", () => t.meta);
-							insert(__nsh_hv11, () => `${visibleContainers().length} / ${containers().length} 个容器`);
-							return __nsh_hv11;
-						})(),
-						() => selectedId() === null ? (() => {
-							const __nsh_hv12 = element("text");
-							bindProp(__nsh_hv12, "style", () => t.meta);
-							const __nsh_hv13 = text("未选择容器");
-							append(__nsh_hv12, __nsh_hv13);
-							return __nsh_hv12;
-						})() : (() => {
-							const __nsh_hv14 = element("text");
-							prop(__nsh_hv14, "numberOfLines", 1);
-							bindProp(__nsh_hv14, "style", () => ({
-								...t.meta,
-								color: c.text(),
-								maxWidth: 360
-							}));
-							insert(__nsh_hv14, () => selectedSummary());
-							return __nsh_hv14;
-						})(),
-						(() => {
-							const __nsh_hv15 = element("view");
-							prop(__nsh_hv15, "style", { flex: 1 });
-							return __nsh_hv15;
-						})(),
-						component(Button, {
-							label: "刷新列表",
-							small: true,
-							onPress: () => void loadContainers()
-						}),
-						() => pickerToggle()
-					];
-				}
-			}), () => pickerList()]);
-			return __nsh_hv10;
-		})();
-	}
-	function selectionGate() {
-		if (containersError() !== null && containers().length === 0) return component(LoadError, {
-			get message() {
-				return containersError() ?? "";
-			},
-			onRetry: () => void loadContainers()
-		});
-		if (containersLoading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (containers().length === 0) return component(Empty, {
-			title: "这个连接里没有容器",
-			hint: "docker/container/list 返回了空列表（包含已停止的容器）：先在 Docker 里创建或启动一个容器。",
-			get action() {
-				return component(Button, {
-					label: "重新读取容器列表",
-					small: true,
-					onPress: () => void loadContainers()
-				});
-			}
-		});
-		return component(Empty, {
-			title: "先选择一个容器",
-			get hint() {
-				return `连接里有 ${containers().length} 个容器：在上方列表里点一个，页面会采样它的资源占用。`;
-			}
-		});
-	}
-	function content() {
-		if (selectedId() === null) return selectionGate();
-		if (loading() && sample() === null) return component(Loading, { label: "正在采样容器资源占用…" });
-		if (error() !== null && sample() === null) return component(LoadError, {
-			get message() {
-				return error() ?? "";
-			},
-			onRetry: () => void load()
-		});
-		if (!hasSample()) return component(Empty, {
-			title: "没有可用的采样",
-			hint: "containerStats 没有返回 CPU / 内存数据：容器可能已经停止，或这次一次性采样失败。刷新会重新取一次。",
-			get action() {
-				return component(Button, {
-					label: "重新采样",
-					small: true,
-					onPress: () => void load()
-				});
-			}
-		});
-		return (() => {
-			const __nsh_hv16 = element("scroll");
-			prop(__nsh_hv16, "style", {
-				flex: 1,
-				minHeight: 0
-			});
-			const __nsh_hv17 = element("view");
-			prop(__nsh_hv17, "style", {
-				padding: 14,
-				display: "flex",
-				flexDirection: "column",
-				gap: 12
-			});
-			insert(__nsh_hv17, [
-				() => error() === null ? null : component(Notice, { get message() {
-					return `刷新失败：${error() ?? ""}`;
-				} }),
-				component(Row, {
-					gap: 12,
-					wrap: true,
-					get children() {
-						return [
-							component(Stat, {
-								label: "CPU 使用率",
-								get value() {
-									return cpuText();
-								},
-								get hint() {
-									return coresHint();
-								}
-							}),
-							component(Stat, {
-								label: "内存用量",
-								get value() {
-									return humanBytes(usage());
-								},
-								get hint() {
-									return `上限 ${humanBytes(limit())}`;
-								}
-							}),
-							component(Stat, {
-								label: "内存使用率",
-								get value() {
-									return percent(usage(), limit());
-								},
-								get hint() {
-									return `剩余 ${memoryLeft()}`;
-								},
-								get tone() {
-									return ratio(usage(), limit()) > .9 ? "danger" : "neutral";
-								}
-							})
-						];
-					}
-				}),
-				component(Card, {
-					title: "内存",
-					hint: "用量 / 上限",
-					get children() {
-						return [
-							component(Meter, {
-								get ratio() {
-									return ratio(usage(), limit());
-								},
-								label: "内存占用",
-								get caption() {
-									return memoryCaption();
-								}
-							}),
-							component(Row, {
-								style: { justifyContent: "space-between" },
-								get children() {
-									return [(() => {
-										const __nsh_hv18 = element("text");
-										bindProp(__nsh_hv18, "style", () => t.label);
-										const __nsh_hv19 = text("采样时间");
-										append(__nsh_hv18, __nsh_hv19);
-										return __nsh_hv18;
-									})(), (() => {
-										const __nsh_hv20 = element("text");
-										bindProp(__nsh_hv20, "style", () => ({
-											...t.mono,
-											color: c.muted()
-										}));
-										insert(__nsh_hv20, () => sampledAt());
-										return __nsh_hv20;
-									})()];
-								}
-							}),
-							(() => {
-								const __nsh_hv21 = element("text");
-								bindProp(__nsh_hv21, "style", () => t.meta);
-								insert(__nsh_hv21, () => autoRefresh() ? `采样时间取本次请求返回时的本地时间；自动刷新每 ${AUTO_REFRESH_MS / 1e3} 秒采样一次。` : "采样时间取本次请求返回时的本地时间；默认只手动刷新，可以打开自动刷新。");
-								return __nsh_hv21;
-							})()
-						];
-					}
-				}),
-				component(Card, {
-					title: "网络收发",
-					hint: "宿主未提供",
-					get children() {
-						return [component(Row, {
-							gap: 12,
-							wrap: true,
-							get children() {
-								return [component(Stat, {
-									label: "收到",
-									value: "—",
-									hint: "containerStats 未返回网络字段"
-								}), component(Stat, {
-									label: "发出",
-									value: "—",
-									hint: "containerStats 未返回网络字段"
-								})];
-							}
-						}), (() => {
-							const __nsh_hv22 = element("text");
-							bindProp(__nsh_hv22, "style", () => t.meta);
-							const __nsh_hv23 = text("provider 的 summarize_stats 只汇总 CPU 与内存，Docker 的 networks（rx / tx 字节与包数）没有被解析。");
-							append(__nsh_hv22, __nsh_hv23);
-							return __nsh_hv22;
-						})()];
-					}
-				}),
-				component(Card, {
-					title: "块 IO",
-					hint: "宿主未提供",
-					get children() {
-						return [component(Row, {
-							gap: 12,
-							wrap: true,
-							get children() {
-								return [component(Stat, {
-									label: "读取",
-									value: "—",
-									hint: "containerStats 未返回块 IO 字段"
-								}), component(Stat, {
-									label: "写入",
-									value: "—",
-									hint: "containerStats 未返回块 IO 字段"
-								})];
-							}
-						}), (() => {
-							const __nsh_hv24 = element("text");
-							bindProp(__nsh_hv24, "style", () => t.meta);
-							const __nsh_hv25 = text("同样，blkio_stats（read / write 字节数）不在 operation 的返回结构里；补上后这两组指标可以直接填进来。");
-							append(__nsh_hv24, __nsh_hv25);
-							return __nsh_hv24;
-						})()];
-					}
-				})
-			]);
-			append(__nsh_hv16, __nsh_hv17);
-			return __nsh_hv16;
-		})();
-	}
-	function toolbar() {
-		return component(Row, {
-			gap: 8,
-			style: {
-				paddingHorizontal: 14,
-				paddingVertical: 10,
-				justifyContent: "space-between",
-				flexShrink: 0
-			},
-			get children() {
-				return [component(Row, {
-					gap: 8,
-					get children() {
-						return [(() => {
-							const __nsh_hv26 = element("text");
-							bindProp(__nsh_hv26, "style", () => t.h1);
-							const __nsh_hv27 = text("资源占用");
-							append(__nsh_hv26, __nsh_hv27);
-							return __nsh_hv26;
-						})(), () => selectedId() === null ? (() => {
-							const __nsh_hv28 = element("text");
-							bindProp(__nsh_hv28, "style", () => t.meta);
-							const __nsh_hv29 = text("未选择容器");
-							append(__nsh_hv28, __nsh_hv29);
-							return __nsh_hv28;
-						})() : [component(Badge, {
-							get text() {
-								return `采样 ${sampledAt()}`;
-							},
-							tone: "info"
-						}), (() => {
-							const __nsh_hv30 = element("text");
-							bindProp(__nsh_hv30, "style", () => t.meta);
-							insert(__nsh_hv30, () => cores() === null ? "" : `${cores()} 个核`);
-							return __nsh_hv30;
-						})()]];
-					}
-				}), component(Row, {
-					gap: 6,
-					get children() {
-						return [
-							() => busy() ? (() => {
-								const __nsh_hv31 = element("text");
-								bindProp(__nsh_hv31, "style", () => t.meta);
-								const __nsh_hv32 = text("正在采样…");
-								append(__nsh_hv31, __nsh_hv32);
-								return __nsh_hv31;
-							})() : null,
-							() => selectedId() === null ? null : autoRefreshToggle(),
-							component(Button, {
-								label: "刷新",
-								small: true,
-								onPress: () => refresh()
-							})
-						];
-					}
-				})];
-			}
-		});
-	}
-	loadContainers();
-	return (() => {
-		const __nsh_hv33 = element("view");
-		bindProp(__nsh_hv33, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			display: "flex",
-			flexDirection: "column",
-			backgroundColor: c.bg()
-		}));
-		const __nsh_hv34 = element("view");
-		bindProp(__nsh_hv34, "style", () => hairline());
-		append(__nsh_hv33, __nsh_hv34);
-		insert(__nsh_hv33, () => toolbar(), __nsh_hv34);
-		insert(__nsh_hv33, [() => containerBar(), () => content()]);
-		return __nsh_hv33;
-	})();
-}
-
-//#endregion
-//#region pages/container-terminal/App.tsx
-/** 宿主注册的原生终端：`command` + `args` 起一个本地进程。 */
-const Terminal = nativeComponent("navop.terminal", { props: [
-	"command",
-	"args",
-	"env",
-	"title"
-] });
-const STATE_LABEL = {
-	running: "运行中",
-	exited: "已停止",
-	paused: "已暂停",
-	created: "已创建",
-	restarting: "重启中"
-};
-function stateLabel(state) {
-	const label = STATE_LABEL[state];
-	return label === void 0 ? state.length === 0 ? "未知" : state : label;
-}
-function stateTone(state) {
-	if (state === "running") return "ok";
-	if (state === "paused" || state === "restarting") return "warn";
-	if (state === "dead") return "danger";
-	return "neutral";
-}
-function toContainers(payload) {
-	const source = payload;
-	return (Array.isArray(source?.containers) ? source.containers : []).filter((item) => typeof item?.id === "string" && item.id.length > 0);
-}
-function App$1() {
-	const loading = signal(true);
-	const error = signal("");
-	const containers = signal([]);
-	const filter = signal("");
-	const selected = signal(null);
-	/** 每次点「重新连接」+1：进 env，宿主看到参数变化就重开一个 pty。 */
-	const attempt = signal(0);
-	/** 首屏之后就失败时不打断已有内容，只在顶部提示。 */
-	const notice = signal("");
-	async function load() {
-		loading.set(true);
-		error.set("");
-		try {
-			const payload = await invoke$1("docker/container/list", {}, { timeout: SLOW_TIMEOUT_MS });
-			containers.set(toContainers(payload));
-			const current = selected();
-			if (current !== null) {
-				const fresh = containers().find((item) => item.id === current.id);
-				selected.set(fresh ?? null);
-			}
-		} catch (cause) {
-			const message = errorMessage(cause);
-			error.set(message);
-			notice.set(message);
-		} finally {
-			loading.set(false);
-		}
-	}
-	load();
-	const visible = () => {
-		const keyword = filter().trim().toLowerCase();
-		const all = containers();
-		if (keyword.length === 0) return all;
-		return all.filter((item) => `${item.name} ${item.image} ${item.state}`.toLowerCase().includes(keyword));
-	};
-	const row = (item) => (() => {
-		const __nsh_hv0 = element("view");
-		prop(__nsh_hv0, "onPress", () => {
-			selected.set(item);
-			notice.set("");
-		});
-		bindProp(__nsh_hv0, "style", () => ({
-			flexDirection: "column",
-			gap: 3,
-			paddingVertical: 7,
-			paddingHorizontal: 10,
-			borderRadius: r.control,
-			backgroundColor: selected()?.id === item.id ? c.hover() : c.bg(),
-			borderWidth: 1,
-			borderColor: selected()?.id === item.id ? c.line() : "transparent"
-		}));
-		const __nsh_hv1 = element("view");
-		prop(__nsh_hv1, "style", {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 6
-		});
-		const __nsh_hv2 = element("text");
-		prop(__nsh_hv2, "numberOfLines", 1);
-		bindProp(__nsh_hv2, "style", () => ({
-			...t.body,
-			color: c.text(),
-			flexGrow: 1
-		}));
-		insert(__nsh_hv2, () => item.name);
-		append(__nsh_hv1, __nsh_hv2);
-		insert(__nsh_hv1, component(Badge, {
-			get text() {
-				return stateLabel(item.state);
-			},
-			get tone() {
-				return stateTone(item.state);
-			}
-		}));
-		const __nsh_hv3 = element("text");
-		prop(__nsh_hv3, "numberOfLines", 1);
-		bindProp(__nsh_hv3, "style", () => ({
-			...t.meta,
-			color: c.muted()
-		}));
-		insert(__nsh_hv3, () => item.image);
-		append(__nsh_hv0, __nsh_hv1);
-		append(__nsh_hv0, __nsh_hv3);
-		return __nsh_hv0;
-	})();
-	const picker = () => (() => {
-		const __nsh_hv4 = element("view");
-		prop(__nsh_hv4, "style", {
-			flexDirection: "column",
-			gap: 8,
-			height: "100%",
-			minWidth: 0
-		});
-		const __nsh_hv5 = element("view");
-		prop(__nsh_hv5, "style", {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 6
-		});
-		const __nsh_hv6 = element("view");
-		prop(__nsh_hv6, "onPress", () => void load());
-		bindProp(__nsh_hv6, "style", () => ({
-			paddingHorizontal: 8,
-			paddingVertical: 4,
-			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: c.line()
-		}));
-		const __nsh_hv7 = element("text");
-		bindProp(__nsh_hv7, "style", () => ({
-			...t.label,
-			color: c.text()
-		}));
-		const __nsh_hv8 = text("刷新列表");
-		append(__nsh_hv7, __nsh_hv8);
-		append(__nsh_hv6, __nsh_hv7);
-		const __nsh_hv9 = element("text");
-		bindProp(__nsh_hv9, "style", () => ({
-			...t.meta,
-			color: c.muted()
-		}));
-		const __nsh_hv10 = text("共 ");
-		const __nsh_hv11 = text(" 个容器");
-		append(__nsh_hv9, __nsh_hv10);
-		append(__nsh_hv9, __nsh_hv11);
-		insert(__nsh_hv9, () => containers().length, __nsh_hv11);
-		append(__nsh_hv5, __nsh_hv6);
-		append(__nsh_hv5, __nsh_hv9);
-		append(__nsh_hv4, __nsh_hv5);
-		insert(__nsh_hv4, [component(SearchField, {
-			get value() {
-				return filter();
-			},
-			onChange: (next) => filter.set(next),
-			placeholder: "过滤容器",
-			width: 220
-		}), component(List, {
-			get items() {
-				return visible();
-			},
-			keyOf: (item) => item.id,
-			get selected() {
-				return selected()?.id ?? null;
-			},
-			onSelect: (id) => {
-				selected.set(containers().find((item) => item.id === id) ?? null);
-				notice.set("");
-			},
-			render: (item) => row(item),
-			get empty() {
-				return component(Empty, {
-					title: "没有匹配的容器",
-					hint: "换个关键字，或刷新列表"
-				});
-			}
-		})], __nsh_hv5);
-		return __nsh_hv4;
-	})();
-	const terminal = (item) => (() => {
-		const __nsh_hv12 = element("view");
-		prop(__nsh_hv12, "style", {
-			flexDirection: "column",
-			gap: 8,
-			height: "100%",
-			minWidth: 0
-		});
-		const __nsh_hv13 = element("view");
-		prop(__nsh_hv13, "style", {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8
-		});
-		const __nsh_hv14 = element("text");
-		prop(__nsh_hv14, "numberOfLines", 1);
-		bindProp(__nsh_hv14, "style", () => ({
-			...t.h2,
-			color: c.text(),
-			flexGrow: 1
-		}));
-		insert(__nsh_hv14, () => item.name);
-		const __nsh_hv15 = element("view");
-		prop(__nsh_hv15, "onPress", () => attempt.set(attempt() + 1));
-		bindProp(__nsh_hv15, "style", () => ({
-			paddingHorizontal: 8,
-			paddingVertical: 4,
-			borderRadius: r.control,
-			borderWidth: 1,
-			borderColor: c.line()
-		}));
-		const __nsh_hv16 = element("text");
-		bindProp(__nsh_hv16, "style", () => ({
-			...t.label,
-			color: c.text()
-		}));
-		const __nsh_hv17 = text("重新连接");
-		append(__nsh_hv16, __nsh_hv17);
-		append(__nsh_hv15, __nsh_hv16);
-		append(__nsh_hv13, __nsh_hv14);
-		append(__nsh_hv13, __nsh_hv15);
-		insert(__nsh_hv13, component(Badge, {
-			get text() {
-				return stateLabel(item.state);
-			},
-			get tone() {
-				return stateTone(item.state);
-			}
-		}), __nsh_hv15);
-		const __nsh_hv18 = element("text");
-		bindProp(__nsh_hv18, "style", () => ({
-			...t.meta,
-			color: c.muted()
-		}));
-		insert(__nsh_hv18, () => item.state === "running" ? `在本机开一个 docker exec -it ${item.name} /bin/sh` : "容器没在运行：先启动它，再回到这里连接。");
-		const __nsh_hv19 = element("view");
-		bindProp(__nsh_hv19, "style", () => ({
-			flex: 1,
-			minHeight: 240,
-			borderRadius: r.card,
-			borderWidth: 1,
-			borderColor: c.line(),
-			backgroundColor: c.panel(),
-			overflow: "hidden"
-		}));
-		insert(__nsh_hv19, () => item.state === "running" ? component(Terminal, {
-			command: "docker",
-			get args() {
-				return [
-					"exec",
-					"-it",
-					item.name,
-					"/bin/sh"
-				];
-			},
-			get env() {
-				return {
-					NAVOP_SESSION: String(attempt()),
-					NAVOP_TERM: "xterm-256color"
-				};
-			},
-			get title() {
-				return item.name;
-			}
-		}) : component(Empty, {
-			title: "容器未运行",
-			hint: "启动容器后点上面的「重新连接」"
-		}));
-		append(__nsh_hv12, __nsh_hv13);
-		append(__nsh_hv12, __nsh_hv18);
-		append(__nsh_hv12, __nsh_hv19);
-		return __nsh_hv12;
-	})();
-	const body = () => {
-		if (loading() && containers().length === 0) return component(Loading, { label: "正在读取容器列表…" });
-		if (error().length > 0 && containers().length === 0) return component(LoadError, {
-			get message() {
-				return error();
-			},
-			onRetry: () => void load()
-		});
-		const current = selected();
-		return (() => {
-			const __nsh_hv20 = element("view");
-			prop(__nsh_hv20, "style", {
-				flexDirection: "column",
-				gap: 8,
-				flex: 1,
-				minHeight: 0
-			});
-			insert(__nsh_hv20, [() => notice().length > 0 ? (() => {
-				const __nsh_hv21 = element("view");
-				bindProp(__nsh_hv21, "style", () => ({
-					paddingHorizontal: 10,
-					paddingVertical: 6,
-					borderRadius: r.control,
-					backgroundColor: c.panel(),
-					borderWidth: 1,
-					borderColor: c.danger()
-				}));
-				const __nsh_hv22 = element("text");
-				bindProp(__nsh_hv22, "style", () => ({
-					...t.meta,
-					color: c.danger()
-				}));
-				insert(__nsh_hv22, () => notice());
-				append(__nsh_hv21, __nsh_hv22);
-				return __nsh_hv21;
-			})() : null, component(SplitPane, {
-				width: 260,
-				get left() {
-					return picker();
-				},
-				get right() {
-					return current !== null ? terminal(current) : component(Empty, {
-						title: "选一个容器",
-						hint: "左边点一个容器，右边就会开一个 shell"
-					});
-				}
-			})]);
-			return __nsh_hv20;
-		})();
-	};
-	return (() => {
-		const __nsh_hv23 = element("view");
-		bindProp(__nsh_hv23, "style", () => ({
-			flex: 1,
-			minHeight: 0,
-			padding: 12,
-			backgroundColor: c.bg()
-		}));
-		insert(__nsh_hv23, () => body());
-		return __nsh_hv23;
-	})();
-}
-
-//#endregion
 //#region App.tsx
 /** 默认路由：也是连接清单里 `route` 的值。 */
 const DEFAULT_ROUTE = "containers";
-/** 路由表。顺序就是侧栏顺序：先资源（容器/镜像/卷/网络），再引擎与容器单点视图。 */
-const ROUTES = [
+/** 路由表。分组表达关系：资源是引擎里的东西，后六个是「已选中那个容器」的单点视图。 */
+const GROUPS = [
 	{
-		id: "containers",
-		title: "容器",
-		glyph: "C",
-		component: Containers
+		title: "资源",
+		items: [
+			{
+				id: "containers",
+				title: "容器",
+				component: Containers
+			},
+			{
+				id: "images",
+				title: "镜像",
+				component: Images
+			},
+			{
+				id: "volumes",
+				title: "数据卷",
+				component: Volumes
+			},
+			{
+				id: "networks",
+				title: "网络",
+				component: Networks
+			}
+		]
 	},
 	{
-		id: "images",
-		title: "Docker Images",
-		glyph: "I",
-		component: Images
+		title: "引擎",
+		items: [{
+			id: "overview",
+			title: "引擎概览",
+			component: Overview
+		}, {
+			id: "log-viewer",
+			title: "日志",
+			component: LogViewer
+		}]
 	},
 	{
-		id: "volumes",
-		title: "Docker Volumes",
-		glyph: "V",
-		component: Volumes
-	},
-	{
-		id: "networks",
-		title: "Docker Networks",
-		glyph: "N",
-		component: Networks
-	},
-	{
-		id: "overview",
-		title: "Docker Engine Overview",
-		glyph: "O",
-		component: Overview
-	},
-	{
-		id: "log-viewer",
-		title: "Docker Log Viewer",
-		glyph: "L",
-		component: LogViewer
-	},
-	{
-		id: "processes",
-		title: "Container Processes",
-		glyph: "P",
-		component: Processes
-	},
-	{
-		id: "changes",
-		title: "Container Filesystem Changes",
-		glyph: "D",
-		component: Changes
-	},
-	{
-		id: "container-inspect",
-		title: "Docker Container Inspect",
-		glyph: "i",
-		component: ContainerInspect
-	},
-	{
-		id: "container-mounts",
-		title: "Docker Container Mounts",
-		glyph: "M",
-		component: ContainerMounts
-	},
-	{
-		id: "container-stats",
-		title: "Docker Container Stats",
-		glyph: "S",
-		component: ContainerStats
-	},
-	{
-		id: "container-terminal",
-		title: "Container Terminal",
-		glyph: ">",
-		component: App$1
+		title: "单个容器",
+		hidden: true,
+		items: [
+			{
+				id: "processes",
+				title: "进程",
+				component: Processes
+			},
+			{
+				id: "container-files",
+				title: "容器文件",
+				component: ContainerFiles
+			},
+			{
+				id: "changes",
+				title: "文件变更",
+				component: Changes
+			},
+			{
+				id: "container-inspect",
+				title: "检查",
+				component: ContainerInspect
+			},
+			{
+				id: "container-mounts",
+				title: "挂载",
+				component: ContainerMounts
+			},
+			{
+				id: "container-stats",
+				title: "统计",
+				component: ContainerStats
+			},
+			{
+				id: "container-terminal",
+				title: "终端",
+				component: App$1
+			}
+		]
 	}
 ];
+/** 扁平路由表（查找用，含不进侧栏的老路由）。 */
+const ROUTES = GROUPS.reduce((all, group) => all.concat(group.items), []);
+/** 侧栏只画显式列出来的组。 */
+const SIDEBAR_GROUPS = GROUPS.filter((group) => group.hidden !== true);
 /** 未知 route 回落默认路由（老的 view id、拼写错误都走这里）。 */
 function resolveRoute(value) {
 	if (typeof value === "string" && ROUTES.some((item) => item.id === value)) return value;
@@ -9000,6 +10247,8 @@ function resolveRoute(value) {
 function routeById(id) {
 	return ROUTES.find((item) => item.id === id) ?? ROUTES[0];
 }
+/** 侧栏宽度。216 能放下「文件变更」这类四字标题，再宽就抢内容区了。 */
+const SIDEBAR_WIDTH = 216;
 function App() {
 	const route = signal(resolveRoute(params.route));
 	const connection = params.connection ?? null;
@@ -9016,125 +10265,120 @@ function App() {
 		}));
 		const __nsh_hv1 = element("view");
 		bindProp(__nsh_hv1, "style", () => ({
-			width: 208,
+			width: SIDEBAR_WIDTH,
 			flexShrink: 0,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column",
-			backgroundColor: c.panel(),
+			backgroundColor: c.sidebar(),
 			borderRightWidth: 1,
-			borderRightColor: c.line()
+			borderRightColor: c.sidebarLine()
 		}));
 		const __nsh_hv2 = element("view");
 		prop(__nsh_hv2, "style", {
-			paddingHorizontal: 14,
-			paddingTop: 14,
+			paddingHorizontal: 12,
+			paddingTop: 12,
 			paddingBottom: 10,
 			display: "flex",
 			flexDirection: "column",
-			gap: 2
+			gap: 3
 		});
 		const __nsh_hv3 = element("text");
 		bindProp(__nsh_hv3, "style", () => t.h1);
 		prop(__nsh_hv3, "numberOfLines", 1);
 		insert(__nsh_hv3, title);
-		const __nsh_hv4 = element("text");
-		bindProp(__nsh_hv4, "style", () => t.meta);
-		prop(__nsh_hv4, "numberOfLines", 1);
-		insert(__nsh_hv4, () => connection === null ? "未连接" : connection.name ?? "已连接");
+		const __nsh_hv4 = element("view");
+		prop(__nsh_hv4, "style", {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 5
+		});
+		const __nsh_hv5 = element("text");
+		bindProp(__nsh_hv5, "style", () => t.meta);
+		prop(__nsh_hv5, "numberOfLines", 1);
+		insert(__nsh_hv5, () => connection === null ? "未连接" : connection.name ?? "已连接");
+		append(__nsh_hv4, __nsh_hv5);
+		insert(__nsh_hv4, component(Dot, {
+			get color() {
+				return connection === null ? c.muted() : c.chart(1);
+			},
+			size: 5
+		}), __nsh_hv5);
 		append(__nsh_hv2, __nsh_hv3);
 		append(__nsh_hv2, __nsh_hv4);
-		const __nsh_hv5 = element("view");
-		bindProp(__nsh_hv5, "style", () => hairline());
-		const __nsh_hv6 = element("scroll");
-		prop(__nsh_hv6, "style", {
+		const __nsh_hv6 = element("view");
+		bindProp(__nsh_hv6, "style", () => hairline());
+		const __nsh_hv7 = element("scroll");
+		prop(__nsh_hv7, "style", {
 			flex: 1,
 			minHeight: 0
 		});
-		const __nsh_hv7 = element("view");
-		prop(__nsh_hv7, "style", {
-			padding: 8,
-			display: "flex",
-			flexDirection: "column",
-			gap: 2
+		const __nsh_hv8 = element("view");
+		prop(__nsh_hv8, "style", {
+			paddingHorizontal: 8,
+			paddingTop: 4,
+			paddingBottom: 12
 		});
-		insert(__nsh_hv7, () => ROUTES.map((item) => (() => {
-			const __nsh_hv8 = element("view");
-			prop(__nsh_hv8, "role", "button");
-			prop(__nsh_hv8, "onPress", () => route.set(item.id));
-			bindProp(__nsh_hv8, "style", () => ({
-				display: "flex",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 9,
-				paddingVertical: 5,
-				paddingHorizontal: 8,
-				borderRadius: r.control,
-				backgroundColor: route() === item.id ? c.hover() : "transparent"
-			}));
+		insert(__nsh_hv8, () => SIDEBAR_GROUPS.map((group) => (() => {
 			const __nsh_hv9 = element("view");
-			bindProp(__nsh_hv9, "style", () => ({
-				width: 20,
-				height: 20,
-				flexShrink: 0,
-				borderRadius: r.chip,
+			prop(__nsh_hv9, "style", {
 				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				backgroundColor: route() === item.id ? c.accent() : c.hover()
-			}));
-			const __nsh_hv10 = element("text");
-			bindProp(__nsh_hv10, "style", () => ({
-				fontSize: 9,
-				fontWeight: "700",
-				color: route() === item.id ? c.accentText() : c.muted()
-			}));
-			insert(__nsh_hv10, () => item.glyph);
-			append(__nsh_hv9, __nsh_hv10);
-			const __nsh_hv11 = element("view");
-			prop(__nsh_hv11, "style", {
-				flex: 1,
-				minWidth: 0
+				flexDirection: "column",
+				gap: 1
 			});
-			const __nsh_hv12 = element("text");
-			prop(__nsh_hv12, "numberOfLines", 1);
-			bindProp(__nsh_hv12, "style", () => ({
-				fontSize: 12,
-				fontWeight: route() === item.id ? "600" : "400",
-				color: route() === item.id ? c.text() : c.muted()
+			const __nsh_hv10 = element("text");
+			prop(__nsh_hv10, "numberOfLines", 1);
+			bindProp(__nsh_hv10, "style", () => ({
+				...t.label,
+				color: c.muted(),
+				paddingHorizontal: 8,
+				paddingTop: 10,
+				paddingBottom: 4
 			}));
-			insert(__nsh_hv12, () => item.title);
-			append(__nsh_hv11, __nsh_hv12);
-			append(__nsh_hv8, __nsh_hv9);
-			append(__nsh_hv8, __nsh_hv11);
-			return __nsh_hv8;
+			insert(__nsh_hv10, () => group.title);
+			append(__nsh_hv9, __nsh_hv10);
+			insert(__nsh_hv9, () => group.items.map((item) => (() => {
+				const __nsh_hv11 = element("view");
+				prop(__nsh_hv11, "role", "button");
+				prop(__nsh_hv11, "onPress", () => route.set(item.id));
+				bindProp(__nsh_hv11, "hoverStyle", () => ({ backgroundColor: c.sidebarActive() }));
+				bindProp(__nsh_hv11, "style", () => ({
+					display: "flex",
+					flexDirection: "row",
+					alignItems: "center",
+					height: 26,
+					paddingHorizontal: 8,
+					borderRadius: r.control,
+					backgroundColor: route() === item.id ? c.sidebarActive() : "transparent",
+					cursor: "default"
+				}));
+				const __nsh_hv12 = element("text");
+				prop(__nsh_hv12, "numberOfLines", 1);
+				bindProp(__nsh_hv12, "style", () => ({
+					fontSize: 12.5,
+					fontWeight: route() === item.id ? "600" : "400",
+					color: route() === item.id ? c.sidebarActiveText() : c.sidebarText()
+				}));
+				insert(__nsh_hv12, () => item.title);
+				append(__nsh_hv11, __nsh_hv12);
+				return __nsh_hv11;
+			})()));
+			return __nsh_hv9;
 		})()));
-		append(__nsh_hv6, __nsh_hv7);
-		const __nsh_hv13 = element("view");
-		bindProp(__nsh_hv13, "style", () => hairline());
-		const __nsh_hv14 = element("view");
-		prop(__nsh_hv14, "style", {
-			paddingHorizontal: 14,
-			paddingVertical: 10
-		});
-		const __nsh_hv15 = element("text");
-		bindProp(__nsh_hv15, "style", () => t.meta);
-		insert(__nsh_hv15, () => `共 ${ROUTES.length} 个视图`);
-		append(__nsh_hv14, __nsh_hv15);
+		append(__nsh_hv7, __nsh_hv8);
 		append(__nsh_hv1, __nsh_hv2);
-		append(__nsh_hv1, __nsh_hv5);
 		append(__nsh_hv1, __nsh_hv6);
-		append(__nsh_hv1, __nsh_hv13);
-		append(__nsh_hv1, __nsh_hv14);
-		const __nsh_hv16 = element("view");
-		prop(__nsh_hv16, "style", {
+		append(__nsh_hv1, __nsh_hv7);
+		const __nsh_hv13 = element("view");
+		prop(__nsh_hv13, "style", {
 			flex: 1,
 			minWidth: 0,
 			minHeight: 0,
 			display: "flex",
 			flexDirection: "column"
 		});
-		insert(__nsh_hv16, () => {
+		insert(__nsh_hv13, () => {
 			if (connection === null) return component(Empty, {
 				title: "请先打开一个 Docker 连接",
 				hint: "在工具箱或连接列表里打开 Docker，连接成功后会显示容器与资源视图。"
@@ -9143,7 +10387,7 @@ function App() {
 			return component(Page, {});
 		});
 		append(__nsh_hv0, __nsh_hv1);
-		append(__nsh_hv0, __nsh_hv16);
+		append(__nsh_hv0, __nsh_hv13);
 		return __nsh_hv0;
 	})();
 }

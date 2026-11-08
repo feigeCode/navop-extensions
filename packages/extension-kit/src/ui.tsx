@@ -147,31 +147,47 @@ export function Card(props: {
   );
 }
 
-/** 状态胶囊。 */
-export function Badge(props: { text: string; tone?: Maybe<Tone> }) {
+/** 状态胶囊：底色填充，不描边（描边胶囊一多就成"盒子汤"）。 */
+export function Badge(props: { text: string; tone?: Maybe<Tone>; dot?: boolean }) {
   return (
     <View
       style={{
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+        height: 18,
+        paddingHorizontal: 7,
         borderRadius: r.pill,
-        borderWidth: 1,
-        borderColor: toneColor(pick(props.tone ?? "neutral")),
+        backgroundColor: c.hover(),
         display: "flex",
         flexDirection: "row",
         alignItems: "center",
+        gap: 4,
       }}
     >
+      {props.dot ? <Dot color={toneColor(pick(props.tone ?? "neutral"))} /> : null}
       <Text
         style={{
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: "600",
-          color: toneColor(pick(props.tone ?? "neutral")),
+          color: pick(props.tone ?? "neutral") === "neutral" ? c.muted() : toneColor(pick(props.tone ?? "neutral")),
         }}
       >
         {props.text}
       </Text>
     </View>
+  );
+}
+
+/** 小圆点：状态色。 */
+export function Dot(props: { color: Maybe<string>; size?: number }) {
+  return (
+    <View
+      style={{
+        width: props.size ?? 6,
+        height: props.size ?? 6,
+        flexShrink: 0,
+        borderRadius: 999,
+        backgroundColor: pick(props.color),
+      }}
+    />
   );
 }
 
@@ -188,23 +204,29 @@ export function Button(props: {
       onPress={pick(props.disabled ?? false) ? undefined : props.onPress}
       role="button"
       accessibilityLabel={props.label}
+      hoverStyle={
+        pick(props.tone ?? "ghost") === "primary"
+          ? undefined
+          : { backgroundColor: pick(props.disabled ?? false) ? "transparent" : c.hover() }
+      }
       style={{
-        height: props.small ? 24 : 28,
-        paddingHorizontal: props.small ? 9 : 12,
+        height: props.small ? 22 : 26,
+        paddingHorizontal: props.small ? 8 : 11,
         borderRadius: r.control,
-        borderWidth: 1,
+        borderWidth: pick(props.tone ?? "ghost") === "ghost" ? 0 : 1,
         borderColor: buttonBorder(pick(props.tone ?? "ghost")),
         backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
-        opacity: pick(props.disabled ?? false) ? 0.5 : 1,
+        opacity: pick(props.disabled ?? false) ? 0.45 : 1,
         display: "flex",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
+        cursor: "default",
       }}
     >
       <Text
         style={{
-          fontSize: props.small ? 12 : 13,
+          fontSize: 12,
           fontWeight: "500",
           color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false)),
         }}
@@ -227,22 +249,20 @@ export function SearchField(props: {
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        height: 28,
-        width: props.width ?? 220,
-        paddingHorizontal: 9,
+        gap: 5,
+        height: 26,
+        width: props.width ?? 180,
+        paddingHorizontal: 8,
         borderRadius: r.control,
-        borderWidth: 1,
-        borderColor: c.line(),
-        backgroundColor: c.bg(),
+        backgroundColor: c.hover(),
       }}
     >
-      <Text style={{ fontSize: 12, color: c.muted() }}>⌕</Text>
+      <Text style={{ fontSize: 11, color: c.muted() }}>⌕</Text>
       <Input
         value={props.value}
         placeholder={props.placeholder ?? "Filter…"}
         onChange={(text) => props.onChange(text)}
-        style={{ flex: 1, fontSize: 12, paddingHorizontal: 0, borderWidth: 0, backgroundColor: "transparent" }}
+        style={{ flex: 1, fontSize: 11.5, paddingHorizontal: 0, borderWidth: 0, backgroundColor: "transparent" }}
       />
     </View>
   );
@@ -262,19 +282,33 @@ export function List<T>(props: {
       when={pick(props.items).length === 0 && props.empty !== undefined}
       else={
         <Scroll style={{ flex: 1, minHeight: 0 }}>
-          <View style={{ display: "flex", flexDirection: "column" }}>
+          <View style={{ display: "flex", flexDirection: "column", paddingHorizontal: 6, paddingVertical: 4 }}>
             {pick(props.items).map((item, index) => {
               const key = props.keyOf(item);
               const active = pick(props.selected ?? null) === key;
               return (
                 <View
                   onPress={props.onSelect === undefined ? undefined : () => props.onSelect?.(key)}
+                  role="button"
+                  accessibilityState={{ selected: active }}
+                  hoverStyle={{ backgroundColor: active ? c.hover() : c.sidebarActive() }}
                   style={{
+                    borderRadius: r.control,
                     backgroundColor: active ? c.hover() : "transparent",
-                    borderBottomWidth: index === pick(props.items).length - 1 ? 0 : 1,
-                    borderBottomColor: c.line(),
+                    flexDirection: "row",
+                    alignItems: "stretch",
+                    cursor: "default",
                   }}
                 >
+                  <View
+                    style={{
+                      width: 2,
+                      flexShrink: 0,
+                      marginVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: active ? c.accent() : "transparent",
+                    }}
+                  />
                   {props.render(item, index)}
                 </View>
               );
@@ -297,14 +331,14 @@ export function ListRow(props: {
   mono?: boolean;
 }) {
   return (
-    <Row gap={10} style={{ paddingVertical: 9, paddingHorizontal: 4, minHeight: 40 }}>
+    <Row gap={9} style={{ paddingVertical: 7, paddingHorizontal: 8, minHeight: 42, width: "100%" }}>
       {props.leading}
-      <View style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+      <View style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "500", color: c.text() }}>
           {props.title}
         </Text>
         {props.subtitle === undefined ? null : (
-          <Text numberOfLines={1} style={{ fontSize: 11, color: c.muted() }}>
+          <Text numberOfLines={1} style={t.meta}>
             {props.subtitle}
           </Text>
         )}
@@ -330,7 +364,7 @@ export function Empty(props: { title: string; hint?: string; action?: JSX.Elemen
     >
       <Text style={{ fontSize: 13, fontWeight: "500", color: c.text() }}>{props.title}</Text>
       {props.hint === undefined ? null : (
-        <Text style={{ fontSize: 12, color: c.muted(), textAlign: "center" }}>{props.hint}</Text>
+        <Text style={{ fontSize: 11.5, color: c.muted(), textAlign: "center", maxWidth: 320 }}>{props.hint}</Text>
       )}
       {props.action}
     </View>
@@ -351,7 +385,7 @@ export function Loading(props: { label?: string }) {
         padding: 24,
       }}
     >
-      <Text style={{ fontSize: 12, color: c.muted() }}>{props.label ?? "Loading…"}</Text>
+      <Text style={{ fontSize: 11.5, color: c.muted() }}>{props.label ?? "Loading…"}</Text>
     </View>
   );
 }
@@ -360,7 +394,7 @@ export function Loading(props: { label?: string }) {
 export function LoadError(props: { message: string; onRetry?: () => void }) {
   return (
     <View style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16 }}>
-      <Text style={{ fontSize: 13, color: c.danger() }}>{`加载失败：${props.message}`}</Text>
+      <Text style={{ fontSize: 12.5, color: c.danger() }}>{`加载失败：${props.message}`}</Text>
       {props.onRetry === undefined ? null : (
         <Row>
           <Button label="重试" onPress={props.onRetry} />
@@ -373,11 +407,11 @@ export function LoadError(props: { message: string; onRetry?: () => void }) {
 /** 指标块：大数字 + 说明。 */
 export function Stat(props: { label: string; value: string; hint?: string; tone?: Maybe<Tone> }) {
   return (
-    <View style={{ ...panel(12), flex: 1, minWidth: 140, display: "flex", flexDirection: "column", gap: 4 }}>
+    <View style={{ flex: 1, minWidth: 120, display: "flex", flexDirection: "column", gap: 3 }}>
       <Text style={t.label}>{props.label}</Text>
       <Text
         style={{
-          fontSize: 22,
+          fontSize: 18,
           fontWeight: "600",
           color: props.tone === undefined ? c.text() : toneColor(pick(props.tone)),
           fontVariant: ["tabular-nums"],
@@ -405,11 +439,11 @@ export function Meter(props: {
           <Text style={{ ...t.meta, fontVariant: ["tabular-nums"] }}>{props.caption ?? ""}</Text>
         </Row>
       </If>
-      <View style={{ height: 8, borderRadius: r.pill, backgroundColor: c.hover(), overflow: "hidden" }}>
+      <View style={{ height: 4, borderRadius: r.pill, backgroundColor: c.hover(), overflow: "hidden" }}>
         <View
           style={{
             width: meterWidth(pick(props.ratio)),
-            height: 8,
+            height: 4,
             borderRadius: r.pill,
             backgroundColor: props.tone === undefined ? c.accent() : toneColor(pick(props.tone)),
           }}
@@ -460,6 +494,281 @@ export function SectionTitle(props: { title: string; hint?: string; right?: JSX.
       </Row>
       {props.right}
     </Row>
+  );
+}
+
+/** 无描边分区：标题 + 内容，详情页用它替代「卡片套卡片」。 */
+export function Section(props: {
+  title?: string;
+  hint?: string;
+  right?: JSX.Element;
+  gap?: number;
+  children?: JSX.Element | JSX.Element[];
+}) {
+  return (
+    <View style={{ display: "flex", flexDirection: "column", gap: props.gap ?? 8 }}>
+      <If when={props.title !== undefined}>
+        <SectionTitle title={props.title ?? ""} hint={props.hint} right={props.right} />
+      </If>
+      {props.children}
+    </View>
+  );
+}
+
+/** 页头工具栏：左侧标题/计数，右侧控件。高度固定 44，去掉描边盒子堆叠。 */
+export function Toolbar(props: {
+  title?: string;
+  hint?: string;
+  right?: JSX.Element;
+  children?: JSX.Element | JSX.Element[];
+}) {
+  return (
+    <Row
+      gap={10}
+      style={{
+        height: 44,
+        flexShrink: 0,
+        paddingHorizontal: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: c.line(),
+        justifyContent: "space-between",
+      }}
+    >
+      <Row gap={8} style={{ minWidth: 0, flex: 1 }}>
+        <If when={props.title !== undefined}>
+          <Text numberOfLines={1} style={t.h2}>{props.title ?? ""}</Text>
+        </If>
+        <If when={props.hint !== undefined}>
+          <Text numberOfLines={1} style={t.meta}>{props.hint ?? ""}</Text>
+        </If>
+        {props.children}
+      </Row>
+      <Row gap={6} style={{ flexShrink: 0 }}>
+        <If when={props.right !== undefined}>{props.right}</If>
+      </Row>
+    </Row>
+  );
+}
+
+/** 图标按钮：单字形，无描边，hover 出底色。用于刷新/关闭这类高频小操作。 */
+export function IconButton(props: {
+  glyph: string;
+  label?: string;
+  onPress?: () => void;
+  disabled?: Maybe<boolean>;
+  tone?: "ghost" | "danger";
+  size?: number;
+}) {
+  const danger = props.tone === "danger";
+  return (
+    <View
+      role="button"
+      onPress={pick(props.disabled ?? false) ? undefined : props.onPress}
+      accessibilityLabel={props.label ?? props.glyph}
+      hoverStyle={{ backgroundColor: c.hover() }}
+      activeStyle={{ backgroundColor: c.sidebarActive() }}
+      style={{
+        width: props.size ?? 26,
+        height: props.size ?? 26,
+        flexShrink: 0,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: r.control,
+        backgroundColor: "transparent",
+        cursor: "default",
+        opacity: pick(props.disabled ?? false) ? 0.4 : 1,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: "500",
+          color: danger ? c.danger() : c.text(),
+        }}
+      >
+        {props.glyph}
+      </Text>
+    </View>
+  );
+}
+
+/** 分段控件：一组互斥的小选项（全部/运行中/已停止）。 */
+export function Segmented<T extends string>(props: {
+  options: Array<{ value: T; label: string; testLabel?: string }>;
+  value: Maybe<T>;
+  onChange: (value: T) => void;
+  size?: "normal" | "small";
+}) {
+  const small = props.size === "small";
+  return (
+    <Row
+      gap={2}
+      style={{
+        padding: 2,
+        borderRadius: r.control,
+        backgroundColor: c.hover(),
+        flexShrink: 0,
+        // 在纵向容器里不拉伸成一条长灰条：轨道只包住选项本身。
+        alignSelf: "flex-start",
+      }}
+    >
+      {props.options.map((option) => (
+        <View
+          role="button"
+          onPress={() => props.onChange(option.value)}
+          accessibilityLabel={option.testLabel ?? option.label}
+          accessibilityState={{ selected: pick(props.value) === option.value }}
+          hoverStyle={{ backgroundColor: pick(props.value) === option.value ? c.panel() : c.field() }}
+          style={{
+            height: small ? 20 : 22,
+            paddingHorizontal: small ? 7 : 9,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: r.chip,
+            cursor: "default",
+            backgroundColor: pick(props.value) === option.value ? c.panel() : "transparent",
+            boxShadow:
+              pick(props.value) === option.value
+                ? "0 1px 2px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.06)"
+                : undefined,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: small ? 10.5 : 11,
+              fontWeight: pick(props.value) === option.value ? "600" : "400",
+              color: pick(props.value) === option.value ? c.text() : c.muted(),
+            }}
+          >
+            {option.label}
+          </Text>
+        </View>
+      ))}
+    </Row>
+  );
+}
+
+/** 指标块：大数字 + 单位 + 说明，横排成一条（CPU / 内存 / 网络）。 */
+export function Metric(props: {
+  label: string;
+  value: string;
+  unit?: string;
+  hint?: string;
+  ratio?: Maybe<number>;
+  tone?: Maybe<Tone>;
+}) {
+  return (
+    <View style={{ flex: 1, minWidth: 120, display: "flex", flexDirection: "column", gap: 4 }}>
+      <Text style={t.label}>{props.label}</Text>
+      <Row gap={3} style={{ alignItems: "baseline" }}>
+        <Text style={{ fontSize: 18, fontWeight: "600", color: c.text(), fontVariant: ["tabular-nums"] }}>
+          {props.value}
+        </Text>
+        <If when={props.unit !== undefined}>
+          <Text style={{ fontSize: 11, color: c.muted() }}>{props.unit ?? ""}</Text>
+        </If>
+      </Row>
+      <If when={props.ratio !== undefined}>
+        <View style={{ height: 3, borderRadius: r.pill, backgroundColor: c.hover(), overflow: "hidden" }}>
+          <View
+            style={{
+              width: meterWidth(pick(props.ratio ?? 0)),
+              height: 3,
+              borderRadius: r.pill,
+              backgroundColor: props.tone === undefined ? c.accent() : toneColor(pick(props.tone)),
+            }}
+          />
+        </View>
+      </If>
+      <If when={props.hint !== undefined}>
+        <Text numberOfLines={1} style={t.meta}>{props.hint ?? ""}</Text>
+      </If>
+    </View>
+  );
+}
+
+/** 网格键值：标签在上、值在下，按列铺开；宽屏不再出现「标签左值右中间空一大截」。 */
+export function KeyValueGrid(props: {
+  rows: Maybe<Array<[string, string]>>;
+  columns?: Maybe<number>;
+  mono?: Maybe<boolean>;
+}) {
+  const columns = pick(props.columns ?? 2);
+  return (
+    <View
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        columnGap: 16,
+        rowGap: 10,
+      }}
+    >
+      {pick(props.rows).map(([key, value]) => (
+        <View
+          style={{
+            width: `${Math.max(28, Math.floor(100 / Math.max(1, columns)) - 2)}%`,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            minWidth: 0,
+          }}
+        >
+          <Text style={t.label}>{key}</Text>
+          <Text
+            numberOfLines={2}
+            style={{
+              fontSize: 12.5,
+              color: c.text(),
+              fontVariant: pick(props.mono ?? false) ? ["tabular-nums"] : undefined,
+            }}
+          >
+            {value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** 定义列表：标签列定宽、值自适应换行。值很长（路径、命令行）时用它，
+ * 而不是把值甩到右边缘。 */
+export function KeyValueList(props: {
+  rows: Maybe<Array<[string, string]>>;
+  labelWidth?: number;
+  mono?: Maybe<boolean>;
+  selectable?: boolean;
+}) {
+  return (
+    <View style={{ display: "flex", flexDirection: "column" }}>
+      {pick(props.rows).map(([key, value]) => (
+        <Row
+          gap={12}
+          style={{
+            alignItems: "flex-start",
+            paddingVertical: 5,
+            borderBottomWidth: 1,
+            borderBottomColor: c.line(),
+          }}
+        >
+          <Text numberOfLines={1} style={{ ...t.meta, width: props.labelWidth ?? 150, flexShrink: 0 }}>
+            {key}
+          </Text>
+          <Text
+            selectable={props.selectable === true}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 12,
+              color: c.text(),
+              fontVariant: pick(props.mono ?? false) ? ["tabular-nums"] : undefined,
+            }}
+          >
+            {value}
+          </Text>
+        </Row>
+      ))}
+    </View>
   );
 }
 
@@ -530,7 +839,7 @@ export function Notice(props: { message: string; tone?: Maybe<Tone> }) {
   return (
     <Text
       style={{
-        fontSize: 12,
+        fontSize: 11.5,
         color: props.tone === undefined ? c.muted() : toneColor(pick(props.tone)),
       }}
     >

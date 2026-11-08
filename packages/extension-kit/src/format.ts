@@ -65,6 +65,17 @@ export function errorMessage(error: unknown): string {
   return String(error);
 }
 
+/**
+ * 判断错误是不是「容器没在跑」这类可解释的状态，而不是真的故障。
+ *
+ * 进容器执行命令（docker exec）的接口在容器停止/暂停时会被 Docker 以
+ * `status code 409: container <id> is not running` 拒绝，对用户来说这是
+ * 一个正常的业务状态，不该把协议错误原文糊到脸上。
+ */
+export function isContainerStoppedError(message: string): boolean {
+  return /is not running|is paused|status code 409/i.test(message);
+}
+
 /** 取对象上的字符串字段（provider 的 JSON 不保证形状）。 */
 export function str(source: unknown, key: string, fallback = "-"): string {
   if (!source || typeof source !== "object") return fallback;

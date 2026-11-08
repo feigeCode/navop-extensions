@@ -10,7 +10,7 @@
 // 工具条显示容器整体占用；它失败时静默降级，不影响进程表。
 import { Scroll, signal, Text, View } from "nsh";
 import type { JSX, TextStyle } from "nsh";
-import { arr, errorMessage, humanBytes, str } from "../../lib/format";
+import { arr, errorMessage, humanBytes, isContainerStoppedError, str } from "../../lib/format";
 import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import { Badge, Button, Empty, LoadError, Loading, Notice, Row, SearchField } from "../../lib/ui";
 import { c, hairline, r, t } from "../../lib/theme";
@@ -92,7 +92,7 @@ function stateTone(state: string): "ok" | "warn" | "danger" | "neutral" {
   return "neutral";
 }
 
-export default function Processes() {
+export default function Processes(props: { containerId?: string } = {}) {
   const rows = signal<ProcessRow[]>([]);
   const titles = signal<string[]>([]);
   const stats = signal<Record<string, unknown> | null>(null);
@@ -105,9 +105,12 @@ export default function Processes() {
   const containerQuery = signal("");
   const containersLoading = signal(true);
   const containersError = signal<string | null>(null);
-  const selectedId = signal<string | null>(null);
+  /** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+  const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+  const selectedId = signal<string | null>(presetId);
   const selectedName = signal("");
-  const pickerOpen = signal(true);
+  /** 预设了容器就收起挑选列表，只留一条状态条。 */
+  const pickerOpen = signal(presetId === null);
 
   // last-wins：只有最后一次请求的结果允许落到视图上（切容器时尤其重要）。
   let seq = 0;
@@ -467,6 +470,16 @@ export default function Processes() {
       return <Loading label="正在读取容器进程…" />;
     }
     if (error() !== null && rows().length === 0) {
+      // 容器停止时 docker exec 会被 409 拒绝：说清原因，而不是抛协议错误原文。
+      if (isContainerStoppedError(error() ?? "")) {
+        return (
+          <Empty
+            title="容器不在运行中"
+            hint="读进程要进容器执行 ps（docker exec），容器停止或暂停时不可用。启动容器后再刷新就行。"
+            action={<Button label="重试" small onPress={() => void load()} />}
+          />
+        );
+      }
       return <LoadError message={error() ?? ""} onRetry={() => void load()} />;
     }
     if (rows().length === 0) {
@@ -524,12 +537,14 @@ export default function Processes() {
   }
 
   void loadContainers();
+  // 预设了容器就直接取数：这条路径没有用户点击，只能在这里主动触发一次。
+  if (presetId !== null) void load();
 
   return (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
       {toolbar()}
       <View style={hairline()} />
-      {containerBar()}
+      {presetId === null ? containerBar() : null}
       {body()}
     </View>
   );

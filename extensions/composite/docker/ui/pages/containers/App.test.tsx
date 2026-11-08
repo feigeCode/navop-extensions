@@ -116,6 +116,38 @@ function world() {
       return { containers: containers.map((row) => ({ ...row })) };
     },
     "docker/container/inspect": (params) => inspect(params.id),
+    "docker/container/top": (params) => ({
+      titles: ["UID", "PID", "CMD"],
+      processes: [{ UID: "root", PID: "1", CMD: `/${String(params.id)}-main` }],
+    }),
+    "docker/container/files/list": (params) => {
+      const id = String(params.id ?? "");
+      const state = find(id)?.state ?? "exited";
+      // 和真 provider 一致：docker exec 在停止的容器上是 409。
+      if (state !== "running") {
+        throw new Error(
+          `protocol error: [-32603] Docker responded with status code 409: container ${id} is not running`,
+        );
+      }
+      const target = typeof params.path === "string" && params.path.length > 0 ? params.path : "/";
+      const entries: Array<Record<string, string>> = [];
+      if (target !== "/") {
+        entries.push({ name: "..", type: "directory", size: "-", modified: "-", path: "/" });
+      }
+      if (target === "/") {
+        entries.push(
+          { name: "etc", type: "directory", size: "-", modified: "-", path: "/etc" },
+          { name: "opt", type: "directory", size: "-", modified: "-", path: "/opt" },
+          { name: "usr", type: "directory", size: "-", modified: "-", path: "/usr" },
+          { name: ".dockerenv", type: "file", size: "0 B", modified: "2026-11-02 10:00", path: "/.dockerenv" },
+        );
+      } else if (target === "/opt") {
+        entries.push({ name: "app", type: "directory", size: "-", modified: "-", path: "/opt/app" });
+      } else {
+        entries.push({ name: "server.js", type: "file", size: "2.4 KiB", modified: "2026-11-02 10:00", path: `${target}/server.js` });
+      }
+      return { id, path: target, entries };
+    },
     "docker/container/stats": () => ({
       cpu_percent: 3.25,
       memory_usage_bytes: 50 * 1024 * 1024,
@@ -276,6 +308,81 @@ test("选中后的详情：状态、网络、挂载、环境变量", async () =>
   expect(text).toContain("TZ");
   expect(text).toContain("Asia/Shanghai");
   expect(methodCalls(app, "docker/container/inspect").some((call) => call.params?.id === "c2")).toBe(true);
+  app.dispose();
+});
+
+test("详情标签条：进程视图按当前容器取数，不再要求先选容器", async () => {
+  const w = world();
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
+    host: { params: TEST_PARAMS, handlers: w.handlers },
+    clock: {},
+  });
+  await app.waitFor("text:web");
+
+  await app.press("text:db");
+  await app.press("详情:进程");
+
+  await app.waitFor("text:/c2-main");
+  const text = shown(app);
+  expect(text).not.toContain("选择容器");
+  expect(text).toContain("PID");
+  expect(methodCalls(app, "docker/container/top").some((call) => call.params?.id === "c2")).toBe(true);
+
+  // 切回概览还是这台容器的摘要。
+  await app.press("详情:概览");
+  await app.waitUntil(() => shown(app).includes("网络"));
+  app.dispose();
+});
+
+test("详情标签条：文件标签浏览容器文件系统", async () => {
+  const w = world();
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
+    host: { params: TEST_PARAMS, handlers: w.handlers },
+    clock: {},
+  });
+  await app.waitFor("text:web");
+
+  await app.press("text:web");
+  await app.press("详情:文件");
+  await app.waitFor("text:opt");
+
+  expect(shown(app)).toContain("3 个目录 · 1 个文件");
+  expect(methodCalls(app, "docker/container/files/list").some((call) => call.params?.path === "/")).toBe(true);
+
+  // 点目录进下一层，面包屑跟着走。
+  await app.press("目录 opt");
+  await app.waitFor("text:app");
+  // 面包屑按段渲染（"/" + "opt"），所以断言节点的无障碍名而不是拼接文本。
+  expect(app.shows("路径 /opt")).toBe(true);
+
+  // 点面包屑根的 "/" 回到顶层。
+  await app.press("路径 /");
+  await app.waitFor("text:opt");
+  expect(shown(app)).toContain("3 个目录");
+  app.dispose();
+});
+
+test("详情标签条：停止的容器说清原因，不抛协议错误原文", async () => {
+  const w = world();
+  const app = await open("../../App.tsx", {
+    width: 1200,
+    height: 800,
+    host: { params: TEST_PARAMS, handlers: w.handlers },
+    clock: {},
+  });
+  await app.waitFor("text:web");
+
+  await app.press("text:db");
+  await app.press("详情:文件");
+  await app.waitFor("text:容器不在运行中");
+
+  const text = shown(app);
+  expect(text).toContain("docker exec");
+  expect(text).not.toContain("protocol error");
   app.dispose();
 });
 

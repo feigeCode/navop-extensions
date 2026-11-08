@@ -55,7 +55,7 @@ function stateTone(state: string): "ok" | "warn" | "danger" | "neutral" {
   return "neutral";
 }
 
-export default function ContainerMounts() {
+export default function ContainerMounts(props: { containerId?: string } = {}) {
   const mounts = signal<MountPoint[]>([]);
   const loading = signal(true);
   const error = signal<string | null>(null);
@@ -65,9 +65,12 @@ export default function ContainerMounts() {
   const containerQuery = signal("");
   const containersLoading = signal(true);
   const containersError = signal<string | null>(null);
-  const selectedId = signal<string | null>(null);
+  /** 从容器页的「单容器」标签进来时预设容器：页面不再要求先自己挑一个。 */
+  const presetId = typeof props.containerId === "string" && props.containerId.length > 0 ? props.containerId : null;
+  const selectedId = signal<string | null>(presetId);
   const selectedName = signal("");
-  const pickerOpen = signal(true);
+  /** 预设了容器就收起挑选列表，只留一条状态条。 */
+  const pickerOpen = signal(presetId === null);
 
   // last-wins：切容器时旧请求的响应直接丢弃。
   let seq = 0;
@@ -414,12 +417,14 @@ export default function ContainerMounts() {
   }
 
   void loadContainers();
+  // 预设了容器就直接取数：这条路径没有用户点击，只能在这里主动触发一次。
+  if (presetId !== null) void load();
 
   return (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
       {toolbar()}
       <View style={hairline()} />
-      {containerBar()}
+      {presetId === null ? containerBar() : null}
       {body()}
     </View>
   );

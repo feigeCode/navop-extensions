@@ -18,26 +18,40 @@ import { arr, errorMessage, humanBytes, joinCommand, percent, shortTime, str } f
 import { invoke, SLOW_TIMEOUT_MS } from "../../lib/navop";
 import {
   Badge,
-  Card,
   ConfirmBar,
+  Dot,
   Empty,
-  KeyValue,
+  IconButton,
+  KeyValueGrid,
+  KeyValueList,
   List,
   ListRow,
   LoadError,
   Loading,
-  Meter,
+  Metric,
   Notice,
   Row,
+  Section,
+  Segmented,
   SplitPane,
   Stack,
-  Stat,
+  Toolbar,
 } from "../../lib/ui";
 import { c, r, t } from "../../lib/theme";
+import Processes from "../processes/App";
+import Changes from "../changes/App";
+import ContainerFiles from "../container-files/App";
+import ContainerInspect from "../container-inspect/App";
+import ContainerMounts from "../container-mounts/App";
+import ContainerStats from "../container-stats/App";
+import ContainerTerminal from "../container-terminal/App";
 
 type Tone = "neutral" | "ok" | "warn" | "danger" | "info";
 type StateFilter = "all" | "running" | "stopped";
 type ActionName = "start" | "stop" | "restart" | "pause" | "unpause";
+
+/** 详情区标签：概览是页面自己的摘要，其余复用「单容器」那几页（进来时预设当前容器）。 */
+type DetailTab = "overview" | "processes" | "files" | "changes" | "inspect" | "mounts" | "stats" | "terminal";
 
 /** 列表行（provider 的 `docker/container/list` 已经把字段摊平好了）。 */
 type Container = {
@@ -257,10 +271,11 @@ function overviewRows(info: Record<string, unknown>): Array<[string, string]> {
 
 // ---- 小控件 ----------------------------------------------------------------
 //
-// lib 的 Button / Badge 在函数体里把 props 读成常量（只在挂载时求值一次），
-// 所以「随信号变」的按钮与状态点写在这里：样式直接写在 JSX 属性里，是绑定的。
+// 这里的小控件必须把响应式值内联在 JSX 属性里（nsh 组件体只在挂载时跑一次），
+// 所以样式直接写属性，不经过 lib 里「把 props 读成常量」的组件。
 
-function ToolButton(props: {
+/** 操作按钮：主操作填色，其余纯文字 + hover 底色，不再一排描边盒子。 */
+function ActionButton(props: {
   label: string | Accessor<string>;
   testLabel?: string;
   tone?: "primary" | "ghost" | "danger";
@@ -279,51 +294,36 @@ function ToolButton(props: {
         if (disabled()) return;
         props.onPress();
       }}
+      hoverStyle={{ backgroundColor: tone === "primary" ? c.accent() : c.hover() }}
       style={{
-        height: 24,
+        height: 26,
         paddingHorizontal: 10,
         borderRadius: r.control,
-        borderWidth: 1,
-        borderColor: tone === "danger" ? c.danger() : tone === "primary" ? c.accent() : c.line(),
         backgroundColor: tone === "primary" ? c.accent() : "transparent",
-        opacity: disabled() ? 0.5 : 1,
+        opacity: disabled() ? 0.45 : 1,
         display: "flex",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
+        cursor: "default",
       }}
     >
       <Text
         style={{
           fontSize: 12,
           fontWeight: "500",
-          color: tone === "primary" ? c.accentText() : tone === "danger" ? c.danger() : disabled() ? c.muted() : c.text(),
+          color:
+            tone === "primary"
+              ? c.accentText()
+              : tone === "danger"
+                ? c.danger()
+                : disabled()
+                  ? c.muted()
+                  : c.text(),
         }}
       >
         {label()}
       </Text>
-    </View>
-  );
-}
-
-function chip(label: string, active: Accessor<boolean>, testLabel: string, onPress: () => void): JSX.Element {
-  return (
-    <View
-      role="button"
-      accessibilityLabel={testLabel}
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: r.pill,
-        borderWidth: 1,
-        borderColor: active() ? c.accent() : c.line(),
-        backgroundColor: active() ? c.accent() : "transparent",
-      }}
-    >
-      <Text style={{ ...t.meta, color: active() ? c.accentText() : c.text() }}>{label}</Text>
     </View>
   );
 }
@@ -340,30 +340,24 @@ function FilterField(props: {
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        height: 28,
-        width: 240,
-        paddingHorizontal: 9,
+        gap: 5,
+        height: 24,
+        width: 190,
+        paddingHorizontal: 8,
         borderRadius: r.control,
-        borderWidth: 1,
-        borderColor: c.line(),
-        backgroundColor: c.bg(),
+        backgroundColor: c.hover(),
       }}
     >
-      <Text style={{ fontSize: 12, color: c.muted() }}>⌕</Text>
+      <Text style={{ fontSize: 11, color: c.muted() }}>⌕</Text>
       <Input
         testID={props.testID}
         value={props.value}
         placeholder={props.placeholder}
         onChange={(text) => props.onChange(text)}
-        style={{ flex: 1, fontSize: 12, paddingHorizontal: 0, borderWidth: 0, backgroundColor: "transparent" }}
+        style={{ flex: 1, fontSize: 11.5, paddingHorizontal: 0, borderWidth: 0, backgroundColor: "transparent" }}
       />
     </View>
   );
-}
-
-function dot(state: string): JSX.Element {
-  return <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: stateColor(state), flexShrink: 0 }} />;
 }
 
 export default function Containers() {
@@ -382,6 +376,7 @@ export default function Containers() {
   const notice = signal<string | null>(null);
   const noticeTone = signal<Tone>("neutral");
   const updatedAt = signal<string | null>(null);
+  const detailTab = signal<DetailTab>("overview");
 
   // last-wins：只有最后一次请求的响应允许落到视图上（2 个并发操作时尤其重要）。
   let listSeq = 0;
@@ -543,20 +538,13 @@ export default function Containers() {
   void load();
 
   // ---- 片段 ----------------------------------------------------------------
-
-  function filters(): JSX.Element {
-    return (
-      <Row gap={6}>
-        {chip("全部", () => stateFilter() === "all", "过滤:全部", () => stateFilter.set("all"))}
-        {chip("运行中", () => stateFilter() === "running", "过滤:运行中", () => stateFilter.set("running"))}
-        {chip("已停止", () => stateFilter() === "stopped", "过滤:已停止", () => stateFilter.set("stopped"))}
-      </Row>
-    );
-  }
+  //
+  // 这些是「片段构造函数」而不是组件：它们在外层的 `{() => …}` 里每帧重新调用，
+  // 所以可以直接读信号，不必再包一层响应式包装。
 
   function listPane(): JSX.Element {
     return (
-      <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.panel() }}>
+      <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {() =>
           visible().length === 0 ? (
             <Empty
@@ -577,11 +565,22 @@ export default function Containers() {
                 <ListRow
                   title={row.name.length > 0 ? row.name : row.id.slice(0, 12)}
                   subtitle={`${row.status.length > 0 ? row.status : stateLabel(row.state)} · ${row.image}`}
-                  leading={dot(row.state)}
+                  leading={<Dot color={stateColor(row.state)} size={7} />}
                   trailing={
-                    <View style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                    <View
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 3,
+                        width: 66,
+                        flexShrink: 0,
+                      }}
+                    >
                       <Badge text={stateLabel(row.state)} tone={stateTone(row.state)} />
-                      <Text style={t.meta}>{row.created}</Text>
+                      <Text numberOfLines={1} style={{ ...t.meta, fontSize: 10 }}>
+                        {row.created.replace(/^\d{4}-/, "")}
+                      </Text>
                     </View>
                   }
                 />
@@ -593,28 +592,28 @@ export default function Containers() {
     );
   }
 
+  /** 生命周期操作：运行中先给「停止」，已暂停先给「恢复」，其余给「启动」。 */
   function actions(row: Container): JSX.Element {
     const controls: JSX.Element[] = [];
     if (row.state === "running") {
       controls.push(
-        <ToolButton label="停止" testLabel="停止" disabled={busy} onPress={() => void act("stop", row)} />,
-        <ToolButton label="重启" testLabel="重启" disabled={busy} onPress={() => void act("restart", row)} />,
-        <ToolButton label="暂停" testLabel="暂停" disabled={busy} onPress={() => void act("pause", row)} />,
+        <ActionButton label="停止" disabled={busy} onPress={() => void act("stop", row)} />,
+        <ActionButton label="重启" disabled={busy} onPress={() => void act("restart", row)} />,
+        <ActionButton label="暂停" disabled={busy} onPress={() => void act("pause", row)} />,
       );
     } else if (row.state === "paused") {
       controls.push(
-        <ToolButton label="恢复" testLabel="恢复" disabled={busy} onPress={() => void act("unpause", row)} />,
-        <ToolButton label="停止" testLabel="停止" disabled={busy} onPress={() => void act("stop", row)} />,
+        <ActionButton label="恢复" tone="primary" disabled={busy} onPress={() => void act("unpause", row)} />,
+        <ActionButton label="停止" disabled={busy} onPress={() => void act("stop", row)} />,
       );
     } else {
       controls.push(
-        <ToolButton label="启动" testLabel="启动" disabled={busy} onPress={() => void act("start", row)} />,
+        <ActionButton label="启动" tone="primary" disabled={busy} onPress={() => void act("start", row)} />,
       );
     }
     controls.push(
-      <ToolButton
+      <ActionButton
         label="删除容器"
-        testLabel="删除容器"
         tone="danger"
         disabled={busy}
         onPress={() => {
@@ -623,140 +622,89 @@ export default function Containers() {
         }}
       />,
     );
-    return <Row gap={6}>{controls}</Row>;
+    return <Row gap={4}>{controls}</Row>;
   }
 
-  function overviewCard(info: Record<string, unknown> | null): JSX.Element | null {
-    if (info === null) return null;
-    return (
-      <Card title="概览">
-        <KeyValue rows={overviewRows(info)} />
-      </Card>
-    );
-  }
-
-  function resourcesCard(row: Container): JSX.Element | null {
-    if (row.state !== "running") {
-      return (
-        <Card title="资源占用" hint="容器未运行">
-          <Text style={t.meta}>启动容器后这里显示 CPU / 内存的实时采样。</Text>
-        </Card>
-      );
-    }
+  /** 运行中才有的实时指标：一条，而不是卡片里再套卡片。 */
+  function metrics(row: Container): JSX.Element | null {
+    if (row.state !== "running") return null;
     const sample = stats();
-    if (sample === null) {
-      return (
-        <Card title="资源占用">
-          <Text style={t.meta}>暂无实时数据（provider 采样失败，或容器刚启动还没攒到一个样本）。</Text>
-        </Card>
-      );
-    }
-    const limit = sample.memoryLimit > 0 ? sample.memoryLimit : 0;
-    const usedRatio = limit > 0 ? sample.memoryUsage / limit : 0;
+    const limit = sample === null ? 0 : sample.memoryLimit;
+    const used = sample === null ? 0 : sample.memoryUsage;
     return (
-      <Card title="资源占用" hint={sample.cpus > 0 ? `${sample.cpus} 个 CPU` : undefined}>
-        <Row gap={12}>
-          <Stat label="CPU" value={`${sample.cpuPercent.toFixed(2)}%`} />
-          <Stat label="内存" value={humanBytes(sample.memoryUsage)} hint={limit > 0 ? `上限 ${humanBytes(limit)}` : "无限"} />
-        </Row>
-        <Meter ratio={usedRatio} label="内存使用率" caption={limit > 0 ? percent(sample.memoryUsage, limit) : "—"} />
-      </Card>
-    );
-  }
-
-  function networkCard(info: Record<string, unknown> | null): JSX.Element | null {
-    if (info === null) return null;
-    const networks = networkRows(info);
-    const ports = portLines(info);
-    if (networks.length === 0 && ports.length === 0) return null;
-    return (
-      <Card title="网络" hint={networks.length > 0 ? `${networks.length} 个网络` : undefined}>
-        {networks.length === 0 ? null : <KeyValue rows={networks} />}
-        <View style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <Text style={t.label}>端口</Text>
-          {ports.length === 0 ? (
-            <Text style={t.meta}>没有发布端口。</Text>
-          ) : (
-            ports.map((line) => (
-              <Text style={{ ...t.mono, fontSize: 11 }} selectable>
-                {line}
-              </Text>
-            ))
-          )}
-        </View>
-      </Card>
-    );
-  }
-
-  function mountsCard(info: Record<string, unknown> | null): JSX.Element | null {
-    if (info === null) return null;
-    const mounts = mountRows(info);
-    if (mounts.length === 0) return null;
-    return (
-      <Card title="挂载" hint={`${mounts.length} 处`}>
-        <KeyValue rows={mounts} />
-      </Card>
-    );
-  }
-
-  function envCard(info: Record<string, unknown> | null): JSX.Element | null {
-    if (info === null) return null;
-    const env = envRows(info);
-    if (env.length === 0) return null;
-    const shown = env.slice(0, ENV_LIMIT);
-    return (
-      <Card title="环境变量" hint={env.length > shown.length ? `${env.length} 项，显示前 ${shown.length} 项` : `${env.length} 项`}>
-        <KeyValue rows={shown} />
-      </Card>
-    );
-  }
-
-  function labelsCard(info: Record<string, unknown> | null): JSX.Element | null {
-    if (info === null) return null;
-    const labels = labelRows(info);
-    if (labels.length === 0) return null;
-    const shown = labels.slice(0, LABEL_LIMIT);
-    return (
-      <Card title="标签" hint={labels.length > shown.length ? `${labels.length} 项，显示前 ${shown.length} 项` : `${labels.length} 项`}>
-        <KeyValue rows={shown} />
-      </Card>
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: c.line(),
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <Text style={t.label}>资源占用</Text>
+        {sample === null ? (
+          <Text style={t.meta}>正在采样…</Text>
+        ) : (
+          <Row gap={26}>
+            <Metric
+              label="CPU"
+              value={sample.cpuPercent.toFixed(1)}
+              unit="%"
+              hint={sample.cpus > 0 ? `${sample.cpus} 个 CPU` : undefined}
+            />
+            <Metric
+              label="内存"
+              value={humanBytes(used)}
+              hint={limit > 0 ? `上限 ${humanBytes(limit)}` : "无上限"}
+            />
+            <Metric label="内存占比" value={limit > 0 ? percent(used, limit) : "—"} />
+          </Row>
+        )}
+      </View>
     );
   }
 
   function detailBody(row: Container): JSX.Element {
-    const info = detail();
     const name = row.name.length > 0 ? row.name : row.id.slice(0, 12);
     return (
       <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <View
           style={{
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            gap: 6,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: 12,
+            gap: 5,
             borderBottomWidth: 1,
             borderBottomColor: c.line(),
           }}
         >
-          <Row gap={8} style={{ justifyContent: "space-between" }}>
-            <Row gap={8} style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: "600", color: c.text() }}>
-                {name}
-              </Text>
-              <Badge text={stateLabel(row.state)} tone={stateTone(row.state)} />
-              <Text numberOfLines={1} style={t.mono}>
-                {row.id.slice(0, 12)}
-              </Text>
-            </Row>
+          <Row gap={10} style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+              <Row gap={7} style={{ alignItems: "center" }}>
+                <Dot color={stateColor(row.state)} size={7} />
+                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "600", color: c.text() }}>
+                  {name}
+                </Text>
+                <Badge text={stateLabel(row.state)} tone={stateTone(row.state)} />
+              </Row>
+              <Row gap={8} style={{ alignItems: "center" }}>
+                <Text numberOfLines={1} style={t.monoDim}>
+                  {row.id.slice(0, 12)}
+                </Text>
+                <Text numberOfLines={1} style={{ ...t.meta, flex: 1, minWidth: 0 }}>
+                  {row.image}
+                </Text>
+              </Row>
+            </View>
             {actions(row)}
           </Row>
-          <Text numberOfLines={1} style={t.meta}>
-            {row.image}
-          </Text>
         </View>
 
         {() =>
           pendingRemove() === row.id ? (
-            <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
               <ConfirmBar
                 message={`删除容器 ${name}？会先强制停止再删除（匿名卷一并删除），无法恢复。`}
                 confirmLabel="删除"
@@ -768,25 +716,124 @@ export default function Containers() {
           ) : null
         }
 
-        <Stack scroll padding={14} gap={12}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 10, flexShrink: 0 }}>
+          <Segmented
+            value={detailTab()}
+            options={[
+              { value: "overview" as DetailTab, label: "概览", testLabel: "详情:概览" },
+              { value: "processes" as DetailTab, label: "进程", testLabel: "详情:进程" },
+              { value: "files" as DetailTab, label: "文件", testLabel: "详情:文件" },
+              { value: "changes" as DetailTab, label: "变更", testLabel: "详情:变更" },
+              { value: "inspect" as DetailTab, label: "检查", testLabel: "详情:检查" },
+              { value: "mounts" as DetailTab, label: "挂载", testLabel: "详情:挂载" },
+              { value: "stats" as DetailTab, label: "统计", testLabel: "详情:统计" },
+              { value: "terminal" as DetailTab, label: "终端", testLabel: "详情:终端" },
+            ]}
+            onChange={(value) => detailTab.set(value)}
+          />
+        </View>
+
+        {() => (detailTab() === "overview" ? overviewTab(row) : containerTab(row))}
+      </View>
+    );
+  }
+
+  /** 「概览」：页面自己的摘要 + 指标条，其余标签把活交给单容器页。 */
+  function overviewTab(row: Container): JSX.Element {
+    const info = detail();
+    const networks = info === null ? [] : networkRows(info);
+    const ports = info === null ? [] : portLines(info);
+    const mounts = info === null ? [] : mountRows(info);
+    const env = info === null ? [] : envRows(info);
+    const labels = info === null ? [] : labelRows(info);
+    const shownEnv = env.slice(0, ENV_LIMIT);
+    const shownLabels = labels.slice(0, LABEL_LIMIT);
+    return (
+      <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {metrics(row)}
+
+        <Stack scroll padding={16} gap={20}>
           {() =>
             detailError() === null ? null : (
               <Row gap={8}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Notice message={`读取详情失败：${detailError() ?? ""}`} tone="danger" />
                 </View>
-                <ToolButton label="重试" testLabel="重试读取详情" onPress={() => void loadDetail(row.id)} />
+                <ActionButton label="重试" testLabel="重试读取详情" onPress={() => void loadDetail(row.id)} />
               </Row>
             )
           }
           {() => (detailLoading() && info === null ? <Loading label="正在读取容器详情…" /> : null)}
-          {() => overviewCard(info)}
-          {() => resourcesCard(row)}
-          {() => networkCard(info)}
-          {() => mountsCard(info)}
-          {() => envCard(info)}
-          {() => labelsCard(info)}
+          {info === null ? null : (
+            <Section title="概览">
+              <KeyValueGrid rows={overviewRows(info)} columns={2} />
+            </Section>
+          )}
+          {networks.length === 0 && ports.length === 0 ? null : (
+            <Section title="网络" hint={networks.length > 0 ? `${networks.length} 个网络` : undefined}>
+              {networks.length === 0 ? null : <KeyValueList rows={networks} labelWidth={140} />}
+              <Text style={t.label}>端口</Text>
+              {ports.length === 0 ? (
+                <Text style={t.meta}>没有发布端口。</Text>
+              ) : (
+                ports.map((line) => (
+                  <Text style={{ ...t.mono, fontSize: 11.5 }} selectable>
+                    {line}
+                  </Text>
+                ))
+              )}
+            </Section>
+          )}
+          {mounts.length === 0 ? null : (
+            <Section title="挂载" hint={`${mounts.length} 处`}>
+              <KeyValueList rows={mounts} labelWidth={240} mono selectable />
+            </Section>
+          )}
+          {env.length === 0 ? null : (
+            <Section
+              title="环境变量"
+              hint={env.length > shownEnv.length ? `${env.length} 项，显示前 ${shownEnv.length} 项` : `${env.length} 项`}
+            >
+              <KeyValueList rows={shownEnv} labelWidth={220} mono selectable />
+            </Section>
+          )}
+          {labels.length === 0 ? null : (
+            <Section
+              title="标签"
+              hint={
+                labels.length > shownLabels.length
+                  ? `${labels.length} 项，显示前 ${shownLabels.length} 项`
+                  : `${labels.length} 项`
+              }
+            >
+              <KeyValueList rows={shownLabels} labelWidth={220} mono selectable />
+            </Section>
+          )}
         </Stack>
+      </View>
+    );
+  }
+
+  /** 单容器标签：直接嵌那一页，并把当前容器预设进去，所以不需要再挑一次。 */
+  function containerTab(row: Container): JSX.Element {
+    const tab = detailTab();
+    return (
+      <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {tab === "processes" ? (
+          <Processes containerId={row.id} />
+        ) : tab === "files" ? (
+          <ContainerFiles containerId={row.id} />
+        ) : tab === "changes" ? (
+          <Changes containerId={row.id} />
+        ) : tab === "inspect" ? (
+          <ContainerInspect containerId={row.id} />
+        ) : tab === "mounts" ? (
+          <ContainerMounts containerId={row.id} />
+        ) : tab === "stats" ? (
+          <ContainerStats containerId={row.id} />
+        ) : (
+          <ContainerTerminal containerId={row.id} />
+        )}
       </View>
     );
   }
@@ -810,32 +857,38 @@ export default function Containers() {
 
   return (
     <View style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: c.bg() }}>
-      <Row wrap gap={8} style={{ paddingHorizontal: 14, paddingVertical: 10, justifyContent: "space-between" }}>
-        <Row gap={8}>
-          <Text style={t.h1}>容器</Text>
-          {() => <Badge text={`${rows().length} 个 · 运行中 ${runningCount()}`} />}
-          <FilterField
-            testID="container-filter"
-            value={filter()}
-            placeholder="按名称 / 镜像过滤"
-            onChange={(value) => filter.set(value)}
-          />
-          {() => filters()}
-        </Row>
-        <Row gap={8}>
-          {() => (updatedAt() === null ? null : <Text style={t.meta}>{`上次更新 ${updatedAt() ?? ""}`}</Text>)}
-          <ToolButton
-            label={() => (loading() ? "刷新中…" : "刷新")}
-            testLabel="刷新"
-            disabled={() => loading() || busy()}
-            onPress={() => void load()}
-          />
-        </Row>
-      </Row>
+      <Toolbar
+        title="容器"
+        hint={`${rows().length} 个 · 运行中 ${runningCount()}`}
+        right={
+          <Row gap={6} style={{ alignItems: "center" }}>
+            <If when={updatedAt() !== null}>
+              <Text style={t.meta}>{`上次更新 ${updatedAt() ?? ""}`}</Text>
+            </If>
+            <IconButton glyph="↻" label="刷新" disabled={() => loading() || busy()} onPress={() => void load()} />
+          </Row>
+        }
+      >
+        <FilterField
+          testID="container-filter"
+          value={filter()}
+          placeholder="按名称 / 镜像过滤"
+          onChange={(value) => filter.set(value)}
+        />
+        <Segmented
+          value={stateFilter()}
+          options={[
+            { value: "all" as StateFilter, label: "全部", testLabel: "过滤:全部" },
+            { value: "running" as StateFilter, label: "运行中", testLabel: "过滤:运行中" },
+            { value: "stopped" as StateFilter, label: "已停止", testLabel: "过滤:已停止" },
+          ]}
+          onChange={(value) => stateFilter.set(value)}
+        />
+      </Toolbar>
 
       {() =>
         listError() !== null && rows().length > 0 ? (
-          <View style={{ paddingHorizontal: 14, paddingBottom: 8 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
             <Notice message={`刷新失败，下面是上次的列表：${listError() ?? ""}`} tone="danger" />
           </View>
         ) : null
@@ -843,7 +896,7 @@ export default function Containers() {
 
       {() =>
         notice() === null ? null : (
-          <View style={{ paddingHorizontal: 14, paddingBottom: 8 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
             <Notice message={notice() ?? ""} tone={noticeTone()} />
           </View>
         )
@@ -851,7 +904,7 @@ export default function Containers() {
 
       {() => (firstLoad() ? <Loading label="正在读取容器列表…" /> : null)}
       {() => (firstError() ? <LoadError message={listError() ?? ""} onRetry={() => void load()} /> : null)}
-      {() => (firstLoad() || firstError() ? null : <SplitPane width={320} left={listPane()} right={detailPane()} />)}
+      {() => (firstLoad() || firstError() ? null : <SplitPane width={300} left={listPane()} right={detailPane()} />)}
     </View>
   );
 }

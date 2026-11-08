@@ -23,6 +23,14 @@ const c = {
 	danger: () => token("destructive"),
 	/** 行悬停/选中底色 */
 	hover: () => token("muted"),
+	/** 侧栏专用的一组（shadcn 的 sidebar token：侧栏底色比页面稍深一点） */
+	sidebar: () => token("sidebar"),
+	sidebarText: () => token("sidebar-foreground"),
+	sidebarActive: () => token("sidebar-accent"),
+	sidebarActiveText: () => token("sidebar-accent-foreground"),
+	sidebarLine: () => token("sidebar-border"),
+	/** 输入框描边（比分割线深一档） */
+	field: () => token("input"),
 	/** 图表色板，用于分类着色 */
 	chart: (index) => token(`chart-${index % 5 + 1}`)
 };
@@ -38,46 +46,71 @@ const r = {
 * 用 getter 是必须的：对象字面量里的 `color: c.text()` 会在模块加载时
 * 求值一次并冻住，用户切主题时页面不跟着变。写成 getter 之后每次读
 * `t.meta` 都重新取 token，主题一变就重画。
+*
+* 尺子：桌面应用的正文比网页小一档（13 是上限），层级靠字重和灰度拉开，
+* 不靠字号跳变 —— 一屏里同时出现 22 / 17 / 14 / 11 会像后台管理面板。
 */
 const t = {
+	/** 页面标题：14/600，和 macOS 侧栏标题一个量级 */
 	get h1() {
-		return {
-			fontSize: 17,
-			fontWeight: "600",
-			color: c.text()
-		};
-	},
-	get h2() {
 		return {
 			fontSize: 14,
 			fontWeight: "600",
 			color: c.text()
 		};
 	},
-	get body() {
+	/** 分区标题：12/600 */
+	get h2() {
 		return {
-			fontSize: 13,
+			fontSize: 12,
+			fontWeight: "600",
 			color: c.text()
 		};
 	},
-	get label() {
+	/** 正文 */
+	get body() {
 		return {
-			fontSize: 11,
-			fontWeight: "500",
-			color: c.muted(),
-			letterSpacing: .3
+			fontSize: 12.5,
+			color: c.text()
 		};
 	},
+	/** 列表主行 */
+	get row() {
+		return {
+			fontSize: 13,
+			fontWeight: "500",
+			color: c.text()
+		};
+	},
+	/** 分区标签 / 指标名：10/600 宽字距，靠灰度退到背景里 */
+	get label() {
+		return {
+			fontSize: 10,
+			fontWeight: "600",
+			color: c.muted(),
+			letterSpacing: .6
+		};
+	},
+	/** 次要信息（时间、说明、计数） */
 	get meta() {
 		return {
 			fontSize: 11,
 			color: c.muted()
 		};
 	},
+	/** 等宽数字：ID、端口、路径。正文色，保证别的扩展里当主内容用时不吃亏 */
 	get mono() {
 		return {
-			fontSize: 12,
+			fontSize: 11.5,
 			color: c.text(),
+			fontVariant: ["tabular-nums"]
+		};
+	},
+	/** 等宽 + 退一档灰度：只作辅助信息（短 ID、镜像、路径、IP） */
+	get monoDim() {
+		return {
+			fontSize: 11,
+			color: c.muted(),
 			fontVariant: ["tabular-nums"]
 		};
 	}
@@ -218,67 +251,86 @@ function Card(props) {
 		return __nsh_hv4;
 	})();
 }
-/** 状态胶囊。 */
+/** 状态胶囊：底色填充，不描边（描边胶囊一多就成"盒子汤"）。 */
 function Badge(props) {
 	return (() => {
 		const __nsh_hv9 = element("view");
 		bindProp(__nsh_hv9, "style", () => ({
-			paddingHorizontal: 8,
-			paddingVertical: 2,
+			height: 18,
+			paddingHorizontal: 7,
 			borderRadius: r.pill,
-			borderWidth: 1,
-			borderColor: toneColor(pick(props.tone ?? "neutral")),
+			backgroundColor: c.hover(),
 			display: "flex",
 			flexDirection: "row",
-			alignItems: "center"
+			alignItems: "center",
+			gap: 4
 		}));
 		const __nsh_hv10 = element("text");
 		bindProp(__nsh_hv10, "style", () => ({
-			fontSize: 11,
+			fontSize: 10.5,
 			fontWeight: "600",
-			color: toneColor(pick(props.tone ?? "neutral"))
+			color: pick(props.tone ?? "neutral") === "neutral" ? c.muted() : toneColor(pick(props.tone ?? "neutral"))
 		}));
 		insert(__nsh_hv10, () => props.text);
 		append(__nsh_hv9, __nsh_hv10);
+		insert(__nsh_hv9, () => props.dot ? component(Dot, { get color() {
+			return toneColor(pick(props.tone ?? "neutral"));
+		} }) : null, __nsh_hv10);
 		return __nsh_hv9;
+	})();
+}
+/** 小圆点：状态色。 */
+function Dot(props) {
+	return (() => {
+		const __nsh_hv11 = element("view");
+		bindProp(__nsh_hv11, "style", () => ({
+			width: props.size ?? 6,
+			height: props.size ?? 6,
+			flexShrink: 0,
+			borderRadius: 999,
+			backgroundColor: pick(props.color)
+		}));
+		return __nsh_hv11;
 	})();
 }
 /** 按钮：三种语气，外观自己画（nsh/base 的 Button 只管无障碍语义）。 */
 function Button(props) {
 	return (() => {
-		const __nsh_hv11 = element("view");
-		bindProp(__nsh_hv11, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
-		prop(__nsh_hv11, "role", "button");
-		bindProp(__nsh_hv11, "accessibilityLabel", () => props.label);
-		bindProp(__nsh_hv11, "style", () => ({
-			height: props.small ? 24 : 28,
-			paddingHorizontal: props.small ? 9 : 12,
+		const __nsh_hv12 = element("view");
+		bindProp(__nsh_hv12, "onPress", () => pick(props.disabled ?? false) ? void 0 : props.onPress);
+		prop(__nsh_hv12, "role", "button");
+		bindProp(__nsh_hv12, "accessibilityLabel", () => props.label);
+		bindProp(__nsh_hv12, "hoverStyle", () => pick(props.tone ?? "ghost") === "primary" ? void 0 : { backgroundColor: pick(props.disabled ?? false) ? "transparent" : c.hover() });
+		bindProp(__nsh_hv12, "style", () => ({
+			height: props.small ? 22 : 26,
+			paddingHorizontal: props.small ? 8 : 11,
 			borderRadius: r.control,
-			borderWidth: 1,
+			borderWidth: pick(props.tone ?? "ghost") === "ghost" ? 0 : 1,
 			borderColor: buttonBorder(pick(props.tone ?? "ghost")),
 			backgroundColor: buttonFill(pick(props.tone ?? "ghost")),
-			opacity: pick(props.disabled ?? false) ? .5 : 1,
+			opacity: pick(props.disabled ?? false) ? .45 : 1,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
-			justifyContent: "center"
+			justifyContent: "center",
+			cursor: "default"
 		}));
-		const __nsh_hv12 = element("text");
-		bindProp(__nsh_hv12, "style", () => ({
-			fontSize: props.small ? 12 : 13,
+		const __nsh_hv13 = element("text");
+		bindProp(__nsh_hv13, "style", () => ({
+			fontSize: 12,
 			fontWeight: "500",
 			color: buttonLabel(pick(props.tone ?? "ghost"), pick(props.disabled ?? false))
 		}));
-		insert(__nsh_hv12, () => props.label);
-		append(__nsh_hv11, __nsh_hv12);
-		return __nsh_hv11;
+		insert(__nsh_hv13, () => props.label);
+		append(__nsh_hv12, __nsh_hv13);
+		return __nsh_hv12;
 	})();
 }
 /** 空状态：一句解释 + 可选的下一步提示。 */
 function Empty(props) {
 	return (() => {
-		const __nsh_hv23 = element("view");
-		prop(__nsh_hv23, "style", {
+		const __nsh_hv25 = element("view");
+		prop(__nsh_hv25, "style", {
 			flex: 1,
 			display: "flex",
 			flexDirection: "column",
@@ -287,38 +339,39 @@ function Empty(props) {
 			gap: 6,
 			padding: 24
 		});
-		const __nsh_hv24 = element("text");
-		bindProp(__nsh_hv24, "style", () => ({
+		const __nsh_hv26 = element("text");
+		bindProp(__nsh_hv26, "style", () => ({
 			fontSize: 13,
 			fontWeight: "500",
 			color: c.text()
 		}));
-		insert(__nsh_hv24, () => props.title);
-		append(__nsh_hv23, __nsh_hv24);
-		insert(__nsh_hv23, [() => props.hint === void 0 ? null : (() => {
-			const __nsh_hv25 = element("text");
-			bindProp(__nsh_hv25, "style", () => ({
-				fontSize: 12,
+		insert(__nsh_hv26, () => props.title);
+		append(__nsh_hv25, __nsh_hv26);
+		insert(__nsh_hv25, [() => props.hint === void 0 ? null : (() => {
+			const __nsh_hv27 = element("text");
+			bindProp(__nsh_hv27, "style", () => ({
+				fontSize: 11.5,
 				color: c.muted(),
-				textAlign: "center"
+				textAlign: "center",
+				maxWidth: 320
 			}));
-			insert(__nsh_hv25, () => props.hint);
-			return __nsh_hv25;
+			insert(__nsh_hv27, () => props.hint);
+			return __nsh_hv27;
 		})(), () => props.action]);
-		return __nsh_hv23;
+		return __nsh_hv25;
 	})();
 }
 /** 键值对表：inspect 类页面的主体。 */
 function KeyValue(props) {
 	return (() => {
-		const __nsh_hv39 = element("view");
-		bindProp(__nsh_hv39, "style", () => ({
+		const __nsh_hv41 = element("view");
+		bindProp(__nsh_hv41, "style", () => ({
 			display: "flex",
 			flexDirection: pick(props.columns ?? 1) === 2 ? "row" : "column",
 			flexWrap: "wrap",
 			gap: pick(props.columns ?? 1) === 2 ? 12 : 0
 		}));
-		insert(__nsh_hv39, () => pick(props.rows).map(([key, value]) => component(Row, {
+		insert(__nsh_hv41, () => pick(props.rows).map(([key, value]) => component(Row, {
 			get style() {
 				return {
 					justifyContent: "space-between",
@@ -329,38 +382,38 @@ function KeyValue(props) {
 			},
 			get children() {
 				return [(() => {
-					const __nsh_hv40 = element("text");
-					bindProp(__nsh_hv40, "style", () => ({
+					const __nsh_hv42 = element("text");
+					bindProp(__nsh_hv42, "style", () => ({
 						fontSize: 12,
 						color: c.muted()
 					}));
-					insert(__nsh_hv40, key);
-					return __nsh_hv40;
+					insert(__nsh_hv42, key);
+					return __nsh_hv42;
 				})(), (() => {
-					const __nsh_hv41 = element("text");
-					bindProp(__nsh_hv41, "style", () => ({
+					const __nsh_hv43 = element("text");
+					bindProp(__nsh_hv43, "style", () => ({
 						fontSize: 12,
 						color: c.text(),
 						fontVariant: ["tabular-nums"]
 					}));
-					insert(__nsh_hv41, value);
-					return __nsh_hv41;
+					insert(__nsh_hv43, value);
+					return __nsh_hv43;
 				})()];
 			}
 		})));
-		return __nsh_hv39;
+		return __nsh_hv41;
 	})();
 }
 /** 一行提示（操作结果/错误），`tone` 决定颜色。 */
 function Notice(props) {
 	return (() => {
-		const __nsh_hv48 = element("text");
-		bindProp(__nsh_hv48, "style", () => ({
-			fontSize: 12,
+		const __nsh_hv71 = element("text");
+		bindProp(__nsh_hv71, "style", () => ({
+			fontSize: 11.5,
 			color: props.tone === void 0 ? c.muted() : toneColor(pick(props.tone))
 		}));
-		insert(__nsh_hv48, () => props.message);
-		return __nsh_hv48;
+		insert(__nsh_hv71, () => props.message);
+		return __nsh_hv71;
 	})();
 }
 
