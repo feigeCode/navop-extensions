@@ -2035,12 +2035,19 @@ mod tests {
             }
         }
 
-        let ui_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/pages");
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut expected = Vec::new();
-        collect_method_literals(&ui_dir, &mut expected);
+        // 本地 `nsh build` 之后 ui/pages 下每页都有 .nsh/ 产物,那里字面量最全。
+        collect_method_literals(&manifest_dir.join("ui/pages"), &mut expected);
+        if expected.is_empty() {
+            // CI 与干净 checkout 里 .nsh/ 被 .gitignore 排除,没有任何页面构建产物;
+            // 这时退回扫描入库的发布包 ui/dist/bundle.js —— 宿主实际装载的就是它,
+            // 页面新增了方法却没补能力位,照样会在这里暴露。
+            collect_method_literals(&manifest_dir.join("ui/dist"), &mut expected);
+        }
         assert!(
             !expected.is_empty(),
-            "ui/pages 的 bundle 产物里没有解析到任何 docker/ 方法字面量,先跑 nsh build"
+            "ui/dist/bundle.js 与 ui/pages 产物里都没有 docker/ 方法字面量,先跑 nsh build"
         );
 
         for method in &expected {
