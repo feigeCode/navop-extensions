@@ -6051,6 +6051,12 @@ function App$1(props = {}) {
 			},
 			get title() {
 				return item.name;
+			},
+			style: {
+				flex: 1,
+				width: "100%",
+				minWidth: 0,
+				minHeight: 0
 			}
 		}) : component(Empty, {
 			title: "容器未运行",

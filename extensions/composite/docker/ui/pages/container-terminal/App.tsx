@@ -175,6 +175,9 @@ export default function App(props: { containerId?: string } = {}): JSX.Element {
     </View>
   );
 
+  // 原生终端节点自己没有任何内容：不显式写 style 撑开，flex 布局会把它量成
+  // 0×0（宿主日志 `Terminal::resize ... bounds_w=0px bounds_h=0px`），页面上
+  // 只剩一个空框。所以下面的 <Terminal> 必须带 flex/width/minHeight。
   const terminal = (item: Container): JSX.Element => (
     <View style={{ flexDirection: "column", gap: 8, height: "100%", minWidth: 0 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -217,6 +220,7 @@ export default function App(props: { containerId?: string } = {}): JSX.Element {
             args={["exec", "-it", item.name, "/bin/sh"]}
             env={{ NAVOP_SESSION: String(attempt()), NAVOP_TERM: "xterm-256color" }}
             title={item.name}
+            style={{ flex: 1, width: "100%", minWidth: 0, minHeight: 0 }}
           />
         ) : (
           <Empty title="容器未运行" hint="启动容器后点上面的「重新连接」" />
