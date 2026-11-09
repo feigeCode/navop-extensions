@@ -3,7 +3,7 @@
 import { expect, open, test } from "nsh/test";
 import { hostHandlers, TEST_PARAMS } from "../../lib/test-host";
 
-const state = { received: 1333, sent: 2008, fail: false };
+const state = { received: 1333, sent: 2008, fail: false, groups: [] as unknown[] };
 
 const handlers = hostHandlers({
   "middleware/metrics": () => {
@@ -22,7 +22,9 @@ const handlers = hostHandlers({
       ],
     };
   },
-  "middleware/group/clients": () => {
+  // MQTT 没有订阅组，但 `group` 是必填入参，页面必须给一个非空值（旧声明写死 "local"）。
+  "middleware/group/clients": (params: Record<string, unknown>) => {
+    state.groups.push(params.group);
     if (state.fail) throw new Error("metrics unavailable");
     return {
       clients: [
@@ -42,6 +44,7 @@ test("概览：状态条、指标、速率快照与自动刷新", async () => {
   state.received = 1333;
   state.sent = 2008;
   state.fail = false;
+  state.groups = [];
 
   const app = await open("../../App.tsx", {
     host: { params: { ...TEST_PARAMS, route: "overview", backends: ["resource"] }, handlers },
@@ -51,6 +54,10 @@ test("概览：状态条、指标、速率快照与自动刷新", async () => {
   });
 
   await app.waitFor("text:已连接");
+  // 客户端列表请求必须带非空 group：不给就是 -32602「配置错误: `group` 不能为空」。
+  expect(state.groups.length).toBeGreaterThan(0);
+  expect(state.groups.every((group) => typeof group === "string" && group.length > 0)).toBe(true);
+  expect(state.groups).toContain("local");
   const texts = app.texts();
   expect(texts).toContain("MQTT 连接");
   expect(texts).toContain("navop-1");

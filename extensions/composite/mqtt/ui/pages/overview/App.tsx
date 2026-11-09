@@ -48,6 +48,12 @@ const OPERATIONS: Record<string, string> = {
   unsubscribe: "middleware/topic/delete",
 };
 
+/** `middleware/group/clients` 的 `group` 是标准契约里的必填入参，但 MQTT 没有
+ * 订阅组这个概念（能力位 `groups=false`、`clients=true`）：provider 里的
+ * `group_clients(_group)` 忽略该值、返回本地连接自身。这里必须显式给一个非空值，
+ * 否则 provider 会以 -32602 拒绝（重写前的工作台声明里同样是写死 `"local"`）。 */
+const LOCAL_GROUP = "local";
+
 /** 调一次 provider 方法；把失败折成一句人话。`confirmed` 仅为兼容旧调用点。 */
 async function dispatch(
   operationId: string,
@@ -171,7 +177,7 @@ export default function Overview() {
     try {
       const [metricsResult, clientsResult] = await Promise.all([
         dispatch("metrics"),
-        dispatch("listClients"),
+        dispatch("listClients", { group: LOCAL_GROUP }),
       ]);
       const next = ((metricsResult as Record<string, unknown> | null)?.metrics ??
         metricsResult ??

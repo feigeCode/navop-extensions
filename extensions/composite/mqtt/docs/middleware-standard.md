@@ -153,6 +153,7 @@
 - 指标卡片（`middleware/metrics`，gated by `metrics`）：固定五项按序 = TPS In(`tps_in`) / TPS Out(`tps_out`) / Topics(`topic_count`) / Connections(`connection_count`) / Messages Today(`message_count_today`)；其后渲染 `MiddlewareMetrics.extras`，顺序由实现扩展声明的 extras 顺序提示决定——提示中出现的键先按提示顺序，其余按键原始顺序追加。空值显示 `-`。
 - 集群拓扑表（`middleware/cluster/overview`，gated by `cluster_overview`）：把 `clusters[*].brokers[*]` 展平成行，列 = cluster（取所属 cluster 的 `name`）/ name / address / topic_count / queue_count / version / tps_in / tps_out。
 - 两块**并发**加载、各自独立 gate；只有一块有能力的页只渲染该块，都没有能力时整页空态。
+- MQTT 侧补充：概览页还并发取「本地客户端」（`middleware/group/clients`）。MQTT 没有订阅组（`groups=false` / `clients=true`），但该方法的 `group` 是契约里的必填入参，页面必须显式传一个非空值（固定 `"local"`；provider 的 `group_clients(_group)` 忽略它、返回本地连接自身）。漏传就是 `-32602 配置错误: group 不能为空`，整页会退化成错误框。
 
 **Topic 页**
 
