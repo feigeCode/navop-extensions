@@ -269,9 +269,11 @@ jobs:
       - prepare
       - release
     if: ${{ always() && needs.release.result == 'success' }}
+    # 被调用的 upload-r2.yml 要发 manifest Release 并派发 CNB 同步，需要 write；
+    # 这里的 job 级权限是上限，给 read 会让整条 workflow 在校验阶段就 startup_failure。
     permissions:
-      actions: read
-      contents: read
+      actions: write
+      contents: write
     uses: ./.github/workflows/upload-r2.yml
     with:
       tag: ${{ needs.prepare.outputs.release_tag }}
