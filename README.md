@@ -65,13 +65,13 @@ tests/
   scripts.test.mjs
 docs/
   superpowers/plans/  implementation plans used by agentic development workflows
-.codex/
+.agents/
   skills/ipc-driver-development/
 ```
 
 The duplicated root-level `ipc-driver-development/` skill directory is not used.
 Keep driver-development guidance under
-`.codex/skills/ipc-driver-development/`.
+`.agents/skills/ipc-driver-development/`.
 
 Implementation plans under `docs/superpowers/plans/` capture approved,
 task-oriented work plans for extension changes. Treat them as development
