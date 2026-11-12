@@ -5,6 +5,7 @@ use ironrdp_client::config::{ClipboardType, Config, ConfigBuilder, Destination};
 use crate::protocol::{ConnectRequest, EgfxMode};
 
 pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
+    let relay = connect.relay;
     let mut builder = ConfigBuilder::new()
         .with_destination(connect.destination.parse::<Destination>()?)
         .with_username(connect.username.unwrap_or_default())
@@ -27,7 +28,6 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         .with_lossy_compression(true)
         .with_codecs(Vec::new())
         .with_autologon(true)
-        .with_sound(connect.audio_playback)
         .with_server_pointer(true)
         .with_pointer_software_rendering(false)
         // GNOME Remote Desktop 50 refuses to serve a session at all unless the client
@@ -41,6 +41,20 @@ pub(super) fn build_config(connect: ConnectRequest) -> anyhow::Result<Config> {
         // to K64 unless with_compression(false) is set explicitly.
         .with_compression(false)
         .with_clipboard(ClipboardType::Enable);
+
+    if let Some(relay) = relay {
+        let address = relay.address.parse::<std::net::SocketAddr>()?;
+        anyhow::ensure!(
+            address.ip().is_loopback(),
+            "RDP relay address must be loopback"
+        );
+        builder = builder.with_direct_tcp_proxy(address, relay.authentication);
+    }
+
+    #[cfg(feature = "sound")]
+    {
+        builder = builder.with_sound(connect.audio_playback);
+    }
 
     if let Some(domain) = connect.domain {
         builder = builder.with_domain(domain);
@@ -134,6 +148,7 @@ mod tests {
             audio_capture: false,
             egfx: EgfxMode::Auto,
             shared_folders: Vec::new(),
+            relay: None,
         })
         .expect("config builds");
 
@@ -145,6 +160,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "sound"), allow(unused_variables))]
     fn applies_requested_audio_playback_setting() {
         for audio_playback in [false, true] {
             let config = build_config(ConnectRequest {
@@ -159,19 +175,23 @@ mod tests {
                 audio_capture: false,
                 egfx: EgfxMode::Auto,
                 shared_folders: Vec::new(),
+                relay: None,
             })
             .expect("config builds");
 
-            assert_eq!(
-                audio_playback,
-                config.connector().enable_audio_playback,
-                "connector audio playback must follow the Connect request"
-            );
-            assert_eq!(
-                audio_playback,
-                config.channels().sound,
-                "RDPSND channel must follow the Connect request"
-            );
+            #[cfg(feature = "sound")]
+            {
+                assert_eq!(
+                    audio_playback,
+                    config.connector().enable_audio_playback,
+                    "connector audio playback must follow the Connect request"
+                );
+                assert_eq!(
+                    audio_playback,
+                    config.channels().sound,
+                    "RDPSND channel must follow the Connect request"
+                );
+            }
         }
     }
 
@@ -189,6 +209,7 @@ mod tests {
             audio_capture: false,
             egfx: EgfxMode::Auto,
             shared_folders: Vec::new(),
+            relay: None,
         })
         .expect("config builds");
 

@@ -94,7 +94,13 @@ pub(crate) fn apply_input_request(
             tracing::info!(transfer_id, "host cancelled clipboard transfer");
             context.clipboard.cancel_transfer(transfer_id);
         }
+        HelperRequest::RequestFullFrame => {
+            send_reliably(|| context.input_tx.try_send(RdpInputEvent::RequestFullFrame))?;
+        }
         HelperRequest::Close => return Ok(RdpInputAction::Close),
+        HelperRequest::ClientHello { .. } | HelperRequest::Ping { .. } => {
+            anyhow::bail!("control request is not valid as RDP input")
+        }
         HelperRequest::Connect { .. } => {
             anyhow::bail!("Connect request is only valid as the first message")
         }

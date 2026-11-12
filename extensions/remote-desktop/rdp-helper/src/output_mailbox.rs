@@ -104,14 +104,8 @@ impl OutputReceiver {
     pub fn recv(&self) -> Option<HelperEvent> {
         let mut state = lock(&self.shared);
         loop {
-            if let Some(control) = state.control.pop_front() {
-                return Some(control);
-            }
-            if let Some(frame) = state.latest_frame.take() {
-                return Some(frame);
-            }
-            if let Some(delta) = state.pending_deltas.pop_front() {
-                return Some(delta);
+            if let Some(event) = pop_next(&mut state) {
+                return Some(event);
             }
             if state.sender_count == 0 {
                 return None;
@@ -123,6 +117,22 @@ impl OutputReceiver {
                 .unwrap_or_else(|error| error.into_inner());
         }
     }
+
+    /// Pops an event that is already queued without blocking the output writer.
+    pub fn try_recv(&self) -> Option<HelperEvent> {
+        let mut state = lock(&self.shared);
+        pop_next(&mut state)
+    }
+}
+
+fn pop_next(state: &mut State) -> Option<HelperEvent> {
+    if let Some(control) = state.control.pop_front() {
+        return Some(control);
+    }
+    if let Some(frame) = state.latest_frame.take() {
+        return Some(frame);
+    }
+    state.pending_deltas.pop_front()
 }
 
 impl Drop for OutputReceiver {
@@ -287,7 +297,10 @@ fn split_entry_into_bands(entry: DeltaEntry, cap: usize) -> Vec<DeltaEntry> {
         let end = start + rows * stride;
         let Some(band) = pixels.get(start..end) else {
             // A truncated payload: keep what is left rather than half a band.
-            bands.push((band_rect(&rect, row, height - row, pixels.len() - start), pixels[start..].to_vec()));
+            bands.push((
+                band_rect(&rect, row, height - row, pixels.len() - start),
+                pixels[start..].to_vec(),
+            ));
             break;
         };
         bands.push((band_rect(&rect, row, rows, band.len()), band.to_vec()));
@@ -366,7 +379,10 @@ fn merge_delta_payload(
     next_rects: Vec<HelperFrameRect>,
     next_bgra: Vec<u8>,
 ) -> (Vec<HelperFrameRect>, Vec<u8>) {
-    let entries = fold_payload(split_payload(&rects, &bgra), split_payload(&next_rects, &next_bgra));
+    let entries = fold_payload(
+        split_payload(&rects, &bgra),
+        split_payload(&next_rects, &next_bgra),
+    );
     join_payload(entries)
 }
 
@@ -480,7 +496,15 @@ fn trim_covered_pixels(
     // The rows outside the covered band survive whole, inside it only the columns next to
     // the covered one do.
     push_band(rect, pixels, rect_top, top, rect_left, rect_right, parts);
-    push_band(rect, pixels, bottom, rect_bottom, rect_left, rect_right, parts);
+    push_band(
+        rect,
+        pixels,
+        bottom,
+        rect_bottom,
+        rect_left,
+        rect_right,
+        parts,
+    );
     push_band(rect, pixels, top, bottom, rect_left, left, parts);
     push_band(rect, pixels, top, bottom, right, rect_right, parts);
 }

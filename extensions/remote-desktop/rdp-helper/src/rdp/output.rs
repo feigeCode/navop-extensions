@@ -1,7 +1,7 @@
 use ironrdp_client::rdp::RdpOutputEvent;
 
 use crate::pixels::rdp_u32_pixels_to_bgra;
-use crate::protocol::{HelperEvent, HelperFrameRect, HelperReconnectReason};
+use crate::protocol::{HelperEvent, HelperFrameRect, HelperReconnectReason, RdpFailureKind};
 
 #[derive(Default)]
 pub(super) struct RdpOutputMapper {
@@ -86,6 +86,12 @@ impl RdpOutputMapper {
                     delay_secs: None,
                 }]
             }
+            RdpOutputEvent::ServerRedirected { .. } => {
+                self.reset_session();
+                vec![HelperEvent::Status {
+                    message: "following RDP server redirection".to_string(),
+                }]
+            }
             RdpOutputEvent::Image {
                 buffer,
                 width,
@@ -119,11 +125,13 @@ impl RdpOutputMapper {
                     .bottom
                     .checked_sub(region.top)
                     .and_then(|span| span.checked_add(1));
-                let (Some(region_width), Some(region_height)) = (region_width, region_height) else {
+                let (Some(region_width), Some(region_height)) = (region_width, region_height)
+                else {
                     tracing::warn!(?region, "Ignored malformed RDP dirty region bounds");
                     return Vec::new();
                 };
-                let expected_pixels = usize::from(region_width).checked_mul(usize::from(region_height));
+                let expected_pixels =
+                    usize::from(region_width).checked_mul(usize::from(region_height));
                 if region_width == 0
                     || region_height == 0
                     || region.right >= width
@@ -192,17 +200,30 @@ impl RdpOutputMapper {
             }
             RdpOutputEvent::ConnectionFailure(error) => {
                 self.reset_session();
+                let message = error.report().with_locations().to_string();
+                let kind = classify_failure(&message);
                 vec![HelperEvent::ConnectionFailure {
-                    message: error.report().with_locations().to_string(),
+                    message,
+                    kind: Some(kind),
                 }]
             }
             RdpOutputEvent::Terminated(result) => {
                 self.reset_session();
+                let (message, kind) = match result {
+                    Ok(reason) => {
+                        let message = reason.to_string();
+                        let kind = classify_failure(&message);
+                        (message, kind)
+                    }
+                    Err(error) => {
+                        let message = error.report().to_string();
+                        let kind = classify_failure(&message);
+                        (message, kind)
+                    }
+                };
                 vec![HelperEvent::Terminated {
-                    message: match result {
-                        Ok(reason) => reason.to_string(),
-                        Err(error) => error.report().to_string(),
-                    },
+                    message,
+                    kind: Some(kind),
                 }]
             }
             RdpOutputEvent::PointerDefault => self.map_cursor(HelperEvent::CursorDefault),
@@ -240,6 +261,58 @@ impl RdpOutputMapper {
             Vec::new()
         }
     }
+}
+
+fn classify_failure(message: &str) -> RdpFailureKind {
+    let normalized = message.to_ascii_lowercase();
+    if normalized.contains("another user connected")
+        || normalized.contains("disconnected by other connection")
+        || normalized.contains("session takeover")
+    {
+        return RdpFailureKind::SessionTakenOver;
+    }
+    if normalized.contains("server ended")
+        || normalized.contains("administratively disconnected")
+        || normalized.contains("rpc initiated logoff")
+    {
+        return RdpFailureKind::ServerEndedSession;
+    }
+    if normalized.contains("credssp")
+        || normalized.contains("access denied")
+        || normalized.contains("logon failure")
+        || normalized.contains("authentication failed")
+        || normalized.contains("invalid credentials")
+        || normalized.contains("wrong password")
+        || normalized.contains("invalid password")
+    {
+        return RdpFailureKind::Authentication;
+    }
+    if normalized.contains("certificate") {
+        return RdpFailureKind::Certificate;
+    }
+    if normalized.contains("tls") {
+        return RdpFailureKind::Tls;
+    }
+    if normalized.contains("negotiat") {
+        return RdpFailureKind::Negotiation;
+    }
+    if normalized.contains("timed out") || normalized.contains("timeout") {
+        return RdpFailureKind::Timeout;
+    }
+    if normalized.contains("connection refused") {
+        return RdpFailureKind::ConnectionRefused;
+    }
+    if normalized.contains("connection reset")
+        || normalized.contains("connection aborted")
+        || normalized.contains("broken pipe")
+        || normalized.contains("fast-path")
+    {
+        return RdpFailureKind::Transport;
+    }
+    if normalized.contains("protocol") || normalized.contains("decode") {
+        return RdpFailureKind::Protocol;
+    }
+    RdpFailureKind::Other
 }
 
 #[cfg(test)]
@@ -285,7 +358,7 @@ mod tests {
 
         let events = mapper.map(RdpOutputEvent::ConnectionFailure(error));
 
-        let [HelperEvent::ConnectionFailure { message }] = events.as_slice() else {
+        let [HelperEvent::ConnectionFailure { message, .. }] = events.as_slice() else {
             panic!("expected one connection failure event");
         };
         assert!(message.contains("[TLS upgrade @"), "{message}");

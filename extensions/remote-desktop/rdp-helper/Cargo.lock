@@ -1438,7 +1438,7 @@ checksum = "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78"
 [[package]]
 name = "ironrdp"
 version = "0.17.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-cliprdr",
  "ironrdp-connector",
@@ -1451,7 +1451,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-async"
 version = "0.10.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bytes",
  "ironrdp-connector",
@@ -1464,12 +1464,12 @@ dependencies = [
 [[package]]
 name = "ironrdp-bulk"
 version = "0.1.1"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 
 [[package]]
 name = "ironrdp-cfg"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-propertyset",
 ]
@@ -1477,7 +1477,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-client"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -1515,7 +1515,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-cliprdr"
 version = "0.7.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bitflags 2.13.1",
  "ironrdp-core",
@@ -1527,7 +1527,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-cliprdr-native"
 version = "0.7.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-cliprdr",
  "ironrdp-core",
@@ -1542,7 +1542,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-connector"
 version = "0.10.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-error",
@@ -1560,7 +1560,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-core"
 version = "0.2.1"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-error",
 ]
@@ -1568,7 +1568,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-displaycontrol"
 version = "0.8.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-dvc",
@@ -1580,7 +1580,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-dvc"
 version = "0.8.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-pdu",
@@ -1591,7 +1591,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-echo"
 version = "0.4.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-dvc",
@@ -1602,7 +1602,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-egfx"
 version = "0.3.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bit_field",
  "bitflags 2.13.1",
@@ -1616,12 +1616,12 @@ dependencies = [
 [[package]]
 name = "ironrdp-error"
 version = "0.2.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 
 [[package]]
 name = "ironrdp-graphics"
 version = "0.9.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bit_field",
  "bitflags 2.13.1",
@@ -1638,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-input"
 version = "0.7.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bitvec",
  "ironrdp-pdu",
@@ -1648,7 +1648,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-mstsgu"
 version = "0.0.1"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "base64",
  "bitflags 2.13.1",
@@ -1671,7 +1671,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-pdu"
 version = "0.9.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bit_field",
  "bitflags 2.13.1",
@@ -1694,12 +1694,12 @@ dependencies = [
 [[package]]
 name = "ironrdp-propertyset"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 
 [[package]]
 name = "ironrdp-rail"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-svc",
@@ -1708,7 +1708,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdcleanpath"
 version = "0.2.2"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "der 0.8.1",
 ]
@@ -1716,7 +1716,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpeai"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-core",
  "ironrdp-dvc",
@@ -1729,7 +1729,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpei"
 version = "0.1.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bitflags 2.13.1",
  "ironrdp-core",
@@ -1742,7 +1742,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpsnd"
 version = "0.9.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bitflags 2.13.1",
  "ironrdp-core",
@@ -1754,7 +1754,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpsnd-native"
 version = "0.7.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bytemuck",
  "cpal",
@@ -1769,7 +1769,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-session"
 version = "0.11.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-bulk",
  "ironrdp-core",
@@ -1787,7 +1787,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-svc"
 version = "0.8.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "bitflags 2.13.1",
  "ironrdp-core",
@@ -1797,17 +1797,19 @@ dependencies = [
 [[package]]
 name = "ironrdp-tls"
 version = "0.2.2"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
+ "rustls-native-certs",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls",
  "x509-cert",
 ]
 
 [[package]]
 name = "ironrdp-tokio"
 version = "0.10.0"
-source = "git+https://github.com/feigeCode/IronRDP?rev=e4b74f8a#e4b74f8a0571d17936a8705ba8339b75242f3dc1"
+source = "git+https://github.com/feigeCode/IronRDP?rev=08587ebf8639c8737fda26bbc4660ad326d8e7ea#08587ebf8639c8737fda26bbc4660ad326d8e7ea"
 dependencies = [
  "ironrdp-async",
  "ironrdp-connector",
@@ -2097,7 +2099,7 @@ dependencies = [
 
 [[package]]
 name = "navop-rdp-helper"
-version = "0.3.17"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "ironrdp",
@@ -3793,8 +3795,12 @@ dependencies = [
  "futures-util",
  "log",
  "native-tls",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls",
  "tungstenite",
 ]
 
@@ -3968,6 +3974,8 @@ dependencies = [
  "log",
  "native-tls",
  "rand 0.9.5",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.10.7",
  "thiserror 2.0.19",
 ]

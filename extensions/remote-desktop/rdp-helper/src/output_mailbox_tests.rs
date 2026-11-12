@@ -42,12 +42,14 @@ fn terminal_event_discards_pending_frame() {
     tx.send(frame(7)).unwrap();
     tx.send(HelperEvent::Terminated {
         message: "closed".into(),
+        kind: None,
     })
     .unwrap();
 
     assert_eq!(
         Some(HelperEvent::Terminated {
-            message: "closed".into()
+            message: "closed".into(),
+            kind: None,
         }),
         rx.recv()
     );
@@ -100,6 +102,25 @@ fn send_fails_after_receiver_is_dropped() {
     drop(rx);
 
     assert!(tx.send(frame(1)).is_err());
+}
+
+#[test]
+fn try_recv_drains_ready_events_without_blocking() {
+    let (tx, rx) = output_mailbox();
+    tx.send(HelperEvent::Status {
+        message: "one".into(),
+    })
+    .unwrap();
+    tx.send(frame(2)).unwrap();
+
+    assert_eq!(
+        Some(HelperEvent::Status {
+            message: "one".into()
+        }),
+        rx.try_recv()
+    );
+    assert_eq!(Some(frame(2)), rx.try_recv());
+    assert_eq!(None, rx.try_recv());
 }
 
 #[test]
@@ -164,7 +185,8 @@ fn merging_drops_an_earlier_rectangle_the_newer_update_covers_completely() {
 fn merging_drops_a_rectangle_split_across_several_newer_rectangles() {
     let (tx, rx) = output_mailbox();
     tx.send(delta_rects(&[(0, 0, 100, 100)])).unwrap();
-    tx.send(delta_rects(&[(0, 0, 100, 40), (0, 40, 100, 60)])).unwrap();
+    tx.send(delta_rects(&[(0, 0, 100, 40), (0, 40, 100, 60)]))
+        .unwrap();
 
     let Some(HelperEvent::FrameBgraRects { rects, bgra, .. }) = rx.recv() else {
         panic!("expected a merged delta");
@@ -194,7 +216,8 @@ fn merging_keeps_a_rectangle_that_is_only_partly_covered() {
 #[test]
 fn merged_payload_keeps_the_pixels_of_the_rectangles_it_keeps() {
     let (tx, rx) = output_mailbox();
-    tx.send(delta_rects(&[(0, 0, 10, 10), (50, 50, 10, 10)])).unwrap();
+    tx.send(delta_rects(&[(0, 0, 10, 10), (50, 50, 10, 10)]))
+        .unwrap();
     tx.send(delta_rects(&[(0, 0, 10, 10)])).unwrap();
 
     let Some(HelperEvent::FrameBgraRects { rects, bgra, .. }) = rx.recv() else {
@@ -374,7 +397,11 @@ fn apply_delta(canvas: &mut [u32], width: u16, rects: &[HelperFrameRect], bgra: 
         }
     }
 
-    assert_eq!(offset, bgra.len(), "the payload does not match its rectangles");
+    assert_eq!(
+        offset,
+        bgra.len(),
+        "the payload does not match its rectangles"
+    );
 }
 
 /// A delta whose rectangles are all filled with `value`.
@@ -420,7 +447,11 @@ fn splits_a_merged_payload_at_the_byte_cap() {
         let HelperEvent::FrameBgraRects { rects, bgra, .. } = event else {
             panic!("expected a delta");
         };
-        assert!(bgra.len() <= 500, "chunk of {} bytes exceeds the cap", bgra.len());
+        assert!(
+            bgra.len() <= 500,
+            "chunk of {} bytes exceeds the cap",
+            bgra.len()
+        );
         shipped.extend_from_slice(&bgra);
         corners.extend(rects.iter().map(|rect| (rect.x, rect.y)));
     }
@@ -442,10 +473,17 @@ fn cuts_a_rectangle_that_exceeds_the_cap_into_bands() {
         let HelperEvent::FrameBgraRects { rects, bgra, .. } = event else {
             panic!("expected a delta");
         };
-        assert!(bgra.len() <= 120, "chunk of {} bytes exceeds the cap", bgra.len());
+        assert!(
+            bgra.len() <= 120,
+            "chunk of {} bytes exceeds the cap",
+            bgra.len()
+        );
         for rect in rects {
             rows += usize::from(rect.height);
-            assert_eq!(usize::from(rect.width) * usize::from(rect.height) * 4, rect.byte_len);
+            assert_eq!(
+                usize::from(rect.width) * usize::from(rect.height) * 4,
+                rect.byte_len
+            );
         }
         bytes += bgra.len();
     }
@@ -484,7 +522,10 @@ fn never_ships_an_event_larger_than_the_cap_when_the_consumer_falls_behind() {
 
     for index in 0..20u16 {
         let expected = ((index % 4) * 20, (index / 4) * 20);
-        assert!(covered.contains(&expected), "lost the update at {expected:?}");
+        assert!(
+            covered.contains(&expected),
+            "lost the update at {expected:?}"
+        );
     }
 }
 
@@ -534,7 +575,10 @@ fn delta_rects(rects: &[(u16, u16, u16, u16)]) -> HelperEvent {
             height: *height,
             byte_len,
         });
-        bgra.extend(std::iter::repeat_n(u8::try_from(index + 1).unwrap(), byte_len));
+        bgra.extend(std::iter::repeat_n(
+            u8::try_from(index + 1).unwrap(),
+            byte_len,
+        ));
     }
 
     HelperEvent::FrameBgraRects {

@@ -30,6 +30,7 @@ const FRAME_PACING_LOG_INTERVAL: Duration = Duration::from_secs(1);
 pub struct RdpRuntime {
     pub input_tx: HelperInputSender,
     output_rx: Option<OutputReceiver>,
+    pub output_tx: OutputSender,
     pub clipboard: TextClipboardController,
     client_thread: std::thread::JoinHandle<anyhow::Result<()>>,
 }
@@ -56,10 +57,12 @@ pub fn start(connect: ConnectRequest) -> anyhow::Result<RdpRuntime> {
     let (clipboard, cliprdr_factory) = text_clipboard(input_tx.clone(), helper_output_tx.clone());
     let client = client.with_cliprdr_backend_factory(cliprdr_factory);
 
+    let heartbeat_output_tx = helper_output_tx.clone();
     let client_thread = spawn_client_thread(client, output_rx, helper_output_tx)?;
     Ok(RdpRuntime {
         input_tx,
         output_rx: Some(helper_output_rx),
+        output_tx: heartbeat_output_tx,
         clipboard,
         client_thread,
     })
@@ -76,6 +79,7 @@ impl RdpRuntime {
         let Self {
             input_tx,
             output_rx: _output_rx,
+            output_tx: _output_tx,
             clipboard,
             client_thread,
         } = self;
@@ -385,6 +389,7 @@ impl FramePacingStats {
 fn report_runtime_failure(helper_output_tx: &OutputSender) {
     let event = HelperEvent::ConnectionFailure {
         message: "failed to create RDP tokio runtime".to_string(),
+        kind: Some(crate::protocol::RdpFailureKind::Internal),
     };
     if helper_output_tx.send(event).is_err() {
         tracing::debug!("RDP helper output receiver was already closed");
@@ -607,7 +612,7 @@ mod tests {
             Some(HelperEvent::FrameBgraBytes {
                 width: 2,
                 height: 2,
-                bgra: vec![0xff, 0, 0, 0xff].repeat(4),
+                bgra: [0xff, 0, 0, 0xff].repeat(4),
             })
         );
         assert_eq!(

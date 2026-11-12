@@ -50,6 +50,22 @@ fn decodes_detailed_connect_options_from_main_process() {
 }
 
 #[test]
+fn decodes_loopback_relay_and_full_frame_request() {
+    let line = r#"{"type":"Connect","destination":"server.example:3389","username":null,"password":null,"domain":null,"width":1280,"height":720,"relay":{"address":"127.0.0.1:43210","authentication":[1,2,3]}}"#;
+    let request = connect_request(decode_request_line(line).expect("request decodes"))
+        .expect("connect request");
+
+    assert_eq!("server.example:3389", request.destination);
+    let relay = request.relay.expect("relay");
+    assert_eq!("127.0.0.1:43210", relay.address);
+    assert_eq!(vec![1, 2, 3], relay.authentication);
+    assert_eq!(
+        HelperRequest::RequestFullFrame,
+        decode_request_line(r#"{"type":"RequestFullFrame"}"#).expect("full frame request")
+    );
+}
+
+#[test]
 fn helper_request_debug_redacts_credentials_and_local_paths() {
     let request = HelperRequest::Connect {
         destination: "host:3389".to_string(),
@@ -67,6 +83,7 @@ fn helper_request_debug_redacts_credentials_and_local_paths() {
             path: PathBuf::from("/private/customer-workspace"),
             read_only: true,
         }],
+        relay: None,
     };
 
     let debug = format!("{request:?}");
@@ -98,6 +115,7 @@ fn connect_request_debug_redacts_credentials_and_local_paths() {
             path: PathBuf::from("/private/customer-workspace"),
             read_only: true,
         }],
+        relay: None,
     })
     .expect("connect request");
 

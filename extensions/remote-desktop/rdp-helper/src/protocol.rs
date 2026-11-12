@@ -3,9 +3,16 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+pub const HELPER_PROTOCOL_VERSION: u32 = 2;
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum HelperRequest {
+    ClientHello {
+        protocol_version: u32,
+        #[serde(default)]
+        app_version: String,
+    },
     Connect {
         destination: String,
         username: Option<String>,
@@ -24,6 +31,8 @@ pub enum HelperRequest {
         egfx: EgfxMode,
         #[serde(default)]
         shared_folders: Vec<RemoteDesktopSharedFolder>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        relay: Option<HelperRelay>,
     },
     Resize {
         width: u16,
@@ -62,6 +71,10 @@ pub enum HelperRequest {
     CancelClipboardTransfer {
         transfer_id: u64,
     },
+    RequestFullFrame,
+    Ping {
+        sequence: u64,
+    },
     Close,
 }
 
@@ -70,6 +83,13 @@ pub struct RemoteDesktopSharedFolder {
     pub name: String,
     pub path: PathBuf,
     pub read_only: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HelperRelay {
+    pub address: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authentication: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,6 +114,7 @@ pub struct ConnectRequest {
     pub audio_capture: bool,
     pub egfx: EgfxMode,
     pub shared_folders: Vec<RemoteDesktopSharedFolder>,
+    pub relay: Option<HelperRelay>,
 }
 
 /// How the client advertises the RDP Graphics Pipeline Extension (EGFX).
@@ -138,6 +159,11 @@ fn default_scale_factor() -> u32 {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum HelperEvent {
+    ServerHello {
+        protocol_version: u32,
+        provider_version: String,
+        capabilities: HelperServerCapabilities,
+    },
     Status {
         message: String,
     },
@@ -186,10 +212,41 @@ pub enum HelperEvent {
     },
     ConnectionFailure {
         message: String,
+        #[serde(default)]
+        kind: Option<RdpFailureKind>,
     },
     Terminated {
         message: String,
+        #[serde(default)]
+        kind: Option<RdpFailureKind>,
     },
+    Pong {
+        sequence: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HelperServerCapabilities {
+    pub heartbeat: bool,
+    pub typed_errors: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RdpFailureKind {
+    Authentication,
+    Certificate,
+    Timeout,
+    ConnectionRefused,
+    Tls,
+    Negotiation,
+    SessionTakenOver,
+    ServerEndedSession,
+    Transport,
+    Protocol,
+    Internal,
+    Other,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +291,7 @@ pub fn connect_request(request: HelperRequest) -> anyhow::Result<ConnectRequest>
             audio_capture,
             egfx,
             shared_folders,
+            relay,
         } => Ok(ConnectRequest {
             destination,
             username,
@@ -246,6 +304,7 @@ pub fn connect_request(request: HelperRequest) -> anyhow::Result<ConnectRequest>
             audio_capture,
             egfx,
             shared_folders,
+            relay,
         }),
         _ => anyhow::bail!("first helper request must be Connect"),
     }

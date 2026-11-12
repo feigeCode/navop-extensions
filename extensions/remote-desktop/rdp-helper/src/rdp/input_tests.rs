@@ -75,6 +75,30 @@ fn close_request_defers_transport_close_to_session_shutdown() {
 }
 
 #[test]
+fn full_frame_request_reaches_the_ironrdp_input_channel() {
+    let (input_tx, mut input_rx) = HelperInputSender::test_channel();
+    let (output_tx, _output_rx) = output_mailbox();
+    let (clipboard, _factory) = text_clipboard(input_tx.clone(), output_tx);
+    let mut input_database = Database::new();
+    let mut pending_mouse_position = None;
+    let mut context = RdpInputContext::new(
+        &input_tx,
+        &mut input_database,
+        &mut pending_mouse_position,
+        &clipboard,
+    );
+
+    let action = apply_input_request(HelperRequest::RequestFullFrame, &mut context)
+        .expect("full frame request applies");
+
+    assert_eq!(RdpInputAction::Continue, action);
+    assert!(matches!(
+        input_rx.try_recv().expect("full frame event"),
+        RdpInputEvent::RequestFullFrame
+    ));
+}
+
+#[test]
 fn shutdown_releases_held_inputs_before_transport_close() {
     let (input_tx, mut input_rx) = HelperInputSender::test_channel();
     let (output_tx, _output_rx) = output_mailbox();

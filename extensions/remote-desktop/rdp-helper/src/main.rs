@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, BufWriter, Write};
 use std::thread::JoinHandle;
 
 use anyhow::Context as _;
@@ -8,7 +8,7 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
 
 use crate::output_mailbox::OutputReceiver;
-use crate::protocol::HelperEvent;
+use crate::protocol::{HelperEvent, HelperRequest, HelperServerCapabilities, RdpFailureKind};
 use crate::threading::join_worker;
 
 mod clipboard;
@@ -23,6 +23,7 @@ fn main() {
         error!(?error, "RDP helper failed");
         let _ = write_event(&HelperEvent::ConnectionFailure {
             message: format!("{error:#}"),
+            kind: Some(RdpFailureKind::Internal),
         });
         std::process::exit(1);
     }
@@ -31,6 +32,14 @@ fn main() {
 fn run() -> anyhow::Result<()> {
     setup_logging()?;
     tracing::info!(pid = std::process::id(), "rdp helper session started");
+    write_event(&HelperEvent::ServerHello {
+        protocol_version: protocol::HELPER_PROTOCOL_VERSION,
+        provider_version: env!("CARGO_PKG_VERSION").to_string(),
+        capabilities: HelperServerCapabilities {
+            heartbeat: true,
+            typed_errors: true,
+        },
+    })?;
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
     let connect = read_connect_request(&mut lines)?;
@@ -75,6 +84,13 @@ fn process_input_requests(
     let mut pending_mouse_position = None;
     for line in lines {
         let request = protocol::decode_request_line(&line?)?;
+        if let HelperRequest::Ping { sequence } = request {
+            runtime
+                .output_tx
+                .send(HelperEvent::Pong { sequence })
+                .context("send RDP helper heartbeat response")?;
+            continue;
+        }
         let mut context = rdp::RdpInputContext::new(
             &runtime.input_tx,
             database,
@@ -99,11 +115,28 @@ fn shutdown_without_output(
 fn read_connect_request(
     lines: &mut impl Iterator<Item = io::Result<String>>,
 ) -> anyhow::Result<protocol::ConnectRequest> {
-    let line = lines
-        .next()
-        .transpose()?
-        .ok_or_else(|| anyhow::anyhow!("missing Connect request"))?;
-    protocol::connect_request(protocol::decode_request_line(&line)?)
+    loop {
+        let line = lines
+            .next()
+            .transpose()?
+            .ok_or_else(|| anyhow::anyhow!("missing Connect request"))?;
+        let request = protocol::decode_request_line(&line)?;
+        match request {
+            HelperRequest::ClientHello {
+                protocol_version, ..
+            } => {
+                anyhow::ensure!(
+                    protocol_version == protocol::HELPER_PROTOCOL_VERSION,
+                    "RDP helper protocol version {protocol_version} does not match {}",
+                    protocol::HELPER_PROTOCOL_VERSION
+                );
+            }
+            request @ HelperRequest::Connect { .. } => {
+                return protocol::connect_request(request);
+            }
+            _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
+        }
+    }
 }
 
 fn spawn_output_writer(
@@ -112,9 +145,22 @@ fn spawn_output_writer(
     std::thread::Builder::new()
         .name("navop-rdp-helper-output".to_string())
         .spawn(move || {
+            let stdout = io::stdout();
+            let mut stdout = BufWriter::new(stdout.lock());
             while let Some(event) = output_rx.recv() {
-                write_event(&event)?;
+                protocol::write_event(&mut stdout, &event)?;
+                // Flush once per bounded drain rather than once per event. This keeps
+                // frame bursts as one syscall-sized write while guaranteeing the host
+                // still receives progress when the producer briefly goes idle.
+                for _ in 1..64 {
+                    let Some(event) = output_rx.try_recv() else {
+                        break;
+                    };
+                    protocol::write_event(&mut stdout, &event)?;
+                }
+                stdout.flush()?;
             }
+            stdout.flush()?;
             Ok(())
         })
         .map_err(anyhow::Error::from)
@@ -182,7 +228,11 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SessionLogWriter {
     type Writer = SessionLogFileHandle<'a>;
 
     fn make_writer(&'a self) -> Self::Writer {
-        SessionLogFileHandle(self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
+        SessionLogFileHandle(
+            self.0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        )
     }
 }
 
@@ -221,7 +271,10 @@ fn prune_session_logs(dir: &std::path::Path) {
     let mut logs: Vec<std::path::PathBuf> = entries
         .flatten()
         .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == std::ffi::OsStr::new("log")))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|ext| ext == std::ffi::OsStr::new("log"))
+        })
         .collect();
     if logs.len() < SESSION_LOG_KEEP_COUNT {
         return;
@@ -264,6 +317,38 @@ mod tests {
         assert_eq!(request.destination, "host:3389");
         assert_eq!(request.width, 800);
         assert_eq!(request.height, 600);
+    }
+
+    #[test]
+    fn accepts_client_hello_before_connect() {
+        let input = vec![
+            Ok(format!(
+                r#"{{"type":"ClientHello","protocol_version":{},"app_version":"0.15.2"}}"#,
+                protocol::HELPER_PROTOCOL_VERSION
+            )),
+            Ok(
+                r#"{"type":"Connect","destination":"host:3389","username":null,"password":null,"domain":null,"width":800,"height":600}"#
+                    .to_string(),
+            ),
+        ];
+        let mut input = input.into_iter();
+
+        let request = read_connect_request(&mut input).expect("handshake and connect request");
+
+        assert_eq!("host:3389", request.destination);
+    }
+
+    #[test]
+    fn rejects_mismatched_client_hello_version() {
+        let input = vec![Ok(format!(
+            r#"{{"type":"ClientHello","protocol_version":{},"app_version":"0.15.2"}}"#,
+            protocol::HELPER_PROTOCOL_VERSION + 1
+        ))];
+        let mut input = input.into_iter();
+
+        let error = read_connect_request(&mut input).expect_err("version mismatch is rejected");
+
+        assert!(error.to_string().contains("does not match"));
     }
 
     #[test]

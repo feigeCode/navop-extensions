@@ -15,6 +15,12 @@ impl fmt::Debug for RemoteDesktopSharedFolder {
 impl fmt::Debug for HelperRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ClientHello {
+                protocol_version, ..
+            } => formatter
+                .debug_struct("ClientHello")
+                .field("protocol_version", protocol_version)
+                .finish(),
             Self::Connect { .. } => debug_connect_request(self, formatter),
             Self::Resize { .. }
             | Self::MouseMove { .. }
@@ -25,6 +31,11 @@ impl fmt::Debug for HelperRequest {
             | Self::ClipboardText { .. }
             | Self::ClipboardFiles { .. }
             | Self::CancelClipboardTransfer { .. } => debug_clipboard_request(self, formatter),
+            Self::RequestFullFrame => formatter.write_str("RequestFullFrame"),
+            Self::Ping { sequence } => formatter
+                .debug_struct("Ping")
+                .field("sequence", sequence)
+                .finish(),
             Self::Close => formatter.write_str("Close"),
         }
     }
@@ -46,6 +57,7 @@ fn debug_connect_request(
         audio_capture,
         egfx,
         shared_folders,
+        relay,
     } = request
     else {
         unreachable!("connect debug called for another request");
@@ -65,6 +77,11 @@ fn debug_connect_request(
         .field("audio_capture", audio_capture)
         .field("egfx", egfx)
         .field("shared_folder_count", &shared_folders.len())
+        .field("relay_present", &relay.is_some())
+        .field(
+            "relay_authentication_len",
+            &relay.as_ref().map(|relay| relay.authentication.len()),
+        )
         .finish()
 }
 
@@ -152,6 +169,11 @@ impl fmt::Debug for ConnectRequest {
             .field("audio_capture", &self.audio_capture)
             .field("egfx", &self.egfx)
             .field("shared_folder_count", &self.shared_folders.len())
+            .field("relay_present", &self.relay.is_some())
+            .field(
+                "relay_authentication_len",
+                &self.relay.as_ref().map(|relay| relay.authentication.len()),
+            )
             .finish()
     }
 }
@@ -213,11 +235,11 @@ fn debug_message_event(event: &HelperEvent, formatter: &mut fmt::Formatter<'_>) 
             .field("transfer_id", transfer_id)
             .field("message_len", &message.len())
             .finish(),
-        HelperEvent::ConnectionFailure { message } => formatter
+        HelperEvent::ConnectionFailure { message, .. } => formatter
             .debug_struct("ConnectionFailure")
             .field("message_len", &message.len())
             .finish(),
-        HelperEvent::Terminated { message } => formatter
+        HelperEvent::Terminated { message, .. } => formatter
             .debug_struct("Terminated")
             .field("message_len", &message.len())
             .finish(),
@@ -227,6 +249,16 @@ fn debug_message_event(event: &HelperEvent, formatter: &mut fmt::Formatter<'_>) 
 
 fn debug_data_event(event: &HelperEvent, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
     match event {
+        HelperEvent::ServerHello {
+            protocol_version,
+            provider_version,
+            capabilities,
+        } => formatter
+            .debug_struct("ServerHello")
+            .field("protocol_version", protocol_version)
+            .field("provider_version", provider_version)
+            .field("capabilities", capabilities)
+            .finish(),
         HelperEvent::Connected { width, height } => formatter
             .debug_struct("Connected")
             .field("width", width)
@@ -261,6 +293,10 @@ fn debug_data_event(event: &HelperEvent, formatter: &mut fmt::Formatter<'_>) -> 
             .debug_struct("ClipboardFilesReady")
             .field("transfer_id", transfer_id)
             .field("path_count", &paths.len())
+            .finish(),
+        HelperEvent::Pong { sequence } => formatter
+            .debug_struct("Pong")
+            .field("sequence", sequence)
             .finish(),
         HelperEvent::Reconnecting { reason, delay_secs } => formatter
             .debug_struct("Reconnecting")
