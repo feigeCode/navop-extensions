@@ -26,8 +26,8 @@
       "id": "com.navop.tsh-ssh",
       "kind": "composite",
       "name": "Teleport SSH (tsh)",
-      "version": "0.1.0",
-      "release_tag": "tsh-ssh-v0.1.0",
+      "version": "0.1.1",
+      "release_tag": "tsh-ssh-v0.1.1",
       "description": "Static composite extension that opens a Teleport server terminal by running `tsh ssh <target>` as a local process. The saved connection only stores the target (user@server), and no provider process is needed. 静态复合扩展，通过 Teleport 的 tsh ssh 打开服务器终端：连接只保存目标（user@server），由宿主以本地进程运行 tsh ssh，无需 provider 进程。",
       "file_extensions": [],
       "manifest": "tsh-ssh/manifest.json"
