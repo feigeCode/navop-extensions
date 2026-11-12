@@ -1197,6 +1197,7 @@ test("SecureCRT importer is registered as a composite WASM importer", () => {
   assert.equal(importer.id, "securecrt");
   assert.deepEqual(importer.outputKinds, [
     "ssh",
+    "telnet",
     "quick-command",
     "workspace",
   ]);
