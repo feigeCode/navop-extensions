@@ -1,7 +1,8 @@
 use crate::component::candidate_directory_prefix;
 use crate::securecrt::{
     QuickCommandImportRecord, SourceKind, SshImportAuthMethod, append_workspace_records,
-    classify_source, preview_records_from_sources, preview_records_from_sources_with_passphrase,
+    classify_source, diagnostics_warning, preview_records_from_sources,
+    preview_records_from_sources_with_passphrase,
 };
 
 #[test]
@@ -1237,4 +1238,62 @@ S:"Username"=admin
     assert_eq!(json[0]["telnet"]["port"], 23);
     assert_eq!(json[0]["telnet"]["username"], "admin");
     assert_eq!(json[0]["telnet"]["group_path"], "Core/Switch");
+}
+
+#[test]
+fn diagnostics_summarize_missing_hostnames_and_password_failures() {
+    let ssh = br#"S:"Hostname"=prod.example.test
+S:"Protocol Name"=SSH2
+S:"Username"=deploy
+S:"Password V2"=02:deadbeef
+"#;
+    let telnet = br#"S:"Protocol Name"=Telnet
+S:"Username"=admin
+"#;
+    let result = preview_records_from_sources(
+        vec![
+            ("Sessions/Production/API.ini".into(), ssh.as_slice()),
+            ("Sessions/Production/Console.ini".into(), telnet.as_slice()),
+        ],
+        true,
+    );
+
+    let summary = diagnostics_warning(&result.records, &result.warnings, true)
+        .expect("有失败项时必须汇总一条诊断告警");
+    assert_eq!("securecrt_import_diagnostics", summary.code);
+    assert!(summary.message.contains("Imported 1 SSH and 0 Telnet"));
+    assert!(summary.message.contains("without a hostname"));
+    assert!(summary.message.contains("could not be decrypted"));
+}
+
+#[test]
+fn diagnostics_are_silent_when_everything_imported_cleanly() {
+    // 带私钥的会话本来就没有密码，不该被算成「缺密码」。
+    let source = br#"S:"Hostname"=prod.example.test
+S:"Protocol Name"=SSH2
+S:"Username"=deploy
+S:"Identity Filename V2"=/home/deploy/.ssh/id_ed25519
+"#;
+    let result = preview_records_from_sources(
+        vec![("Sessions/Production/API.ini".into(), source.as_slice())],
+        false,
+    );
+
+    assert!(diagnostics_warning(&result.records, &result.warnings, true).is_none());
+}
+
+#[test]
+fn diagnostics_report_sessions_without_any_saved_password() {
+    let source = br#"S:"Hostname"=prod.example.test
+S:"Protocol Name"=SSH2
+S:"Username"=deploy
+"#;
+    let result = preview_records_from_sources(
+        vec![("Sessions/Production/API.ini".into(), source.as_slice())],
+        true,
+    );
+
+    let summary = diagnostics_warning(&result.records, &result.warnings, true)
+        .expect("有缺少密码的会话时应汇总一条诊断");
+    assert!(summary.message.contains("carry no saved password"));
 }

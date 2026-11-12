@@ -15,7 +15,7 @@ mod xml;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use model::{CredentialMetadata, PasswordPolicy, SkippedProtocols};
+use model::{CredentialMetadata, PasswordPolicy, SkippedProtocols, warning};
 pub use model::{
     ImportRecord, ImportWarning, PreviewResult, QuickCommandImportRecord, SshImportAuthMethod,
 };
@@ -123,7 +123,112 @@ where
     if let Some(summary) = skipped.summary_warning() {
         result.warnings.push(summary);
     }
+    if let Some(summary) =
+        diagnostics_warning(&result.records, &result.warnings, policy.include_passwords)
+    {
+        result.warnings.push(summary);
+    }
     result
+}
+
+/// 把「导入了多少条 / 还有多少条没进来、为什么」汇总成一条告警。
+///
+/// 用户看到「222 个会话只进来 144 个」时，唯一能自救的信息就是这条：
+/// 缺主机名的会话、解密失败的密码分别有多少条、失败原因是什么。
+/// 没有任何异常时返回 `None`，避免每次都往界面上塞一条无意义的告警。
+pub(crate) fn diagnostics_warning(
+    records: &[ImportRecord],
+    warnings: &[ImportWarning],
+    include_passwords: bool,
+) -> Option<ImportWarning> {
+    let ssh = records.iter().filter(|record| record.kind == "ssh").count();
+    let telnet = records
+        .iter()
+        .filter(|record| record.kind == "telnet")
+        .count();
+    // 记录级告警（例如解密失败）挂在 record.warnings 上，扫描级告警在 warnings 里，
+    // 两处都要统计，否则最关键的失败原因会被漏掉。
+    let mut missing_hostname = 0;
+    let mut password_failures: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    for warning in warnings
+        .iter()
+        .chain(records.iter().flat_map(|record| record.warnings.iter()))
+    {
+        if warning.code == "securecrt_ssh_hostname_missing"
+            || warning.code == "securecrt_telnet_hostname_missing"
+        {
+            missing_hostname += 1;
+        } else if warning.code == "securecrt_password_decrypt_failed" {
+            *password_failures
+                .entry(decrypt_failure_reason(&warning.message))
+                .or_default() += 1;
+        }
+    }
+    // 源里根本没有密码（XML 导出没勾「包含个人配置数据」是最常见的一种），
+    // 和「有密文但解不开」是两件事，必须分开报，否则用户会去查错方向。
+    // 只统计「本该有密码、源里却没有」的会话：私钥/Agent 认证本来就不带密码，
+    // 把它们算进来只会让这条告警变成每次都响的噪音。
+    let without_password = if include_passwords {
+        records
+            .iter()
+            .filter(|record| match record.kind.as_str() {
+                // 既没有密码、也没有私钥的会话最可疑：XML 导出没勾
+                // 「包含个人配置数据」时，整批 SSH 会话都会长成这样。
+                "ssh" => matches!(
+                    record.ssh.as_ref().map(|ssh| &ssh.auth_method),
+                    Some(SshImportAuthMethod::Password { password: None })
+                        | Some(SshImportAuthMethod::AutoPublicKey)
+                ),
+                "telnet" => record
+                    .telnet
+                    .as_ref()
+                    .is_some_and(|telnet| telnet.password.is_none()),
+                _ => false,
+            })
+            .count()
+    } else {
+        0
+    };
+    if missing_hostname == 0 && password_failures.is_empty() && without_password == 0 {
+        return None;
+    }
+
+    let mut parts = vec![format!(
+        "Imported {ssh} SSH and {telnet} Telnet session(s)."
+    )];
+    if missing_hostname > 0 {
+        parts.push(format!(
+            "Skipped {missing_hostname} session(s) without a hostname."
+        ));
+    }
+    if without_password > 0 {
+        parts.push(format!(
+            "{without_password} imported session(s) carry no saved password in the source."
+        ));
+    }
+    if !password_failures.is_empty() {
+        let failed: usize = password_failures.values().sum();
+        let detail = password_failures
+            .iter()
+            .map(|(reason, count)| format!("{reason}: {count}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        parts.push(format!(
+            "{failed} password(s) could not be decrypted ({detail})."
+        ));
+    }
+    Some(warning("securecrt_import_diagnostics", parts.join(" ")))
+}
+
+/// 从告警文案里取回失败原因；文案由 [`password_outcome`] 统一生成。
+fn decrypt_failure_reason(message: &str) -> String {
+    let reason = message
+        .rsplit_once(':')
+        .map(|(_, tail)| tail)
+        .unwrap_or(message)
+        .trim();
+    reason.trim_end_matches('.').to_string()
 }
 
 /// 解出 Credentials 目录里一条凭据的用户名与密码。
