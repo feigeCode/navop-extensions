@@ -58,11 +58,11 @@ impl Guest for SecureCrtImporter {
         serde_json::json!({
             "id": "securecrt",
             "display_name": "SecureCRT",
-            "description": "Import SecureCRT SSH sessions into grouped workspaces, plus Button Bar and Command Manager commands.",
+            "description": "Import SecureCRT SSH and Telnet sessions into grouped workspaces, plus Button Bar and Command Manager commands.",
             "icon": "terminal",
             "vendor": "VanDyke",
             "supported_platforms": ["macos", "windows", "linux"],
-            "output_kinds": ["ssh", "quick_command", "workspace"],
+            "output_kinds": ["ssh", "telnet", "quick_command", "workspace"],
             "capabilities": {
                 "supports_scan": true,
                 "supports_password_import": true,
@@ -222,6 +222,10 @@ fn discovered_workspace_paths(preview: &PreviewResult) -> Vec<String> {
         .iter()
         .filter_map(|record| match record.kind.as_str() {
             "ssh" => record.ssh.as_ref().and_then(|ssh| ssh.group_path.clone()),
+            "telnet" => record
+                .telnet
+                .as_ref()
+                .and_then(|telnet| telnet.group_path.clone()),
             "workspace" => record
                 .workspace
                 .as_ref()

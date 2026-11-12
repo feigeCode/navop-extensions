@@ -15,7 +15,7 @@ mod xml;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use model::CredentialMetadata;
+use model::{CredentialMetadata, PasswordPolicy, SkippedProtocols};
 pub use model::{
     ImportRecord, ImportWarning, PreviewResult, QuickCommandImportRecord, SshImportAuthMethod,
 };
@@ -48,6 +48,11 @@ where
     I: IntoIterator<Item = (String, &'a [u8])>,
 {
     let mut result = PreviewResult::default();
+    let policy = PasswordPolicy {
+        include_passwords,
+        passphrase,
+    };
+    let mut skipped = SkippedProtocols::default();
     let mut seen = BTreeSet::new();
     let mut credentials = BTreeMap::new();
     let mut decoded_sources = Vec::new();
@@ -80,9 +85,9 @@ where
                     &path,
                     &text,
                     &credentials,
-                    include_passwords,
-                    passphrase,
+                    policy,
                     &mut result.warnings,
+                    &mut skipped,
                 )
             }
             .into_iter()
@@ -92,9 +97,9 @@ where
                 &path,
                 &text,
                 &credentials,
-                include_passwords,
-                passphrase,
+                policy,
                 &mut result.warnings,
+                &mut skipped,
             ),
             SourceKind::ButtonBar => {
                 button_bar::parse_button_bar(&path, &text, &mut result.warnings)
@@ -113,6 +118,10 @@ where
                 ));
             }
         }
+    }
+    // 被跳过的非 SSH/Telnet 会话在这里统一报一次，scan 与 preview 共用同一条解析路径。
+    if let Some(summary) = skipped.summary_warning() {
+        result.warnings.push(summary);
     }
     result
 }

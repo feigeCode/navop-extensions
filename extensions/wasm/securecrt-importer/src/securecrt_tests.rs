@@ -74,7 +74,7 @@ fn parses_utf16_ini_and_identity_filename_v2() {
 }
 
 #[test]
-fn xml_export_yields_nested_ssh_sessions_only() {
+fn xml_export_yields_ssh_and_telnet_sessions_and_counts_skipped_protocols() {
     let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
 <VanDyke version="3.0">
   <key name="Sessions">
@@ -87,6 +87,12 @@ fn xml_export_yields_nested_ssh_sessions_only() {
         <string name="Identity Filename V2">/Users/deploy/.ssh/id_ed25519</string>
         <string name="Password V2">securecrt-secret-sentinel</string>
       </key>
+      <key name="Console">
+        <string name="Protocol Name">Telnet</string>
+        <string name="Hostname">console.example.com</string>
+        <dword name="[Telnet] Port">2323</dword>
+        <string name="Username">admin</string>
+      </key>
     </key>
     <key name="Ignored RDP">
       <string name="Protocol Name">RDP</string>
@@ -97,30 +103,87 @@ fn xml_export_yields_nested_ssh_sessions_only() {
 </VanDyke>"#;
     let result = preview_records_from_sources(vec![("export.xml".into(), xml.as_slice())], true);
 
-    assert_eq!(result.records.len(), 1);
-    let record = &result.records[0];
-    assert_eq!(record.display_name, "Gateway");
+    assert_eq!(result.records.len(), 2);
+    let ssh = result
+        .records
+        .iter()
+        .find(|record| record.kind == "ssh")
+        .expect("ssh record");
+    assert_eq!(ssh.display_name, "Gateway");
     assert_eq!(
-        record.source_id.as_deref(),
+        ssh.source_id.as_deref(),
         Some("export.xml#Sessions/Production/Gateway")
     );
     assert_eq!(
-        record.ssh.as_ref().unwrap().group_path.as_deref(),
+        ssh.ssh.as_ref().unwrap().group_path.as_deref(),
         Some("Production")
     );
-    assert_eq!(record.ssh.as_ref().unwrap().port, Some(2202));
+    assert_eq!(ssh.ssh.as_ref().unwrap().port, Some(2202));
     assert_eq!(
-        record.ssh.as_ref().unwrap().auth_method,
+        ssh.ssh.as_ref().unwrap().auth_method,
         SshImportAuthMethod::PrivateKey {
             key_path: "/Users/deploy/.ssh/id_ed25519".to_string(),
             passphrase: None,
         }
     );
     assert!(
-        !serde_json::to_string(record)
+        !serde_json::to_string(ssh)
             .unwrap()
             .contains("securecrt-secret-sentinel")
     );
+
+    let telnet = result
+        .records
+        .iter()
+        .find(|record| record.kind == "telnet")
+        .expect("telnet record");
+    let payload = telnet.telnet.as_ref().unwrap();
+    assert_eq!(payload.host, "console.example.com");
+    assert_eq!(payload.port, Some(2323));
+    assert_eq!(payload.username.as_deref(), Some("admin"));
+    assert_eq!(payload.group_path.as_deref(), Some("Production"));
+    assert!(telnet.ssh.is_none());
+
+    let summary = result
+        .warnings
+        .iter()
+        .find(|warning| warning.code == "securecrt_unsupported_protocols")
+        .expect("skipped protocol summary");
+    assert_eq!(
+        summary.message,
+        "Skipped 1 session(s) with unsupported protocols (RDP 1)."
+    );
+}
+
+#[test]
+fn xml_telnet_session_produces_telnet_record_with_group_path() {
+    let xml = format!(
+        r#"<VanDyke><key name="Sessions">
+  <key name="Core"><key name="Switch">
+    <string name="Protocol Name">Telnet</string>
+    <string name="Hostname">core-sw-01</string>
+    <string name="Username">admin</string>
+    <string name="Password V2">{V1_PASSWORD_CIPHERTEXT}</string>
+  </key></key>
+</key></VanDyke>"#
+    );
+    let result = preview_records_from_sources(vec![("export.xml".into(), xml.as_bytes())], true);
+
+    assert_eq!(result.records.len(), 1);
+    let record = &result.records[0];
+    assert_eq!(record.kind, "telnet");
+    assert_eq!(record.password_status, "included");
+    let payload = record.telnet.as_ref().unwrap();
+    assert_eq!(payload.host, "core-sw-01");
+    assert_eq!(payload.port, Some(23));
+    assert_eq!(payload.username.as_deref(), Some("admin"));
+    assert_eq!(payload.password.as_deref(), Some("mySecretPassword123"));
+    assert_eq!(payload.group_path.as_deref(), Some("Core"));
+    assert_eq!(
+        record.source_id.as_deref(),
+        Some("export.xml#Sessions/Core/Switch")
+    );
+    assert!(record.warnings.is_empty());
 }
 
 #[test]
@@ -1018,4 +1081,160 @@ fn xml_export_password_is_decrypted_too() {
     let record = &result.records[0];
     assert_eq!(record.password_status, "included");
     assert_eq!(imported_password(record).as_deref(), Some("pass-02-vector"));
+}
+
+#[test]
+fn ini_telnet_session_produces_telnet_record_with_password() {
+    let source = "S:\"Hostname\"=core-sw-01\nS:\"Protocol Name\"=Telnet\nD:\"[Telnet] Port\"=00000913\nS:\"Username\"=admin\nS:\"Password\"=plainSecret123\n";
+    let result = preview_records_from_sources(
+        vec![(
+            "Sessions/Core/Switch/core-sw-01.ini".into(),
+            source.as_bytes(),
+        )],
+        true,
+    );
+
+    assert_eq!(result.records.len(), 1);
+    let record = &result.records[0];
+    assert_eq!(record.kind, "telnet");
+    assert_eq!(record.password_status, "included");
+    assert!(record.ssh.is_none());
+    let payload = record.telnet.as_ref().unwrap();
+    assert_eq!(payload.name, "core-sw-01");
+    assert_eq!(payload.host, "core-sw-01");
+    assert_eq!(payload.port, Some(2323));
+    assert_eq!(payload.username.as_deref(), Some("admin"));
+    assert_eq!(payload.password.as_deref(), Some("plainSecret123"));
+    assert_eq!(payload.group_path.as_deref(), Some("Core/Switch"));
+    assert!(record.warnings.is_empty());
+    assert!(
+        !result
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "securecrt_unsupported_protocols")
+    );
+}
+
+#[test]
+fn ini_telnet_session_without_hostname_is_skipped_with_a_warning() {
+    let source = br#"S:"Protocol Name"=telnet
+S:"Username"=admin
+"#;
+    let result = preview_records_from_sources(
+        vec![("Sessions/Core/NoHost.ini".into(), source.as_slice())],
+        false,
+    );
+
+    assert!(result.records.is_empty());
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "securecrt_telnet_hostname_missing")
+    );
+}
+
+#[test]
+fn ini_skipped_protocols_are_counted_and_summarized_once() {
+    let sessions = [
+        (
+            "Sessions/RDP/Desktop.ini".to_string(),
+            b"S:\"Protocol Name\"=RDP\nS:\"Hostname\"=desktop.example\n".to_vec(),
+        ),
+        (
+            "Sessions/Serial/Console.ini".to_string(),
+            b"S:\"Protocol Name\"=Serial\nS:\"Hostname\"=console.example\n".to_vec(),
+        ),
+        (
+            "Sessions/Shell/Local.ini".to_string(),
+            b"S:\"Protocol Name\"=Local Shell\nS:\"Hostname\"=local.example\n".to_vec(),
+        ),
+        (
+            "Sessions/Production/API.ini".to_string(),
+            b"S:\"Protocol Name\"=SSH2\nS:\"Hostname\"=api.example\n".to_vec(),
+        ),
+    ];
+    let sources = sessions
+        .iter()
+        .map(|(path, bytes)| (path.clone(), bytes.as_slice()))
+        .collect::<Vec<_>>();
+    let result = preview_records_from_sources(sources, false);
+
+    assert_eq!(result.records.len(), 1);
+    assert_eq!(result.records[0].kind, "ssh");
+    let summaries = result
+        .warnings
+        .iter()
+        .filter(|warning| warning.code == "securecrt_unsupported_protocols")
+        .collect::<Vec<_>>();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(
+        summaries[0].message,
+        "Skipped 3 session(s) with unsupported protocols (Local Shell 1, RDP 1, Serial 1)."
+    );
+}
+
+#[test]
+fn xml_skipped_protocols_are_merged_into_one_summary() {
+    let xml = br#"<VanDyke><key name="Sessions">
+<key name="RDP"><key name="Desktop"><string name="Protocol Name">RDP</string><string name="Hostname">d1.example</string></key></key>
+<key name="RDP2"><key name="Desktop"><string name="Protocol Name">rdp</string><string name="Hostname">d2.example</string></key></key>
+<key name="Serial"><key name="Console"><string name="Protocol Name">Serial</string><string name="Hostname">c1.example</string></key></key>
+<key name="Telnet"><key name="Switch"><string name="Protocol Name">Telnet</string><string name="Hostname">s1.example</string></key></key>
+</key></VanDyke>"#;
+    let result = preview_records_from_sources(vec![("export.xml".into(), xml.as_slice())], false);
+
+    assert_eq!(result.records.len(), 1);
+    assert_eq!(result.records[0].kind, "telnet");
+    let summaries = result
+        .warnings
+        .iter()
+        .filter(|warning| warning.code == "securecrt_unsupported_protocols")
+        .collect::<Vec<_>>();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(
+        summaries[0].message,
+        "Skipped 3 session(s) with unsupported protocols (RDP 2, Serial 1)."
+    );
+}
+
+#[test]
+fn ini_telnet_port_defaults_to_23() {
+    let source = br#"S:"Hostname"=core-sw-01
+S:"Protocol Name"=telnet
+"#;
+    let result = preview_records_from_sources(
+        vec![("Sessions/Core/Switch.ini".into(), source.as_slice())],
+        false,
+    );
+
+    let record = &result.records[0];
+    assert_eq!(record.kind, "telnet");
+    assert_eq!(record.telnet.as_ref().unwrap().port, Some(23));
+    assert_eq!(record.password_status, "missing");
+}
+
+#[test]
+fn telnet_json_payload_matches_the_host_contract() {
+    let source = br#"S:"Hostname"=10.0.0.5
+S:"Protocol Name"=Telnet
+S:"Username"=admin
+"#;
+    let result = preview_records_from_sources(
+        vec![(
+            "Sessions/Core/Switch/core-sw-01.ini".into(),
+            source.as_slice(),
+        )],
+        false,
+    );
+
+    let json: serde_json::Value =
+        serde_json::from_str(&crate::component::serialize_preview_records(&result)).unwrap();
+    assert_eq!(json[0]["kind"], "telnet");
+    assert!(json[0]["ssh"].is_null());
+    assert!(json[0]["database"].is_null());
+    assert_eq!(json[0]["telnet"]["host"], "10.0.0.5");
+    assert_eq!(json[0]["telnet"]["port"], 23);
+    assert_eq!(json[0]["telnet"]["username"], "admin");
+    assert_eq!(json[0]["telnet"]["group_path"], "Core/Switch");
 }

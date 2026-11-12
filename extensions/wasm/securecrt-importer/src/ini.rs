@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
-    CredentialMetadata, ImportRecord, ImportWarning, enrich_from_credential, field, ssh_record,
-    warning,
+    CredentialMetadata, ImportRecord, ImportWarning, PasswordPolicy, SessionProtocol,
+    SkippedProtocols, classify_protocol, default_port, enrich_from_credential, field,
+    invalid_port_warning, session_record,
 };
 use super::source::{normalize_workspace_path, session_file_group_path};
 
@@ -10,24 +11,28 @@ pub(crate) fn parse_session(
     path: &str,
     text: &str,
     credentials: &BTreeMap<String, CredentialMetadata>,
-    include_passwords: bool,
-    passphrase: &str,
+    policy: PasswordPolicy<'_>,
     warnings: &mut Vec<ImportWarning>,
+    skipped: &mut SkippedProtocols,
 ) -> Option<ImportRecord> {
     let mut fields = parse_fields(text);
     enrich_from_credential(&mut fields, credentials);
     let protocol = field(&fields, "Protocol Name").unwrap_or_default();
     let source_id = path.replace('\\', "/");
-    let port = protocol_port(&fields, &protocol, &source_id, warnings);
-    ssh_record(
+    // 被跳过的协议不解析端口，免得为不会导入的会话报端口告警。
+    let port = match classify_protocol(&protocol) {
+        SessionProtocol::Unsupported => None,
+        _ => protocol_port(&fields, &protocol, &source_id, warnings),
+    };
+    session_record(
         source_id,
         session_file_group_path(path),
         session_name(path),
         &fields,
         port,
-        include_passwords,
-        passphrase,
+        policy,
         warnings,
+        skipped,
     )
 }
 
@@ -92,23 +97,19 @@ fn protocol_port(
     source_id: &str,
     warnings: &mut Vec<ImportWarning>,
 ) -> Option<u16> {
-    let protocol = protocol.to_ascii_lowercase();
-    let keys = [format!("[{protocol}] port"), "port".to_string()];
+    let key = protocol.trim().to_ascii_lowercase();
+    let default = default_port(&key);
+    let keys = [format!("[{key}] port"), "port".to_string()];
     for key in keys {
         if let Some(value) = fields.get(&key) {
             if let Some(port) = parse_hex_port(value) {
                 return Some(port);
             }
-            warnings.push(warning(
-                "securecrt_ssh_port_invalid",
-                format!(
-                    "A SecureCRT SSH session had an invalid port and defaulted to 22: {source_id}"
-                ),
-            ));
-            return Some(22);
+            warnings.push(invalid_port_warning(protocol, source_id));
+            return Some(default);
         }
     }
-    Some(22)
+    Some(default)
 }
 
 fn parse_hex_port(value: &str) -> Option<u16> {

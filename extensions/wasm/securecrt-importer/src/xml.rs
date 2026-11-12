@@ -8,8 +8,9 @@ use quick_xml::{
 
 use super::button_bar::{BUTTON_BAR_KEY, decode_command};
 use super::model::{
-    CredentialMetadata, ImportRecord, ImportWarning, enrich_from_credential, quick_command_record,
-    ssh_record, warning,
+    CredentialMetadata, ImportRecord, ImportWarning, PasswordPolicy, SessionProtocol,
+    SkippedProtocols, classify_protocol, default_port, enrich_from_credential, field,
+    invalid_port_warning, quick_command_record, session_record, warning,
 };
 
 const MAX_XML_DEPTH: usize = 64;
@@ -33,15 +34,15 @@ pub(crate) fn parse_export(
     path: &str,
     text: &str,
     credentials: &BTreeMap<String, CredentialMetadata>,
-    include_passwords: bool,
-    passphrase: &str,
+    policy: PasswordPolicy<'_>,
     warnings: &mut Vec<ImportWarning>,
+    skipped: &mut SkippedProtocols,
 ) -> Vec<ImportRecord> {
     let mut reader = Reader::from_str(text);
     reader.config_mut().trim_text(true);
     let mut state = XmlState {
-        include_passwords,
-        passphrase: passphrase.to_string(),
+        include_passwords: policy.include_passwords,
+        passphrase: policy.passphrase.to_string(),
         ..XmlState::default()
     };
     let mut parse_failed = false;
@@ -80,6 +81,7 @@ pub(crate) fn parse_export(
     if let Some(depth_warning) = state.depth_warning.take() {
         warnings.push(depth_warning);
     }
+    skipped.merge(state.skipped);
     if parse_failed {
         Vec::new()
     } else {
@@ -99,6 +101,8 @@ struct XmlState {
     /// 由 `parse_export` 注入，`finish_key` 生成记录时用来解密密码。
     include_passwords: bool,
     passphrase: String,
+    /// XML 里被跳过的非 SSH/Telnet 会话，解析结束时并入调用方的计数。
+    skipped: SkippedProtocols,
 }
 
 impl XmlState {
@@ -232,16 +236,23 @@ impl XmlState {
             .get(session_index + 1..names.len() - 1)
             .map(|parts| parts.join("/"))
             .filter(|group| !group.is_empty());
-        let port = xml_port(&frame.fields, &source_id, warnings);
-        if let Some(record) = ssh_record(
+        let protocol = field(&frame.fields, "Protocol Name").unwrap_or_default();
+        let port = match classify_protocol(&protocol) {
+            SessionProtocol::Unsupported => None,
+            _ => xml_port(&frame.fields, &protocol, &source_id, warnings),
+        };
+        if let Some(record) = session_record(
             source_id,
             group_path,
             frame.name,
             &frame.fields,
             port,
-            self.include_passwords,
-            &self.passphrase,
+            PasswordPolicy {
+                include_passwords: self.include_passwords,
+                passphrase: &self.passphrase,
+            },
             warnings,
+            &mut self.skipped,
         ) {
             self.records.push(record);
         }
@@ -361,31 +372,28 @@ fn ordered_names(field_order: &[String], leaf: &str) -> Vec<String> {
 
 fn xml_port(
     fields: &BTreeMap<String, String>,
+    protocol: &str,
     source_id: &str,
     warnings: &mut Vec<ImportWarning>,
 ) -> Option<u16> {
-    for key in ["[ssh2] port", "[ssh1] port", "[ssh] port", "port"] {
+    let keys = [
+        "[ssh2] port",
+        "[ssh1] port",
+        "[ssh] port",
+        "[telnet] port",
+        "port",
+    ];
+    let default = default_port(protocol);
+    for key in keys {
         if let Some(value) = fields.get(key) {
             if let Ok(port) = value.trim().parse::<u16>() {
                 return Some(port);
             }
-            warnings.push(warning(
-                "securecrt_ssh_port_invalid",
-                format!(
-                    "A SecureCRT SSH session had an invalid port and defaulted to 22: {source_id}"
-                ),
-            ));
-            return Some(22);
+            warnings.push(invalid_port_warning(protocol, source_id));
+            return Some(default);
         }
     }
-    Some(22)
-}
-
-fn field(fields: &BTreeMap<String, String>, key: &str) -> Option<String> {
-    fields
-        .get(&key.to_ascii_lowercase())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+    Some(default)
 }
 
 fn attribute(reader: &Reader<&[u8]>, event: &BytesStart<'_>, key: &str) -> Option<String> {
