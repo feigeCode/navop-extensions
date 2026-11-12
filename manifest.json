@@ -238,6 +238,9 @@
       "name": "SecureCRT Importer",
       "version": "0.2.0",
       "release_tag": "securecrt-importer-v0.2.0",
+      "engines": {
+        "onetcli": ">=0.23.1"
+      },
       "description": "通过 Rust WASM 自动扫描 SecureCRT 默认配置目录，导入 SSH 与 Telnet 会话并将 Sessions 连接分组转换为 Navop 工作区，同时导入 Button Bar / Command Manager 快捷命令及其分组；如果扫描不到或结果不正确，请优先选择 SecureCRT 的 Config 配置根目录，也支持选择单个 XML/INI 配置文件；已保存的会话密码支持自动解密导入。 Automatically scans SecureCRT's default configuration directories through Rust WASM, imports SSH and Telnet sessions, converts Sessions connection groups into Navop workspaces, and imports Button Bar / Command Manager quick commands with their groups; if nothing is found or the result is incorrect, choose the SecureCRT Config root directory first, or select individual XML/INI configuration files. Saved session passwords are decrypted and imported automatically.",
       "file_extensions": [],
       "manifest": "securecrt-importer/manifest.json"

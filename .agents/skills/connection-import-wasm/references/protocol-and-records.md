@@ -24,10 +24,11 @@ Every preview record needs the shared top-level fields:
 | `importer_id` | Matches the contributed importer id. |
 | `source_label` | Human-facing source name, such as `Navicat` or `OpenSSH Config`. |
 | `source_id` | Original app id, path, or profile key when available. |
-| `kind` | `database`, `ssh`, or `port_forwarding` in JSON. |
+| `kind` | `database`, `ssh`, `telnet`, or `port_forwarding` in JSON. |
 | `display_name` | Name shown in preview rows. |
 | `database` | Present only for database records. |
 | `ssh` | Present only for SSH records. |
+| `telnet` | Present only for Telnet records. |
 | `port_forwarding` | Present only for port-forwarding records. |
 | `password_status` | `included`, `missing`, `unsupported`, or `permission_denied`. |
 | `warnings` | Non-fatal data loss, unsupported fields, or skipped secret details. |
@@ -79,6 +80,19 @@ Do not emit:
 ```
 
 That produces host decode errors such as `unknown variant kind`.
+
+## Telnet Records
+
+Telnet 记录只承载连接与登录提示信息：
+
+```json
+{"name":"core-switch","host":"10.0.0.1","port":23,"username":"admin","password":"secret","group_path":"Core / Switches"}
+```
+
+- `kind` 必须是 `"telnet"`，载荷放在顶层 `telnet` 字段。
+- `port` 缺省时宿主按 23 处理；`username` / `password` 均可为 null（部分设备只问口令）。
+- 宿主会把用户名与口令写进 Telnet 连接的两步 `login_script`（expect 提示正则 + send），`send` 与其他敏感字段一样落盘加密；缺失的口令留给运行期提示输入。
+- 插件 `contributes.connectionImporters[].outputKinds` 必须声明 `telnet`；老宿主不认识该 kind 会让整次 preview 解码失败，所以发布这类插件时要用 `engines.onetcli` 抬高最低宿主版本（参考 securecrt-importer 的 `>=0.23.1`）。
 
 ## Secrets
 

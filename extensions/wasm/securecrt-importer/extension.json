@@ -6,7 +6,7 @@
   "version": "0.2.0",
   "publisher": "Navop",
   "engines": {
-    "onetcli": ">=0.7.0"
+    "onetcli": ">=0.23.1"
   },
   "api": {
     "extension": "1.0"
