@@ -1644,8 +1644,11 @@ test("RDP helper keeps native TLS backend for RDP compatibility", () => {
   );
 
   assert.match(cargoToml, /ironrdp-client\s*=\s*\{[^}]*default-features\s*=\s*false/s);
-  assert.match(cargoToml, /ironrdp-client\s*=\s*\{[^}]*"native-tls"/s);
-  assert.match(cargoToml, /native-tls\s*=\s*"=0\.2\.14"/);
+  // 0.4.0 把 native-tls / sound 改成默认开启的 optional feature：后端仍是
+  // native-tls（通过包 feature 转接到 ironrdp-client），rustls 仍只是可选项。
+  assert.match(cargoToml, /default\s*=\s*\[[^\]]*"native-tls"/);
+  assert.match(cargoToml, /native-tls\s*=\s*\[[^\]]*"ironrdp-client\/native-tls"/);
+  assert.match(cargoToml, /native-tls\s*=\s*\{\s*version\s*=\s*"=0\.2\.14"/);
   assert.doesNotMatch(cargoToml, /"rustls"/);
 });
 
