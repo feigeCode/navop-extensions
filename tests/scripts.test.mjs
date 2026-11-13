@@ -274,6 +274,7 @@ test("architecture-independent extensions remain universal for Windows x86 fallb
 
   assert.ok(checked.includes("gbase8a"));
   assert.ok(checked.includes("gbase8s"));
+  assert.ok(checked.includes("db2"));
   assert.ok(checked.includes("oscar"));
   assert.ok(checked.includes("dbeaver-importer"));
   assert.ok(checked.includes("notepad-plus-plus-editor"));
@@ -482,6 +483,97 @@ test("Oscar Java IPC driver manifest exposes configurable JDBC settings", () => 
     advancedTab.fields.find((field) => field.id === "driver_class").default_value,
     "com.oscar.Driver",
   );
+});
+
+test("DB2 Java IPC driver bundles IBM JCC and declares DB2 paging", () => {
+  const metadata = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/db2/extension.build.json"), "utf8"),
+  );
+  assert.equal(metadata.language, "java");
+  assert.equal(metadata.package, "java/db2-ipc-driver");
+  assert.equal(metadata.binary, "db2-ipc-driver");
+  assert.equal(metadata.jar, "db2-ipc-driver.jar");
+  assert.deepEqual(metadata.targets, ["universal"]);
+
+  const driverJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "extensions/ipc/db2/driver.json"), "utf8"),
+  );
+  assert.equal(driverJson.id, "db2");
+  assert.equal(driverJson.name, "DB2");
+  assert.equal(driverJson.category, undefined);
+  assert.equal(driverJson.entry.command, "./db2-ipc-driver");
+  assert.equal(driverJson.entry.commands.windows, "./db2-ipc-driver.cmd");
+  assert.equal(driverJson.entry.env_from_config.DB2_JDK_HOME, "extra_params.jdk_home");
+  assert.equal(driverJson.transport.name, "db2-driver.sock");
+  assert.equal(driverJson.ui.default_port, 50000);
+  assert.equal(driverJson.dialect.identifier_quote_left, "\"");
+  assert.equal(driverJson.dialect.identifier_quote_right, "\"");
+  // DB2 不支持 ORDER BY 子查询，因此使用 OFFSET/FETCH 并给出安全的默认排序。
+  assert.equal(driverJson.dialect.limit_style, "offset_fetch");
+  assert.equal(driverJson.dialect.default_order_by, "1");
+
+  const connectionForm = driverJson.ui.form.forms.find((form) => form.kind === "Connection");
+  const advancedTab = connectionForm.tabs.find((tab) => tab.id === "advanced");
+  assert.ok(advancedTab, "db2 connection form should expose an advanced tab");
+  assert.deepEqual(
+    advancedTab.fields.map((field) => field.id),
+    ["jdk_home", "jdbc_url", "jdbc_jar", "driver_class"],
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "jdbc_jar").default_value,
+    "lib/jcc-11.5.9.0.jar",
+    "db2 should default to the bundled IBM JCC jar",
+  );
+  assert.equal(
+    advancedTab.fields.find((field) => field.id === "driver_class").default_value,
+    "com.ibm.db2.jcc.DB2Driver",
+  );
+
+  assert.ok(
+    fs.existsSync(path.join(repoRoot, "java/db2-ipc-driver/bin/lib/jcc-11.5.9.0.jar")),
+    "db2 should bundle the IBM JCC driver jar",
+  );
+  assert.ok(
+    fs.existsSync(path.join(repoRoot, "extensions/ipc/db2/icons/db2.svg")),
+    "db2 icon should exist",
+  );
+
+  for (const method of [
+    "$/ping",
+    "shutdown",
+    "conn/test",
+    "conn/open",
+    "conn/close",
+    "conn/ping",
+    "conn/use",
+    "query/start",
+    "cursor/fetch",
+    "cursor/close",
+    "cursor/cancel",
+    "exec/run",
+    "exec/batch",
+    "tx/begin",
+    "tx/commit",
+    "tx/rollback",
+    "tx/savepoint",
+    "tx/release",
+    "ddl/build",
+    "ddl/build_create_table",
+    "ddl/build_alter_table",
+    "ddl/build_drop",
+    "data/export",
+    "data/import_begin",
+    "data/import_chunk",
+    "data/import_commit",
+    "data/import_abort",
+    "stream/read",
+    "stream/close",
+    "schema/object_view",
+    "schema/dump_ddl",
+    "schema/view_definition",
+  ]) {
+    assert.ok(driverJson.methods.includes(method), `db2 methods missing ${method}`);
+  }
 });
 
 test("GBase8s Java IPC driver does not declare driver-owned table data", () => {

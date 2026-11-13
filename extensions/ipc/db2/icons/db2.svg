@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DB2">
+  <rect width="64" height="64" rx="8" fill="#054ada"/>
+  <path d="M20 18h24v10c0 4.4-5.4 8-12 8s-12-3.6-12-8z" fill="#f2f6f8"/>
+  <path d="M20 30h24v10c0 4.4-5.4 8-12 8s-12-3.6-12-8z" fill="#dbe6fb"/>
+  <ellipse cx="32" cy="18" rx="12" ry="4.6" fill="#ffffff"/>
+  <ellipse cx="32" cy="18" rx="5.4" ry="2.1" fill="#054ada"/>
+</svg>

@@ -21,6 +21,7 @@ extensions/
     kingbase/     Go KingbaseES IPC 数据库驱动
     gbase8a/      Java GBase 8a IPC 数据库驱动
     gbase8s/      Java GBase 8s IPC 数据库驱动
+    db2/          Java IBM DB2 IPC 数据库驱动
     oceanbase/    Go OceanBase IPC 数据库驱动
     opengauss/    Rust openGauss IPC 数据库驱动
     oracle-go/    Go Oracle IPC 数据库驱动（纯 Go，godror）
@@ -38,6 +39,7 @@ cmd/
 java/
   gbase8a-ipc-driver/
   gbase8s-ipc-driver/
+  db2-ipc-driver/
 internal/
   dbipc/          Go IPC 数据库驱动共享运行时
   drivers/        驱动专属 Go 实现（dm、iotdb、kingbase、oceanbase、oracle）
@@ -79,6 +81,7 @@ docs/
 | KingbaseES | Go | `extensions/ipc/kingbase/extension.build.json` | `extensions/ipc/kingbase/driver.json` | 复用 `internal/dbipc` 共享运行时，并使用 `kingbase_driver` build tag。 |
 | GBase 8a | Java | `extensions/ipc/gbase8a/extension.build.json` | `extensions/ipc/gbase8a/driver.json` | 使用 `java/gbase8a-ipc-driver`。如果存在 `java/gbase8a-ipc-driver/bin/lib/gbase8a-ipc-driver.jar`，需要保留。MySQL 协议方言（反引号引号）、`information_schema` 元数据、默认端口 5258。仅 universal（跨平台）target。 |
 | GBase 8s | Java | `extensions/ipc/gbase8s/extension.build.json` | `extensions/ipc/gbase8s/driver.json` | 使用 `java/gbase8s-ipc-driver`。如果存在 `java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar`，需要保留。仅 universal（跨平台）target。 |
+| DB2 | Java | `extensions/ipc/db2/extension.build.json` | `extensions/ipc/db2/driver.json` | 使用 `java/db2-ipc-driver`，并内置 IBM JCC 驱动（`java/db2-ipc-driver/bin/lib/jcc-11.5.9.0.jar`）。分页使用 `OFFSET ... FETCH` 并带安全的默认 `ORDER BY 1`（需要 DB2 11.1+；DB2 不允许 `ORDER BY` 子查询）。创建/删除数据库属于实例级命令，因此通过 JDBC 调用会返回不支持。仅 universal（跨平台）target。 |
 | OceanBase | Go | `extensions/ipc/oceanbase/extension.build.json` | `extensions/ipc/oceanbase/driver.json` | 复用 `internal/dbipc` 共享运行时，并使用 `oceanbase_driver` build tag。 |
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member。使用 `tokio-opengauss` 异步驱动。 |
 | Oracle Go | Go | `extensions/ipc/oracle-go/extension.build.json` | `extensions/ipc/oracle-go/driver.json` | 纯 Go Oracle 驱动，使用 `oracle_go_driver` build tag。 |
@@ -167,6 +170,7 @@ GOCACHE=/private/tmp/navop-go-cache go test ./internal/dbipc
 ```bash
 mvn -f java/gbase8a-ipc-driver/pom.xml test
 mvn -f java/gbase8s-ipc-driver/pom.xml test
+mvn -f java/db2-ipc-driver/pom.xml test
 ```
 
 检查 Rust 格式：
@@ -220,6 +224,15 @@ HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 bash scripts/build-java-driver.sh gbase8s "$HOST_TRIPLE"
 mkdir -p artifacts
 bash scripts/package-driver.sh gbase8s "$HOST_TRIPLE" artifacts 0.1.0
+```
+
+构建并打包 Java DB2 驱动：
+
+```bash
+bash scripts/build-java-driver.sh db2 universal
+mkdir -p artifacts
+bash scripts/package-driver.sh db2 universal artifacts 0.1.0
+bash scripts/verify-package.sh "artifacts/db2-driver-universal.tar.gz"
 ```
 
 构建并打包 Rust 远程桌面 provider：

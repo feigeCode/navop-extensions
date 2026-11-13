@@ -25,6 +25,7 @@ extensions/
     kingbase/     Go KingbaseES IPC database driver
     gbase8a/      Java GBase 8a IPC database driver
     gbase8s/      Java GBase 8s IPC database driver
+    db2/          Java IBM DB2 IPC database driver
     oceanbase/    Go OceanBase IPC database driver
     opengauss/    Rust openGauss IPC database driver
     oracle-go/    Go Oracle IPC database driver (pure Go, godror)
@@ -42,6 +43,7 @@ cmd/
 java/
   gbase8a-ipc-driver/
   gbase8s-ipc-driver/
+  db2-ipc-driver/
 internal/
   dbipc/          shared Go IPC database server runtime
   drivers/        driver-specific Go implementations (dm, iotdb, kingbase, oceanbase, oracle)
@@ -88,6 +90,7 @@ implementation tasks, but they are not extension runtime inputs.
 | KingbaseES | Go | `extensions/ipc/kingbase/extension.build.json` | `extensions/ipc/kingbase/driver.json` | Uses shared `internal/dbipc` runtime and `kingbase_driver` build tag. |
 | GBase 8a | Java | `extensions/ipc/gbase8a/extension.build.json` | `extensions/ipc/gbase8a/driver.json` | Uses `java/gbase8a-ipc-driver`. Preserve `java/gbase8a-ipc-driver/bin/lib/gbase8a-ipc-driver.jar` when present. MySQL-wire dialect (backtick quoting), `information_schema` catalog, default port 5258. Universal (cross-platform) target only. |
 | GBase 8s | Java | `extensions/ipc/gbase8s/extension.build.json` | `extensions/ipc/gbase8s/driver.json` | Uses `java/gbase8s-ipc-driver`. Preserve `java/gbase8s-ipc-driver/bin/lib/gbase8s-ipc-driver.jar` when present. Universal (cross-platform) target only. |
+| DB2 | Java | `extensions/ipc/db2/extension.build.json` | `extensions/ipc/db2/driver.json` | Uses `java/db2-ipc-driver` with the bundled IBM JCC driver (`java/db2-ipc-driver/bin/lib/jcc-11.5.9.0.jar`). `OFFSET ... FETCH` paging with a safe default `ORDER BY 1` (requires DB2 11.1+; DB2 rejects subqueries in `ORDER BY`). Database create/drop is rejected over JDBC because it is an instance-level command. Universal (cross-platform) target only. |
 | OceanBase | Go | `extensions/ipc/oceanbase/extension.build.json` | `extensions/ipc/oceanbase/driver.json` | Uses shared `internal/dbipc` runtime and `oceanbase_driver` build tag. |
 | openGauss | Rust | `extensions/ipc/opengauss/extension.build.json` | `extensions/ipc/opengauss/driver.json` | Cargo workspace member. Uses `tokio-opengauss` async driver. |
 | Oracle Go | Go | `extensions/ipc/oracle-go/extension.build.json` | `extensions/ipc/oracle-go/driver.json` | Pure Go Oracle driver using `oracle_go_driver` build tag. |
@@ -193,6 +196,7 @@ Run Java driver tests:
 ```bash
 mvn -f java/gbase8a-ipc-driver/pom.xml test
 mvn -f java/gbase8s-ipc-driver/pom.xml test
+mvn -f java/db2-ipc-driver/pom.xml test
 ```
 
 Check Rust formatting:
@@ -249,6 +253,15 @@ HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 bash scripts/build-java-driver.sh gbase8s "$HOST_TRIPLE"
 mkdir -p artifacts
 bash scripts/package-driver.sh gbase8s "$HOST_TRIPLE" artifacts 0.1.0
+```
+
+Build and package the Java DB2 driver:
+
+```bash
+bash scripts/build-java-driver.sh db2 universal
+mkdir -p artifacts
+bash scripts/package-driver.sh db2 universal artifacts 0.1.0
+bash scripts/verify-package.sh "artifacts/db2-driver-universal.tar.gz"
 ```
 
 Build and package a Rust remote desktop provider:

@@ -1,0 +1,17 @@
+{
+  "id": "db2",
+  "kind": "database_driver",
+  "language": "java",
+  "package": "java/db2-ipc-driver",
+  "binary": "db2-ipc-driver",
+  "jar": "db2-ipc-driver.jar",
+  "path": "extensions/ipc/db2",
+  "source_paths": [
+    "java/db2-ipc-driver"
+  ],
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "db2-v",
+  "r2Prefix": "extensions/db2"
+}

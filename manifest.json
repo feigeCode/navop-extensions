@@ -356,6 +356,16 @@
       "manifest": "gbase8s/manifest.json"
     },
     {
+      "id": "db2",
+      "kind": "database_driver",
+      "name": "DB2",
+      "version": "0.1.0",
+      "release_tag": "db2-v0.1.0",
+      "description": "使用 Java 开发的 IBM DB2（LUW）数据库 IPC 驱动，内置 IBM JCC 驱动，支持连接测试、SQL 执行、事务处理、Schema 浏览及数据传输。 Java-based IPC driver for IBM DB2 (LUW) with the bundled IBM JCC driver, supporting connection testing, SQL execution, transactions, schema browsing, and data transfer.",
+      "file_extensions": [],
+      "manifest": "db2/manifest.json"
+    },
+    {
       "id": "iotdb",
       "kind": "database_driver",
       "name": "Apache IoTDB",
