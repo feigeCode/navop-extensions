@@ -1,54 +1,66 @@
 use super::*;
 
 #[test]
-fn reads_connect_request_after_client_hello() {
+fn read_first_request_stops_after_client_hello() {
+    // The app blocks until ServerHello arrives, so the helper must not consume
+    // (let alone block on) the Connect line while parsing the first request.
+    let connect_line =
+        r#"{"type":"Connect","destination":"host:5900","username":null,"password":"secret","domain":null,"width":800,"height":600}"#;
     let input = vec![
-        Ok(
-            r#"{"type":"ClientHello","protocol_version":2,"app_version":"0.23.2"}"#
-                .to_string(),
-        ),
-        Ok(
-            r#"{"type":"Connect","destination":"host:5900","username":null,"password":"secret","domain":null,"width":800,"height":600}"#
-                .to_string(),
-        ),
+        Ok(r#"{"type":"ClientHello","protocol_version":2,"app_version":"0.23.2"}"#.to_string()),
+        Ok(connect_line.to_string()),
     ];
     let mut lines = input.into_iter();
 
-    let (request, handshake) = read_connect_request(&mut lines).expect("connect request");
+    let first = read_first_request(&mut lines).expect("first request");
 
-    assert_eq!(handshake, Handshake::V2);
-    assert_eq!(request.destination, "host:5900");
-    assert_eq!(request.password.as_deref(), Some("secret"));
+    match first {
+        FirstRequest::ClientHello { protocol_version } => assert_eq!(protocol_version, 2),
+        FirstRequest::Connect(_) => panic!("expected ClientHello"),
+    }
+    assert_eq!(lines.next().expect("connect line").unwrap(), connect_line);
 }
 
 #[test]
-fn accepts_connect_without_client_hello() {
+fn read_first_request_accepts_legacy_connect() {
     let input = vec![Ok(
         r#"{"type":"Connect","destination":"host:5900","username":null,"password":null,"domain":null,"width":800,"height":600}"#
             .to_string(),
     )];
     let mut lines = input.into_iter();
 
-    let (request, handshake) = read_connect_request(&mut lines).expect("legacy connect request");
+    let first = read_first_request(&mut lines).expect("legacy connect request");
 
-    assert_eq!(handshake, Handshake::Legacy);
-    assert_eq!(request.destination, "host:5900");
+    match first {
+        FirstRequest::Connect(connect) => assert_eq!(connect.destination, "host:5900"),
+        FirstRequest::ClientHello { .. } => panic!("expected Connect"),
+    }
+}
+
+#[test]
+fn read_first_request_rejects_other_requests() {
+    let input = vec![Ok(r#"{"type":"Ping","sequence":1}"#.to_string())];
+    let mut lines = input.into_iter();
+
+    let error = read_first_request(&mut lines).expect_err("ping cannot start a session");
+
+    assert!(
+        error
+            .to_string()
+            .contains("first helper request must be ClientHello or Connect")
+    );
 }
 
 #[test]
 fn rejects_client_hello_with_unsupported_version() {
-    let input = vec![Ok(
-        r#"{"type":"ClientHello","protocol_version":1,"app_version":"0.23.1"}"#.to_string(),
-    )];
-    let mut lines = input.into_iter();
-
-    let error = read_connect_request(&mut lines).expect_err("version mismatch must fail");
+    let error = require_protocol_version(1).expect_err("version mismatch must fail");
 
     assert!(
         error
             .to_string()
             .contains("unsupported helper protocol version 1")
     );
+    assert!(require_protocol_version(2).is_ok());
 }
 
 #[test]

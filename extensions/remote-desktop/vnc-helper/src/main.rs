@@ -38,17 +38,28 @@ fn run() -> anyhow::Result<()> {
     setup_logging()?;
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
-    let (connect, handshake) = read_connect_request(&mut lines)?;
-    if handshake == Handshake::V2 {
-        write_event(&HelperEvent::ServerHello {
-            protocol_version: protocol::HELPER_PROTOCOL_VERSION,
-            provider_version: env!("CARGO_PKG_VERSION").to_string(),
-            capabilities: protocol::HelperServerCapabilities {
-                heartbeat: true,
-                typed_errors: false,
-            },
-        })?;
-    }
+    let connect = match read_first_request(&mut lines)? {
+        FirstRequest::ClientHello { protocol_version } => {
+            require_protocol_version(protocol_version)?;
+            // The app waits for this hello before it sends Connect, so it has to be
+            // written before the helper blocks on the next stdin line.
+            write_event(&HelperEvent::ServerHello {
+                protocol_version: protocol::HELPER_PROTOCOL_VERSION,
+                provider_version: env!("CARGO_PKG_VERSION").to_string(),
+                capabilities: protocol::HelperServerCapabilities {
+                    heartbeat: true,
+                    typed_errors: false,
+                },
+            })?;
+            let connect = next_line(&mut lines)?;
+            let connect = match protocol::decode_request_line(&connect)? {
+                request @ HelperRequest::Connect { .. } => protocol::connect_request(request)?,
+                _ => anyhow::bail!("expected Connect after ClientHello"),
+            };
+            connect
+        }
+        FirstRequest::Connect(connect) => connect,
+    };
     let (input_tx, input_rx) = tokio::sync::mpsc::unbounded_channel();
     let (output_tx, output_rx) = output_mailbox();
     let output_thread = spawn_output_writer(output_rx)?;
@@ -103,43 +114,37 @@ fn run() -> anyhow::Result<()> {
     combine_results(request_error, vnc_result, output_result)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Handshake {
-    /// The app sent `ClientHello`; this helper answered with `ServerHello`.
-    V2,
-    /// Legacy app that opens with `Connect` and expects no handshake event.
-    Legacy,
+/// The very first line the app writes, which decides whether this is a v2
+/// handshake or a legacy app that expects no `ServerHello`.
+#[derive(Debug)]
+enum FirstRequest {
+    ClientHello { protocol_version: u32 },
+    Connect(protocol::ConnectRequest),
 }
 
-fn read_connect_request(
+fn read_first_request(
     lines: &mut impl Iterator<Item = io::Result<String>>,
-) -> anyhow::Result<(protocol::ConnectRequest, Handshake)> {
+) -> anyhow::Result<FirstRequest> {
     let first = next_line(lines)?;
     match protocol::decode_request_line(&first)? {
         HelperRequest::ClientHello {
             protocol_version, ..
-        } => {
-            if protocol_version != protocol::HELPER_PROTOCOL_VERSION {
-                anyhow::bail!(
-                    "unsupported helper protocol version {protocol_version}; this helper speaks version {}",
-                    protocol::HELPER_PROTOCOL_VERSION
-                );
-            }
-            let connect = next_line(lines)?;
-            match protocol::decode_request_line(&connect)? {
-                HelperRequest::Connect { .. } => Ok((
-                    protocol::connect_request(protocol::decode_request_line(&connect)?)?,
-                    Handshake::V2,
-                )),
-                _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
-            }
+        } => Ok(FirstRequest::ClientHello { protocol_version }),
+        request @ HelperRequest::Connect { .. } => {
+            Ok(FirstRequest::Connect(protocol::connect_request(request)?))
         }
-        HelperRequest::Connect { .. } => Ok((
-            protocol::connect_request(protocol::decode_request_line(&first)?)?,
-            Handshake::Legacy,
-        )),
         _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
     }
+}
+
+fn require_protocol_version(protocol_version: u32) -> anyhow::Result<()> {
+    if protocol_version != protocol::HELPER_PROTOCOL_VERSION {
+        anyhow::bail!(
+            "unsupported helper protocol version {protocol_version}; this helper speaks version {}",
+            protocol::HELPER_PROTOCOL_VERSION
+        );
+    }
+    Ok(())
 }
 
 fn next_line(lines: &mut impl Iterator<Item = io::Result<String>>) -> anyhow::Result<String> {
