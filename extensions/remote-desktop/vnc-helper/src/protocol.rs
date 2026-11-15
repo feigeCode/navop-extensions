@@ -2,9 +2,17 @@ use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 
+/// Version of the app<->helper IPC handshake implemented by this helper.
+pub const HELPER_PROTOCOL_VERSION: u32 = 2;
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum HelperRequest {
+    ClientHello {
+        protocol_version: u32,
+        #[serde(default)]
+        app_version: String,
+    },
     Connect {
         destination: String,
         username: Option<String>,
@@ -12,6 +20,10 @@ pub enum HelperRequest {
         domain: Option<String>,
         width: u16,
         height: u16,
+    },
+    RequestFullFrame,
+    Ping {
+        sequence: u64,
     },
     Resize {
         width: u16,
@@ -69,9 +81,25 @@ pub struct ConnectRequest {
     pub height: u16,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HelperServerCapabilities {
+    #[serde(default)]
+    pub heartbeat: bool,
+    #[serde(default)]
+    pub typed_errors: bool,
+}
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum HelperEvent {
+    ServerHello {
+        protocol_version: u32,
+        provider_version: String,
+        capabilities: HelperServerCapabilities,
+    },
+    Pong {
+        sequence: u64,
+    },
     Status {
         message: String,
     },
@@ -163,7 +191,7 @@ pub fn connect_request(request: HelperRequest) -> anyhow::Result<ConnectRequest>
             width,
             height,
         }),
-        _ => anyhow::bail!("first helper request must be Connect"),
+        _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
     }
 }
 

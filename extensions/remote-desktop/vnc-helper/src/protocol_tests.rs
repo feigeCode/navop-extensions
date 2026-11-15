@@ -15,6 +15,40 @@ fn decodes_connect_request_shape_from_main_process() {
 }
 
 #[test]
+fn writes_server_hello_event_shape_for_main_process() {
+    let event = HelperEvent::ServerHello {
+        protocol_version: HELPER_PROTOCOL_VERSION,
+        provider_version: "0.3.0".to_string(),
+        capabilities: HelperServerCapabilities {
+            heartbeat: true,
+            typed_errors: false,
+        },
+    };
+
+    assert_eq!(
+        encode_event_line(&event).expect("server hello encodes"),
+        "{\"type\":\"ServerHello\",\"protocol_version\":2,\"provider_version\":\"0.3.0\",\"capabilities\":{\"heartbeat\":true,\"typed_errors\":false}}\n"
+    );
+}
+
+#[test]
+fn writes_pong_event_shape_for_main_process() {
+    let event = HelperEvent::Pong { sequence: 42 };
+
+    assert_eq!(
+        encode_event_line(&event).expect("pong encodes"),
+        "{\"type\":\"Pong\",\"sequence\":42}\n"
+    );
+}
+
+#[test]
+fn decodes_ping_request_shape_from_main_process() {
+    let request = decode_request_line(r#"{"type":"Ping","sequence":9}"#).expect("ping decodes");
+
+    assert_eq!(request, HelperRequest::Ping { sequence: 9 });
+}
+
+#[test]
 fn rejects_binary_frame_event_as_json_line() {
     let event = HelperEvent::frame(1, 1, vec![0x11, 0x22, 0x33, 0xff]);
 

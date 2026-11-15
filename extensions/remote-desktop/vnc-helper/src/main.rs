@@ -38,7 +38,17 @@ fn run() -> anyhow::Result<()> {
     setup_logging()?;
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
-    let connect = read_connect_request(&mut lines)?;
+    let (connect, handshake) = read_connect_request(&mut lines)?;
+    if handshake == Handshake::V2 {
+        write_event(&HelperEvent::ServerHello {
+            protocol_version: protocol::HELPER_PROTOCOL_VERSION,
+            provider_version: env!("CARGO_PKG_VERSION").to_string(),
+            capabilities: protocol::HelperServerCapabilities {
+                heartbeat: true,
+                typed_errors: false,
+            },
+        })?;
+    }
     let (input_tx, input_rx) = tokio::sync::mpsc::unbounded_channel();
     let (output_tx, output_rx) = output_mailbox();
     let output_thread = spawn_output_writer(output_rx)?;
@@ -60,15 +70,30 @@ fn run() -> anyhow::Result<()> {
                 break;
             }
         };
-        let stop = matches!(request, HelperRequest::Close);
-        if let Some(input) = request_to_input(request)
-            && input_tx.send(input).is_err()
-        {
-            request_error = Some(anyhow::anyhow!("VNC input channel closed"));
-            break;
-        }
-        if stop {
-            break;
+        match request {
+            HelperRequest::Ping { sequence } => {
+                if let Err(error) = write_event(&HelperEvent::Pong { sequence }) {
+                    request_error = Some(error);
+                    break;
+                }
+                continue;
+            }
+            // The handshake is already complete; late hellos are harmless.
+            HelperRequest::ClientHello { .. } => continue,
+            // VNC always streams complete frames, so there is no frame to refresh.
+            HelperRequest::RequestFullFrame => continue,
+            request => {
+                let stop = matches!(request, HelperRequest::Close);
+                if let Some(input) = request_to_input(request)
+                    && input_tx.send(input).is_err()
+                {
+                    request_error = Some(anyhow::anyhow!("VNC input channel closed"));
+                    break;
+                }
+                if stop {
+                    break;
+                }
+            }
         }
     }
 
@@ -78,14 +103,50 @@ fn run() -> anyhow::Result<()> {
     combine_results(request_error, vnc_result, output_result)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Handshake {
+    /// The app sent `ClientHello`; this helper answered with `ServerHello`.
+    V2,
+    /// Legacy app that opens with `Connect` and expects no handshake event.
+    Legacy,
+}
+
 fn read_connect_request(
     lines: &mut impl Iterator<Item = io::Result<String>>,
-) -> anyhow::Result<protocol::ConnectRequest> {
-    let line = lines
+) -> anyhow::Result<(protocol::ConnectRequest, Handshake)> {
+    let first = next_line(lines)?;
+    match protocol::decode_request_line(&first)? {
+        HelperRequest::ClientHello {
+            protocol_version, ..
+        } => {
+            if protocol_version != protocol::HELPER_PROTOCOL_VERSION {
+                anyhow::bail!(
+                    "unsupported helper protocol version {protocol_version}; this helper speaks version {}",
+                    protocol::HELPER_PROTOCOL_VERSION
+                );
+            }
+            let connect = next_line(lines)?;
+            match protocol::decode_request_line(&connect)? {
+                HelperRequest::Connect { .. } => Ok((
+                    protocol::connect_request(protocol::decode_request_line(&connect)?)?,
+                    Handshake::V2,
+                )),
+                _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
+            }
+        }
+        HelperRequest::Connect { .. } => Ok((
+            protocol::connect_request(protocol::decode_request_line(&first)?)?,
+            Handshake::Legacy,
+        )),
+        _ => anyhow::bail!("first helper request must be ClientHello or Connect"),
+    }
+}
+
+fn next_line(lines: &mut impl Iterator<Item = io::Result<String>>) -> anyhow::Result<String> {
+    lines
         .next()
         .transpose()?
-        .ok_or_else(|| anyhow::anyhow!("missing Connect request"))?;
-    protocol::connect_request(protocol::decode_request_line(&line)?)
+        .ok_or_else(|| anyhow::anyhow!("missing Connect request"))
 }
 
 fn connect_options(connect: protocol::ConnectRequest) -> RemoteDesktopConnectionOptions {
@@ -99,7 +160,10 @@ fn connect_options(connect: protocol::ConnectRequest) -> RemoteDesktopConnection
 
 fn request_to_input(request: HelperRequest) -> Option<RemoteDesktopInput> {
     Some(match request {
-        HelperRequest::Connect { .. } => return None,
+        HelperRequest::ClientHello { .. }
+        | HelperRequest::Ping { .. }
+        | HelperRequest::RequestFullFrame
+        | HelperRequest::Connect { .. } => return None,
         HelperRequest::Resize { width, height } => RemoteDesktopInput::Resize { width, height },
         HelperRequest::MouseMove { x, y } => RemoteDesktopInput::MouseMove { x, y },
         HelperRequest::MouseButton { button, pressed } => RemoteDesktopInput::MouseButton {

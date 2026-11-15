@@ -1,17 +1,67 @@
 use super::*;
 
 #[test]
-fn reads_first_stdin_line_as_connect_request() {
+fn reads_connect_request_after_client_hello() {
+    let input = vec![
+        Ok(
+            r#"{"type":"ClientHello","protocol_version":2,"app_version":"0.23.2"}"#
+                .to_string(),
+        ),
+        Ok(
+            r#"{"type":"Connect","destination":"host:5900","username":null,"password":"secret","domain":null,"width":800,"height":600}"#
+                .to_string(),
+        ),
+    ];
+    let mut lines = input.into_iter();
+
+    let (request, handshake) = read_connect_request(&mut lines).expect("connect request");
+
+    assert_eq!(handshake, Handshake::V2);
+    assert_eq!(request.destination, "host:5900");
+    assert_eq!(request.password.as_deref(), Some("secret"));
+}
+
+#[test]
+fn accepts_connect_without_client_hello() {
     let input = vec![Ok(
-        r#"{"type":"Connect","destination":"host:5900","username":null,"password":"secret","domain":null,"width":800,"height":600}"#
+        r#"{"type":"Connect","destination":"host:5900","username":null,"password":null,"domain":null,"width":800,"height":600}"#
             .to_string(),
     )];
     let mut lines = input.into_iter();
 
-    let request = read_connect_request(&mut lines).expect("connect request");
+    let (request, handshake) = read_connect_request(&mut lines).expect("legacy connect request");
 
+    assert_eq!(handshake, Handshake::Legacy);
     assert_eq!(request.destination, "host:5900");
-    assert_eq!(request.password.as_deref(), Some("secret"));
+}
+
+#[test]
+fn rejects_client_hello_with_unsupported_version() {
+    let input = vec![Ok(
+        r#"{"type":"ClientHello","protocol_version":1,"app_version":"0.23.1"}"#.to_string(),
+    )];
+    let mut lines = input.into_iter();
+
+    let error = read_connect_request(&mut lines).expect_err("version mismatch must fail");
+
+    assert!(
+        error
+            .to_string()
+            .contains("unsupported helper protocol version 1")
+    );
+}
+
+#[test]
+fn converts_handshake_and_heartbeat_requests_to_no_input() {
+    assert_eq!(
+        request_to_input(HelperRequest::ClientHello {
+            protocol_version: 2,
+            app_version: "0.23.2".to_string(),
+        }),
+        None
+    );
+    assert_eq!(request_to_input(HelperRequest::Ping { sequence: 7 }), None);
+    assert_eq!(request_to_input(HelperRequest::RequestFullFrame), None);
 }
 
 #[test]

@@ -5,7 +5,20 @@ use super::{ConnectRequest, HelperEvent, HelperRequest};
 impl fmt::Debug for HelperRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ClientHello {
+                protocol_version,
+                app_version,
+            } => formatter
+                .debug_struct("ClientHello")
+                .field("protocol_version", protocol_version)
+                .field("app_version_len", &app_version.len())
+                .finish(),
             Self::Connect { .. } => debug_connect(self, formatter),
+            Self::RequestFullFrame => formatter.write_str("RequestFullFrame"),
+            Self::Ping { sequence } => formatter
+                .debug_struct("Ping")
+                .field("sequence", sequence)
+                .finish(),
             Self::Text { text } | Self::ClipboardText { text } => formatter
                 .debug_struct(request_name(self))
                 .field("text_len", &text.len())
@@ -106,6 +119,20 @@ impl fmt::Debug for ConnectRequest {
 impl fmt::Debug for HelperEvent {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ServerHello {
+                protocol_version,
+                provider_version,
+                capabilities,
+            } => formatter
+                .debug_struct("ServerHello")
+                .field("protocol_version", protocol_version)
+                .field("provider_version", provider_version)
+                .field("capabilities", capabilities)
+                .finish(),
+            Self::Pong { sequence } => formatter
+                .debug_struct("Pong")
+                .field("sequence", sequence)
+                .finish(),
             Self::Status { message }
             | Self::ConnectionFailure { message }
             | Self::Terminated { message } => formatter
