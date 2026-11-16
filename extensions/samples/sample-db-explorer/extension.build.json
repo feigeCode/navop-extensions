@@ -1,0 +1,11 @@
+{
+  "id": "sample-db-explorer",
+  "kind": "composite",
+  "language": "static",
+  "package": "sample-db-explorer",
+  "path": "extensions/samples/sample-db-explorer",
+  "targets": ["universal"],
+  "releaseTagPrefix": "sample-db-explorer-v",
+  "r2Prefix": "extensions/sample-db-explorer",
+  "published": false
+}

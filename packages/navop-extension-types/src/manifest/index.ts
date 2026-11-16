@@ -119,6 +119,8 @@ export interface ContributesManifest {
   remoteFileEditors?: RemoteFileEditorContrib[];
   /** 一个扩展最多一个 nsh app；有 `engines.nsh` 就必须有。 */
   shellApp?: ShellAppContrib;
+  /** 终端侧边栏扩展面板（要求 shellApp；面板是同一 app 的第二 surface）。 */
+  panels?: PanelContrib[];
   views?: unknown[];
   tasks?: unknown[];
   data_types?: unknown[];
@@ -134,6 +136,16 @@ export interface ContributesManifest {
 // -- nsh app（deny_unknown_fields：多余字段会被 parser 拒绝） --
 
 /** 声明注入的 navop.* host 模块；`shell:exec` 权限仍是硬要求。 */
+/**
+ * 页面可用的宿主模块。
+ *
+ * - `resource` / `job` / `event` / `blob` / `runtime` / `log` / `dev`：走
+ *   `host.call` 字符串通道（provider 资源与宿主运维）；
+ * - `app` / `ui` / `terminal` / `db`：走 nsh 的 `nativeModule("navop")`
+ *   （`App.open` / `Ui.notify` / `Terminal.*` / `Db.*`）。
+ *
+ * 没声明的模块在调用时报 `PERMISSION_DENIED`。
+ */
 export type ShellHostModule =
   | 'resource'
   | 'job'
@@ -141,7 +153,12 @@ export type ShellHostModule =
   | 'blob'
   | 'log'
   | 'runtime'
-  | 'dev';
+  | 'dev'
+  | 'app'
+  | 'db'
+  | 'ui'
+  | 'terminal'
+  | 'ai';
 
 /**
  * 一个扩展的 nsh app：一份 `ui/dist/bundle.js`、一个版本。
@@ -152,6 +169,11 @@ export interface ShellAppContrib {
   /** 缺省用 manifest.name。 */
   title?: string;
   description?: string;
+  /**
+   * 相对扩展根目录的图标（SVG/PNG）：标签页 + 工具箱卡片；
+   * 面板没写 icon 时也回落它。经宿主 `local-icon/` 资产命名空间读盘，
+   * SVG 保留原色。
+   */
   icon?: string;
   /** 入口脚本路径，如 `ui/dist/bundle.js`。 */
   entry: string;
@@ -161,6 +183,27 @@ export interface ShellAppContrib {
   backends?: Record<string, string>;
   /** 声明注入的 navop.* host 模块。 */
   modules?: ShellHostModule[];
+}
+
+// -- 扩展面板（终端侧边栏的第二 surface） --
+
+/**
+ * 终端侧边栏扩展面板：宿主以 `surface: "panel"` + `panel: <id>` 启动
+ * 同一 shellApp 入口的独立 AppView。要求 `contributes.shellApp` 存在。
+ */
+export interface PanelContrib {
+  /** 面板 id：小写字母数字点下划线连字符，1-64，扩展内唯一。 */
+  id: string;
+  /** 缺省用 shellApp.title。 */
+  title?: string;
+  /** 侧栏按钮图标（相对扩展根目录）；缺省回落 shellApp.icon，再没有用通用扩展图标。 */
+  icon?: string;
+  /** 挂载锚点：`terminal-sidebar`（默认，终端侧栏）或 `db-sidebar`（数据库侧栏）。 */
+  anchor?: string;
+  /** 排序权重 -1000..=1000，小在前。 */
+  order?: number;
+  /** 可见性表达式（when 子句）；空串视为恒可见。 */
+  when?: string;
 }
 
 // -- 连接（deny_unknown_fields） --
@@ -263,17 +306,26 @@ export interface CommandContrib {
   id: string;
   title?: string;
   category?: string;
+  /** 相对扩展根目录的图标：命令声明后，DB 树右键菜单项会显示它。 */
   icon?: string;
   enablement_when?: string;
   handler: CommandHandlerContrib;
 }
 
 export interface CommandHandlerContrib {
-  /** `builtin`（默认）或 runtime id。 */
+  /**
+   * handler 形态，三选一：
+   * - `builtin`（默认）：暂不支持，安装时被跳过；
+   * - `wasm`：headless component 动作（`runtime_id` + `function`）；
+   * - `nsh`：打开本扩展的 shell app tab（要求 `contributes.shellApp`），
+   *   可用 `route` 指定初始页面。
+   */
   kind?: string;
   runtime_id?: string;
   /** 默认 `invoke`。 */
   function?: string;
+  /** 仅 `kind == "nsh"`：打开 app 时的初始路由，进 `host.params.route`。 */
+  route?: string;
 }
 
 export interface MenuContrib {

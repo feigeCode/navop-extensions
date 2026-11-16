@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.extension-showcase",
+  "name": "扩展能力演示",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "演示 2026-11 扩展机制的完整形态：两种锚点的侧栏面板（contributes.panels，terminal-sidebar + db-sidebar）、数据库右键菜单打开 nsh tab（commands kind:nsh + menus db.tree.*）、navop.ui/app/terminal/db 四个能力面。 A showcase of the extension mechanism: panels on both host anchors, db-tree context menus that open an nsh tab, and the navop.ui/app/terminal/db capability planes.",
+  "categories": [
+    "developer-tools"
+  ],
+  "keywords": [
+    "showcase",
+    "panel",
+    "menu",
+    "example"
+  ],
+  "engines": {
+    "onetcli": ">=0.23.0",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec",
+    "db:connections:list",
+    "db:read:*"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "扩展能力演示",
+      "description": "面板 / DB 菜单 / 能力面的端到端演示",
+      "entry": "ui/dist/bundle.js",
+      "category": "developer-tools",
+      "keywords": [
+        "showcase",
+        "panel",
+        "menu"
+      ],
+      "backends": {},
+      "modules": [
+        "ui",
+        "app",
+        "terminal",
+        "db"
+      ],
+      "icon": "icons/showcase.svg"
+    },
+    "panels": [
+      {
+        "id": "quick-tools",
+        "title": "演示面板",
+        "anchor": "terminal-sidebar",
+        "order": 200,
+        "when": "",
+        "icon": "icons/panel-terminal.svg"
+      },
+      {
+        "id": "db-inspector",
+        "title": "库表速览",
+        "anchor": "db-sidebar",
+        "order": 300,
+        "when": "connection.type == 'database'",
+        "icon": "icons/panel-db.svg"
+      }
+    ],
+    "commands": [
+      {
+        "id": "extension-showcase.openExplorer",
+        "title": "在扩展能力演示中打开",
+        "icon": "icons/showcase.svg",
+        "handler": {
+          "kind": "nsh",
+          "route": "explorer"
+        }
+      }
+    ],
+    "menus": {
+      "db.tree.table": [
+        {
+          "command": "extension-showcase.openExplorer",
+          "label": "用扩展能力演示打开"
+        }
+      ],
+      "db.tree.database": [
+        {
+          "command": "extension-showcase.openExplorer",
+          "label": "用扩展能力演示打开"
+        }
+      ]
+    }
+  }
+}

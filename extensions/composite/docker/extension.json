@@ -179,7 +179,8 @@
         "docker": "main"
       },
       "modules": [
-        "resource"
+        "resource",
+        "ai"
       ]
     }
   }

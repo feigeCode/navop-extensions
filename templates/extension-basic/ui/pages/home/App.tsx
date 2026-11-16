@@ -2,7 +2,7 @@
 //
 // 页面不 mount、不读自己的 nsh.json：外壳见 ui/App.tsx，这里只 export default。
 import { Scroll, signal, Text, View } from "nsh";
-import { backends, extension, params } from "../../lib/navop";
+import { backends, extension, notify, params } from "../../lib/navop";
 import { c, hairline, panel, r, t } from "../../lib/theme";
 
 function field(label: string, value: string) {
@@ -16,6 +16,7 @@ function field(label: string, value: string) {
 
 export default function Home() {
   const clicks = signal(0);
+  const status = signal("（未调用）");
   const connection = params.connection ?? null;
 
   return (
@@ -58,6 +59,36 @@ export default function Home() {
             }}
           >
             <Text style={{ fontSize: 13, fontWeight: "500", color: c.accentText() }}>点一下</Text>
+          </View>
+        </View>
+
+        <View style={{ ...panel(), display: "flex", flexDirection: "column", gap: 10 }}>
+          <Text style={t.label}>宿主能力面（nativeModule）</Text>
+          <Text style={t.meta}>
+            清单里 modules: ["ui"] 之后，页面用 nativeModule("navop").Ui.notify 调用宿主；
+            kit 已经包好成 notify()。
+          </Text>
+          <Text style={t.body}>{status()}</Text>
+          <View
+            role="button"
+            onPress={() => {
+              status.set("调用中…");
+              notify("来自扩展模板", "能力面调用成功")
+                .then(() => status.set("已弹出宿主通知"))
+                .catch((error: unknown) =>
+                  status.set(`调用失败：${error instanceof Error ? error.message : String(error)}`),
+                );
+            }}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: r.control,
+              borderWidth: 1,
+              borderColor: c.line(),
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "500", color: c.text() }}>弹一条宿主通知</Text>
           </View>
         </View>
 

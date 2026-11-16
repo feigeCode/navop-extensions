@@ -1,0 +1,11 @@
+{
+  "id": "extension-showcase",
+  "kind": "composite",
+  "language": "static",
+  "package": "extension-showcase",
+  "path": "extensions/composite/extension-showcase",
+  "targets": ["universal"],
+  "releaseTagPrefix": "extension-showcase-v",
+  "r2Prefix": "extensions/extension-showcase",
+  "published": false
+}

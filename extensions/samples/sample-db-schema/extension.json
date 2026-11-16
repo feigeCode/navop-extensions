@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.sample.db-schema",
+  "name": "字段速览",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "示例插件（数据库侧边栏）：在数据库侧边栏挂一个「字段速览」面板，按当前连接列出库/表/字段（含类型、可空、主键、默认值），面板里可以跳到本插件的详情页。Example extension: a database-sidebar panel that lists databases, tables and column metadata for the current connection.",
+  "categories": [
+    "database",
+    "developer-tools"
+  ],
+  "keywords": [
+    "sample",
+    "database",
+    "sidebar",
+    "columns"
+  ],
+  "engines": {
+    "onetcli": ">=0.16.1",
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec",
+    "db:connections:list",
+    "db:schema:*",
+    "db:read:*"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "字段速览",
+      "description": "库/表/字段元数据（类型、可空、主键、默认值）",
+      "entry": "ui/dist/bundle.js",
+      "category": "database",
+      "keywords": [
+        "sample",
+        "database",
+        "columns"
+      ],
+      "backends": {},
+      "modules": [
+        "db",
+        "app",
+        "ui"
+      ],
+      "icon": "icons/db-schema.svg"
+    },
+    "panels": [
+      {
+        "id": "schema",
+        "title": "字段速览",
+        "icon": "icons/db-schema.svg",
+        "anchor": "db-sidebar",
+        "order": 230
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "库表速览",
+  "id": "com.navop.sample.db-schema",
+  "version": "0.1.0",
+  "build": 1,
+  "capabilities": {
+    "host": true
+  }
+}

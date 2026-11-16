@@ -36,7 +36,18 @@
         "example"
       ],
       "backends": {},
-      "modules": []
-    }
+      "modules": [
+        "ui"
+      ],
+      "icon": "icons/template.svg"
+    },
+    "panels": [
+      {
+        "id": "demo",
+        "title": "模板面板",
+        "anchor": "terminal-sidebar",
+        "order": 100
+      }
+    ]
   }
 }

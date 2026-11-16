@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.sample.terminal-desk",
+  "name": "终端工作台",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "示例插件（终端能力面）：在终端侧边栏挂一个面板，列会话、读屏幕快照、往活动终端执行命令。Example extension: a terminal-sidebar panel that lists sessions, reads the screen snapshot, and runs commands in the active terminal.",
+  "categories": [
+    "developer-tools"
+  ],
+  "keywords": [
+    "sample",
+    "terminal",
+    "panel"
+  ],
+  "engines": {
+    "onetcli": ">=0.16.1",
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "终端工作台",
+      "description": "列终端会话、读屏幕文本、往活动终端执行命令",
+      "entry": "ui/dist/bundle.js",
+      "category": "developer-tools",
+      "keywords": [
+        "sample",
+        "terminal",
+        "panel"
+      ],
+      "backends": {},
+      "modules": [
+        "terminal",
+        "ui"
+      ],
+      "icon": "icons/terminal-desk.svg"
+    },
+    "panels": [
+      {
+        "id": "desk",
+        "title": "终端工作台",
+        "icon": "icons/terminal-desk.svg",
+        "anchor": "terminal-sidebar",
+        "order": 210
+      }
+    ]
+  }
+}

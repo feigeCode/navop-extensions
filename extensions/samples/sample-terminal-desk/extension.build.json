@@ -1,0 +1,11 @@
+{
+  "id": "sample-terminal-desk",
+  "kind": "composite",
+  "language": "static",
+  "package": "sample-terminal-desk",
+  "path": "extensions/samples/sample-terminal-desk",
+  "targets": ["universal"],
+  "releaseTagPrefix": "sample-terminal-desk-v",
+  "r2Prefix": "extensions/sample-terminal-desk",
+  "published": false
+}

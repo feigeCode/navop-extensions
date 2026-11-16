@@ -15,7 +15,7 @@
 //
 // 没有连接时（工具箱打开或连接没建立）不渲染任何页面，只在内容区显示空态，
 // 避免页面在模块顶层读 `connection()` 时抛错、也避免发起无用的 invoke。
-import { mount, Scroll, signal, Text, View } from "nsh";
+import { host, mount, Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { params } from "./lib/navop";
 import { Dot, Empty } from "./lib/ui";
@@ -104,11 +104,33 @@ function routeById(id: string): RouteItem {
 /** 侧栏宽度。216 能放下「文件变更」这类四字标题，再宽就抢内容区了。 */
 const SIDEBAR_WIDTH = 216;
 
+/**
+ * 把当前页面状态报给宿主的插件 AI 侧栏（`navop.ai.context`）。
+ *
+ * 统一插件 AI 是宿主右侧那条图标栏 + 停靠面板，不是页面自己画的按钮：
+ * 页面只负责把自己在哪个视图、连着哪个连接报上去，AI 才能回答"这个容器
+ * 为什么起不来"这类问题。上下文按覆盖式生效，超 2KB 宿主会丢弃。
+ */
+function reportAiContext(routeId: string, connectionName: string | null) {
+  host.post("navop.ai.context", {
+    view: "docker",
+    route: routeId,
+    connection: connectionName,
+  });
+}
+
+/** 首次渲染上报一次即可；之后的切换在导航里跟着上报。 */
+let aiContextReported = false;
+
 export default function App() {
   // 启动事实只读一次：宿主打开 tab 时给一次 route，之后 app 自己维护。
   const route = signal(resolveRoute(params.route));
   const connection = params.connection ?? null;
   const title = params.extension?.title ?? "Docker";
+  if (!aiContextReported) {
+    aiContextReported = true;
+    reportAiContext(route(), connection?.name ?? null);
+  }
 
   return (
     <View
@@ -130,8 +152,10 @@ export default function App() {
           display: "flex",
           flexDirection: "column",
           backgroundColor: c.sidebar(),
+          // 侧栏右边线用通用分割线色：`sidebar-border` 在多数主题里几乎等于
+          // 侧栏底色，1px 描边看不见（和宿主数据库侧栏对比时尤其明显）。
           borderRightWidth: 1,
-          borderRightColor: c.sidebarLine(),
+          borderRightColor: c.line(),
         }}
       >
         <View
@@ -174,7 +198,10 @@ export default function App() {
                 {group.items.map((item) => (
                   <View
                     role="button"
-                    onPress={() => route.set(item.id)}
+                    onPress={() => {
+                      route.set(item.id);
+                      reportAiContext(item.id, connection?.name ?? null);
+                    }}
                     hoverStyle={{ backgroundColor: c.sidebarActive() }}
                     style={{
                       display: "flex",
@@ -220,6 +247,7 @@ export default function App() {
           return <Page />;
         }}
       </View>
+
     </View>
   );
 }

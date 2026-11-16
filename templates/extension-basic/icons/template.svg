@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
+  <!-- 扩展模板占位图标：一个可替换的品牌标记 -->
+  <rect x="2" y="2" width="20" height="20" rx="5" fill="#1E2430"/>
+  <path d="M7 12.5l3.2 3.2L17.5 8" stroke="#00BFB3" stroke-width="2.2" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

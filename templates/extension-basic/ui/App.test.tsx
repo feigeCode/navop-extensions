@@ -1,4 +1,5 @@
-// 外壳测试：route 缺省 / 未知都回落首页，显式 route 打开对应页面。
+// 外壳测试：route 缺省 / 未知都回落首页，显式 route 打开对应页面；
+// 面板形态（surface: "panel"）直接渲染面板页，不渲染 tab 外壳。
 //
 // 页面测试（ui/pages/<route>/App.test.tsx）也走这个入口，只是注入自己的 route。
 import { expect, open, test } from "nsh/test";
@@ -28,5 +29,15 @@ test("显式 route 打开关于页", async () => {
 test("未知 route 回落首页", async () => {
   const app = await openApp("does-not-exist");
   await app.waitFor("text:欢迎使用 Navop 扩展模板");
+  app.dispose();
+});
+
+test("surface: panel 时渲染面板页", async () => {
+  const app = await open("./App.tsx", {
+    width: 360,
+    height: 600,
+    host: { params: { ...TEST_PARAMS, surface: "panel", panel: "demo" }, handlers: {} },
+  });
+  await app.waitFor("text:终端侧边栏面板");
   app.dispose();
 });

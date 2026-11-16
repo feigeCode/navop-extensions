@@ -13,6 +13,7 @@ import { params } from "./lib/navop";
 import { c, hairline, t } from "./lib/theme";
 import Home from "./pages/home/App";
 import About from "./pages/about/App";
+import Panel from "./pages/panel/App";
 
 /** 默认路由：也是连接清单里 `route` 的值。 */
 const DEFAULT_ROUTE = "home";
@@ -44,6 +45,10 @@ function routeById(id: string): RouteItem {
 }
 
 export default function App() {
+  // 面板形态：宿主从终端侧边栏启动本 bundle（surface == "panel"）时，
+  // 不渲染 tab 外壳 —— 侧栏空间有限，直接给面板页。
+  if (params.surface === "panel") return <Panel />;
+
   // 启动事实只读一次：宿主打开 tab 时给一次 route，之后 app 自己维护。
   const route = signal(resolveRoute(params.route));
   const connection = params.connection ?? null;

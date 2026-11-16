@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.sample.db-explorer",
+  "name": "库表速览",
+  "version": "0.1.0",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "示例插件（数据库能力面）：库树右键菜单带上下文打开页面，展示库/表/字段/索引/外键元数据，并在数据库侧边栏挂一个表清单面板。Example extension: opens from the DB tree context menu, shows database/table/column/index/foreign-key metadata, and adds a table-list panel to the database sidebar.",
+  "categories": [
+    "database",
+    "developer-tools"
+  ],
+  "keywords": [
+    "sample",
+    "database",
+    "metadata",
+    "panel"
+  ],
+  "engines": {
+    "onetcli": ">=0.16.1",
+    "gpui_shell": "0.6.4",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec",
+    "db:connections:list",
+    "db:schema:*",
+    "db:read:*"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "库表速览",
+      "description": "库/表/字段/索引/外键元数据，以及 20 行数据预览",
+      "entry": "ui/dist/bundle.js",
+      "category": "database",
+      "keywords": [
+        "sample",
+        "database",
+        "metadata"
+      ],
+      "backends": {},
+      "modules": [
+        "db",
+        "app",
+        "ui"
+      ],
+      "icon": "icons/db-explorer.svg"
+    },
+    "panels": [
+      {
+        "id": "inspector",
+        "title": "库表速览",
+        "icon": "icons/db-explorer.svg",
+        "anchor": "db-sidebar",
+        "order": 220,
+        "when": "connection.type == 'database'"
+      }
+    ],
+    "commands": [
+      {
+        "id": "sample.dbExplorer.openTable",
+        "title": "在库表速览里打开",
+        "icon": "icons/db-explorer.svg",
+        "handler": {
+          "kind": "nsh",
+          "route": "table"
+        }
+      }
+    ],
+    "menus": {
+      "db.tree.table": [
+        {
+          "command": "sample.dbExplorer.openTable",
+          "label": "在库表速览里打开"
+        }
+      ],
+      "db.tree.database": [
+        {
+          "command": "sample.dbExplorer.openTable",
+          "label": "在库表速览里打开"
+        }
+      ]
+    }
+  }
+}

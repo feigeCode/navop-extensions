@@ -23,6 +23,14 @@ export type TestParamsInput = {
   backends?: string[];
   /** 连接的启动事实；默认 null（无连接）。 */
   connection?: unknown;
+  /** 打开时的启动上下文（DB 菜单 kind:"nsh" 会带）；默认 null。 */
+  context?: unknown;
+  /** surface 形态："tab"（默认）或 "panel"（终端侧边栏面板）。 */
+  surface?: "tab" | "panel";
+  /** surface 为 "panel" 时的面板 id。 */
+  panel?: string | null;
+  /** surface 为 "panel" 时的宿主锚点；默认 "terminal-sidebar"。 */
+  anchor?: "terminal-sidebar" | "db-sidebar" | null;
 };
 
 /** 造一份与宿主首帧前写进 `host.params` 形状一致的启动事实。 */
@@ -33,6 +41,10 @@ export function testParams(input: TestParamsInput): Record<string, unknown> {
     route: input.route ?? null,
     backends: input.backends ?? [],
     connection: input.connection ?? null,
+    context: input.context ?? null,
+    surface: input.surface ?? "tab",
+    panel: input.panel ?? null,
+    anchor: input.anchor ?? (input.surface === "panel" ? "terminal-sidebar" : null),
   };
 }
 

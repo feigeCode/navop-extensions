@@ -4,11 +4,14 @@
 // 由宿主解释的中间层：要什么数据就直接说 provider 的方法名和参数，
 // 宿主只负责把结果（inline / blob / 事件流）解码成普通 JSON 交回来。
 //
-// 四条通道各归其位：
+// 五条通道各归其位：
 //   host.params            启动事实（连接、backends、view 身份），同步读，不 await
 //   host.call(name, …)     命令：有应答、可失败（`e.code` / `e.retryable` / `e.details`）
+//                          —— 用于 provider 资源（resource/job）与宿主事件订阅
+//   nativeModule("navop")  navop 自己的能力面（db / terminal / app / ui）：
+//                          强类型方法、同步/异步分明，见 `./native`
 //   host.post("navop.log") 通知：无应答，页面不等它
-//   host.on("navop.event") 推送：provider 事件流（先 event.subscribe 才有）
+//   host.on("navop.event") 推送：provider 事件流 / 宿主事件（先 event.subscribe 才有）
 //
 // v1 的 `navop.context.current`、`navop.log.*`（call 形态）和 `__NAVOP_ERROR__`
 // 信封都删了：这里没有启动 RPC，也没有任何 base64 解析。
@@ -44,6 +47,21 @@ export type Params = {
   backends?: string[];
   /** 非连接型 app 是 null。 */
   connection?: Connection | null;
+  /**
+   * 打开时的宿主上下文（如 DB 树右键菜单的 kind:"nsh" 命令会带
+   * `{commandId, connectionId, databaseType, node}`）；普通打开是 null。
+   * 同 (extension, route) 的 tab 复用时不会重放。
+   */
+  context?: Record<string, unknown> | null;
+  /** surface 形态："tab"（默认）或 "panel"（终端侧边栏面板）。 */
+  surface?: "tab" | "panel";
+  /** surface 为 "panel" 时的面板 id（manifest contributes.panels[].id）。 */
+  panel?: string | null;
+  /**
+   * surface 为 "panel" 时面板挂在哪个宿主锚点（manifest contributes.panels[].anchor）：
+   * "terminal-sidebar" 或 "db-sidebar"；tab 形态为 null。
+   */
+  anchor?: "terminal-sidebar" | "db-sidebar" | null;
 };
 
 /** 一次调用的选项。`timeout` 单位毫秒，`0` 表示不超时。 */
@@ -169,4 +187,44 @@ export function log(level: LogLevel, message: string, fields?: Record<string, un
 export function onEvent(listener: (batch: EventBatch) => void): () => void {
   const subscription = host.on<EventBatch>("navop.event", listener);
   return () => subscription();
+}
+
+/**
+ * 订阅**宿主事件**（`db.treeChanged` 之类），返回停止函数。
+ *
+ * 与 provider 事件流共用 `navop.event` 推送通道，只是订阅时 `handle` 写
+ * `"host"`：宿主进程里发生的事实变化（例如执行完 DDL、宿主刷新了树）。
+ * 宿主事件没有回放——订阅之前发生的事收不到；游标从 0 起。
+ *
+ * ```ts
+ * const stop = await subscribeHostEvents("db.treeChanged", (data) => {
+ *   // data: { connectionId, sessionId?, reason }
+ * });
+ * ```
+ */
+export async function subscribeHostEvents(
+  topic: string,
+  listener: (data: unknown) => void,
+  options: InvokeOptions = {},
+): Promise<() => void> {
+  const answer = (await host.call(
+    "navop.event.subscribe",
+    { handle: "host", kind: topic },
+    { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS },
+  )) as { handle?: string } | null;
+  const handle = answer?.handle;
+  if (typeof handle !== "string" || handle.length === 0) {
+    throw new Error(`宿主没有返回事件句柄：${topic}`);
+  }
+  const off = host.on<EventBatch>("navop.event", (batch) => {
+    if (batch.handle !== handle) return;
+    for (const event of batch.events ?? []) listener(event.data);
+  });
+  return () => {
+    off();
+    // 退订失败不影响页面：句柄随 tab 关闭一起清掉。
+    void host
+      .call("navop.event.unsubscribe", { handle }, { timeout: DEFAULT_TIMEOUT_MS })
+      .catch(() => undefined);
+  };
 }

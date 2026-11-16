@@ -1,0 +1,13 @@
+{
+  "id": "com.navop.sample.db-schema",
+  "kind": "composite",
+  "language": "static",
+  "package": "sample-db-schema",
+  "path": "extensions/samples/sample-db-schema",
+  "targets": [
+    "universal"
+  ],
+  "releaseTagPrefix": "sample-db-explorer-v",
+  "r2Prefix": "extensions/sample-db-explorer",
+  "published": false
+}

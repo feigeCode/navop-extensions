@@ -100,8 +100,20 @@ async function vendorKit(kitDir, uiDir) {
     [`"${KIT_NAME}/theme"`, `"./theme"`],
     [`"${KIT_NAME}/format"`, `"./format"`],
     [`"${KIT_NAME}/testing"`, `"./testing"`],
+    [`"${KIT_NAME}/db"`, `"./db"`],
+    [`"${KIT_NAME}/api"`, `"./api"`],
+    [`"${KIT_NAME}/native"`, `"./native"`],
   ];
-  for (const file of ["navop.ts", "theme.ts", "format.ts", "ui.tsx", "test-host.ts"]) {
+  for (const file of [
+    "navop.ts",
+    "theme.ts",
+    "format.ts",
+    "ui.tsx",
+    "test-host.ts",
+    "db.ts",
+    "api.ts",
+    "native.ts",
+  ]) {
     const p = path.join(lib, file);
     if (existsSync(p)) await replaceIn(p, rewrites);
   }

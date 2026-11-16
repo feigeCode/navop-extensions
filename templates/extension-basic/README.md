@@ -63,6 +63,10 @@ bash scripts/build.sh
   没有连接时 `params.connection` 为 `null`，外壳只显示空态、不渲染页面。
 - **`nsh.json` 的 `id` 必须等于 `extension.json` 的 `id`**（宿主按 app id 记账），
   `capabilities.host: true` 才允许 `host.call`。
+- **`contributes.shellApp.modules` 决定能力面**：`app` / `ui` / `terminal` / `db`
+  走 nsh 的 `nativeModule("navop")`（模板里 `modules: ["ui"]`，首页的「弹一条
+  宿主通知」就是示例）；`resource` / `job` / `event` / `blob` 这类 provider 能力
+  仍走 `host.call`。没声明的模块调用时报 `PERMISSION_DENIED`。
 - **nsh 只读入口所在目录的 `nsh.json`**：测试入口放在别处会读不到配置。
 - **页面不感知外壳**：`pages/*/App.tsx` 只 `export default` 一个组件，不 `mount`。
 
