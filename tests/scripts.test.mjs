@@ -1048,11 +1048,11 @@ test("WindTerm importer is registered as a composite WASM importer", () => {
   const importer = sourceManifest.contributes.connectionImporters[0];
 
   assert.equal(importer.id, "windterm");
-  assert.deepEqual(importer.outputKinds, ["ssh"]);
+  assert.deepEqual(importer.outputKinds, ["ssh", "telnet", "quick-command", "workspace", "keybinding"]);
   assert.deepEqual(importer.platforms, ["macos", "windows", "linux"]);
-  assert.equal(importer.manualFilePick?.prompt, "选择 WindTerm user.sessions 文件");
+  assert.equal(importer.manualFilePick?.prompt, "选择 WindTerm user.sessions / quickbar.config / wind.keymaps 文件");
   assert.equal(importer.manualFilePick?.supportsDirectories, true);
-  assert.equal(importer.manualFilePick?.directoryPrompt, "选择 WindTerm profiles 配置目录");
+  assert.equal(importer.manualFilePick?.directoryPrompt, "选择 WindTerm 安装目录或 .wind 配置目录");
   assert.ok(
     importer.candidateFiles.some((candidate) => candidate.path === "~/.wind/profiles"),
     "WindTerm importer should discover Unix profile directories",

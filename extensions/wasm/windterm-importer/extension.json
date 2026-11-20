@@ -2,8 +2,8 @@
   "schema_version": 1,
   "id": "com.onetcli.importer.windterm",
   "name": "WindTerm Importer",
-  "description": "从 WindTerm profile 的 user.sessions 文件中发现 SSH 连接，并通过 Rust WASM 导入到 Navop；支持默认、自定义和手动选择的 profile。 Discovers SSH connections from WindTerm profile user.sessions files and imports them into Navop through Rust WASM, including default, custom, and manually selected profiles.",
-  "version": "0.1.0",
+  "description": "从 WindTerm 安装目录或 profile 配置中导入 SSH/Telnet 会话、分组、QuickBar 快捷命令及快捷键绑定，通过 Rust WASM 安全运行时导入到 Navop。 Imports SSH/Telnet sessions, groups, QuickBar commands, and keybindings from WindTerm directories or profile files through Rust WASM.",
+  "version": "0.2.0",
   "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"
@@ -17,7 +17,7 @@
         "id": "windterm-importer",
         "module": "wasm/windterm_importer_wasm.wasm",
         "kind": "component",
-        "timeout_ms": 5000,
+        "timeout_ms": 10000,
         "max_memory_mb": 64
       }
     ]
@@ -32,10 +32,14 @@
         "id": "windterm",
         "runtimeId": "windterm-importer",
         "displayName": "WindTerm",
-        "description": "从 WindTerm profiles 配置目录或 user.sessions 文件发现并导入 SSH 连接。 Discover and import SSH connections from WindTerm profiles directories or user.sessions files.",
+        "description": "从 WindTerm 安装目录、.wind 配置目录或 user.sessions / quickbar.config / wind.keymaps 文件发现并导入 SSH/Telnet 会话、分组、快捷命令及快捷键。 Discover and import SSH/Telnet sessions, groups, QuickBar commands, and keybindings from WindTerm directories or files.",
         "icon": "terminal",
         "outputKinds": [
-          "ssh"
+          "ssh",
+          "telnet",
+          "quick-command",
+          "workspace",
+          "keybinding"
         ],
         "platforms": [
           "macos",
@@ -43,9 +47,9 @@
           "linux"
         ],
         "manualFilePick": {
-          "prompt": "选择 WindTerm user.sessions 文件",
+          "prompt": "选择 WindTerm user.sessions / quickbar.config / wind.keymaps 文件",
           "supportsDirectories": true,
-          "directoryPrompt": "选择 WindTerm profiles 配置目录"
+          "directoryPrompt": "选择 WindTerm 安装目录或 .wind 配置目录"
         },
         "candidateFiles": [
           {
