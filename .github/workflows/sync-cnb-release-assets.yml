@@ -160,3 +160,25 @@ jobs:
 
           count="$(printf '%s\n' "$expected" | wc -l | tr -d ' ')"
           echo "Verified ${count} asset(s) on CNB release ${TAG_NAME}."
+
+  prune-old-releases:
+    name: Prune old CNB releases
+    needs: sync-release-to-cnb
+    runs-on: ubuntu-latest
+    # 清理之间必须串行：多个扩展同时发布时，两次清理若并发执行，可能把对方
+    # 刚上传完、但还没进入「每个扩展最新 N 版」保留集的 Release 删掉。
+    concurrency:
+      group: extension-cnb-prune
+      cancel-in-progress: false
+    steps:
+      - name: Checkout maintenance scripts
+        uses: actions/checkout@v4
+
+      - name: Prune old CNB releases
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          # 每个扩展除清单当前版本外多留的版本数。
+          CNB_EXTENSION_RETENTION: "2"
+        run: |
+          set -euo pipefail
+          bash .github/scripts/prune-cnb-releases.sh
