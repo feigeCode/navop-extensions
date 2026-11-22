@@ -469,8 +469,8 @@
       "id": "tree-sitter-languages",
       "kind": "language_bundle",
       "name": "Tree-sitter Languages",
-      "version": "0.1.0",
-      "release_tag": "tree-sitter-languages-v0.1.0",
+      "version": "0.2.0",
+      "release_tag": "tree-sitter-languages-v0.2.0",
       "description": "基于 Tree-sitter WASM 的多语言语法高亮扩展包，为 Navop 的编辑器和文档视图提供常用编程语言、标记语言及配置文件的解析与高亮。 Tree-sitter WASM language bundle that provides parsing and syntax highlighting for common programming, markup, and configuration languages in Navop editors and document views.",
       "file_extensions": [
         "astro",

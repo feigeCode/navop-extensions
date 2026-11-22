@@ -7,13 +7,15 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const hostQueryRoot = path.resolve(repoRoot, "../navop/crates/ui/src/highlighter/languages");
+const gpuiKitQueryRoot = path.resolve(repoRoot, "../gpui-kit/crates/component/src/highlighter/languages");
 const cargoHome = process.env.CARGO_HOME || path.join(os.homedir(), ".cargo");
 const cargoSrcRoot = path.join(cargoHome, "registry/src");
 const defaultBundle = {
   id: "tree-sitter-languages",
   name: "Tree-sitter Languages",
-  version: "0.1.0",
-  description: "Tree-sitter syntax highlighter language bundle",
+  version: "0.2.0",
+  description:
+    "基于 Tree-sitter WASM 的多语言语法高亮扩展包，为 Navop 的编辑器和文档视图提供常用编程语言、标记语言及配置文件的解析与高亮。 Tree-sitter WASM language bundle that provides parsing and syntax highlighting for common programming, markup, and configuration languages in Navop editors and document views.",
 };
 
 const languages = [
@@ -67,7 +69,23 @@ function main() {
   for (const entry of languages) {
     syncLanguage(entry, { buildWasm });
   }
+  syncBundleManifest();
   syncRootManifest();
+}
+
+function syncBundleManifest() {
+  const bundleDir = path.join(repoRoot, "extensions/language-bundle", defaultBundle.id);
+  fs.mkdirSync(bundleDir, { recursive: true });
+  const existing = readJsonIfExists(path.join(bundleDir, "manifest.json")) || {};
+  const manifest = {
+    ...existing,
+    id: defaultBundle.id,
+    name: defaultBundle.name,
+    description: defaultBundle.description,
+    version: existing.version && existing.version !== "0.1.0" ? existing.version : defaultBundle.version,
+    languages: bundledLanguages().map((entry) => entry.id).sort(),
+  };
+  writeJson(path.join(bundleDir, "manifest.json"), manifest);
 }
 
 function printUsage() {
@@ -192,6 +210,9 @@ function copyQueries(entry, sourceDir, extensionDir) {
 }
 
 function querySource(entry, sourceDir, query) {
+  const kitSource = path.join(gpuiKitQueryRoot, entry.id, query);
+  if (fs.existsSync(kitSource)) return kitSource;
+
   const hostSource = path.join(hostQueryRoot, entry.id, query);
   if (fs.existsSync(hostSource)) return hostSource;
 
