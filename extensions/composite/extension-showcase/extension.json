@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "Navop",
   "license": "Apache-2.0",
-  "description": "演示 2026-11 扩展机制的完整形态：两种锚点的侧栏面板（contributes.panels，terminal-sidebar + db-sidebar）、数据库右键菜单打开 nsh tab（commands kind:nsh + menus db.tree.*）、navop.ui/app/terminal/db 四个能力面。 A showcase of the extension mechanism: panels on both host anchors, db-tree context menus that open an nsh tab, and the navop.ui/app/terminal/db capability planes.",
+  "description": "演示 2026-11 扩展机制的完整形态（Static 静态扩展，无需编译）：两种锚点的侧栏面板（contributes.panels，terminal-sidebar + db-sidebar）、数据库右键菜单打开 nsh tab（commands kind:nsh + menus db.tree.*）、navop.ui/app/terminal/db 四个能力面。 A showcase of the Static extension mechanism: panels on both host anchors, db-tree context menus that open an nsh tab, and the navop.ui/app/terminal/db capability planes.",
   "categories": [
     "developer-tools"
   ],

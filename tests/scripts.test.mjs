@@ -2492,8 +2492,18 @@ test("verify-composite-package rejects routes on terminal connections", () => {
 // 携带自己的 nsh.json/tsconfig/dist/.nsh。
 test("nsh apps ship a single bundle and register every ui/pages route", () => {
   // dev-tools 工作台页走 navop.dev.*（日志是 host.post("navop.log") 的 log 模块），
-  // 不属于资源页面；其余复合扩展页面一律声明 resource。模块是宿主能力的唯一真相来源。
-  const allowedModules = new Set(["resource", "job", "event", "blob", "runtime", "log", "dev"]);
+  // 不属于资源页面；其余复合扩展页面一律声明 resource。模块是宿主能力的唯一真相来源，
+  // 白名单直接取自清单 schema 的 shellApp.modules 枚举：以前这里硬编码一份，
+  // 56edde4 给 docker 声明 ai 后与 schema 漂移，node --test 才报错。
+  const manifestSchema = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "packages/navop-extension-types/schema/extension-manifest.schema.json"),
+      "utf8",
+    ),
+  );
+  const allowedModules = new Set(
+    manifestSchema.definitions.shellApp.properties.modules.items.enum,
+  );
   const removedModules = ["context", "theme", "i18n", "workbench"];
   const ids = fs
     .readdirSync(path.join(repoRoot, "extensions/composite"))
@@ -2542,22 +2552,33 @@ test("nsh apps ship a single bundle and register every ui/pages route", () => {
       );
     }
 
-    const entry = path.join(extDir, app.entry);
-    assert.ok(fs.existsSync(entry), `${label} bundle missing: ${app.entry}`);
-    const source = fs.readFileSync(entry, "utf8");
-    assert.match(source, /from "nsh"/, `${label} bundle must import from "nsh"`);
+    // ui/dist 自 56edde4 起不再入库（.gitignore 忽略，打包脚本先 build），所以干净
+    // 检出下没有 bundle 可读。有产物时按产物校验；没有时退回源码校验同一组不变量
+    // （入口从 "nsh" 导入、resource 模块走 navop.resource.invoke）。产物合法性由
+    // scripts/verify-composite-package.sh 在发布时把关。
+    const uiDir = path.join(extDir, "ui");
+    const bundleExists = fs.existsSync(path.join(extDir, app.entry));
+    const source = readAppSource(extDir, app.entry);
+    const sourceLabel = bundleExists ? `${label} bundle` : `${label} sources`;
+    assert.match(source, /from "nsh"/, `${sourceLabel} must import from "nsh"`);
     if (modules.includes("resource")) {
-      assert.match(source, /navop\.resource\.invoke/, `${label} must dispatch via navop.resource.invoke`);
+      assert.match(
+        source,
+        /navop\.resource\.invoke/,
+        `${sourceLabel} must dispatch via navop.resource.invoke`,
+      );
     }
 
     // 一个包只有一个 build 产物：ui/dist 下只有 bundle.js 一个 .js，页面目录
-    // 不再各自产出 bundle。
-    const distFiles = fs.readdirSync(path.join(extDir, "ui/dist"));
-    assert.deepEqual(
-      distFiles.filter((file) => file.endsWith(".js")),
-      ["bundle.js"],
-      `${label} must build exactly one ui/dist/bundle.js`,
-    );
+    // 不再各自产出 bundle。没有构建产物时这条不适用（见上）。
+    if (bundleExists) {
+      const distFiles = fs.readdirSync(path.join(uiDir, "dist"));
+      assert.deepEqual(
+        distFiles.filter((file) => file.endsWith(".js")),
+        ["bundle.js"],
+        `${label} must build exactly one ui/dist/bundle.js`,
+      );
+    }
 
     // 页面目录只有源码（+ 测试），不再有自己的 app 身份与产物。
     const pagesDir = path.join(extDir, "ui/pages");
@@ -2687,10 +2708,7 @@ test("mqtt keeps its live message stream wired to the standard stream method", (
   );
   const app = page.contributes?.shellApp;
   assert.ok(app, "mqtt must declare its shellApp (the live message stream app)");
-  const source = fs.readFileSync(
-    path.join(repoRoot, "extensions/composite/mqtt", app.entry),
-    "utf8",
-  );
+  const source = readAppSource(path.join(repoRoot, "extensions/composite/mqtt"), app.entry);
   assert.match(
     source,
     /messageStream:\s*"middleware\/message\/stream"/,
@@ -6098,6 +6116,28 @@ function languageName(metadata) {
     default:
       throw new Error(`unsupported extension language for ${metadata.id}: ${language}`);
   }
+}
+
+// ui/dist 自 56edde4 起不再入库（.gitignore 忽略，打包脚本先 build），仓库检查在
+// 干净检出下读不到 bundle：有产物时按产物看，没有时退回 ui/ 源码看同一组语义。
+// 源码扫描跳过 dist/node_modules/.nsh 与测试文件——后者 import 的 "nsh/test" 里有
+// `open()`、fixture 里也有 credentialRefs 之类，和运行时语义无关，bundle 里也不含。
+function readAppSource(extDir, entry) {
+  const bundlePath = path.join(extDir, entry);
+  if (fs.existsSync(bundlePath)) return fs.readFileSync(bundlePath, "utf8");
+  const files = [];
+  const walk = (dir) => {
+    for (const name of fs.readdirSync(dir)) {
+      if (name === "dist" || name === "node_modules" || name === ".nsh") continue;
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name)) {
+        files.push(fs.readFileSync(full, "utf8"));
+      }
+    }
+  };
+  walk(path.join(extDir, "ui"));
+  return files.join("\n");
 }
 
 function sourceManifestFileName(kind) {
