@@ -115,8 +115,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(spawn:|net:(tcp|udp):|net:unix:|secrets:(read|write):|shell:exec|fs:|process:|clipboard:|storage:)"
-      }
+        "pattern": "^(spawn:.*|net:(tcp|udp):.*|net:unix:.*|secrets:(read|write):.*|shell:exec|fs:.*|process:.*|clipboard:.*|storage:.*|db:connections:list|db:(read|write|schema|admin):[^/\\\\]+|ui:(progress|notify|refresh_tree)|notifications:show|host:(ssh_tunnel|open_browser|clipboard:(read|write)))$"
+      },
+      "description": "权限语法与宿主 crates/extension-runtime/src/extension/manifest/security_rules.rs 的 validate_permission 对齐：db: 只接受 db:connections:list 或 db:<read|write|schema|admin>:<connection-id|*>，ui: 只接受 ui:progress/ui:notify/ui:refresh_tree，宿主级权限为 notifications:show 与 host:ssh_tunnel/host:open_browser/host:clipboard:<read|write>。"
     },
     "runtime": {
       "$ref": "#/definitions/runtimeSection"
