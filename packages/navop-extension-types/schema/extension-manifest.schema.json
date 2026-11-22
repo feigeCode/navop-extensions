@@ -280,6 +280,12 @@
         "shellApp": {
           "$ref": "#/definitions/shellApp"
         },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/panel"
+          }
+        },
         "commands": {
           "type": "array",
           "items": {
@@ -299,7 +305,8 @@
                 "type": "string"
               },
               "icon": {
-                "type": "string"
+                "type": "string",
+                "description": "相对扩展根目录的图标（SVG/PNG）：命令声明后，DB 树右键菜单项会显示它"
               },
               "enablement_when": {
                 "type": "string"
@@ -309,7 +316,8 @@
                 "required": [],
                 "properties": {
                   "kind": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "builtin（默认，暂不支持）、wasm（headless 动作）或 nsh（打开本扩展的 shell app tab）"
                   },
                   "runtime_id": {
                     "type": "string"
@@ -319,6 +327,10 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "route": {
+                    "type": "string",
+                    "description": "仅 kind == nsh：打开 app 时的初始路由，进 host.params.route"
                   }
                 }
               }
@@ -502,7 +514,8 @@
           "type": "string"
         },
         "icon": {
-          "type": "string"
+          "type": "string",
+          "description": "相对扩展根目录的图标（SVG/PNG）：标签页 + 工具箱卡片；面板图标缺省时也回落它"
         },
         "entry": {
           "type": "string",
@@ -533,9 +546,57 @@
               "blob",
               "log",
               "runtime",
-              "dev"
+              "dev",
+              "app",
+              "db",
+              "ui",
+              "terminal",
+              "ai"
             ]
-          }
+          },
+          "description": "页面可用的宿主模块。resource/job/event/blob/runtime/log/dev 走 host.call 字符串通道；app/ui/terminal/db 走 nsh 的 nativeModule（nativeModule(\"navop\").App 等）；ai 授予 navop.ai.*（页面用 host.post 上报 AI 上下文、host.call 唤起侧栏）。未声明的模块在调用时报 PERMISSION_DENIED。"
+        }
+      }
+    },
+    "panel": {
+      "description": "扩展面板：终端侧边栏的第二 surface，要求 shellApp。",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "description": "相对扩展根目录的图标（SVG/PNG），用作侧栏按钮；缺省回落 shellApp.icon，再没有用通用扩展图标"
+        },
+        "anchor": {
+          "type": "string",
+          "enum": [
+            "terminal-sidebar",
+            "db-sidebar"
+          ],
+          "default": "terminal-sidebar"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "when": {
+          "type": "string",
+          "maxLength": 256
         }
       }
     },
