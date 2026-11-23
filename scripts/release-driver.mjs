@@ -196,7 +196,8 @@ function buildDriver(metadata, target) {
       fail(`rust-wasm extensions must declare the universal target, got ${target}`);
     }
     const packageName = metadata.package || metadata.id;
-    run("cargo", ["build", "--release", "-p", packageName, "--target", "wasm32-wasip2"]);
+    const wasmToolchain = process.env.NAVOP_WASM_RUST_TOOLCHAIN || "+1.94.0";
+    run("cargo", [wasmToolchain, "build", "--release", "-p", packageName, "--target", "wasm32-wasip2"]);
     return;
   }
 

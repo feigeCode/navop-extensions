@@ -53,6 +53,26 @@ for (const runtime of wasmRuntimes) {
     console.error(`runtime.wasm.module not found: ${runtime.module}`);
     process.exit(1);
   }
+  // Navop 宿主当前锁定 wasmtime-wasi =36.0.14（最高支持 WASI 0.2.6）。
+  // 如果用新版 Rust stable 编译 wasm32-wasip2，产物会引入 WASI 0.2.12（如
+  // wasi:cli/exit@0.2.12），导致已发布客户端加载组件失败。
+  const maxSupportedWasiPatch = 6;
+  const wasmText = fs.readFileSync(modulePath).toString("latin1");
+  const incompatibleImports = new Set();
+  for (const match of wasmText.matchAll(/wasi:[a-z0-9-]+\/[a-z0-9-]+@(\d+)\.(\d+)\.(\d+)/g)) {
+    const major = Number(match[1]);
+    const minor = Number(match[2]);
+    const patch = Number(match[3]);
+    if (major > 0 || minor > 2 || (major === 0 && minor === 2 && patch > maxSupportedWasiPatch)) {
+      incompatibleImports.add(match[0]);
+    }
+  }
+  if (incompatibleImports.size > 0) {
+    console.error(
+      `runtime.wasm.module ${runtime.module} imports WASI interfaces newer than 0.2.${maxSupportedWasiPatch}: ${Array.from(incompatibleImports).sort().join(", ")}. Build with Rust 1.94.0 (wasm32-wasip2) to keep compatibility with Navop host wasmtime-wasi 36.0.14.`,
+    );
+    process.exit(1);
+  }
 }
 
 const ipcRuntimes = manifest.runtime?.ipc || [];
