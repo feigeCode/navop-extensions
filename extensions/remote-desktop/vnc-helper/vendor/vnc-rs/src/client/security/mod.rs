@@ -1,11 +1,13 @@
 pub(crate) mod des;
+pub(crate) mod ra2;
 
 use std::fmt;
 
 use super::auth::SecurityType;
 use crate::VncError;
 
-const SUPPORTED_SECURITY_TYPES: [SecurityType; 2] = [SecurityType::None, SecurityType::VncAuth];
+const SUPPORTED_SECURITY_TYPES: [SecurityType; 3] =
+    [SecurityType::None, SecurityType::VncAuth, SecurityType::RA2];
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct VncCredentials {
@@ -78,6 +80,9 @@ fn select_automatic(
     password_available: bool,
     policy: SecurityPolicy,
 ) -> Result<SecurityType, VncError> {
+    if password_available && advertised.contains(&SecurityType::RA2) {
+        return Ok(SecurityType::RA2);
+    }
     if password_available && advertised.contains(&SecurityType::VncAuth) {
         return Ok(SecurityType::VncAuth);
     }
@@ -91,7 +96,7 @@ fn select_automatic(
         }
         return Ok(SecurityType::None);
     }
-    if advertised.contains(&SecurityType::VncAuth) {
+    if advertised.contains(&SecurityType::RA2) || advertised.contains(&SecurityType::VncAuth) {
         return Err(VncError::NoPassword);
     }
     Err(negotiation_error(

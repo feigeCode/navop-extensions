@@ -104,7 +104,7 @@ fn unknown_security_type_is_preserved_in_diagnostics() {
 #[test]
 fn unsupported_security_error_retains_policy_and_raw_type_ids() {
     let error = select_security(
-        &[SecurityType::RA2, SecurityType::Tls, SecurityType::VeNCrypt],
+        &[SecurityType::Tls, SecurityType::VeNCrypt],
         SecurityPolicy::Auto,
         &credentials(Some("secret")),
         false,
@@ -119,11 +119,52 @@ fn unsupported_security_error_retains_policy_and_raw_type_ids() {
             ..
         } => {
             assert_eq!(policy, SecurityPolicy::Auto);
-            assert_eq!(advertised, "RA2(5), TLS(18), VeNCrypt(19)");
-            assert_eq!(supported, "None(1), VncAuth(2)");
+            assert_eq!(advertised, "TLS(18), VeNCrypt(19)");
+            assert_eq!(supported, "None(1), VncAuth(2), RA2(5)");
         }
         other => panic!("unexpected error: {other}"),
     }
+}
+
+#[test]
+fn auto_selects_ra2_when_advertised_with_password() {
+    let advertised = [
+        SecurityType::Unknown(13),
+        SecurityType::Unknown(133),
+        SecurityType::RA2,
+        SecurityType::Unknown(129),
+        SecurityType::Unknown(192),
+    ];
+
+    let selected = select_security(
+        &advertised,
+        SecurityPolicy::Auto,
+        &credentials(Some("secret")),
+        false,
+    )
+    .expect("RA2 should be selected");
+
+    assert_eq!(selected, SecurityType::RA2);
+}
+
+#[test]
+fn rfb_version_above_3_8_negotiates_as_rfb_3_8() {
+    assert_eq!(
+        crate::VncVersion::from(*b"RFB 005.000\n"),
+        crate::VncVersion::RFB38
+    );
+    assert_eq!(
+        crate::VncVersion::from(*b"RFB 004.001\n"),
+        crate::VncVersion::RFB38
+    );
+    assert_eq!(
+        crate::VncVersion::from(*b"RFB 003.889\n"),
+        crate::VncVersion::RFB38
+    );
+    assert_eq!(
+        crate::VncVersion::from(*b"RFB 003.005\n"),
+        crate::VncVersion::RFB33
+    );
 }
 
 #[test]
