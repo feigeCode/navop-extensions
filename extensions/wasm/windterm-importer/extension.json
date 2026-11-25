@@ -3,7 +3,7 @@
   "id": "com.onetcli.importer.windterm",
   "name": "WindTerm Importer",
   "description": "从 WindTerm 安装目录或 profile 配置中导入 SSH/Telnet 会话、分组、QuickBar 快捷命令及快捷键绑定，通过 Rust WASM 安全运行时导入到 Navop。 Imports SSH/Telnet sessions, groups, QuickBar commands, and keybindings from WindTerm directories or profile files through Rust WASM.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.24.0"
