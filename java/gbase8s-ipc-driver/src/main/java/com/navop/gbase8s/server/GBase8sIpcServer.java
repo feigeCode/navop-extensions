@@ -243,7 +243,7 @@ public final class GBase8sIpcServer {
         for (String method : methodNames) {
             methods.add(method);
         }
-        result.put("extension_version", "0.1.25");
+        result.put("extension_version", "0.1.26");
         result.put("api_used", api);
         result.put("features", features);
         result.put("drivers_ready", drivers);
@@ -429,6 +429,7 @@ public final class GBase8sIpcServer {
             column.put("raw_type", rawType);
             column.put("nullable", Boolean.valueOf(nullable(rowString(row, 3))));
             column.put("default", gbase8sDefault(rowValue(row, 4)));
+            column.put("default_type", rowString(row, 8).trim());
             column.put("is_primary", Boolean.valueOf(primaryColumns.contains(name)));
             column.put("is_unique", Boolean.FALSE);
             column.put("is_partition_key", Boolean.FALSE);
@@ -482,6 +483,13 @@ public final class GBase8sIpcServer {
         if (statements.isEmpty()) {
             statements = buildTableDdl(state.connection, database, schema, table);
         }
+        if (!statements.isEmpty()) {
+            // get_ddl only knows columns and the primary key; foreign keys and
+            // CHECK rules never appear in its output, so an export driven by
+            // the SPL silently loses every referential and check constraint.
+            // Append them for both paths, after the table itself exists.
+            appendConstraintDdl(statements, state.connection, database, schema, table);
+        }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("statements", statements);
         return ok(id, result);
@@ -515,10 +523,14 @@ public final class GBase8sIpcServer {
 
     /**
      * Rebuilds a table's DDL from the system catalogs when the server has no
-     * get_ddl SPL: column types, NOT NULL, PRIMARY KEY, table/column comments
-     * and non-primary indexes. Every returned statement is terminated with
-     * {@code ;}: the host joins dump statements with newlines and only appends
-     * one trailing terminator, so an unterminated CREATE TABLE directly
+     * get_ddl SPL: column types, NOT NULL, defaults, PRIMARY KEY, table/column
+     * comments and non-primary indexes. Identifiers stay unqualified, matching
+     * the official get_ddl recipe's output: GBase 8s resolves the owner from
+     * the connection, so replaying an owner-qualified script (the old
+     * "CREATE TABLE gbasedbt.sample ...") fails or targets the wrong schema
+     * whenever it runs as another user. Every returned statement is terminated
+     * with {@code ;}: the host joins dump statements with newlines and only
+     * appends one trailing terminator, so an unterminated CREATE TABLE directly
      * followed by COMMENT ON is parsed as a single statement and fails on
      * re-import with a syntax error.
      */
@@ -532,7 +544,7 @@ public final class GBase8sIpcServer {
         if (columns.isEmpty()) {
             return new ArrayList<String>();
         }
-        String tableName = qualifiedIdentifier("", schema, table);
+        String tableName = quote(table);
         List<String> definitions = new ArrayList<String>();
         List<String> primary = new ArrayList<String>();
         for (Map<String, Object> column : columns) {
@@ -563,7 +575,7 @@ public final class GBase8sIpcServer {
             if (isInternalIndex(index)) {
                 continue;
             }
-            statements.add(indexStatement(schema, table, index) + ";");
+            statements.add(indexStatement(table, index) + ";");
         }
         return statements;
     }
@@ -590,11 +602,51 @@ public final class GBase8sIpcServer {
         if (Boolean.FALSE.equals(column.get("nullable"))) {
             definition.append(" NOT NULL");
         }
-        Object defaultValue = column.get("default");
-        if (defaultValue != null && !String.valueOf(defaultValue).trim().isEmpty()) {
-            definition.append(" DEFAULT ").append(String.valueOf(defaultValue));
+        String defaultClause = dumpDefaultClause(column);
+        if (!defaultClause.isEmpty()) {
+            definition.append(" DEFAULT ").append(defaultClause);
         }
         return definition.toString();
+    }
+
+    /**
+     * GBase 8s keeps keyword defaults out of {@code sysdefaults.default}: the
+     * row only records the kind in {@code sysdefaults.type}. 'C' means CURRENT,
+     * 'T' TODAY, 'U' USER and 'S' DBSERVERNAME (the same mapping the official
+     * get_ddl recipe uses). Reading the value column alone therefore dropped
+     * the DEFAULT clause entirely for DATETIME/DATE columns, which is why the
+     * exported structure differed from the vendor tools. Rebuild the keyword
+     * with the column's own datetime qualifier so
+     * {@code DATETIME YEAR TO FRACTION(3)} keeps
+     * {@code DEFAULT current YEAR TO FRACTION(3)}.
+     */
+    private static String dumpDefaultClause(Map<String, Object> column) {
+        Object kindValue = column.get("default_type");
+        String kind = kindValue == null ? "" : String.valueOf(kindValue).trim();
+        if ("C".equalsIgnoreCase(kind)) {
+            return "current" + currentQualifier(String.valueOf(column.get("raw_type")));
+        }
+        if ("T".equalsIgnoreCase(kind)) {
+            return "today";
+        }
+        if ("U".equalsIgnoreCase(kind)) {
+            return "user";
+        }
+        if ("S".equalsIgnoreCase(kind)) {
+            return "dbservername";
+        }
+        Object defaultValue = column.get("default");
+        return defaultValue == null ? "" : String.valueOf(defaultValue).trim();
+    }
+
+    private static String currentQualifier(String rawType) {
+        String type = rawType == null ? "" : rawType.trim();
+        if (!type.toUpperCase().startsWith("DATETIME")) {
+            // CURRENT alone is what GBase 8s accepts for DATE columns.
+            return "";
+        }
+        String qualifier = type.substring("DATETIME".length()).trim();
+        return qualifier.isEmpty() ? "" : " " + qualifier;
     }
 
     private String readTableComment(Connection connection, String schema, String table) {
@@ -617,15 +669,83 @@ public final class GBase8sIpcServer {
         return "";
     }
 
-    private String indexStatement(String schema, String table, Map<String, Object> index) {
+    private String indexStatement(String table, Map<String, Object> index) {
         StringBuilder sql = new StringBuilder("CREATE ");
         if (Boolean.TRUE.equals(index.get("is_unique"))) {
             sql.append("UNIQUE ");
         }
         sql.append("INDEX ").append(quote(String.valueOf(index.get("name"))))
-            .append(" ON ").append(qualifiedIdentifier("", schema, table))
+            .append(" ON ").append(quote(table))
             .append(" (").append(quoteList(stringList(index.get("columns")))).append(")");
         return sql.toString();
+    }
+
+    /**
+     * Appends the constraints the get_ddl SPL never emits: foreign keys and
+     * CHECK rules live in sysconstraints, so a dump driven by the SPL (or by
+     * the catalog rebuild) otherwise loses every referential and check rule.
+     * GBase 8s only accepts a constraint name after the definition
+     * ({@code ADD CONSTRAINT FOREIGN KEY (...) REFERENCES ... CONSTRAINT
+     * name}), so the name trails the rule exactly like the vendor's own
+     * get_ddl does for PRIMARY KEY. Constraints are best-effort: a catalog
+     * permission error must not drop the table structure itself.
+     */
+    private void appendConstraintDdl(List<String> statements, Connection connection, String database, String schema, String table) {
+        try {
+            for (Map<String, Object> foreignKey : readForeignKeys(connection, database, schema, table)) {
+                String sql = foreignKeyStatement(foreignKey);
+                if (!sql.isEmpty()) {
+                    statements.add(sql + ";");
+                }
+            }
+        } catch (SQLException error) {
+            // Keep the structure statements even when the catalog is unreadable.
+        }
+        try {
+            for (Map<String, Object> check : readChecks(connection, database, schema, table)) {
+                String sql = checkStatement(check);
+                if (!sql.isEmpty()) {
+                    statements.add(sql + ";");
+                }
+            }
+        } catch (SQLException error) {
+            // Keep the structure statements even when the catalog is unreadable.
+        }
+    }
+
+    private String foreignKeyStatement(Map<String, Object> foreignKey) {
+        String name = String.valueOf(foreignKey.get("name")).trim();
+        String fromTable = String.valueOf(foreignKey.get("from_table")).trim();
+        String toTable = String.valueOf(foreignKey.get("to_table")).trim();
+        List<String> fromColumns = stringList(foreignKey.get("from_columns"));
+        List<String> toColumns = stringList(foreignKey.get("to_columns"));
+        if (name.isEmpty() || fromTable.isEmpty() || toTable.isEmpty()
+            || fromColumns.isEmpty() || toColumns.isEmpty()) {
+            return "";
+        }
+        StringBuilder sql = new StringBuilder("ALTER TABLE ")
+            .append(quote(fromTable))
+            .append(" ADD CONSTRAINT FOREIGN KEY (").append(quoteList(fromColumns)).append(')')
+            .append(" REFERENCES ").append(quote(toTable))
+            .append(" (").append(quoteList(toColumns)).append(')')
+            .append(" CONSTRAINT ").append(quote(name));
+        // GBase 8s only models CASCADE; the RESTRICT default needs no keyword
+        // and SET NULL / SET DEFAULT are rejected by the server.
+        if ("CASCADE".equalsIgnoreCase(String.valueOf(foreignKey.get("on_delete")))) {
+            sql.append(" ON DELETE CASCADE");
+        }
+        return sql.toString();
+    }
+
+    private String checkStatement(Map<String, Object> check) {
+        String name = String.valueOf(check.get("name")).trim();
+        String table = String.valueOf(check.get("table")).trim();
+        String definition = String.valueOf(check.get("definition")).trim();
+        if (name.isEmpty() || table.isEmpty() || definition.isEmpty()) {
+            return "";
+        }
+        return "ALTER TABLE " + quote(table)
+            + " ADD CONSTRAINT CHECK (" + definition + ") CONSTRAINT " + quote(name);
     }
 
     private boolean isTableKind(String kind) {
@@ -658,8 +778,12 @@ public final class GBase8sIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         String table = requiredText(params, "table");
+        return ok(id, readForeignKeys(state.connection, database, schema, table));
+    }
+
+    private List<Map<String, Object>> readForeignKeys(Connection connection, String database, String schema, String table) throws SQLException {
         QueryResult query = queryRunner.queryBuffered(
-            state.connection,
+            connection,
             GBase8sSchemaSql.foreignKeysSql(database, schema, table),
             null,
             null
@@ -689,7 +813,7 @@ public final class GBase8sIpcServer {
             addUniqueString(foreignKey.get("from_columns"), rowString(row, 2));
             addUniqueString(foreignKey.get("to_columns"), rowString(row, 4));
         }
-        return ok(id, new ArrayList<Map<String, Object>>(foreignKeys.values()));
+        return new ArrayList<Map<String, Object>>(foreignKeys.values());
     }
 
     private JsonNode handleSchemaChecks(JsonNode id, JsonNode params) throws SQLException {
@@ -700,8 +824,12 @@ public final class GBase8sIpcServer {
         String database = optionalText(params, "database", state.config.getDatabase());
         String schema = optionalText(params, "schema", "");
         String table = requiredText(params, "table");
+        return ok(id, readChecks(state.connection, database, schema, table));
+    }
+
+    private List<Map<String, Object>> readChecks(Connection connection, String database, String schema, String table) throws SQLException {
         QueryResult query = queryRunner.queryBuffered(
-            state.connection,
+            connection,
             GBase8sSchemaSql.checksSql(database, schema, table),
             null,
             null
@@ -727,7 +855,7 @@ public final class GBase8sIpcServer {
             String definition = String.valueOf(check.get("definition"));
             check.put("definition", definition + rowString(row, 2));
         }
-        return ok(id, new ArrayList<Map<String, Object>>(checks.values()));
+        return new ArrayList<Map<String, Object>>(checks.values());
     }
 
     private JsonNode handleSchemaViews(JsonNode id, JsonNode params) throws SQLException {

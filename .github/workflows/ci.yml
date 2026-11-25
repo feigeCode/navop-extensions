@@ -21,6 +21,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build Go module
+        # Extension tests only run the Go toolchain for extensions declared as
+        # Go, so a PR that adds Go files outside extensions/ (or to a Java
+        # extension) can break `go build ./...` on main without any job noticing.
+        run: go build ./...
       - name: Install manifest type dependencies
         working-directory: packages/navop-extension-types
         run: npm ci

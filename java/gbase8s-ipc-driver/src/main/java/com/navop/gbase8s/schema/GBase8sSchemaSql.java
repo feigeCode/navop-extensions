@@ -39,7 +39,7 @@ public final class GBase8sSchemaSql {
     }
 
     public static String columnsSql(String database, String schema, String table) {
-        return "SELECT c.colno, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, d.default, COALESCE(cm.comments, ''), c.collength, CAST(ce.coltypename2 AS VARCHAR(128)) "
+        return "SELECT c.colno, c.colname, c.coltype, CASE WHEN BITAND(c.coltype, 256) = 256 THEN 'NO' ELSE 'YES' END, d.default, COALESCE(cm.comments, ''), c.collength, CAST(ce.coltypename2 AS VARCHAR(128)), COALESCE(d.type, '') "
             + "FROM syscolumns c "
             + "JOIN systables t ON c.tabid = t.tabid "
             + "LEFT JOIN sysdefaults d ON d.tabid = c.tabid AND d.colno = c.colno "

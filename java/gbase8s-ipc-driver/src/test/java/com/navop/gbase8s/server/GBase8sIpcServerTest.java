@@ -49,7 +49,7 @@ public class GBase8sIpcServerTest {
         GBase8sIpcServer server = newServer();
 
         JsonNode init = server.handle(request(1, "init", "{\"host_version\":\"1.0.0\",\"api_offered\":{\"database\":\"1.0\"},\"instance_id\":\"test\",\"config\":{}}"));
-        assertEquals("0.1.25", init.get("result").get("extension_version").asText());
+        assertEquals("0.1.26", init.get("result").get("extension_version").asText());
         assertEquals("gbase8s", init.get("result").get("drivers_ready").get(0).asText());
         assertTrue(init.get("result").get("methods").toString().contains("schema/object_view"));
         assertTrue(init.get("result").get("methods").toString().contains("schema/dump_ddl"));
@@ -257,11 +257,16 @@ public class GBase8sIpcServerTest {
         assertTrue(dump.toString(), dump.has("result"));
         assertFalse(dump.toString(), dump.has("error"));
         JsonNode statements = dump.get("result").get("statements");
-        assertEquals(4, statements.size());
-        assertEquals("CREATE TABLE gbasedbt.sample (id INTEGER NOT NULL, name VARCHAR(64) DEFAULT abc, created_at DATETIME YEAR TO FRACTION(3), price DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (id));", statements.get(0).asText());
-        assertEquals("COMMENT ON TABLE gbasedbt.sample IS 'Sample table comment';", statements.get(1).asText());
-        assertEquals("COMMENT ON COLUMN gbasedbt.sample.name IS 'Sample column comment';", statements.get(2).asText());
-        assertEquals("CREATE INDEX zz_sample_name_id ON gbasedbt.sample (name, id);", statements.get(3).asText());
+        assertEquals(6, statements.size());
+        assertEquals("CREATE TABLE sample (id INTEGER NOT NULL, name VARCHAR(64) DEFAULT abc, created_at DATETIME YEAR TO FRACTION(3) DEFAULT current YEAR TO FRACTION(3), price DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (id));", statements.get(0).asText());
+        assertEquals("COMMENT ON TABLE sample IS 'Sample table comment';", statements.get(1).asText());
+        assertEquals("COMMENT ON COLUMN sample.name IS 'Sample column comment';", statements.get(2).asText());
+        assertEquals("CREATE INDEX zz_sample_name_id ON sample (name, id);", statements.get(3).asText());
+        // The get_ddl SPL never carries referential/check rules: they are
+        // appended as ALTER TABLE ... ADD CONSTRAINT with the name trailing the
+        // definition, the only shape GBase 8s accepts.
+        assertEquals("ALTER TABLE sample ADD CONSTRAINT FOREIGN KEY (id) REFERENCES parent_sample (id) CONSTRAINT fk_sample_parent ON DELETE CASCADE;", statements.get(4).asText());
+        assertEquals("ALTER TABLE sample ADD CONSTRAINT CHECK (name IS NOT NULL) CONSTRAINT ck_sample_name;", statements.get(5).asText());
         for (JsonNode statement : statements) {
             assertTrue(statement.toString(), statement.asText().trim().endsWith(";"));
         }
@@ -567,6 +572,10 @@ public class GBase8sIpcServerTest {
                 statement.execute("INSERT INTO syscolumnsext VALUES (100, 4, 'price', 'DECIMAL')");
                 statement.execute("CREATE TABLE sysdefaults (tabid INT, colno INT, type CHAR(1), default VARCHAR(255), class CHAR(1))");
                 statement.execute("INSERT INTO sysdefaults VALUES (100, 2, 'L', 'AAAAAw abc', 'T')");
+                // CURRENT defaults only record their kind ('C') in sysdefaults;
+                // the value column stays NULL. The driver must rebuild
+                // "DEFAULT current YEAR TO FRACTION(3)" from the column type.
+                statement.execute("INSERT INTO sysdefaults VALUES (100, 3, 'C', NULL, 'T')");
                 // Regression: real GBase 8s servers also emit shorter encoded
                 // headers ("AAA 0"); the old "AAAA" guard leaked them into the
                 // exported DDL as "DEFAULT AAA 0" (-201 syntax on re-import).
