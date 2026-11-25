@@ -208,6 +208,11 @@ fn is_authentication_failure_message(message: &str) -> bool {
         "wrong password",
         "invalid password",
         "password incorrect",
+        "no configured security type",
+        "security type is not supported",
+        "no matching security types",
+        "too many security failures",
+        "too many authentication failures",
     ]
     .iter()
     .any(|marker| message.contains(marker));

@@ -59,11 +59,30 @@ impl From<[u8; 12]> for VncVersion {
             b"RFB 003.003\n" => VncVersion::RFB33,
             b"RFB 003.007\n" => VncVersion::RFB37,
             b"RFB 003.008\n" => VncVersion::RFB38,
-            // https://www.rfc-editor.org/rfc/rfc6143#section-7.1.1
-            //  Other version numbers are reported by some servers and clients,
-            //  but should be interpreted as 3.3 since they do not implement the
-            //  different handshake in 3.7 or 3.8.
-            _ => VncVersion::RFB33,
+            _ => {
+                // RFC 6143 Section 7.1.1:
+                // Clients advertising a newer RFB version (such as RealVNC 4.x / 5.0
+                // or Apple Remote Desktop 3.889) should be negotiated at the highest
+                // version supported by the client (3.8), while legacy 3.x variants
+                // below 3.7 (such as 3.5) fall back to 3.3.
+                if version.starts_with(b"RFB ") && version[7] == b'.' && version[11] == b'\n' {
+                    let major = std::str::from_utf8(&version[4..7])
+                        .ok()
+                        .and_then(|s| s.parse::<u16>().ok());
+                    let minor = std::str::from_utf8(&version[8..11])
+                        .ok()
+                        .and_then(|s| s.parse::<u16>().ok());
+                    if let (Some(major), Some(minor)) = (major, minor) {
+                        if major > 3 || (major == 3 && minor >= 8) {
+                            return VncVersion::RFB38;
+                        }
+                        if major == 3 && minor == 7 {
+                            return VncVersion::RFB37;
+                        }
+                    }
+                }
+                VncVersion::RFB33
+            }
         }
     }
 }

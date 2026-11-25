@@ -22,6 +22,14 @@ fn rfb_38_authentication_failure_reason_is_terminal() {
 }
 
 #[test]
+fn server_security_type_rejection_is_terminal() {
+    assert_terminal_authentication_failure(
+        VncError::General("No configured security type is supported by 3.3 VNC Viewer".to_string()),
+        "No configured security type",
+    );
+}
+
+#[test]
 fn transient_io_error_still_requests_reconnect() {
     let error = anyhow::Error::new(VncError::IoError(io::Error::new(
         io::ErrorKind::ConnectionReset,

@@ -6,7 +6,11 @@ use tracing::{info, trace};
 use super::{
     auth::{AuthHelper, AuthResult, SecurityType, read_failure_reason},
     connection::VncClient,
-    security::{SecurityPolicy, VncCredentials, select_security},
+    security::{
+        SecurityPolicy, VncCredentials,
+        ra2::{MaybeEncryptedStream, handshake_ra2},
+        select_security,
+    },
 };
 use crate::{PixelFormat, VncEncoding, VncError, VncVersion};
 
@@ -59,7 +63,8 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
-    let server_version = VncVersion::read(&mut connector.stream).await?;
+    let stream = connector.stream_mut()?;
+    let server_version = VncVersion::read(stream).await?;
     trace!(
         "Our version {:?}, server version {:?}",
         connector.rfb_version, server_version
@@ -70,7 +75,8 @@ where
         server_version
     };
     trace!("Negotiated rfb version: {:?}", connector.rfb_version);
-    connector.rfb_version.write(&mut connector.stream).await
+    let version = connector.rfb_version;
+    version.write(connector.stream_mut()?).await
 }
 
 async fn authenticate<S, F>(connector: &mut VncConnector<S, F>) -> Result<(), VncError>
@@ -78,7 +84,8 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
-    let advertised = SecurityType::read(&mut connector.stream, &connector.rfb_version).await?;
+    let version = connector.rfb_version;
+    let advertised = SecurityType::read(connector.stream_mut()?, &version).await?;
     let selected = select_security(
         &advertised,
         connector.security_policy,
@@ -93,8 +100,29 @@ where
     match selected {
         SecurityType::None => authenticate_none(connector).await,
         SecurityType::VncAuth => authenticate_vnc(connector).await,
+        SecurityType::RA2 => authenticate_ra2(connector).await,
         _ => unreachable!("selection only returns implemented security backends"),
     }
+}
+
+async fn authenticate_ra2<S, F>(connector: &mut VncConnector<S, F>) -> Result<(), VncError>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
+{
+    if connector.rfb_version != VncVersion::RFB33 {
+        SecurityType::RA2.write(connector.stream_mut()?).await?;
+    }
+    let password = connector.resolve_password().await?;
+    let username = connector.credentials.username.clone();
+    let plain_stream = connector.stream.take().ok_or(VncError::ConnectError)?;
+    let MaybeEncryptedStream::Plain(inner) = plain_stream else {
+        return Err(VncError::ConnectError);
+    };
+    let mut ra2_stream = handshake_ra2(inner, username.as_deref(), &password).await?;
+    check_auth_result(&mut ra2_stream, connector.rfb_version).await?;
+    connector.stream = Some(MaybeEncryptedStream::Ra2(ra2_stream));
+    Ok(())
 }
 
 async fn authenticate_none<S, F>(connector: &mut VncConnector<S, F>) -> Result<(), VncError>
@@ -106,9 +134,10 @@ where
         info!("No auth needed in vnc3.3");
         return Ok(());
     }
-    SecurityType::None.write(&mut connector.stream).await?;
-    if connector.rfb_version == VncVersion::RFB38 {
-        check_auth_result(&mut connector.stream, connector.rfb_version).await?;
+    let version = connector.rfb_version;
+    SecurityType::None.write(connector.stream_mut()?).await?;
+    if version == VncVersion::RFB38 {
+        check_auth_result(connector.stream_mut()?, version).await?;
     }
     Ok(())
 }
@@ -118,14 +147,15 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
-    if connector.rfb_version != VncVersion::RFB33 {
-        SecurityType::VncAuth.write(&mut connector.stream).await?;
+    let version = connector.rfb_version;
+    if version != VncVersion::RFB33 {
+        SecurityType::VncAuth.write(connector.stream_mut()?).await?;
     }
     let password = connector.resolve_password().await?;
-    let auth = AuthHelper::read(&mut connector.stream, &password).await?;
-    auth.write(&mut connector.stream).await?;
-    let result = auth.finish(&mut connector.stream).await?;
-    handle_auth_result(result, &mut connector.stream, connector.rfb_version).await
+    let auth = AuthHelper::read(connector.stream_mut()?, &password).await?;
+    auth.write(connector.stream_mut()?).await?;
+    let result = auth.finish(connector.stream_mut()?).await?;
+    handle_auth_result(result, connector.stream_mut()?, version).await
 }
 
 async fn check_auth_result<S>(stream: &mut S, version: VncVersion) -> Result<(), VncError>
@@ -169,8 +199,9 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
+    let stream = connector.stream.ok_or(VncError::ConnectError)?;
     VncClient::new(
-        connector.stream,
+        stream,
         connector.allow_shared,
         connector.pixel_format,
         connector.encodings,
@@ -184,7 +215,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
-    stream: S,
+    stream: Option<MaybeEncryptedStream<S>>,
     credentials: VncCredentials,
     auth_method: Option<F>,
     security_policy: SecurityPolicy,
@@ -200,7 +231,7 @@ where
 {
     pub fn new(stream: S) -> Self {
         Self {
-            stream,
+            stream: Some(MaybeEncryptedStream::Plain(stream)),
             credentials: VncCredentials::default(),
             auth_method: None,
             security_policy: SecurityPolicy::Auto,
@@ -217,6 +248,9 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     F: Future<Output = Result<String, VncError>> + Send + Sync + 'static,
 {
+    fn stream_mut(&mut self) -> Result<&mut MaybeEncryptedStream<S>, VncError> {
+        self.stream.as_mut().ok_or(VncError::ConnectError)
+    }
     /// Compatibility adapter for password-only callers.
     pub fn set_auth_method<A>(self, auth_callback: A) -> VncConnector<S, A>
     where
