@@ -3,7 +3,7 @@
   "id": "com.onetcli.importer.navicat",
   "name": "Navicat Importer",
   "description": "从 Navicat 偏好设置 plist 和连接导出文件中读取数据库连接，并通过 Rust WASM 导入到 Navop；支持本地迁移和离线导入场景；旧版连接导出的明文口令支持解密导入。 Reads database connections from Navicat preference plists and connection exports, then imports them into Navop through Rust WASM for local migration and offline import workflows. Legacy connection-export passwords are decrypted on import.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"

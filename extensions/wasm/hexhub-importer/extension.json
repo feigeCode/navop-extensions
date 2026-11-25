@@ -3,7 +3,7 @@
   "id": "com.onetcli.importer.hexhub",
   "name": "HexHub Importer",
   "description": "从 HexHub 客户端导出的 HexHub-Assets.json 中读取 SSH 会话、数据库与 Redis 连接以及快捷命令，并通过 Rust WASM 导入到 Navop；导出文件里的口令与私钥用客户端内置的固定密钥加密，可离线解密后一并迁移，覆盖本地迁移与离线导入场景。 Reads SSH sessions, database and Redis connections, and quick commands from a HexHub asset export (HexHub-Assets.json) and imports them into Navop through Rust WASM. Passwords and private keys are protected with the client's built-in fixed key, so they are decrypted offline and migrated together, covering local migration and offline import workflows.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Navop",
   "engines": {
     "onetcli": ">=0.7.0"

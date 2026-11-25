@@ -863,7 +863,7 @@ test("Notes PDF exporter has enough fuel for rendered Mermaid SVG", () => {
   );
   const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-pdf-exporter");
 
-  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(sourceManifest.version, "0.1.3");
   assert.equal(runtime?.fuel_per_call, 1_000_000_000);
   assert.equal(runtime?.timeout_ms, 30_000);
 });
@@ -874,7 +874,7 @@ test("Notes HTML exporter has enough resources for self-contained network images
   );
   const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-html-exporter");
 
-  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(sourceManifest.version, "0.1.3");
   assert.equal(runtime?.fuel_per_call, 2_000_000_000);
   assert.equal(runtime?.max_memory_mb, 256);
   assert.equal(runtime?.timeout_ms, 30_000);
@@ -886,7 +886,7 @@ test("Notes Word exporter has enough fuel for bounded multi-image documents", ()
   );
   const runtime = sourceManifest.runtime.wasm.find((entry) => entry.id === "notes-word-exporter");
 
-  assert.equal(sourceManifest.version, "0.1.2");
+  assert.equal(sourceManifest.version, "0.1.3");
   assert.equal(runtime?.fuel_per_call, 1_000_000_000);
   assert.equal(runtime?.timeout_ms, 20_000);
 });
@@ -1149,7 +1149,7 @@ test("HexHub importer is registered as a composite WASM importer", () => {
     (extension) => extension.id === sourceManifest.id,
   );
   assert.ok(marketplaceEntry, "a released importer must appear in the marketplace manifest");
-  assert.equal(marketplaceEntry.release_tag, "hexhub-importer-v0.1.0");
+  assert.equal(marketplaceEntry.release_tag, "hexhub-importer-v0.1.1");
   assert.equal(marketplaceEntry.manifest, "hexhub-importer/manifest.json");
   assert.equal(marketplaceEntry.description, sourceManifest.description);
 
