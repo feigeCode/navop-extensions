@@ -781,6 +781,24 @@ test("Redis marketplace entry tracks the released native driver", () => {
   );
 });
 
+test("rust-wasm release workflow pins Rust 1.94.0 and verify-composite-package guards WASI <= 0.2.6", () => {
+  const workflow = fs.readFileSync(
+    path.join(repoRoot, ".github/workflows/release.yml"),
+    "utf8",
+  );
+  assert.match(
+    workflow,
+    /matrix\.language == 'rust-wasm'[\s\S]{0,400}toolchain:\s*"1\.94\.0"[\s\S]{0,80}target:\s*wasm32-wasip2/,
+  );
+
+  const verifyScript = fs.readFileSync(
+    path.join(repoRoot, "scripts/verify-composite-package.sh"),
+    "utf8",
+  );
+  assert.match(verifyScript, /maxSupportedWasiPatch\s*=\s*6/);
+  assert.match(verifyScript, /imports WASI interfaces newer than 0\.2\./);
+});
+
 test("WASM connection importers use the shared host connection-import WIT", () => {
   const sharedWit = path.join(repoRoot, "wit/connection-import.wit");
   assert.ok(fs.existsSync(sharedWit), "repository should vendor a single shared connection-import WIT");

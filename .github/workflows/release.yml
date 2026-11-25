@@ -105,6 +105,11 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         if: ${{ matrix.language == 'rust-wasm' }}
         with:
+          # Navop 宿主当前锁定 wasmtime-wasi =36.0.14（最高支持 WASI 0.2.6）。
+          # Rust >=1.95 的 wasm32-wasip2 标准库升级到了 WASI 0.2.12，会导致已发布的
+          # Navop 客户端加载组件时报错 `wasi:cli/exit@0.2.12 not found in linker`。
+          # 因此这里固定 1.94.0 产出 WASI 0.2.0~0.2.6 兼容组件。
+          toolchain: "1.94.0"
           target: wasm32-wasip2
       - uses: actions/setup-go@v5
         if: ${{ matrix.language == 'go' && matrix.target != 'universal' }}
