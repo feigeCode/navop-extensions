@@ -8,8 +8,8 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-mermaid_render = { git = "https://github.com/zed-industries/zed", rev = "23bb2fc135a69492847c3aa68444a7d14cc282f6" }
-gpui = { git = "https://github.com/zed-industries/zed", rev = "23bb2fc135a69492847c3aa68444a7d14cc282f6", default-features = false }
+mermaid_render = { git = "https://github.com/zed-industries/zed", rev = "0711d9e42bcb5ab082a5de9e05c5b851581b2969" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "0711d9e42bcb5ab082a5de9e05c5b851581b2969", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wit-bindgen = "0.57.1"
