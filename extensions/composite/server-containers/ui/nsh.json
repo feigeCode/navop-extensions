@@ -1,0 +1,9 @@
+{
+  "name": "服务器容器",
+  "id": "com.navop.server-containers",
+  "version": "0.3.4",
+  "build": 7,
+  "capabilities": {
+    "host": true
+  }
+}

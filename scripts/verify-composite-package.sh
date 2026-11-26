@@ -108,7 +108,23 @@ for (const runtime of ipcRuntimes) {
 // 先给出迁移提示，再按宿主安装期校验（crates/extension-runtime/src/extension/
 // manifest/shell_validation.rs）逐项检查。
 const shellApp = manifest.contributes?.shellApp ?? null;
-const supportedModules = new Set(["resource", "job", "event", "blob", "log", "runtime", "dev"]);
+// 与宿主 ShellHostModule::is_supported 对齐（crates/extension-runtime/src/
+// extension/manifest/contributes/shell.rs）：漏掉 app/db/ui/terminal/ai 会让
+// 声明了这些能力面的扩展在本地/CI 校验阶段被误判为「宿主不支持」。
+const supportedModules = new Set([
+  "resource",
+  "job",
+  "event",
+  "blob",
+  "log",
+  "runtime",
+  "dev",
+  "app",
+  "db",
+  "ui",
+  "terminal",
+  "ai",
+]);
 const backendModules = new Set(["resource", "job", "event", "blob"]);
 const reservedBackendAliases = new Set(["host", "navop", "default"]);
 // 与宿主内置 nsh 运行时（nsh-platform-gpui 的 minor）保持一致。

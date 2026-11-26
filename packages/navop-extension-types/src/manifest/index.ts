@@ -202,6 +202,8 @@ export interface PanelContrib {
   anchor?: string;
   /** 排序权重 -1000..=1000，小在前。 */
   order?: number;
+  /** 默认停靠位置：`left` / `right`（默认）/ `bottom`；用户之后仍可手动移动。 */
+  placement?: "left" | "right" | "bottom";
   /** 可见性表达式（when 子句）；空串视为恒可见。 */
   when?: string;
 }

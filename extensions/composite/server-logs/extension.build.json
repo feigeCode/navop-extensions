@@ -1,0 +1,11 @@
+{
+  "id": "server-logs",
+  "kind": "composite",
+  "language": "static",
+  "package": "server-logs",
+  "path": "extensions/composite/server-logs",
+  "targets": ["universal"],
+  "releaseTagPrefix": "server-logs-v",
+  "r2Prefix": "extensions/server-logs",
+  "published": false
+}

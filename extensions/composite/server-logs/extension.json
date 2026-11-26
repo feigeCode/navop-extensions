@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.server-logs",
+  "name": "服务器日志",
+  "version": "0.4.3",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "静态扩展（Static）：参考 motty 的底部双栏日志面板，左侧按服务器保存用户自建的日志文件记录，支持新建、编辑、删除与绝对路径去重；右侧显示输出，支持输出内搜索、远端过滤、读取行数与跟随刷新。 Static extension with a two-pane server log viewer: per-host saved log file records with add/edit/delete and absolute-path validation, plus output search, remote filtering, tail sizes and follow mode.",
+  "categories": [
+    "developer-tools"
+  ],
+  "keywords": [
+    "logs",
+    "tail",
+    "server",
+    "ssh",
+    "journalctl"
+  ],
+  "engines": {
+    "onetcli": ">=0.23.0",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "服务器日志",
+      "description": "读取当前服务器的日志文件，支持过滤与跟随",
+      "entry": "ui/dist/bundle.js",
+      "category": "developer-tools",
+      "keywords": [
+        "logs",
+        "tail",
+        "server"
+      ],
+      "backends": {},
+      "modules": [
+        "terminal",
+        "ui"
+      ],
+      "icon": "icons/server-logs.svg"
+    },
+    "panels": [
+      {
+        "id": "server-logs",
+        "title": "服务器日志",
+        "anchor": "terminal-sidebar",
+        "placement": "bottom",
+        "order": 100,
+        "icon": "icons/server-logs.svg"
+      }
+    ]
+  }
+}

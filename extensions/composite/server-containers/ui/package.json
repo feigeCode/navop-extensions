@@ -1,0 +1,9 @@
+{
+  "name": "@navop-ext/server-containers-ui",
+  "private": true,
+  "type": "module",
+  "description": "服务器容器（Docker / Kubernetes）面板的 nsh app（构建产物见 dist/）。",
+  "dependencies": {
+    "@navop/extension-kit": "*"
+  }
+}

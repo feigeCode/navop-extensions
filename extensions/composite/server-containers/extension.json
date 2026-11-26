@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "id": "com.navop.server-containers",
+  "name": "服务器容器",
+  "version": "0.3.4",
+  "publisher": "Navop",
+  "license": "Apache-2.0",
+  "description": "静态扩展（Static）：参考 motty 的多页签服务器工具，在一个扩展和面板中切换进程、Docker 容器、镜像、卷、网络、Compose 与 Kubernetes。容器支持日志及启动、停止、重启确认；其他页签提供过滤、刷新和清晰状态。 Static extension with switchable server-tool tabs for processes, Docker containers, images, volumes, networks, Compose and Kubernetes, including confirmed container actions, logs, filtering and refresh.",
+  "categories": [
+    "containers",
+    "developer-tools"
+  ],
+  "keywords": [
+    "docker",
+    "container",
+    "kubernetes",
+    "k8s",
+    "kubectl",
+    "server",
+    "ssh"
+  ],
+  "engines": {
+    "onetcli": ">=0.23.0",
+    "nsh": "0.3.0"
+  },
+  "api": {
+    "extension": "1.0",
+    "shell": "1.0"
+  },
+  "permissions": [
+    "shell:exec"
+  ],
+  "contributes": {
+    "shellApp": {
+      "title": "服务器容器",
+      "description": "当前服务器上的 Docker 容器与 Kubernetes Pod，面板内多页签切换",
+      "entry": "ui/dist/bundle.js",
+      "category": "container",
+      "keywords": [
+        "docker",
+        "kubernetes",
+        "k8s"
+      ],
+      "backends": {},
+      "modules": [
+        "terminal",
+        "ui"
+      ],
+      "icon": "icons/server-containers.svg"
+    },
+    "panels": [
+      {
+        "id": "containers",
+        "title": "服务器容器",
+        "anchor": "terminal-sidebar",
+        "placement": "right",
+        "order": 110,
+        "icon": "icons/server-containers.svg"
+      }
+    ]
+  }
+}

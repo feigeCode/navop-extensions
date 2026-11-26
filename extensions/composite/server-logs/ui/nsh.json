@@ -1,0 +1,9 @@
+{
+  "name": "服务器日志",
+  "id": "com.navop.server-logs",
+  "version": "0.4.3",
+  "build": 9,
+  "capabilities": {
+    "host": true
+  }
+}

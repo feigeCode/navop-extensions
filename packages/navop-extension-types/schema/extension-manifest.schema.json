@@ -595,6 +595,16 @@
           "minimum": -1000,
           "maximum": 1000
         },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "bottom"
+          ],
+          "default": "right",
+          "description": "面板默认停靠位置：左侧 / 右侧（默认）/ 底部"
+        },
         "when": {
           "type": "string",
           "maxLength": 256
