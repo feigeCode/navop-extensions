@@ -533,6 +533,26 @@
         "zig"
       ],
       "manifest": "tree-sitter-languages/manifest.json"
+    },
+    {
+      "id": "com.navop.server-logs",
+      "kind": "composite",
+      "name": "服务器日志",
+      "version": "0.4.3",
+      "release_tag": "server-logs-v0.4.3",
+      "description": "静态扩展（Static）：参考 motty 的底部双栏日志面板，左侧按服务器保存用户自建的日志文件记录，支持新建、编辑、删除与绝对路径去重；右侧显示输出，支持输出内搜索、远端过滤、读取行数与跟随刷新。 Static extension with a two-pane server log viewer: per-host saved log file records with add/edit/delete and absolute-path validation, plus output search, remote filtering, tail sizes and follow mode.",
+      "file_extensions": [],
+      "manifest": "server-logs/manifest.json"
+    },
+    {
+      "id": "com.navop.server-containers",
+      "kind": "composite",
+      "name": "服务器容器",
+      "version": "0.3.4",
+      "release_tag": "server-containers-v0.3.4",
+      "description": "静态扩展（Static）：参考 motty 的多页签服务器工具，在一个扩展和面板中切换进程、Docker 容器、镜像、卷、网络、Compose 与 Kubernetes。容器支持日志及启动、停止、重启确认；其他页签提供过滤、刷新和清晰状态。 Static extension with switchable server-tool tabs for processes, Docker containers, images, volumes, networks, Compose and Kubernetes, including confirmed container actions, logs, filtering and refresh.",
+      "file_extensions": [],
+      "manifest": "server-containers/manifest.json"
     }
   ]
 }

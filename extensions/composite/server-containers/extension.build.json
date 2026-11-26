@@ -6,6 +6,5 @@
   "path": "extensions/composite/server-containers",
   "targets": ["universal"],
   "releaseTagPrefix": "server-containers-v",
-  "r2Prefix": "extensions/server-containers",
-  "published": false
+  "r2Prefix": "extensions/server-containers"
 }
