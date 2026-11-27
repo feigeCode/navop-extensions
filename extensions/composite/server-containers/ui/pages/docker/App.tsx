@@ -40,6 +40,8 @@ export type DockerContainer = {
 
 const REFRESH_MS = 5000;
 const LOG_TAIL = 200;
+/** 日志区高度，点：固定高度让标题行下的 Scroll 有确定的可用空间。 */
+const LOG_PANEL_HEIGHT = 180;
 
 /** `docker ps --format '{{json .}}'` 每行一个 JSON 对象；坏行跳过而不是整页失败。 */
 export function parseContainers(stdout: string): DockerContainer[] {
@@ -366,8 +368,11 @@ export default function DockerPanel() {
       {selectedId() !== null ? (
         <View
           style={{
-            flexShrink: 0,
-            maxHeight: 180,
+            // 面板再矮也压得住：高度不够时先压日志区，不把列表和页脚挤出面板。
+            flexShrink: 1,
+            // 日志区必须先有确定高度：里面的 Scroll 是滚动容器，不参与父级的内容测量，
+            // 只写 maxHeight 的话这一块会缩成标题行高，日志正文高度为 0（issue #623）。
+            height: LOG_PANEL_HEIGHT,
             borderTopWidth: 1,
             borderTopColor: c.line(),
             flexDirection: "column",

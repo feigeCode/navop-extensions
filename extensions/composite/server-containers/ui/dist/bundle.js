@@ -2,7 +2,7 @@ import { append, bindProp, component, element, insert, prop, setup, text } from 
 import { cleanup, effect, host, mount, nativeModule, signal, token } from "nsh";
 
 //#region \0nsh-app
-setup(null, null, null, null, "{\"id\":\"com.navop.server-containers\",\"name\":\"服务器容器\",\"version\":\"0.3.4\",\"build\":7,\"development\":true}");
+setup(null, null, null, null, "{\"id\":\"com.navop.server-containers\",\"name\":\"服务器容器\",\"version\":\"0.3.5\",\"build\":8,\"development\":true}");
 
 //#endregion
 //#region ../../../../packages/extension-kit/src/navop.ts
@@ -724,6 +724,8 @@ function PanelBody(props) {
 //#region pages/docker/App.tsx
 const REFRESH_MS$1 = 5e3;
 const LOG_TAIL$1 = 200;
+/** 日志区高度，点：固定高度让标题行下的 Scroll 有确定的可用空间。 */
+const LOG_PANEL_HEIGHT$1 = 180;
 /** `docker ps --format '{{json .}}'` 每行一个 JSON 对象；坏行跳过而不是整页失败。 */
 function parseContainers(stdout) {
 	const rows = [];
@@ -1136,8 +1138,8 @@ function DockerPanel() {
 			() => selectedId() !== null ? (() => {
 				const __nsh_hv10 = element("view");
 				bindProp(__nsh_hv10, "style", () => ({
-					flexShrink: 0,
-					maxHeight: 180,
+					flexShrink: 1,
+					height: LOG_PANEL_HEIGHT$1,
 					borderTopWidth: 1,
 					borderTopColor: c.line(),
 					flexDirection: "column"
@@ -1195,6 +1197,8 @@ function DockerPanel() {
 //#region pages/kubernetes/App.tsx
 const REFRESH_MS = 5e3;
 const LOG_TAIL = 200;
+/** 日志区高度，点：固定高度让标题行下的 Scroll 有确定的可用空间。 */
+const LOG_PANEL_HEIGHT = 180;
 function kubectlPodsCommand(namespace) {
 	return `kubectl get pods ${namespace.trim().length === 0 ? "--all-namespaces" : `-n ${shellQuote(namespace.trim())}`} -o json`;
 }
@@ -1567,8 +1571,8 @@ function KubernetesPanel() {
 			() => selected() !== null ? (() => {
 				const __nsh_hv11 = element("view");
 				bindProp(__nsh_hv11, "style", () => ({
-					flexShrink: 0,
-					maxHeight: 180,
+					flexShrink: 1,
+					height: LOG_PANEL_HEIGHT,
 					borderTopWidth: 1,
 					borderTopColor: c.line(),
 					flexDirection: "column"
